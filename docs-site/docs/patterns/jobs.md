@@ -82,6 +82,64 @@ That's it. `IExcaliburBuilder.AddJobs(...)` registers Quartz.NET, the hosted ser
 
 Your job runs on the configured schedule. Quartz.NET handles scheduling and thread management. By default jobs and triggers are held in an **in-memory** store (`RAMJobStore`) — they are re-seeded on every startup and nothing survives a restart. To persist schedule state and coordinate across multiple instances, configure a [persistent, clustered job store](#persistent--clustered-job-store).
 
+## Missed Quartz cron firings
+
+The convenience `AddJob` cron registrations, including context jobs, `AddJobInstances`
+and `AddRecurringJob`, explicitly use Quartz's `FireAndProceed` misfire policy: run
+once after a recognized misfire, then resume the cron schedule. This coalesces missed
+firings; it does not replay every missed occurrence or guarantee exactly-once execution.
+Quartz's configured misfire threshold determines when a late firing is a misfire.
+
+For other policies, use the existing `configureQuartz` callback (or
+`AddQuartzWithJobs`) and Quartz's trigger configuration:
+
+```csharp
+using Quartz;
+using Microsoft.Extensions.DependencyInjection;
+
+// Application supplies the real report implementation through DI.
+public interface IReportWriter
+{
+    ValueTask WriteAsync(CancellationToken cancellationToken);
+}
+
+public sealed class QuartzReportJob(IReportWriter reports) : IJob
+{
+    public ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken)
+        => reports.WriteAsync(cancellationToken);
+
+    public Task Execute(IJobExecutionContext context)
+        => Execute(context, context.CancellationToken).AsTask();
+}
+
+public static class ReportScheduleRegistration
+{
+    public static void Run(IServiceCollection services)
+    {
+        services.AddQuartzWithJobs(q =>
+        {
+            q.AddJob<QuartzReportJob>(job => job.WithIdentity("report")); // QuartzReportJob implements Quartz.IJob
+            q.AddTrigger(trigger => trigger.ForJob("report").WithIdentity("report-trigger")
+                .WithCronSchedule("0 * * * * ?", schedule => schedule
+                    .InTimeZone(TimeZoneInfo.Utc)
+                    .WithMisfireInstruction(CronTriggerMisfireInstruction.DoNothing)));
+        });
+    }
+}
+```
+
+With `using Quartz;`, choose `DoNothing` to skip missed firings (NONE),
+`FireAndProceed` to coalesce them into one immediate firing (ONE), or `IgnoreMisfires`
+to let Quartz catch up missed firings (ALL). ALL can create a burst after a long
+outage; choose concurrency and resource limits for the workload. This callback
+retains Quartz's calendars, stores, listeners and other trigger capabilities.
+
+These are Quartz policies. The core Dispatch scheduling worker separately defaults
+to `SkipMissed` and has its own bounded replay options; configuring one does not
+configure the other. A misfire policy does not make the default RAM job store durable.
+Use the persistent store configuration below when restart retention is required.
+
+
 ## Registration Options
 
 There are several ways to register jobs depending on your needs:

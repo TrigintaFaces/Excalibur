@@ -43,6 +43,13 @@ CREATE TABLE DISPATCH.SAGATIMEOUTS (
     -- operating for another.
     TenantId     VARCHAR2(64 CHAR) DEFAULT '__untenanted__' NOT NULL,
 
+    -- Selected hosted hold profile. Source lifetime persists through resume; delivery cycle advances.
+    FailureSourceEpoch RAW(16) DEFAULT SYS_GUID() NOT NULL,
+    FailureDeliveryEpoch RAW(16) DEFAULT SYS_GUID() NOT NULL,
+    FailureHeld NUMBER(1,0) DEFAULT 0 NOT NULL,
+    FailureVersion NUMBER(19,0) DEFAULT 0 NOT NULL,
+    FailureReceipt BLOB NULL,
+
     CONSTRAINT PK_SAGATIMEOUTS PRIMARY KEY (TimeoutId)
 );
 

@@ -148,6 +148,14 @@ public sealed class OutboxRefusesUnfencedLeaderElectionShould
 			"silent outage instead of a deliberate trade.");
 	}
 
+	[Fact]
+	public async Task PermitStagingOnlyWithElectionAndNoGateWithoutActivatingADrainer()
+	{
+		await using var provider = BuildProvider(A.Fake<IOutboxStore>(), registerElection: true,
+			registerGate: false, singleActiveWriter: false, registerWorker: false);
+		await Should.NotThrowAsync(() => Validator(provider).StartAsync(CancellationToken.None));
+	}
+
 	// Drives exactly one producer claim: the store returns an empty batch, so the loops exit
 	// deterministically - no timing, no wall-clock dependency.
 	private static async Task DriveOneDrainAsync(IOutboxProcessor processor)
@@ -165,9 +173,13 @@ public sealed class OutboxRefusesUnfencedLeaderElectionShould
 		IOutboxStore store,
 		bool registerElection,
 		bool registerGate,
-		bool singleActiveWriter)
+		bool singleActiveWriter, bool registerWorker = true)
 	{
 		var services = new ServiceCollection();
+		services.AddLogging();
+		// Resolve the actual hosted validator without constructing a transport-dependent publisher.
+		// No background service is started by these direct validator calls.
+		services.AddSingleton(A.Fake<IOutboxPublisher>());
 
 		// The real host supplies logging; AddExcalibur does not. OutboxProcessor takes
 		// ILogger<OutboxProcessor> as a REQUIRED constructor parameter, so the DI-resolved
@@ -178,6 +190,7 @@ public sealed class OutboxRefusesUnfencedLeaderElectionShould
 		_ = services.AddExcalibur(x =>
 			x.AddOutbox(o =>
 			{
+				if (registerWorker) { _ = o.EnableBackgroundProcessing(); }
 				if (singleActiveWriter)
 				{
 					// The real, observable opt-out: IOutboxBuilder.AsSingleWriter() sets
@@ -214,8 +227,24 @@ public sealed class OutboxRefusesUnfencedLeaderElectionShould
 	// bare FakeItEasy fake would answer GetService with a non-null dummy and masquerade as fencing-capable,
 	// defeating the arms that depend on the store's true capability.
 
-	private sealed class PlainStore : IOutboxStore
+	private sealed class PlainStore : IOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore
 	{
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		public ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string messageId, string errorMessage, int retryCount, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		public ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffAsync(string messageId, string errorMessage, int retryCount, DateTimeOffset nextAttemptAt, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		private static ValueTask<OutboxCompletionOutcome> Missing(string id, string claim, CancellationToken token)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(id);
+			ArgumentException.ThrowIfNullOrWhiteSpace(claim);
+			token.ThrowIfCancellationRequested();
+			return ValueTask.FromResult(OutboxCompletionOutcome.MessageNotFound);
+		}
+
 		public bool UnfencedClaimCalled { get; private set; }
 
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
@@ -235,8 +264,17 @@ public sealed class OutboxRefusesUnfencedLeaderElectionShould
 			=> ValueTask.CompletedTask;
 	}
 
-	private sealed class FencedStore : IFencedOutboxStore
+	private sealed class FencedStore : IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore
 	{
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string id, OutboxWriteAuthority authority, CancellationToken token)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.MessageNotFound);
+		public ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string id, string error, int attempts, DateTimeOffset? nextAttemptAt, OutboxWriteAuthority authority, CancellationToken token)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.MessageNotFound);
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string id, string reason, int attempts, OutboxWriteAuthority authority, CancellationToken token)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.MessageNotFound);
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string id, string reason, int attempts, long fencingToken, CancellationToken token)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.MessageNotFound);
+
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 			int batchSize, long fencingToken, CancellationToken cancellationToken)
 			=> new([]);
@@ -244,8 +282,8 @@ public sealed class OutboxRefusesUnfencedLeaderElectionShould
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 			=> new([]);
 
-		public ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
-			=> ValueTask.CompletedTask;
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
+			=> new(OutboxCompletionOutcome.Applied);
 
 		public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken) => ValueTask.CompletedTask;
 

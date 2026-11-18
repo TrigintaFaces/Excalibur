@@ -27,19 +27,16 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// In-process parity benchmarks: Dispatch vs Wolverine (InvokeAsync/local in-process only).
 /// </summary>
 /// <remarks>
-/// Dispatch uses lean AddDispatch() (no cache/dedupe/outbox middleware) for fair
-/// comparison against Wolverine's InvokeAsync (bare in-process handler call).
-/// Fresh context per iteration, warmup + freeze for production-representative numbers.
+/// Dispatch uses lean AddDispatch() (no cache/dedupe/outbox middleware).
+/// The fixture compares disclosed configurations; APIs and result shapes differ.
+/// Fresh context per invocation, with the fixture’s explicit cache warmup and freeze settings.
 /// </remarks>
-/// Allocation is NOT measured under this config. It runs one invocation per iteration, so an
-/// Allocated column would report per-iteration setup rather than per-operation cost -- measured at a
-/// ~30% swing across identical consecutive runs, which is not a figure anyone can publish or gate on.
-/// The warm-path subclass carries the memory diagnoser instead, where the number resolves.
+/// ComparativeBenchmarkConfig does not enable a memory diagnoser; its base-class results
+/// provide no allocation measurement. The separately configured WarmPath subclass enables
+/// memory diagnostics. Interpret its allocation results with that workload and configuration.
 [Config(typeof(ComparativeBenchmarkConfig))]
 public class WolverineInProcessComparisonBenchmarks
 {
-	private static readonly TimeSpan CompletionTimeout = TimeSpan.FromSeconds(5);
-
 	// Excalibur infrastructure — standard (lean) path
 	private IServiceProvider? _dispatchServiceProvider;
 	private IDispatcher? _dispatcher;
@@ -117,7 +114,7 @@ public class WolverineInProcessComparisonBenchmarks
 
 		_wolverineBus = _wolverineHost.Services.GetRequiredService<IMessageBus>();
 
-		await VerifyInlineFanOutInvokesBothHandlers().ConfigureAwait(false);
+		await VerifyFanOutCompletion().ConfigureAwait(false);
 
 		// Warm and freeze Dispatch caches so benchmark reflects optimized production mode.
 		WarmupAndFreezeDispatchCaches();
@@ -182,18 +179,17 @@ public class WolverineInProcessComparisonBenchmarks
 	}
 
 	/// <summary>
-	/// Publishes a notification handled by two Wolverine handlers, invoked inline on the calling thread.
+	/// Invokes a notification configured with two Wolverine handlers.
 	/// </summary>
-	/// <returns>A task that completes once both handlers have run.</returns>
+	/// <returns>The task returned by Wolverine InvokeAsync.</returns>
 	/// <remarks>
-	/// Rebuilt from <c>PublishAsync</c> + completion tracker to <c>InvokeAsync</c>. The previous shape awaited
-	/// real execution, but routed Wolverine through its local queue while the Dispatch row ran both handlers
-	/// on the calling thread — so the result measured a thread-pool handoff rather than dispatch cost. This
-	/// file's own header scopes it to "InvokeAsync/local in-process only", which the queued call contradicted.
-	/// Wolverine merges non-sticky handlers into one inline generated method, so both handlers still run;
-	/// that is asserted at startup by <see cref="VerifyInlineFanOutInvokesBothHandlers"/>.
+	/// The earlier <c>PublishAsync</c> plus completion-tracker workload used a local queue.
+	/// Its results are historical and are not interchangeable with this <c>InvokeAsync</c> row.
+	/// Neither workload isolates a single scheduling or dispatch component.
+	/// The fixture registers two non-sticky handlers and invokes the notification with InvokeAsync;
+	/// startup requires two completion signals via <see cref="VerifyFanOutCompletion"/>, without proving thread affinity or distinct handler identities.
 	/// </remarks>
-	[Benchmark(Description = "Wolverine (in-process): Notification to 2 handlers (inline)")]
+	[Benchmark(Description = "Wolverine (in-process): Notification to 2 handlers (InvokeAsync)")]
 	public Task Wolverine_NotificationTwoHandlers()
 	{
 		var evt = new WolverineInProcessEvent
@@ -282,35 +278,26 @@ public class WolverineInProcessComparisonBenchmarks
 	// ============================================================================
 
 	/// <summary>
-	/// Proves the fan-out row measures BOTH handlers before any timing is collected.
+	/// Requires two probe signals when invocation completion is observed, before timing.
 	/// </summary>
 	/// <remarks>
-	/// The fan-out row calls <c>InvokeAsync</c> without awaiting a completion tracker, relying on Wolverine
-	/// merging non-sticky handlers into one inline generated method. That is a claim about another
-	/// framework's code generation, so it is verified rather than assumed: if a handler became sticky or
-	/// Wolverine changed its merging, the row would measure one handler against Dispatch's two and report
-	/// the difference as a speedup.
+	/// This checks the signal count, not distinct handler identities, thread affinity or absence
+	/// of queueing. The fixture runs in isolation because its completion tracker is shared.
 	/// </remarks>
-	private async Task VerifyInlineFanOutInvokesBothHandlers()
+	private async Task VerifyFanOutCompletion()
 	{
 		var probeId = Guid.NewGuid();
 		var bothHandlersSignalled = WolverineInProcessCompletionTracker.Register(probeId, expectedSignals: 2);
-
-		await _wolverineBus!.InvokeAsync(new WolverineInProcessEvent { Message = "fanout-probe", BenchmarkId = probeId })
-			.ConfigureAwait(false);
-
-		var completedFirst = await Task.WhenAny(bothHandlersSignalled, Task.Delay(CompletionTimeout))
-			.ConfigureAwait(false);
-
-		if (completedFirst != bothHandlersSignalled)
+		try
 		{
-			throw new InvalidOperationException(
-				"Wolverine InvokeAsync did not invoke both event handlers inline. The fan-out benchmark would "
-				+ "measure fewer handlers than the Dispatch row it is compared against, producing a false "
-				+ "speedup. Check whether a handler became sticky or Wolverine changed its handler merging.");
+			await BenchmarkCompletionGuard.VerifyCompletedAsync(
+				_wolverineBus!.InvokeAsync(new WolverineInProcessEvent { Message = "fanout-probe", BenchmarkId = probeId }),
+				bothHandlersSignalled).ConfigureAwait(false);
 		}
-
-		WolverineInProcessCompletionTracker.Reset();
+		finally
+		{
+			WolverineInProcessCompletionTracker.Reset();
+		}
 	}
 
 	private void WarmupAndFreezeDispatchCaches()

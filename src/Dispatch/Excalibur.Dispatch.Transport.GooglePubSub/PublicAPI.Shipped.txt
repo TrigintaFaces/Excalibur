@@ -5,6 +5,8 @@ Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.CompressionThresh
 Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.CompressionThreshold.set -> void
 Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.EnableCompression.get -> bool
 Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.EnableCompression.set -> void
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.MaxDecompressedBytes.get -> int?
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.MaxDecompressedBytes.set -> void
 Excalibur.Dispatch.Transport.Google.DeadLetterAction
 Excalibur.Dispatch.Transport.Google.DeadLetterAction.Acknowledge = 0 -> Excalibur.Dispatch.Transport.Google.DeadLetterAction
 Excalibur.Dispatch.Transport.Google.DeadLetterAction.Archive = 3 -> Excalibur.Dispatch.Transport.Google.DeadLetterAction

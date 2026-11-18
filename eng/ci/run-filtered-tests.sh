@@ -49,12 +49,19 @@ fi
 
 FILTER=""
 LOG=""
+MINIMUM=1
+MINIMUM_SUPPLIED=false
 # DOTNET_BIN exists for the self-test, which substitutes a stub so the wrapper's plumbing can be
 # exercised without a real test run. Production callers never set it.
 DOTNET_BIN="${DOTNET_BIN:-dotnet}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --minimum-executed-tests|--minimum-executed-tests=*)
+            if $MINIMUM_SUPPLIED; then echo 'Duplicate minimum option.' >&2; exit "$E_ENV"; fi
+            MINIMUM_SUPPLIED=true
+            if [[ "$1" == *=* ]]; then MINIMUM="${1#*=}"
+            else shift; [ $# -gt 0 ] || exit "$E_ENV"; MINIMUM="$1"; fi ;;
         --filter) shift; [ $# -gt 0 ] || { echo "[run-filtered-tests] --filter needs a value" >&2; exit "$E_ENV"; }; FILTER="$1" ;;
         --log)    shift; [ $# -gt 0 ] || { echo "[run-filtered-tests] --log needs a value" >&2; exit "$E_ENV"; }; LOG="$1" ;;
         --)       shift; break ;;
@@ -62,6 +69,10 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+if ! [[ "$MINIMUM" =~ ^[1-9][0-9]{0,9}$ ]] || [ "$MINIMUM" -gt 2147483647 ]; then
+    echo "Invalid minimum-executed-tests." >&2; exit "$E_ENV"
+fi
 
 if [ -z "$FILTER" ]; then
     echo "[run-filtered-tests] CANNOT EVALUATE — no --filter given. Use plain 'dotnet test' for an unfiltered run." >&2
@@ -111,7 +122,7 @@ TEST_EXIT="${PIPESTATUS[0]}"
 # file-copy-based checkout and the gate then dies with exit 126 (found, not executable) in CI while
 # working locally. `bash <path>` ignores the mode entirely, which is how every other call site in
 # this repo already invokes its gates. Do not "optimise" this back to a bare path.
-bash "$SELF_DIR/assert-tests-executed.sh" --filter "$FILTER" < "$LOG"
+bash "$SELF_DIR/assert-tests-executed.sh" --minimum-executed-tests "$MINIMUM" --filter "$FILTER" < "$LOG"
 ASSERT_EXIT=$?
 
 # A REAL failure outranks the zero-executed refusal: if tests ran and failed, that is the finding, and

@@ -97,4 +97,10 @@ public enum TransportSecurityFailureReason
 	/// travel in the clear.
 	/// </summary>
 	TlsNotEnabled = 1,
+
+	/// <summary>
+	/// The connection presents a broker's well-known default credentials, which are published and
+	/// therefore grant anyone who can reach the broker the same access the application has.
+	/// </summary>
+	DefaultCredentials = 2,
 }

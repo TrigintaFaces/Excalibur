@@ -46,6 +46,7 @@ if ($LASTEXITCODE -ne 0) { throw "Fixture restore failed; see $root/restore.log"
 if ($LASTEXITCODE -ne 0) { throw "Fixture build failed; see $root/build.log" }
 $assembly = Join-Path $root 'bin/Release/net10.0/CensusFixture.dll'
 $context = @{
+    minimumExecutedTests = 1
     candidateSha = (git -C $repo rev-parse HEAD); runId = 'local-control'; runAttempt = '1'
     job = 'adapter-control'; shard = 'fixture'; provider = 'none'; targetFramework = 'net10.0'
     targetPlatform = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant()
@@ -161,6 +162,65 @@ try {
     $null = Invoke-Control 'discovery-timeout' 'FullyQualifiedName~DiscoveryFault' 0 $false 'hang'
     $null = Invoke-Control 'input-mutation' 'FullyQualifiedName~DiscoveryFault' 0 $false 'mutate'
     $env:CI02_DISCOVERY_FAULT = ''
+    # .NET '$' accepts a final newline. These are TEXT parameter controls, not JSON whitespace.
+    foreach ($invalidTextMinimum in @("1`n", "1`t", '1 ', ' 1', '01')) {
+        $caught = $null
+        try {
+            & (Join-Path $repo 'eng/build.ps1') -Test -NoBuild -NoRestore -Project $project `
+                -MinimumExecutedTests $invalidTextMinimum -ShowTestCommand *> (Join-Path $root ("invalid-text-minimum-" + $caseCount + '.log'))
+        } catch { $caught = $_ }
+        if ($null -eq $caught -or $caught -notmatch 'MinimumExecutedTests must be canonical positive decimal') {
+            throw 'Invalid textual minimum was accepted or refused for an unrelated reason.'
+        }
+        $caseCount++
+    }
+    $invalidMinimumCases = @(
+        @{ name='minimum-string'; json='{"minimumExecutedTests":"1"}'; reason='positive JSON integer' },
+        @{ name='minimum-bool'; json='{"minimumExecutedTests":true}'; reason='positive JSON integer' },
+        @{ name='minimum-decimal'; json='{"minimumExecutedTests":1.0}'; reason='positive JSON integer' },
+        @{ name='minimum-zero'; json='{"minimumExecutedTests":0}'; reason='positive JSON integer' },
+        @{ name='minimum-overflow'; json='{"minimumExecutedTests":2147483648}'; reason='positive JSON integer' },
+        @{ name='minimum-duplicate'; json='{"minimumExecutedTests":5,"minimumExecutedTests":1}'; reason='Duplicate external context field' }
+    )
+    foreach ($invalid in $invalidMinimumCases) {
+        $path = Join-Path $root "$($invalid.name).json"
+        $invalid.json | Set-Content -LiteralPath $path -Encoding utf8NoBOM
+        $caught = $null
+        try {
+            & (Join-Path $PSScriptRoot 'invoke-required-tests.ps1') -TestArguments @('test',$project) -ContextPath $path `
+                -EvidenceDirectory (Join-Path $root $invalid.name) -DotnetPath $dotnet -SdkDirectory $sdk *> (Join-Path $root "$($invalid.name).log")
+        } catch { $caught = $_ }
+        if ($null -eq $caught -or $caught -notmatch [regex]::Escape($invalid.reason)) {
+            throw "Invalid minimum control $($invalid.name) was accepted or failed for another reason."
+        }
+        if (Test-Path (Join-Path $root "$($invalid.name)/plan.json")) { throw 'Invalid minimum reached test planning.' }
+        $caseCount++
+    }
+    foreach ($control in @(
+        @{ name='collector-zero'; filter='FullyQualifiedName=NoSuchTest'; minimum=1; error='Required job executed zero independently expected tests' },
+        @{ name='collector-minimum-equal'; filter='Group=valid'; minimum=4; error='' },
+        @{ name='collector-minimum-above'; filter='Group=valid'; minimum=5; error='below minimumExecutedTests=5' }
+    )) {
+        $context.filter = $control.filter; $context.minimumExecutedTests = $control.minimum
+        $path = Join-Path $root "$($control.name).context.json"
+        $context | ConvertTo-Json | Set-Content -LiteralPath $path -Encoding utf8NoBOM
+        $log = Join-Path $root "$($control.name).log"
+        $arguments = @('test',$project,'--configuration','Release','--no-build','--nologo','--filter',$context.filter,
+            '--logger',"trx;LogFilePrefix=$($control.name)")
+        $caught = $null
+        try {
+            & (Join-Path $PSScriptRoot 'invoke-required-tests.ps1') -TestArguments $arguments -ContextPath $path `
+                -EvidenceDirectory (Join-Path $root $control.name) -DotnetPath $dotnet -SdkDirectory $sdk *> $log
+        } catch { $caught = $_ }
+        if ($control.error) {
+            if ($null -eq $caught -or $caught -notmatch 'Required test invocation evidence failed' -or
+                (Get-Content -LiteralPath $log -Raw) -notmatch [regex]::Escape($control.error)) {
+                throw "Collector control $($control.name) did not refuse for its expected semantic reason. See $log"
+            }
+        } elseif ($null -ne $caught) { throw $caught }
+        $caseCount++
+    }
+    $context.minimumExecutedTests = 1
     $context.filter = 'FullyQualifiedName~Unstable'
     $contextPath = Join-Path $root 'unstable-context.json'
     $context | ConvertTo-Json | Set-Content $contextPath

@@ -4,6 +4,7 @@
 #pragma warning disable IL2026 // RequiresUnreferencedCode
 #pragma warning disable IL3050 // RequiresDynamicCode
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using Amazon.SQS.Model;
 
 using CloudNative.CloudEvents;
@@ -33,6 +34,7 @@ public sealed class AwsSqsCloudEventAdapterShould
 
 		_adapter = new AwsSqsCloudEventAdapter(
 			options,
+			TestCloudEventSerializers.Reflection,
 			NullLogger<AwsSqsCloudEventAdapter>.Instance);
 	}
 
@@ -41,7 +43,7 @@ public sealed class AwsSqsCloudEventAdapterShould
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new AwsSqsCloudEventAdapter(
-				null!, NullLogger<AwsSqsCloudEventAdapter>.Instance));
+				null!, TestCloudEventSerializers.Reflection, NullLogger<AwsSqsCloudEventAdapter>.Instance));
 	}
 
 	[Fact]
@@ -50,7 +52,7 @@ public sealed class AwsSqsCloudEventAdapterShould
 		var options = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
 
 		Should.Throw<ArgumentNullException>(() =>
-			new AwsSqsCloudEventAdapter(options, null!));
+			new AwsSqsCloudEventAdapter(options, TestCloudEventSerializers.Reflection, null!));
 	}
 
 	[Fact]

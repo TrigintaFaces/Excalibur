@@ -512,5 +512,3 @@
 1	src/Excalibur/Excalibur.Security/Validation/InputValidationMiddleware.cs	IL3050
 1	src/Excalibur/Excalibur.Testing.Conformance/Conformance/WorkflowConformanceTestKit.cs	IL2026
 1	src/Excalibur/Excalibur.Testing.Conformance/Conformance/WorkflowConformanceTestKit.cs	IL3050
-2	src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs	IL2026
-2	src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs	IL3050

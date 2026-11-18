@@ -185,9 +185,7 @@ internal sealed partial class LocalMessageBus(
 		var invocation = InvokeHandler(handler, action, cancellationToken);
 		if (!entry.ExpectsResponse)
 		{
-			return invocation.IsCompletedSuccessfully
-				? Task.CompletedTask
-				: AwaitNoResponseAsync(invocation);
+			return AwaitNoResponseAsync(invocation);
 		}
 
 		if (invocation.IsCompletedSuccessfully)
@@ -205,7 +203,7 @@ internal sealed partial class LocalMessageBus(
 	}
 
 	/// <summary>
-	/// Publishes an event message to all registered handlers for parallel processing.
+	/// Publishes an event message to all registered handlers and awaits their completion.
 	/// </summary>
 	/// <param name="evt"> The event message to publish to registered handlers. </param>
 	/// <param name="context"> The message context containing routing, correlation, and processing information. </param>
@@ -225,8 +223,8 @@ internal sealed partial class LocalMessageBus(
 	/// be conflated. Every handler is started even if an earlier one throws, and the failures are aggregated,
 	/// so one handler's fault never abandons the others. The scoped instances, however, are shared: a handler
 	/// that faults after leaving a scoped service in a broken state (an aborted transaction, a
-	/// change-tracking context poisoned by a failed save) hands that state to its sibling handlers, which run
-	/// afterwards and observe it. A handler that must not inherit a sibling's partial work should either take
+	/// change-tracking context poisoned by a failed save) can expose that state to sibling handlers whose
+	/// asynchronous work overlaps. A handler that must not inherit a sibling's partial work should either take
 	/// its dependency as a factory it resolves per invocation, or be dispatched as its own message.
 	/// </para>
 	/// </remarks>
@@ -366,9 +364,8 @@ internal sealed partial class LocalMessageBus(
 
 		// Fan-out with fault isolation: start EVERY handler, await ALL of them, and aggregate faults.
 		// One handler's failure must not abandon the others -- IEventHandler fault-independence is part of
-		// the IMessageBus event contract. Collected faults surface together as an AggregateException.
-		// (Contrast the single-plan fast path above, which throws its sole handler's exception directly:
-		// a single-handler event is not wrapped in an AggregateException.)
+		// the IMessageBus event contract. A single fault is rethrown directly, regardless of handler count;
+		// multiple faults surface together as an AggregateException.
 		var invocations = ArrayPool<ValueTask>.Shared.Rent(plans.Length);
 		List<Exception>? faults = null;
 		try
@@ -461,9 +458,7 @@ internal sealed partial class LocalMessageBus(
 
 		var handler = ActivateHandler(entry.HandlerType, context);
 		var invocation = InvokeHandler(handler, doc, cancellationToken);
-		return invocation.IsCompletedSuccessfully
-			? Task.CompletedTask
-			: AwaitNoResponseAsync(invocation);
+		return AwaitNoResponseAsync(invocation);
 	}
 
 	/// <summary>
@@ -603,9 +598,7 @@ internal sealed partial class LocalMessageBus(
 				}
 
 				var precompiledInvocation = precompiledPlan.Invoke(action, provider, context, cancellationToken);
-				invocation = precompiledInvocation.IsCompletedSuccessfully
-					? ValueTask.CompletedTask
-					: AwaitNoResponseValueTaskAsync(precompiledInvocation);
+				invocation = AwaitNoResponseValueTaskAsync(precompiledInvocation);
 				return true;
 			}
 
@@ -826,9 +819,7 @@ internal sealed partial class LocalMessageBus(
 
 
 				var precompiledInvocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
-				invocation = precompiledInvocation.IsCompletedSuccessfully
-					? ValueTask.CompletedTask
-					: AwaitNoResponseValueTaskAsync(precompiledInvocation);
+				invocation = AwaitNoResponseValueTaskAsync(precompiledInvocation);
 				return true;
 			}
 
@@ -928,9 +919,7 @@ internal sealed partial class LocalMessageBus(
 
 
 				var precompiledInvocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
-			invocation = precompiledInvocation.IsCompletedSuccessfully
-				? ValueTask.CompletedTask
-				: AwaitNoResponseValueTaskAsync(precompiledInvocation);
+			invocation = AwaitNoResponseValueTaskAsync(precompiledInvocation);
 			return true;
 		}
 
@@ -1147,9 +1136,7 @@ internal sealed partial class LocalMessageBus(
 				}
 
 				var precompiledInvocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
-				return precompiledInvocation.IsCompletedSuccessfully
-					? ValueTask.CompletedTask
-					: AwaitNoResponseValueTaskAsync(precompiledInvocation);
+				return AwaitNoResponseValueTaskAsync(precompiledInvocation);
 			};
 			withResponseInvoker = null;
 			return true;
@@ -1801,9 +1788,7 @@ internal sealed partial class LocalMessageBus(
 		CancellationToken cancellationToken)
 	{
 		var invocation = InvokeDirectAction(handlerType, action, context, cancellationToken);
-		return invocation.IsCompletedSuccessfully
-			? ValueTask.CompletedTask
-			: AwaitNoResponseValueTaskAsync(invocation);
+		return AwaitNoResponseValueTaskAsync(invocation);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1832,9 +1817,7 @@ internal sealed partial class LocalMessageBus(
 			? ResolveHandlerWithoutContext(handlerType)
 			: ActivateHandler(handlerType, context);
 		var invocation = InvokeHandler(handler, evt, cancellationToken);
-		return invocation.IsCompletedSuccessfully
-			? ValueTask.CompletedTask
-			: AwaitNoResponseValueTaskAsync(invocation);
+		return AwaitNoResponseValueTaskAsync(invocation);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -2800,14 +2783,33 @@ internal sealed partial class LocalMessageBus(
 		return result;
 	}
 
-	private static async Task AwaitNoResponseAsync(ValueTask<object?> invocation)
+	private static Task AwaitNoResponseAsync(ValueTask<object?> invocation)
 	{
-		_ = await invocation.ConfigureAwait(false);
+		if (invocation.IsCompletedSuccessfully)
+		{
+			// Reading a successful source-backed result is required for cleanup/recycling.
+			_ = invocation.Result;
+			return Task.CompletedTask;
+		}
+
+		return AwaitPendingAsync(invocation);
+
+		static async Task AwaitPendingAsync(ValueTask<object?> pending) =>
+			_ = await pending.ConfigureAwait(false);
 	}
 
-	private static async ValueTask AwaitNoResponseValueTaskAsync(ValueTask<object?> invocation)
+	private static ValueTask AwaitNoResponseValueTaskAsync(ValueTask<object?> invocation)
 	{
-		_ = await invocation.ConfigureAwait(false);
+		if (invocation.IsCompletedSuccessfully)
+		{
+			_ = invocation.Result;
+			return ValueTask.CompletedTask;
+		}
+
+		return AwaitPendingAsync(invocation);
+
+		static async ValueTask AwaitPendingAsync(ValueTask<object?> pending) =>
+			_ = await pending.ConfigureAwait(false);
 	}
 
 	private static async ValueTask<object?> AwaitTypedResponseAsObjectAsync<TResponse>(Task<TResponse> invocation)

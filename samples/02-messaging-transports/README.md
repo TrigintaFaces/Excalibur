@@ -7,7 +7,7 @@ Transport configuration, multi-bus scenarios, and cross-provider messaging.
 | Transport | Best For | Local Dev | Cloud Native |
 |-----------|----------|-----------|--------------|
 | **[RabbitMQ](RabbitMQ/)** | General messaging, complex routing, fan-out patterns | Docker | On-prem, AWS MQ |
-| **[Kafka](Kafka/)** | High-throughput streaming, event log, replay | Docker (KRaft) | Confluent, AWS MSK |
+| **[Kafka](Kafka/)** | Partitioned streaming, event log, replay | Docker (KRaft) | Confluent, AWS MSK |
 | **[Azure Service Bus](AzureServiceBus/)** | Azure-native apps, enterprise messaging | Emulator | Azure |
 | **[AWS SQS](AwsSqs/)** | AWS-native apps, serverless integration | LocalStack | AWS |
 
@@ -41,7 +41,7 @@ These samples show how to combine multiple transports:
 | **Ordering** | Per-queue | Per-partition | Per-session | FIFO queues |
 | **Replay** | No | Yes | No | No |
 | **Max Message Size** | 128 MB | 1 MB (default) | 256 KB (Standard) | 256 KB |
-| **Throughput** | High | Very High | High | High |
+| **Throughput** | Workload-dependent | Workload-dependent | Workload-dependent | Workload-dependent |
 | **Persistence** | Optional | Always | Always | Always |
 | **Protocol** | AMQP | Kafka | AMQP | HTTPS |
 

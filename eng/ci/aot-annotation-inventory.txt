@@ -128,6 +128,13 @@ src/Dispatch/Excalibur.Dispatch.Transport.Mqtt/CloudEvents/MqttCloudEventsServic
 src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/CloudEvents/RabbitMqCloudEventAdapter.cs::ToTransportMessageAsync
 src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/CloudEvents/RabbitMqCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForRabbitMq
 src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/DependencyInjection/FluentValidationServiceCollectionExtensions.cs::WithFluentValidation
+src/Dispatch/Excalibur.Dispatch/CloudEvents/CloudEventContentTypes.cs::Deserialize
+src/Dispatch/Excalibur.Dispatch/CloudEvents/CloudEventContentTypes.cs::DeserializeBatch
+src/Dispatch/Excalibur.Dispatch/CloudEvents/CloudEventContentTypes.cs::GetFormatter
+src/Dispatch/Excalibur.Dispatch/CloudEvents/CloudEventContentTypes.cs::Serialize
+src/Dispatch/Excalibur.Dispatch/CloudEvents/CloudEventContentTypes.cs::SerializeBatch
+src/Dispatch/Excalibur.Dispatch/CloudEvents/CloudEventPayloadSerialization.cs::CreateReflectionOptions
+src/Dispatch/Excalibur.Dispatch/CloudEvents/CloudEventsServiceCollectionExtensions.cs::AddCloudEvents
 src/Dispatch/Excalibur.Dispatch/Configuration/DispatchBuilderExtensions.cs::AddHandlersFromAssembly
 src/Dispatch/Excalibur.Dispatch/Configuration/DispatchBuilderExtensions.cs::AddHandlersFromEntryAssembly
 src/Dispatch/Excalibur.Dispatch/Configuration/DispatchConfigurationServiceCollectionExtensions.cs::AddDefaultDispatchPipelines
@@ -168,8 +175,6 @@ src/Dispatch/Excalibur.Dispatch/Outbox/MessageBusOutboxPublisher.cs::PublishSche
 src/Dispatch/Excalibur.Dispatch/Outbox/MessageBusOutboxPublisher.cs::RetryFailedMessagesAsync
 src/Dispatch/Excalibur.Dispatch/Routing/Builder/TransportRoutingBuilderExtensions.cs::RouteAll
 src/Dispatch/Excalibur.Dispatch/Routing/Policies/RoutingPolicyFileLoader.cs::LoadAsync
-src/Dispatch/Excalibur.Dispatch/Serialization/AotJsonSerializer.cs::DynamicallyAccessedMembers
-src/Dispatch/Excalibur.Dispatch/Serialization/CompositeAotJsonSerializer.cs::DynamicallyAccessedMembers
 src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::Deserialize
 src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::DeserializeAsync
 src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::DeserializeFromBytes

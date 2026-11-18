@@ -248,11 +248,7 @@ internal sealed partial class CdcChangeApplier
 			var eventSucceeded = false;
 			try
 			{
-				await _orderedEventProcessor.ProcessAsync(async () =>
-						await batchPolicy.ExecuteAsync(async () =>
-								await eventHandler(changeEvent, cancellationToken)
-									.ConfigureAwait(false))
-							.ConfigureAwait(false), cancellationToken)
+				await ProcessEventWithRetryAsync(batchPolicy, changeEvent, eventHandler, cancellationToken)
 					.ConfigureAwait(false);
 
 				eventSucceeded = true;
@@ -339,12 +335,8 @@ internal sealed partial class CdcChangeApplier
 		{
 			try
 			{
-				await batchPolicy.ExecuteAsync(() => _checkpointManager.UpdateTableLastProcessedAsync(
-					tableName,
-					lastEvent.Lsn,
-					lastEvent.SeqVal,
-					lastEvent.CommitTime,
-					cancellationToken)).ConfigureAwait(false);
+				await UpdateCheckpointWithRetryAsync(batchPolicy, tableName, lastEvent, cancellationToken)
+					.ConfigureAwait(false);
 			}
 			catch (Exception ex) when (CdcFatalGuard.Decide(ex, _failureClassifier).Stop)
 			{
@@ -362,6 +354,28 @@ internal sealed partial class CdcChangeApplier
 
 		BatchDurationHistogram.Record(batchStopwatch.Elapsed.TotalMilliseconds);
 	}
+
+	private Task ProcessEventWithRetryAsync(
+		Polly.IAsyncPolicy batchPolicy,
+		DataChangeEvent changeEvent,
+		Func<DataChangeEvent, CancellationToken, Task> eventHandler,
+		CancellationToken cancellationToken) =>
+		_orderedEventProcessor.ProcessAsync(async () =>
+			await batchPolicy.ExecuteAsync(async retryToken =>
+				await eventHandler(changeEvent, retryToken).ConfigureAwait(false), cancellationToken)
+				.ConfigureAwait(false), cancellationToken);
+
+	private Task UpdateCheckpointWithRetryAsync(
+		Polly.IAsyncPolicy batchPolicy,
+		string tableName,
+		DataChangeEvent lastEvent,
+		CancellationToken cancellationToken) =>
+		batchPolicy.ExecuteAsync(retryToken => _checkpointManager.UpdateTableLastProcessedAsync(
+			tableName,
+			lastEvent.Lsn,
+			lastEvent.SeqVal,
+			lastEvent.CommitTime,
+			retryToken), cancellationToken);
 
 	// Source-generated logging methods
 	[LoggerMessage(DataSqlServerEventId.CdcConsumerStarted, LogLevel.Information,

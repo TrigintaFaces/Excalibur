@@ -6,117 +6,115 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.LeaderElection.Tests.Redis;
 
 /// <summary>
-/// Author≠impl regression lock for <c>1qvg3k</c> (Sprint-846 Lane C) on the Redis provider: the
-/// <c>LostLeadership</c>/<c>LeaderChanged</c> consumer event handlers must be raised <em>outside</em>
-/// the internal <c>_lock</c> (state snapshotted under the lock, handlers invoked after release), so a
-/// handler that calls back into the election object (e.g. reads <see cref="ILeaderElection.CurrentLeaderId"/>,
-/// which takes <c>_lock</c>) on another thread does not deadlock against the raising thread.
-///
-/// Redis is the unit-constructable provider (ctor takes <c>IConnectionMultiplexer</c>); SqlServer/Postgres
-/// reach leader state only with a real DB, so their AC-C2 locks are TestContainers-gated.
+/// Consumer loss callbacks probe the real CurrentLeaderId getter from a dedicated other thread.
+/// Resource Stop/Dispose and queued callback delivery are separate lifetimes; both must be joined.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+[Trait("Pattern", "Regression")]
 public sealed class RedisLeaderElectionReentrancyShould : UnitTestBase
 {
-	private static RedisLeaderElection CreateAcquiringElection()
-	{
-		var multiplexer = A.Fake<IConnectionMultiplexer>();
-		var database = A.Fake<IDatabase>();
-		A.CallTo(() => multiplexer.GetDatabase(A<int>._, A<object>._)).Returns(database);
+    private static (RedisLeaderElection Sut, Func<int> ReleaseCount) CreateAcquiringElection()
+    {
+        var multiplexer = A.Fake<IConnectionMultiplexer>();
+        var database = A.Fake<IDatabase>();
+        A.CallTo(() => multiplexer.GetDatabase(A<int>._, A<object>._)).Returns(database);
+        A.CallTo(database).Where(call => call.Method.Name == nameof(IDatabase.StringSetAsync))
+            .WithReturnType<Task<bool>>().Returns(true);
+        var releases = 0;
+        // The typed SDK returns a non-null INTEGER RedisResult for successful conditional release.
+        // This fixture is a success-path callback test, not independent proof of Redis CAS behavior.
+        A.CallTo(() => database.ScriptEvaluateAsync(A<string>._, A<RedisKey[]>._, A<RedisValue[]>._, A<CommandFlags>._))
+            .ReturnsLazily(call =>
+            {
+                if (call.GetArgument<string>(0) is { } script && script.Contains("redis.call('del'", StringComparison.Ordinal)) { Interlocked.Increment(ref releases); }
+                return Task.FromResult(RedisResult.Create((RedisValue)1));
+            });
+        var sut = new RedisLeaderElection(multiplexer, "reentrancy-test-key",
+            Options.Create(new LeaderElectionOptions()), NullLogger<RedisLeaderElection>.Instance);
+        return (sut, () => Volatile.Read(ref releases));
+    }
 
-		// SET key value NX PX <lease> succeeds → the election acquires leadership synchronously in
-		// StartAsync. Match any StringSetAsync overload returning Task<bool> to avoid binding to a
-		// specific (and version-dependent) parameter list.
-		A.CallTo(database)
-			.Where(call => call.Method.Name == nameof(IDatabase.StringSetAsync))
-			.WithReturnType<Task<bool>>()
-			.Returns(true);
+    [Fact]
+    public Task RaiseLostLeadershipOutsideLock_NoReentrantDeadlock_OnStop() => VerifyAsync(dispose: false);
 
-		return new RedisLeaderElection(
-			multiplexer,
-			"reentrancy-test-key",
-			Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions()),
-			NullLogger<RedisLeaderElection>.Instance);
-	}
+    [Fact]
+    public Task RaiseLostLeadershipOutsideLock_NoReentrantDeadlock_OnDispose() => VerifyAsync(dispose: true);
 
-	[Fact]
-	public async Task RaiseLostLeadershipOutsideLock_NoReentrantDeadlock_OnStop()
-	{
-		// Arrange — become leader, then attach a handler that probes CurrentLeaderId from ANOTHER thread.
-		// C# locks are reentrant on the SAME thread, so the probe must run on a different thread to observe
-		// "lock still held while the handler runs".
-		await using var sut = CreateAcquiringElection();
-		await sut.StartAsync(CancellationToken.None);
-		sut.IsLeader.ShouldBeTrue("precondition: the fake Redis SET must drive the election to leadership");
+    private static async Task VerifyAsync(bool dispose)
+    {
+        var (sut, releaseCount) = CreateAcquiringElection();
+        var probe = new CrossThreadGetterProbe(sut);
+        try
+        {
+            await sut.StartAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+            sut.IsLeader.ShouldBeTrue("positive precondition: fake Redis SET actually acquired");
+            sut.CurrentLeadership.ShouldNotBeNull();
+            sut.LostLeadership += probe.OnLoss;
+            if (dispose) { await sut.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)); }
+            else { await sut.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5)); }
+            // Neither resource operation promises the queued callback already ran.
+            await probe.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await probe.Completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            Exception? shutdownFailure = null;
+            var resources = DisposeResourcesAsync(sut);
+            var terminal = sut.NotificationsCompleted;
+            try { await Task.WhenAll(resources, terminal); }
+            catch (Exception error) { shutdownFailure = error; }
+            try { probe.Dispose(); }
+            catch (Exception error)
+            { shutdownFailure = shutdownFailure is null ? error : new AggregateException(shutdownFailure, error); }
+            if (shutdownFailure is not null) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(shutdownFailure).Throw(); }
+        }
+        probe.Count.ShouldBe(1, "a default false flag without an actual loss callback cannot prove reentrancy");
+        probe.GetterFailure.ShouldBeNull();
+        probe.LockHeldDuringHandler.ShouldBeFalse("the dedicated getter probe must run before the loss handler returns");
+        releaseCount().ShouldBe(1);
+        sut.IsLeader.ShouldBeFalse(); sut.CurrentLeadership.ShouldBeNull();
+    }
 
-		var lockHeldDuringHandler = false;
-		sut.LostLeadership += (_, _) =>
-		{
-			using var probed = new ManualResetEventSlim(initialState: false);
-			// CurrentLeaderId's getter takes _lock; if the handler is raised while _lock is held, this
-			// background read blocks until the handler returns → the wait times out.
-			//
-			// A DEDICATED THREAD, deliberately NOT Task.Run. This handler blocks its own thread on
-			// probed.Wait below, so a pool-scheduled probe would be waiting for a second pool thread
-			// while the first is parked. On a loaded CI runner the pool is saturated and injects new
-			// threads slowly, so the probe can be delayed past the timeout even though no lock is
-			// held — and the test then reports "lock held", accusing the implementation of a
-			// reentrancy defect it does not have. Observed exactly once in CI while the
-			// implementation provably raised the event outside the lock. A dedicated thread cannot
-			// be starved by pool pressure, so a timeout here means the lock and nothing else, which
-			// is the only reading this assertion is entitled to make.
-			var probeThread = new Thread(() =>
-			{
-				_ = sut.CurrentLeaderId;
-				probed.Set();
-			})
-			{ IsBackground = true };
-			probeThread.Start();
-			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
-			lockHeldDuringHandler = !probed.Wait(TimeSpan.FromSeconds(2));
-			#pragma warning restore RS0030
-		};
+    private static async Task DisposeResourcesAsync(RedisLeaderElection sut) => await sut.DisposeAsync();
 
-		// Act
-		await sut.StopAsync(CancellationToken.None);
-
-		// Assert — non-vacuity: pre-fix the handler is raised INSIDE _lock → the cross-thread probe blocks
-		// → lockHeldDuringHandler == true (RED). Post-fix (raised outside) → false (GREEN).
-		lockHeldDuringHandler.ShouldBeFalse();
-	}
-
-	[Fact]
-	public async Task RaiseLostLeadershipOutsideLock_NoReentrantDeadlock_OnDispose()
-	{
-		// Arrange — the same reentrancy guarantee must hold on the DisposeAsync path (also routes through
-		// StopCoreAsync), not just explicit StopAsync.
-		var sut = CreateAcquiringElection();
-		await sut.StartAsync(CancellationToken.None);
-		sut.IsLeader.ShouldBeTrue("precondition: leadership acquired");
-
-		var lockHeldDuringHandler = false;
-		sut.LostLeadership += (_, _) =>
-		{
-			using var probed = new ManualResetEventSlim(initialState: false);
-			// Dedicated thread, not Task.Run — see the sibling arm for why the thread pool cannot be
-			// trusted here: a pool-starved probe times out and is misreported as a held lock.
-			var probeThread = new Thread(() =>
-			{
-				_ = sut.CurrentLeaderId;
-				probed.Set();
-			})
-			{ IsBackground = true };
-			probeThread.Start();
-			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
-			lockHeldDuringHandler = !probed.Wait(TimeSpan.FromSeconds(2));
-			#pragma warning restore RS0030
-		};
-
-		// Act
-		await sut.DisposeAsync();
-
-		// Assert
-		lockHeldDuringHandler.ShouldBeFalse();
-	}
+    private sealed class CrossThreadGetterProbe(RedisLeaderElection sut) : IDisposable
+    {
+        private readonly ManualResetEventSlim _probed = new(false);
+        private Thread? _thread;
+        private int _count;
+        internal int Count => Volatile.Read(ref _count);
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal bool LockHeldDuringHandler { get; private set; }
+        internal Exception? GetterFailure { get; private set; }
+        internal void OnLoss(object? sender, LeaderElectionEventArgs args)
+        {
+            if (Interlocked.Increment(ref _count) != 1) { throw new InvalidOperationException("Duplicate loss callback."); }
+            Entered.TrySetResult();
+            _thread = new Thread(() =>
+            {
+                try { _ = sut.CurrentLeaderId; }
+                catch (Exception error) { GetterFailure = error; }
+                finally { _probed.Set(); }
+            }) { IsBackground = true };
+            try
+            {
+                // A dedicated thread avoids interpreting thread-pool starvation as a state-lock defect.
+                _thread.Start();
+#pragma warning disable RS0030 // The synchronous consumer deliberately probes a different thread's real state getter.
+                LockHeldDuringHandler = !_probed.Wait(TimeSpan.FromSeconds(2));
+#pragma warning restore RS0030
+            }
+            finally { Completed.TrySetResult(); }
+        }
+        public void Dispose()
+        {
+            // Do not dispose the wait handle while a getter thread could still call Set.
+#pragma warning disable RS0030 // Join the exact explicitly owned dedicated probe thread before disposing its signal.
+            if (_thread is not null && !_thread.Join(TimeSpan.FromSeconds(5))) { throw new TimeoutException("Owned getter probe thread did not finish."); }
+#pragma warning restore RS0030
+            _probed.Dispose();
+        }
+    }
 }

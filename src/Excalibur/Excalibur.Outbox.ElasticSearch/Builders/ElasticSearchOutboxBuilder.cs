@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Text.Json.Serialization.Metadata;
+
 using Elastic.Clients.Elasticsearch;
 
 namespace Excalibur.Outbox.ElasticSearch;
@@ -19,6 +21,7 @@ internal sealed class ElasticSearchOutboxBuilder : IElasticSearchOutboxBuilder
 	internal string? CloudIdValue { get; private set; }
 	internal ElasticsearchClient? ClientInstance { get; private set; }
 	internal Func<IServiceProvider, ElasticsearchClient>? ClientFactoryFunc { get; private set; }
+	internal IJsonTypeInfoResolver? SourceTypeInfoResolver { get; private set; }
 	internal string? BindConfigurationPath { get; private set; }
 
 	public IElasticSearchOutboxBuilder NodeUri(Uri uri)
@@ -92,6 +95,13 @@ internal sealed class ElasticSearchOutboxBuilder : IElasticSearchOutboxBuilder
 		ClientFactoryFunc = null;
 		return this;
 	}
+
+    public IElasticSearchOutboxBuilder SourceSerializer(IJsonTypeInfoResolver resolver)
+    {
+        ArgumentNullException.ThrowIfNull(resolver);
+        SourceTypeInfoResolver = resolver;
+        return this;
+    }
 
 	public IElasticSearchOutboxBuilder IndexName(string name)
 	{

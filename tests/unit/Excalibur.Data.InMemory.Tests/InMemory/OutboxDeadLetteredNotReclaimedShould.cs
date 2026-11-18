@@ -69,8 +69,13 @@ public sealed class OutboxDeadLetteredNotReclaimedShould
 		var msg = NewMessage();
 		await store.StageMessageAsync(msg, CancellationToken.None);
 
-		await store.MarkDeadLetteredAsync(msg.Id, "retries exhausted", 0, CancellationToken.None);
+		(await store.MarkDeadLetteredAsync(msg.Id, "retries exhausted", 0, CancellationToken.None)).ShouldBe(OutboxCompletionOutcome.Applied);
 
-		msg.Status.ShouldBe(OutboxStatus.DeadLettered);
+		(await store.MarkDeadLetteredAsync(msg.Id, "probe", 0, CancellationToken.None)).ShouldBe(OutboxCompletionOutcome.AlreadyTerminal);
+		var statistics = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
+		statistics.SentMessageCount.ShouldBe(0);
+		statistics.StagedMessageCount.ShouldBe(0);
+		statistics.FailedMessageCount.ShouldBe(0);
+		(await store.GetUnsentMessagesAsync(1, CancellationToken.None)).ShouldBeEmpty();
 	}
 }

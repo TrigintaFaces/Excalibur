@@ -13,6 +13,12 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <summary>
 /// Data request to get failed messages from the outbox.
 /// </summary>
+/// <remarks>
+/// This framework-owned request uses its fixed constructor-defined primitive input schema. Replacing a
+/// known parameter value through <c>Parameters</c> is observed at execution; parameter DbType,
+/// direction, size, templates and output callbacks are not an extensibility contract of this request.
+/// Custom <c>IDataRequest</c> implementations retain their own execution behavior.
+/// </remarks>
 [NoTenantTerm(
 	TenantConfinement.EstateWide,
 	"the outbox drain is cross-tenant by design: one dispatcher serves every tenant, and the row carries TenantId so the handler can re-establish the owning tenant per message. Scoping this read to the ambient tenant would stall delivery for every other tenant")]
@@ -58,6 +64,11 @@ public sealed class GetFailedMessagesRequest : DataRequestBase<IDbConnection, IE
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.QueryAsync<OutboxMessageRow>(Command).ConfigureAwait(false);
+			await StaticDbCommand.QueryAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "BatchSize", StaticDbCommand.Input<int>(Parameters, "BatchSize"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "MaxRetries", StaticDbCommand.Input<int>(Parameters, "MaxRetries"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "OlderThan", StaticDbCommand.Input<DateTimeOffset?>(Parameters, "OlderThan"), DbType.DateTimeOffset);
+			}, reader => SqlServerOutboxRowReader.Read(reader, includeDispatcher: false)).ConfigureAwait(false);
 	}
 }

@@ -10,6 +10,10 @@ description: Run Excalibur on Azure Functions with the isolated worker model, Se
 
 ---
 
+The compiler-checked examples on this page use the optional dependency/compiler profile of the existing `samples/05-serverless/AzureFunctions/AzureFunctions.csproj` project, together with the normal Dispatch runtime references. They do not borrow its application types or demonstrate a deployed cloud host or successful NativeAOT publication. The isolated HTTP integration requires `Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore`; the scheduled outbox requires `Microsoft.Azure.Functions.Worker.Extensions.Timer`.
+
+The order examples declare an application-owned `IOrderApplication`; register your real implementation in the host before startup. These snippets supply contracts, not a simulated business service.
+
 ## Before You Start
 
 - **.NET 10.0**
@@ -29,15 +33,31 @@ Deploy Excalibur applications to Azure Functions for serverless, event-driven wo
 
 ---
 
+## Invocation lifecycle and dependencies
+
+`AddAzureFunctionsServerless()` registers the platform adapter, cold-start optimizer and validated hosting options; it does not compose messaging, persistence, health endpoints or trigger settlement. The `AddExcaliburAzureFunctionsServerless()` entry point forwards to those same services. Configure `AddDispatch(...)` and the domain/provider services your function uses explicitly. See the [registration boundary](https://github.com/TrigintaFaces/Excalibur/blob/main/src/Dispatch/Excalibur.Dispatch.Hosting.AzureFunctions/README.md).
+
+| Concern | Application and host responsibility |
+|---|---|
+| Connection reuse | Keep the application container and thread-safe SDK clients for the host instance rather than rebuilding them per message. The selected transport owns its registered clients; do not dispose them after each invocation. Open and dispose database connections per operation so the driver's pool can reuse connections. Size each pool against maximum active instances and per-instance concurrency: scale-out creates more pools, not one shared application-wide limit. See [pool tuning](../operations/performance-tuning.md#connection-pool-tuning) and [Azure Functions connection guidance](https://learn.microsoft.com/en-us/azure/azure-functions/manage-connections). |
+| Health | Hosting registration does not register an endpoint or a dependency probe. With the corresponding transport registry configured, opt in to `AddHealthChecks().AddTransportHealthChecks()`; with a claim-check provider configured, `AddClaimCheckHealthCheck()` exercises a real store/retrieve/delete probe. Route protected health requests through the platform's HTTP surface or run explicit checks from monitoring. A platform process-health signal is not proof that the broker, database or claim-check storage is usable. |
+| Invocation limits | Set timeout, memory and concurrency in the platform deployment. `ServerlessHostOptions.MemoryLimitMB` validates a supplied value; it does not allocate platform memory. `ExecutionTimeout` only caps the budget when invoking through `IServerlessHostProvider.ExecuteAsync`, which combines cancellation with the context's remaining time and cleanup reserve. Calling `IDispatcher` directly does not automatically use that wrapper. Propagate cancellation, await required work before returning, and make effects idempotent for trigger redelivery. |
+| Freeze, resume and replacement | Treat in-memory state and timers as temporary. A host may stop scheduling your code or replace the instance; completing an invocation must not depend on a later in-process timer. Persist essential work before returning and drive durable outbox work from a platform trigger with background polling disabled. Reused clients may need their documented stale-connection recovery; initialization/warmup is not proof a connection is still live after an idle period. See [Azure Functions reliability guidance](https://learn.microsoft.com/en-us/azure/azure-functions/performance-reliability). |
+| Invocation scope and failures | Resolve scoped handler dependencies from the current invocation/message scope; do not cache them in a shared function object. Dispose application-owned scopes after awaited work, using async disposal when their services require it. The SDK trigger adapter owns acknowledgement, retries and batch responses. Check dispatch results before reporting success when using a result-returning path; a caught exception and a failed result are different observations. |
+
+The repository's local adapter and sample tests demonstrate their selected DI, cancellation and handler paths; they do not simulate a cloud freeze, service settlement or scale-out. In the AWS SQS sample, partial failures are expressed with the SDK's `SQSBatchResponse`; Azure and Google trigger retry behavior comes from their host configuration. Application command/event types, handlers, business services and resource names below are illustrative application code, not extra services installed by the hosting registration.
+
 ## Quick Start
 
 ### HTTP-Triggered Function
 
 ```csharp
+using Excalibur.Dispatch.Delivery;
 // Function.cs
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Excalibur.Dispatch;
+using System.Net;
 
 public class DispatchFunction
 {
@@ -55,13 +75,28 @@ public class DispatchFunction
     {
         var logger = context.GetLogger("ProcessCommand");
 
-        var command = await req.ReadFromJsonAsync<CreateOrderCommand>();
+        var command = await req.ReadFromJsonAsync<CreateOrderCommand>()
+            ?? throw new InvalidOperationException("An order command is required.");
         var result = await _dispatcher.DispatchAsync(command, context.CancellationToken);
 
-        var response = req.CreateResponse(HttpStatusCode.OK);
-        await response.WriteAsJsonAsync(result);
+        var response = req.CreateResponse(result.Succeeded ? HttpStatusCode.OK : HttpStatusCode.InternalServerError);
+        await response.WriteAsJsonAsync(new { succeeded = result.Succeeded });
         return response;
     }
+}
+
+public sealed record CreateOrderCommand(Guid OrderId) : IDispatchAction;
+
+// Application-owned contract: register your real implementation before starting the host.
+public interface IOrderApplication
+{
+    Task CreateAsync(Guid orderId, CancellationToken cancellationToken);
+}
+
+public sealed class CreateOrderCommandHandler(IOrderApplication orders) : IActionHandler<CreateOrderCommand>
+{
+    public Task HandleAsync(CreateOrderCommand message, CancellationToken cancellationToken) =>
+        orders.CreateAsync(message.OrderId, cancellationToken);
 }
 ```
 
@@ -70,6 +105,7 @@ public class DispatchFunction
 ```csharp
 // Program.cs
 using Microsoft.Azure.Functions.Worker;
+using Excalibur.Outbox.SqlServer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -80,17 +116,27 @@ var host = new HostBuilder()
         // Add Dispatch
         services.AddDispatch(options =>
         {
-            options.ServiceLifetime = ServiceLifetime.Scoped;
+            options.AddHandlersFromAssembly(typeof(CreateOrderCommandHandler).Assembly);
         });
 
         // Add handlers
-        services.AddScoped<CreateOrderCommandHandler>();
+        services.AddScoped<Excalibur.Dispatch.Delivery.IActionHandler<CreateOrderCommand>, CreateOrderCommandHandler>();
 
-        // Add SQL Server Outbox (optional)
-        services.AddSqlServerOutboxStore(options =>
+        var connectionString = Environment.GetEnvironmentVariable("SqlConnectionString")
+            ?? throw new InvalidOperationException("SqlConnectionString is required.");
+
+        // The outbox BUILDER is what registers IOutboxProcessor. AddSqlServerOutboxStore registers the
+        // store only, so resolving the processor after it fails with "No service for type
+        // IOutboxProcessor" -- the builder is not a stylistic preference here.
+        //
+        // The dead-letter queue is REQUIRED, not optional: the processor resolves IDeadLetterQueue and
+        // throws when none is registered. To discard exhausted messages instead, register
+        // NullDeadLetterQueue.Instance explicitly, so discard is a choice rather than an accident.
+        services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
         {
-            options.ConnectionString = Environment.GetEnvironmentVariable("SqlConnectionString");
-        });
+            outbox.UseSqlServer(sql => sql.ConnectionString(connectionString));
+            outbox.WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString);
+        }));
     })
     .Build();
 
@@ -108,9 +154,10 @@ await host.RunAsync();
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.0.0" />
-    <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.0" />
-    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="4.0.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.51.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Timer" Version="4.3.1" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.7" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.1.0" />
 
     <PackageReference Include="Excalibur.Dispatch" Version="10.0.0" />
     <PackageReference Include="Excalibur.Outbox.SqlServer" Version="10.0.0" />
@@ -158,6 +205,33 @@ func azure functionapp publish your-function-app
 
 ## Queue-Triggered Integration Event Processing
 
+### Message size, and the claim check
+
+Every broker here caps the size of a single message, and the cap has moved: Service Bus caps it per tier, and the
+tiers differ by more than an order of magnitude. So **read the current service quota rather than any number written in a document**, this one
+included — that is why no figure is quoted here.
+
+What matters for composition is that the cap exists and that exceeding it fails the send, not the handler.
+The framework ships the claim-check pattern for it: the payload goes to object storage and the message
+carries a reference, so message size stops tracking payload size.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddAzureBlobClaimCheck(options =>
+{
+    options.ConnectionString = blobConnectionString;
+    options.ContainerName = "payloads";
+});
+```
+
+Two consequences worth planning for rather than discovering: the handler's storage read is now on the
+critical path of every oversized message, and the retention policy on that bucket becomes part of your
+delivery guarantee — a payload collected by a lifecycle rule before its message is consumed is a message
+that can no longer be processed. Set the bucket's retention longer than your queue's maximum retention plus
+your dead-letter window.
+
+
 ### Azure Service Bus Integration
 
 ```csharp ignore
@@ -186,7 +260,11 @@ public class IntegrationEventProcessor
         try
         {
             var integrationEvent = JsonSerializer.Deserialize<OrderCreatedIntegrationEvent>(messageBody);
-            await _dispatcher.DispatchAsync(integrationEvent, context.CancellationToken);
+            var result = await _dispatcher.DispatchAsync(integrationEvent, context.CancellationToken);
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException("Integration event dispatch failed.");
+            }
 
             logger.LogInformation("Integration event processed successfully");
         }
@@ -202,15 +280,41 @@ public class IntegrationEventProcessor
 ### Configuration
 
 ```csharp
-// Program.cs
-services.AddDispatch(options =>
-{
-    options.ServiceLifetime = ServiceLifetime.Scoped;
-});
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+using Microsoft.Extensions.DependencyInjection;
 
-// Integration event handlers
-services.AddScoped<OrderCreatedIntegrationEventHandler>();
-services.AddScoped<PaymentProcessedIntegrationEventHandler>();
+public static class IntegrationEventRegistration
+{
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddDispatch(options => options.AddHandlersFromAssembly(typeof(OrderCreatedIntegrationEventHandler).Assembly));
+        services.AddScoped<IEventHandler<OrderCreatedIntegrationEvent>, OrderCreatedIntegrationEventHandler>();
+        services.AddScoped<IEventHandler<PaymentProcessedIntegrationEvent>, PaymentProcessedIntegrationEventHandler>();
+    }
+}
+
+public sealed record OrderCreatedIntegrationEvent(Guid OrderId) : IDispatchEvent;
+public sealed record PaymentProcessedIntegrationEvent(Guid OrderId) : IDispatchEvent;
+
+// Application-owned handlers delegate to the application's real side-effect implementation.
+public interface IIntegrationEventApplication
+{
+    Task OnOrderCreatedAsync(Guid orderId, CancellationToken cancellationToken);
+    Task OnPaymentProcessedAsync(Guid orderId, CancellationToken cancellationToken);
+}
+
+public sealed class OrderCreatedIntegrationEventHandler(IIntegrationEventApplication application) : IEventHandler<OrderCreatedIntegrationEvent>
+{
+    public Task HandleAsync(OrderCreatedIntegrationEvent message, CancellationToken cancellationToken) =>
+        application.OnOrderCreatedAsync(message.OrderId, cancellationToken);
+}
+
+public sealed class PaymentProcessedIntegrationEventHandler(IIntegrationEventApplication application) : IEventHandler<PaymentProcessedIntegrationEvent>
+{
+    public Task HandleAsync(PaymentProcessedIntegrationEvent message, CancellationToken cancellationToken) =>
+        application.OnPaymentProcessedAsync(message.OrderId, cancellationToken);
+}
 ```
 
 ### Application Settings (Portal or Azure CLI)
@@ -232,7 +336,8 @@ az functionapp config appsettings set \
 ```csharp
 // OutboxProcessorFunction.cs
 using Microsoft.Azure.Functions.Worker;
-using Excalibur.Outbox;
+using Excalibur.Dispatch;
+using Microsoft.Extensions.Logging;
 
 public class OutboxProcessorFunction
 {
@@ -244,6 +349,7 @@ public class OutboxProcessorFunction
         ILogger<OutboxProcessorFunction> logger)
     {
         _outboxProcessor = outboxProcessor;
+        _outboxProcessor.Init($"serverless-outbox-{Guid.NewGuid():N}");
         _logger = logger;
     }
 
@@ -403,133 +509,26 @@ public class OrderSagaOrchestration
 
 ## Event Sourcing with Cosmos DB
 
-### Cosmos DB Event Store
+Install `Excalibur.EventSourcing.CosmosDb` and select the existing provider in the function application's service configuration:
 
 ```csharp
-// Program.cs
-services.AddSingleton<IEventStore>(sp =>
+using Excalibur.EventSourcing.CosmosDb;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class CosmosEventStoreRegistration
 {
-    var cosmosClient = new CosmosClient(
-        Environment.GetEnvironmentVariable("CosmosDbConnectionString"));
-
-    return new CosmosDbEventStore(
-        cosmosClient, "EventStore", "Events", sp.GetRequiredService<IEventTypeRegistry>());
-});
-
-// CosmosDbEventStore.cs
-// The stored EventType holds the event's declared [MessageName] -- the same name used by the outbox
-// MessageType and the CloudEvents type. See ../event-sourcing/domain-events.md#stable-message-names.
-public class CosmosDbEventStore : IEventStore
-{
-    private readonly Container _container;
-    private readonly IEventTypeRegistry _eventTypes;
-
-    public CosmosDbEventStore(
-        CosmosClient client, string databaseName, string containerName, IEventTypeRegistry eventTypes)
+    public static void Configure(IServiceCollection services, string connectionString)
     {
-        _container = client.GetContainer(databaseName, containerName);
-        _eventTypes = eventTypes;
-    }
-
-    public async Task AppendAsync(
-        string aggregateId,
-        IEnumerable<IDomainEvent> events,
-        int expectedVersion,
-        CancellationToken cancellationToken)
-    {
-        var batch = _container.CreateTransactionalBatch(new PartitionKey(aggregateId));
-
-        // The store assigns each event's stream version; the event payload no longer carries one.
-        var version = expectedVersion;
-        foreach (var @event in events)
-        {
-            var eventDocument = new EventDocument
-            {
-                Id = Guid.NewGuid().ToString(),
-                AggregateId = aggregateId,
-                EventType = MessageNameHelper.GetName(@event.GetType()),
-                EventData = JsonSerializer.SerializeToUtf8Bytes(@event),
-                Version = ++version,
-                Timestamp = @event.OccurredAt
-            };
-
-            batch.CreateItem(eventDocument);
-        }
-
-        var response = await batch.ExecuteAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new ConcurrencyException(
-                $"Concurrency conflict for aggregate {aggregateId}");
-        }
-    }
-
-    public async Task<IEnumerable<IDomainEvent>> GetEventsAsync(
-        string aggregateId,
-        CancellationToken cancellationToken)
-    {
-        var query = _container.GetItemQueryIterator<EventDocument>(
-            new QueryDefinition("SELECT * FROM c WHERE c.aggregateId = @aggregateId ORDER BY c.version")
-                .WithParameter("@aggregateId", aggregateId));
-
-        var events = new List<IDomainEvent>();
-        while (query.HasMoreResults)
-        {
-            var response = await query.ReadNextAsync(cancellationToken);
-            foreach (var doc in response)
-            {
-                var eventType = _eventTypes.ResolveType(doc.EventType);
-                var @event = JsonSerializer.Deserialize(doc.EventData, eventType) as IDomainEvent;
-                events.Add(@event);
-            }
-        }
-
-        return events;
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+            es.UseCosmosDb(cosmos => cosmos
+                .ConnectionString(connectionString)
+                .DatabaseName("EventStore")
+                .ContainerName("Events"))));
     }
 }
 ```
 
-### Cosmos DB Change Feed Projections
-
-```csharp
-// ProjectionFunction.cs
-using Microsoft.Azure.Functions.Worker;
-
-public class ProjectionFunction
-{
-    private readonly IProjectionService _projectionService;
-    private readonly IEventTypeRegistry _eventTypes;
-
-    public ProjectionFunction(IProjectionService projectionService, IEventTypeRegistry eventTypes)
-    {
-        _projectionService = projectionService;
-        _eventTypes = eventTypes;
-    }
-
-    [Function("ProcessProjections")]
-    public async Task Run(
-        [CosmosDBTrigger(
-            databaseName: "EventStore",
-            containerName: "Events",
-            Connection = "CosmosDbConnectionString",
-            LeaseContainerName = "leases",
-            CreateLeaseContainerIfNotExists = true)]
-        IReadOnlyList<EventDocument> input,
-        FunctionContext context)
-    {
-        var logger = context.GetLogger("ProcessProjections");
-        logger.LogInformation("Processing {Count} events", input.Count);
-
-        foreach (var eventDoc in input)
-        {
-            var eventType = _eventTypes.ResolveType(eventDoc.EventType);
-            var @event = JsonSerializer.Deserialize(eventDoc.EventData, eventType) as IDomainEvent;
-
-            await _projectionService.ProjectAsync(@event, context.CancellationToken);
-        }
-    }
-}
-```
+Follow [Cosmos DB provider setup](../event-sourcing/providers.md#azure-cosmos-db) for client ownership, partition keys, provisioning and repository registration. The provider implements the framework's current `IEventStore`; an application-specific document writer with only `AppendAsync` and `GetEventsAsync` does not. A Cosmos DB trigger is a separate platform binding. Follow [projection composition](../event-sourcing/projections.md) for the event-store projection path rather than assuming a hand-written change-feed document shape matches the provider's persisted format.
 
 ---
 
@@ -674,6 +673,36 @@ public class MetricsFunction
 **Premium Plan:** Always-ready and prewarmed instances to reduce cold-start latency. See [Microsoft Premium plan guidance](https://learn.microsoft.com/en-us/azure/azure-functions/functions-premium-plan).
 **Dedicated Plan:** Full VM control
 
+#### Run the framework's cold-start optimizer
+
+Everything above is platform configuration. The framework also ships a cold-start optimizer for Azure Functions,
+and **nothing invokes it for you** — registering it seats the service, it does not run the warmup. Left
+uncalled, dependency injection, JIT and SDK initialization are all paid on the first invocation of each new
+instance.
+
+```csharp
+using Excalibur.Dispatch.Hosting.Serverless;
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddAzureFunctionsServerless();
+```
+
+Then drive it once from your function's construction or initialization path, not per invocation:
+
+```csharp
+var optimizer = provider.GetRequiredService<IColdStartOptimizer>();
+await optimizer.OptimizeAsync();
+```
+
+`OptimizeAsync` is a no-op off-platform: the optimizer reports itself disabled unless `AZURE_FUNCTIONS_ENVIRONMENT` is set, which the Functions host sets for you, so the same
+code is safe to run locally and in tests without a guard of your own.
+
+Unlike AWS Lambda there is no snapshot-and-restore mechanism here to attach a warmup to, so this runs
+during instance initialization rather than at image-capture time. That makes it worth less than SnapStart
+and more than nothing: the work moves off the first request and onto instance startup, which is where
+Azure Functions's own prewarming and minimum-instance settings above are already paying.
+
+
 ### ReadyToRun
 
 ```xml
@@ -708,7 +737,7 @@ az functionapp create \
   --resource-group your-rg \
   --consumption-plan-location eastus \
   --runtime dotnet-isolated \
-  --runtime-version 9 \
+  --runtime-version 10 \
   --functions-version 4 \
   --storage-account yourstorage
 
@@ -734,7 +763,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Build
         run: |
@@ -767,13 +796,12 @@ az monitor app-insights query \
 
 ### High Execution Time
 
-```csharp
-// Add timeout configuration
-[Function("LongRunningTask")]
-[Timeout("00:10:00")]  // 10 minutes
-public async Task Run([TimerTrigger("0 0 * * * *")] TimerInfo timerInfo)
+Configure the function timeout in `host.json` within the limits of your selected [hosting plan](https://learn.microsoft.com/en-us/azure/azure-functions/functions-host-json#functiontimeout). This is a host setting, not a `Timeout` attribute on an isolated-worker function:
+
+```json
 {
-    // Long-running operation
+  "version": "2.0",
+  "functionTimeout": "00:05:00"
 }
 ```
 

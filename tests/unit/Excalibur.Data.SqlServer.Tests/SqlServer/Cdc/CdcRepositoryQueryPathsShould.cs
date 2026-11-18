@@ -19,6 +19,59 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 public sealed class CdcRepositoryQueryPathsShould : UnitTestBase
 {
 	[Fact]
+	public async Task GetNextValidLsn_UsesConfiguredTimeout()
+	{
+		var connection = new RecordingDbConnection();
+		connection.EnqueueReaderResult(CreateSingleValueTable("Value", typeof(byte[]), new byte[] { 1 }));
+		await using var repository = new CdcRepository(connection, commandTimeoutSeconds: 73);
+		_ = await repository.GetNextValidLsnAsync([0], CancellationToken.None);
+		connection.Commands.Single().Timeout.ShouldBe(73);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task SingleRowQueries_RejectMoreThanOneRow(bool optional)
+	{
+		var connection = new RecordingDbConnection();
+		var table = CreateSingleValueTable("Value", typeof(byte[]), new byte[] { 1 });
+		_ = table.Rows.Add(new byte[] { 2 });
+		connection.EnqueueReaderResult(table);
+		await using var repository = new CdcRepository(connection);
+		await Should.ThrowAsync<InvalidOperationException>(async () =>
+		{
+			if (optional) { _ = await repository.GetNextLsnAsync("dbo_Test", [0], CancellationToken.None); }
+			else { _ = await repository.GetMaxPositionAsync(CancellationToken.None); }
+		});
+		connection.State.ShouldBe(ConnectionState.Open);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task SingleRowQueries_DistinguishMissingRowsFromNullCells(bool nullCell)
+	{
+		var connection = new RecordingDbConnection();
+		var table = CreateSingleValueTable("Value", typeof(byte[]), DBNull.Value);
+		if (!nullCell) { table.Rows.Clear(); }
+		connection.EnqueueReaderResult(table);
+		await using var repository = new CdcRepository(connection);
+		if (nullCell) { (await repository.GetMaxPositionAsync(CancellationToken.None)).ShouldBeNull(); }
+		else { await Should.ThrowAsync<InvalidOperationException>(() => repository.GetMaxPositionAsync(CancellationToken.None)); }
+	}
+
+	[Fact]
+	public async Task FirstRowQuery_AllowsMoreThanOneRow()
+	{
+		var connection = new RecordingDbConnection();
+		var table = CreateSingleValueTable("Value", typeof(byte[]), new byte[] { 1 });
+		_ = table.Rows.Add(new byte[] { 2 });
+		connection.EnqueueReaderResult(table);
+		await using var repository = new CdcRepository(connection);
+		(await repository.GetNextValidLsnAsync([0], CancellationToken.None)).ShouldBe([1]);
+	}
+
+	[Fact]
 	public async Task GetNextLsnAsync_WithCaptureInstance_NormalizesDottedNameInQuery()
 	{
 		// Arrange
@@ -510,7 +563,7 @@ public sealed class CdcRepositoryQueryPathsShould : UnitTestBase
 				parameters[parameterName] = parameter.Value;
 			}
 
-			Commands.Add(new ExecutedCommand(command.CommandText ?? string.Empty, parameters));
+			Commands.Add(new ExecutedCommand(command.CommandText ?? string.Empty, parameters, command.CommandTimeout));
 		}
 
 		protected override void Dispose(bool disposing)
@@ -590,5 +643,6 @@ public sealed class CdcRepositoryQueryPathsShould : UnitTestBase
 
 	private sealed record ExecutedCommand(
 		string CommandText,
-		IReadOnlyDictionary<string, object?> ParameterValues);
+		IReadOnlyDictionary<string, object?> ParameterValues,
+		int Timeout);
 }

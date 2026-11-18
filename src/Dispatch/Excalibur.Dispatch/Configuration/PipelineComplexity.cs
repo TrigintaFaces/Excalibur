@@ -25,7 +25,7 @@ public enum PipelineComplexity
 	Minimal = 2,
 
 	/// <summary>
-	/// Direct pipeline with zero middleware overhead.
+	/// Direct pipeline complexity classification.
 	/// </summary>
 	Direct = 3,
 }

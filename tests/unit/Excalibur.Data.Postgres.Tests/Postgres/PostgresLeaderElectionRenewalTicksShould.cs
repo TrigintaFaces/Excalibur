@@ -4,6 +4,7 @@
 using System.Reflection;
 
 using Excalibur.LeaderElection.Postgres;
+using Excalibur.LeaderElection;
 
 using Shouldly;
 
@@ -11,37 +12,33 @@ using Xunit;
 
 namespace Excalibur.Data.Postgres.Tests.Postgres;
 
-/// <summary>
-/// Author≠impl regression lock for S850 Lane E · <c>a58yu6</c> (torn cross-thread read of the
-/// last-successful-renewal timestamp on <see cref="PostgresLeaderElection"/>).
-/// </summary>
-/// <remarks>
-/// Authored by FrontendDeveloper (did NOT implement the fix — independence per
-/// <c>issue-remediation-protocol</c>) against the frozen GUIDE seam (msg 15508, decision #4): the renewal
-/// loop reads the timestamp lock-free while <c>BecomeLeader</c> writes it under <c>_lock</c>, so a multi-field
-/// <see cref="DateTimeOffset"/> would tear. The fix stores it as a single 64-bit <see cref="long"/> of UTC
-/// ticks accessed via <see cref="Interlocked"/>. Structural conformance lock (deterministic). <b>RED on the
-/// pre-fix surface</b> (the <c>long</c> ticks field is absent; the <see cref="DateTimeOffset"/> field is
-/// present); GREEN on the fix. F-5: this is the Postgres sibling of the Redis/SqlServer locks, which live in
-/// a different test project (<c>Excalibur.LeaderElection.Tests</c>), since that project does not reference the
-/// Postgres provider.
-/// </remarks>
+/// <summary>Guards coherent ownership metadata across concurrent renewal publication.</summary>
+/// <remarks>The common owner publishes a monotonic request-start and the complete fence/proof
+/// together under one gate. The positive control uses actual concurrent publication/read;
+/// the legacy torn multi-field representation must not be reintroduced.</remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 public sealed class PostgresLeaderElectionRenewalTicksShould
 {
 	[Fact]
-	public void StoreLastSuccessfulRenewalAsAnInterlockedLongTicksField()
-	{
-		var ticksField = typeof(PostgresLeaderElection)
-			.GetField("_lastSuccessfulRenewalTicks", BindingFlags.NonPublic | BindingFlags.Instance);
-
-		ticksField.ShouldNotBeNull(
-			"a58yu6: the last-successful-renewal timestamp must be a single 64-bit field accessed via " +
-			"Interlocked.Read/Exchange — a multi-field DateTimeOffset tears when the renewal loop reads it " +
-			"lock-free while BecomeLeader writes it under _lock.");
-		ticksField.FieldType.ShouldBe(typeof(long));
-	}
+    public async Task ReadCoherentMonotonicProofsAcrossConcurrentRenewalPublication()
+    {
+        var clock = TimeProvider.System; var proof = new object(); var start = clock.GetTimestamp();
+        await using var owner = new RenewalTenureDeadline(clock, TimeSpan.FromDays(1), static _ => Task.CompletedTask);
+        var generation = owner.BeginAcquisition(new object());
+        owner.Publish(generation, start, proof, 42, clock.GetUtcNow()).ShouldBeTrue();
+        var producer = Task.Run(() => { for (var i = 0; i < 1000; i++) { owner.Confirm(generation, clock.GetTimestamp()).ShouldBeTrue(); } });
+        var reader = Task.Run(() =>
+        {
+            for (var i = 0; i < 1000; i++)
+            {
+                var current = owner.Current.ShouldNotBeNull();
+                current.Generation.ShouldBe(generation); current.OwnershipProof.ShouldBeSameAs(proof); current.FencingToken.ShouldBe(42);
+                clock.GetElapsedTime(start, current.ProofRequestStart).ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
+            }
+        });
+        await Task.WhenAll(producer, reader);
+    }
 
 	[Fact]
 	public void NotRetainTheTornMultiFieldDateTimeOffsetRepresentation()

@@ -40,19 +40,36 @@ services.AddPostgresDataInventoryStore(options =>
 ## Schema
 
 These stores verify their schema on startup and throw if it is absent. Provision it before first
-run by executing the script shipped inside this package under `scripts/`:
-
-```text
-scripts/001_CreateComplianceSchema.sql
-```
+run by executing **every** script shipped inside this package under `scripts/`, in numeric order:
 
 ```sh
-psql -h host -U user -d database -f 001_CreateComplianceSchema.sql
+for f in 001_*.sql 002_*.sql 003_*.sql 004_*.sql 005_*.sql 006_*.sql 007_*.sql; do
+  psql -h host -U user -d database -f "$f"
+done
 ```
 
-It creates the `compliance` schema and five tables: `erasure_requests`, `erasure_certificates`,
-`data_inventory_registrations`, `discovered_data_locations` and `legal_holds`. Every statement is
-guarded with `IF NOT EXISTS`, so the script is safe to re-run.
+Run them all. Each one is guarded — `IF NOT EXISTS` on every create, and the alters check before
+they change anything — so the set is safe to re-run and safe against a database that already holds
+some of the tables. Running a subset is the one thing that does not work, because the startup
+verifier requires tables that only the later scripts create:
+
+| Script | Creates |
+|---|---|
+| `001_CreateComplianceSchema.sql` | the `compliance` schema and `erasure_requests`, `erasure_certificates`, `erasure_destroyed_keys`, `erasure_destruction_intents`, `data_inventory_registrations`, `discovered_data_locations`, `legal_holds` |
+| `002_ReplaceLegalBasisColumns.sql` | column changes only |
+| `003_AddLegalHoldReleaseAndVersion.sql` | column changes only |
+| `004_AddKeyDestructionLedger.sql` | `erasure_destroyed_keys`, `erasure_destruction_intents` — already made by 001, so this is a no-op on a fresh database and the upgrade path for one provisioned earlier |
+| `005_AddKeyMintLedger.sql` | `erasure_minted_keys` |
+| `006_AddDataSubjectTokenFingerprint.sql` | `erasure_token_fingerprint` |
+| `007_AddRetentionDeclarationLedger.sql` | `erasure_retention_declarations` |
+
+**The last two are required, not optional.** The erasure store will not start without
+`erasure_minted_keys`: the erasure enumerates the key handles it destroys from that ledger rather
+than re-deriving them, so a missing ledger would mean a handle holding the subject's data that
+nothing destroys. And `erasure_token_fingerprint` is what refuses startup when the data-subject
+hashing key has changed, which would otherwise orphan every pseudonymised record. Startup fails
+fast and names the missing table, so a partial provision is loud rather than silent — but it does
+mean the store never starts.
 
 Setting `AutoCreateSchema = true` makes a store create its own tables on first use instead. That
 is a convenience for development: it requires the application's own role to hold DDL rights, which

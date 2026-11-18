@@ -76,7 +76,8 @@ public sealed class MissedScheduleTimeoutShould
 		A.CallTo(() => policy.GetTimeoutFor(TimeoutOperationType.Handler)).Returns(TimeSpan.FromMilliseconds(50));
 		var cronOptions = Microsoft.Extensions.Options.Options.Create(new CronScheduleOptions());
 		using var scopeProvider = new ServiceCollection().BuildServiceProvider();
-		using var service = new ScheduledMessageService(store, dispatcher, serializer,
+		using var authority = new ScheduleFixtureFailureAuthority(store, clock);
+		using var service = new ScheduledMessageService(authority.RuntimeStore, dispatcher, serializer,
 			new CronScheduler(cronOptions, NullLogger<CronScheduler>.Instance),
 			Microsoft.Extensions.Options.Options.Create(new SchedulerOptions
 			{
@@ -105,7 +106,7 @@ public sealed class MissedScheduleTimeoutShould
 				Volatile.Read(ref overdueWrites).ShouldBe(1);
 				var persisted = writtenOverdue.Single();
 				persisted.Last.ShouldBe(now.AddMinutes(-5));
-				persisted.Next.ShouldNotBeNull().ShouldBeGreaterThan(now);
+				persisted.Next.ShouldBe(overdue.NextExecutionUtc, "timed-out admitted work remains due rather than being coalesced away");
 			}
 			else
 			{

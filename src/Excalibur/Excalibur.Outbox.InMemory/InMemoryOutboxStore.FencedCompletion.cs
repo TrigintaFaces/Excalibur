@@ -45,53 +45,11 @@ public sealed partial class InMemoryOutboxStore
 		DateTimeOffset? nextAttemptAt,
 		OutboxWriteAuthority authority,
 		CancellationToken cancellationToken)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
-		ArgumentNullException.ThrowIfNull(errorMessage);
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		lock (_claimLock)
-		{
-			// THE FENCE IS EVALUATED FIRST AND IN ISOLATION. A superseded tenure must learn nothing about
-			// the row's state: answering "not found" or "claim lost" to a caller that has already lost the
-			// tenure tells it to carry on with its batch, which is precisely what it must not do.
-			if (authority.FencingToken < _fencingHighWaterMark)
-			{
-				return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.FenceRefused);
-			}
-
-			_fencingHighWaterMark = Math.Max(_fencingHighWaterMark, authority.FencingToken);
-
-			if (!_messages.TryGetValue(messageId, out var message))
-			{
-				return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.MessageNotFound);
-			}
-
-			// TERMINAL-STATUS exclusion, reported rather than silent, and reported AS ITSELF. Sent and
-			// DeadLettered are final: nobody owns a terminal message, so this is neither a lost claim nor an
-			// absence. Returning success here would let a failure reported after a successful send move the
-			// message back to Failed, which IS in the claim predicate, so a delivered message would be
-			// delivered again. This store keeps the row, so it can see the difference and must say it.
-			if (message.Status is OutboxStatus.Sent or OutboxStatus.DeadLettered)
-			{
-				return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.AlreadyTerminal);
-			}
-
-			// The claim term. Orthogonal to the fence: one process can claim, fail, re-claim and fail again
-			// under an identical fencing token, so only the claim identity separates a live report from a
-			// stale cycle's. The unreserved-input path (staged then failed without ever being claimed) has
-			// no lease and is not refused -- there is no claim for the caller to have lost.
-			if (_leases.TryGetValue(messageId, out var lease)
-				&& !string.Equals(lease.LeasedBy, authority.ClaimIdentity, StringComparison.Ordinal))
-			{
-				return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.ClaimLost);
-			}
-
-			ApplyFailureUnderClaimLock(messageId, message, errorMessage, retryCount, nextAttemptAt);
-
-			return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied);
-		}
-	}
+    {
+        ArgumentNullException.ThrowIfNull(errorMessage);
+        return ApplyClaimCompletion(messageId, authority.ClaimIdentity, authority.FencingToken, ClaimCompletion.Failed,
+            errorMessage, retryCount, nextAttemptAt, cancellationToken);
+    }
 
 	/// <inheritdoc />
 	public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(

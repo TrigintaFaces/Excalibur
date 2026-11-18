@@ -9,7 +9,7 @@ using Excalibur.Dispatch.Diagnostics;
 namespace Excalibur.Dispatch.Metrics;
 
 /// <summary>
-/// Timer for measuring durations and recording to a histogram. Zero-allocation timer using ValueStopwatch for optimal performance.
+/// Uses ValueStopwatch timestamps to measure elapsed time and records microseconds to a histogram on disposal.
 /// </summary>
 /// <remarks>
 /// <para>

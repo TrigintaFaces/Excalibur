@@ -25,7 +25,12 @@ namespace Excalibur.Dispatch.Tests.Delivery.Scheduling;
 public sealed class ScheduledMessageServiceTimeoutShould : IDisposable
 {
 	private readonly ServiceProvider _scopeProvider = new ServiceCollection().BuildServiceProvider();
-	public void Dispose() => _scopeProvider.Dispose();
+	private readonly List<ScheduleFixtureFailureAuthority> _authorities = [];
+	public void Dispose()
+	{
+		foreach (var authority in _authorities) { authority.Dispose(); }
+		_scopeProvider.Dispose();
+	}
 
 	private ScheduledMessageService CreateService(
 		IScheduleStore? store = null,
@@ -34,8 +39,10 @@ public sealed class ScheduledMessageServiceTimeoutShould : IDisposable
 		ILogger<ScheduledMessageService>? logger = null,
 		TimeProvider? timeProvider = null)
 	{
+		var authority = new ScheduleFixtureFailureAuthority(store ?? A.Fake<IScheduleStore>(), timeProvider);
+		_authorities.Add(authority);
 		return new ScheduledMessageService(
-			store ?? A.Fake<IScheduleStore>(),
+			authority.RuntimeStore,
 			A.Fake<IDispatcher>(),
 			new DispatchJsonSerializer(),
 			A.Fake<ICronScheduler>(),

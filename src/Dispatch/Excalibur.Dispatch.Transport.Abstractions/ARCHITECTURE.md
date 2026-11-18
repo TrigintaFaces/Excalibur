@@ -147,6 +147,98 @@ rows are not known to be wrong — they are read from each provider's implementa
 which is the same standing as the reconnection guarantee above. A structural guard now records the
 uncovered arms per transport and fails if that set grows, so the gap can shrink but not silently widen.
 
+### Kafka: one lock serves both the poll and the offset commit
+
+**PARTLY MEASURED, and the split matters: the mechanism below is read from the code, the
+eviction's behaviour at the end of it was induced against a real broker, and the window's
+reachability at production scale is UNVERIFIED.** On Kafka, a single
+operation gate serializes the consume loop and the settlement path. A settlement that advances the
+commit position performs a synchronous broker round-trip while holding that gate, so the consume
+loop cannot run until it returns, and a host that settles from threads other than the one polling
+serializes one round-trip per advancing settlement ahead of the next poll. The number of
+settlements in flight is the host's, not the framework's: the receiver warns above ten thousand
+unsettled deliveries and does not cap them.
+
+**The cost is not only throughput.** The client dispatches its partitions-assigned and
+partitions-revoked callbacks only as a side effect of a consume, close or dispose call, and those
+callbacks are the only thing that advances this library's local view of which assignment generation
+owns a partition. So delaying the poll delays the only mechanism that can learn a partition has
+changed hands, and a settlement whose generation check passes during that delay can publish a
+position for a partition this process no longer owns. A broker accepts an offset commit on the
+strength of the group generation and member id; it does not check that the member still holds the
+partition.
+
+**IT DOES NOT LOSE A MESSAGE, AND THE REASON IS ARITHMETIC RATHER THAN A FENCE.** The committable
+position is the minimum over the offsets a tenure still has in a handler, the offsets awaiting
+replay, and one past the highest it fetched. So every offset below a published position was, *in
+the tenure that computed it*, either carried to a terminal state or never fetched at all — a
+property that is local, and that does not decay when the commit arrives late or under a later
+generation. A stale position therefore cannot be published over work nobody processed.
+
+**What it does instead is rewind.** If the partition's current tenure has already committed past
+the stale position, the broker accepts the older one and that tenure redelivers work it had
+already settled: duplicates, bounded by the distance between the two positions, and inside the
+at-least-once guarantee this document states. Handlers must be idempotent regardless, so a consumer
+who honours that obligation is not harmed by this; the failure mode is wasted work, not a wrong
+answer.
+
+**So read the trade honestly, because it is the opposite of what it looks like.** The generation
+check is a duplicate-suppression heuristic, not a fence — no lock can make a local check and a
+remote decision one atomic action, since the two sit on different machines. The stall is paid on
+the one thread whose punctuality determines group membership, to suppress a bounded number of
+duplicate redeliveries; and when the stall is long enough to cost the member its partitions, the
+revoke redelivers *everything* that tenure had not committed. The mitigation can cost more of the
+harm than the harm it prevents.
+
+**AND THE SECOND CONSEQUENCE IS THE ONE THAT IS NOT BOUNDED, so do not read the paragraphs above as
+the whole cost.** Losing the member's partitions is not a single event with a single redelivery. A
+non-graceful eviction publishes no position at all — the partitions are already gone, so the
+library records the loss and commits nothing — and the tenure that picks them up resumes from the
+last *completed* commit and is handed the whole in-flight tail again. If the host's settlement
+concurrency does not fall after an eviction, and nothing in this library signals that it should,
+the same conditions reproduce: the poll is starved again, the member is evicted again, and the tail
+is redelivered again. The redelivery count for a message at the tail of that window is then bounded
+by nothing. Net progress is degraded rather than zero — commits do complete during each stall — so
+what a consumer observes is throughput collapsing toward the rate at which single commits complete,
+visible as group lag rather than as an error.
+
+This is the same destination as the no-progress cycle described at the commit-on-revoke path for a
+tenure that settled nothing, reached from the other direction: that cycle needs handlers slower than
+the rebalance cadence, and this one shortens the cadence instead.
+
+**MEASURED against a real broker, 2026-11-09, and it cuts both ways.** This paragraph replaces an
+UNVERIFIED label: which path such an eviction takes was the pivot the severity turned on, and it has
+now been induced directly rather than reasoned about.
+
+**What holds.** The eviction takes the lost-partitions path, which publishes nothing, so the next
+tenure does resume from the last completed commit and the whole in-flight window is redelivered.
+That half of the cycle above is confirmed.
+
+**What does not hold, and it was the cycle's load-bearing step.** The eviction is NOT quiet. The
+client throws out of the poll — a typed consume fault whose message names the cause and the overshoot
+("application maximum poll interval exceeded by …") — and this library lets it propagate to the
+caller of a receive, after logging it and after handing back the in-flight deliveries of the batch
+that failed. So a host DOES get a signal, at the moment it matters, naming the thing to fix. The
+unbounded case therefore requires a host that catches that fault and immediately retries at the same
+settlement concurrency; it is not the default outcome of a host that merely has no information.
+
+**What this means for you as a consumer, and the awkward part is WHERE the fault arrives.** It is
+raised from the poll, so it reaches whoever called receive -- the party that was *blocked*. The
+settlement concurrency that caused the block lives on your other threads, in the acknowledge and
+reject calls, and those never see it. **A poll loop that catches a transport exception and retries
+the poll is the ordinary resilience shape, and it swallows this fault by default while leaving the
+in-flight width untouched.** That is not a careless host; it is the common one.
+
+So the obligation is a wiring one rather than a vigilance one: propagate a consume fault naming the
+poll interval to whatever governs your in-flight settlement window, and narrow that window before
+polling again. Treating it as a transient and retrying at the same width is what turns one eviction
+into a cycle, and it is the one response this library cannot make on your behalf.
+
+**What a consumer can do now.** Settle on the same flow that polls — the subscriber entry point
+does this by construction, handing one message to the handler at a time — or keep the number of
+in-flight unsettled deliveries small, so that at most a short queue of commits can precede a poll.
+A host that polls on one thread and settles from many is the composition this gap is about.
+
 ## Consumer obligations
 
 - On MQTT and gRPC, call `UseReconnect(...)` when building the subscriber, or accept that a dropped
@@ -155,3 +247,66 @@ uncovered arms per transport and fails if that set grows, so the gap can shrink 
   retry loop multiplies the reconnect rate rather than adding safety.
 - The decorator retries the *subscribe* call. It makes no claim about messages in flight when the
   connection dropped, so handlers must remain idempotent regardless of which column applies.
+- On Kafka, prefer settling on the flow that polls, or bound your in-flight unsettled deliveries.
+  A settlement performs a synchronous offset commit under the same lock the consume loop needs, so
+  a large in-flight window converts settlement latency into poll delay — and poll delay is what
+  defers this library's view of a rebalance. An idempotent handler covers the single rewind this
+  produces; it does NOT cover the eviction loop, where the same tail is redelivered once per cycle
+  and throughput collapses toward the single-commit rate. **A receive that throws a consume fault
+  naming the poll interval is your backpressure signal** — measured, the client raises it and this
+  library propagates it — but it arrives on the RECEIVE path, while the concurrency that caused it
+  lives in your acknowledge and reject calls on other threads. Wire one to the other: narrow the
+  in-flight settlement window rather than retrying the poll at the same width. See the Kafka entry
+  under Known gaps.
+
+## Internal supplied-channel message pump (B08 row114)
+
+The selected contract for internal `Excalibur.Dispatch.Transport.MessagePump` is one ingress:
+its concrete `Reader` and `Writer` expose the supplied `Channel<MessageEnvelope>` that the processing
+loop consumes. The caller creates that channel and selects its capacity, full-mode and reader/writer
+options. There is no additional ingress buffer or forwarding loop. Retained `Configure` callbacks do
+not resize or reconfigure an existing supplied channel. The ineffective public
+`ChannelMessagePumpOptions.FullMode` property is withdrawn: it no longer has a shipped reader after
+removing the orphan ingress, and setting it cannot configure the supplied channel. Select full-mode
+behavior through the channel's own `BoundedChannelOptions` when creating that channel. No ignored
+compatibility setter or extra queue is introduced. This decision does not change the separate public
+`Excalibur.Dispatch.Channels.MessagePump<T>` event-based contract.
+
+Disposal completes the single supplied ingress; stopping alone leaves it open:
+
+| Operation | Effect on supplied writer | Processing termination |
+|---|---|---|
+| `StopAsync` | Leaves it open | Cancels, then awaits the processing task |
+| `DisposeAsync` | Completes it after `StopAsync` returns | Cancels, then awaits the processing task |
+| `Dispose` | Completes it | Cancels without awaiting the processing task |
+
+Awaited cancellation is not graceful draining. Publishing after stopping has no processing guarantee,
+even though its writer remains open. Successful disposal refuses subsequent writes through either alias
+of the supplied writer. The caller selects capacity/backpressure and grants the pump completion authority
+when disposing it; the channel is not a shared ingress that another producer can keep using afterward.
+This decision adds no drain, restart or concurrent lifecycle guarantee.
+
+The existing test-first control preloads and seals both writers before starting; it observes the exact
+callback before stopping, so a missing callback is not attributed to shutdown cancellation. The original
+exposed-writer failure is retained. The earlier 29-case local pass did not include the separate legacy
+`DisposeAsync_StopsPump_AndCompletesInternalWriter` test. The subsequent canonical Transport run exposed
+that completion regression. The corrected contract retains that legacy test unchanged and updates only
+the two newly authored disposal rows. Both existing fixture owners now pass all 40 pump cases with zero
+skips, including unchanged legacy ID `1a62c1ec-4ae6-b8fe-f5cc-476e88630ce4`. The independent actual audit is
+C4D2159B74EE4570EDB035E768E51263153FCFDF8DFA11581ACDFEB323431438
+(`b08-pump-disposal-correction-independent-actual-audit-r1`). Full canonical Transport (expected 5200)
+remains pending. Neither local evidence
+nor this bounded decision certifies all B08 dispositions, the release matrix or NativeAOT. See the dated row114 addendum in
+[ADR-240](../../../management/architecture/adr-240-sprint-676-disposal-data-safety-resource-leaks.md).
+
+## Selected SQS send-attempt telemetry boundary
+
+An SDK operation log is not a physical HTTP request count. In the pinned AWS SDK Core 4.0.3.30 implementation, `client.call.attempts` records retry decisions, excludes the initial attempt on the examined path, and can increment before another HTTP request is sent. Do not add it to logical attempts and label the result a universal wire total. `client.call.attempt_duration` observes the SDK HTTP-handler invocation boundary; it includes the first invocation and records entered error/cancellation paths, but failures before an actual send can also produce a duration observation.
+
+For an explicit opt-in, configure the public AWS SDK `AmazonSQSConfig.TelemetryProvider` before constructing the client, using a provider implementing the SDK's public telemetry interfaces. The named `AddAwsSqsTransport` registration accepts a prior `AddKeyedSingleton<IAmazonSQS>` factory under the same transport name: its `TryAddKeyedSingleton` preserves that client and the bus resolves its logger through normal logging DI. Configure the observer on the actual selected send client; configuring an unrelated unkeyed or receive-only client is insufficient. For owned persisted sends, that client must retain `MaxErrorRetry = 0` and `MaxStaleConnectionRetries = 0`. Enable the SQS debug operation log and an Activity listener for the relevant operation: owned outbox work supplies its existing message activity, while an unowned call needs an application-owned ambient Activity for this opt-in attribution profile. Default unowned attribution is not established. See the [AWS SDK telemetry-provider documentation](https://docs.aws.amazon.com/sdk-for-net/v4/developer-guide/observability-telemetry-providers.html).
+
+Correlate actual callback trace/span context with the actual operation log's trace/span and message identity, and retain a count for each operation rather than only an aggregate. Message identities belong in correlated logs/traces, not metric dimensions. The selected managed controls compare an independent counting HTTP handler with SDK duration observations: owned two-acquisition terminal failure gives two operations and two requests; owned healthy and entered-cancellation paths each give one; an unowned HTTP 500 retry/exhaustion with one SDK retry gives one operation and two requests. These tests use a test-only provider and internal bus construction. The public registration route above is source-verified, not covered by those runtime controls. No turnkey exporter, default unowned correlation, all-failure physical counter, cloud delivery, or NativeAOT guarantee follows from this evidence.
+
+## Retained RabbitMQ options validation
+
+The RabbitMQ live connection input and retained message-consumption options have different validation owners. Removing the dead connection-copy validator does not exempt retained `RabbitMqOptions`. Both named and default registrations retain startup evaluation and explicitly require `Consumption.MaxPayloadBytes` to be null (intentional unbounded input) or positive; zero/negative values are rejected by the options pipeline. Root-only data-annotation validation would not traverse this nested limit. This does not construct a connection factory, open a broker connection, change URI/credential policy, or introduce a global options validator. The named/default options controls and existing Boundary coverage guard are the bounded verification; execution is pending at source proposal time.

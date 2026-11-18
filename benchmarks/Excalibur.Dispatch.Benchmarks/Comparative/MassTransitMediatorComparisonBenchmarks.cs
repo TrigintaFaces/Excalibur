@@ -28,23 +28,16 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// - MassTransit: 8.5.9
 /// </para>
 /// <para>
-/// BOTH SIDES PUBLISH TWO TIERS, because each framework's idiomatic usage spans two shapes and
-/// publishing only one of each would compare a tuned configuration against an untuned one.
+/// Both frameworks expose multiple configurations, which are reported separately.
 /// </para>
 /// <para>
-/// MassTransit exposes two mediator entry points with different scope behaviour, and the difference is
-/// measurable: <c>IScopedMediator</c> reuses the ambient scope, so a scope created once outside the
-/// measured region serves every message; plain <c>IMediator</c> creates a DI scope per message. Measured
-/// with a scoped dependency and two publishes: <c>IScopedMediator</c> yields the same instance both
-/// times, plain <c>IMediator</c> yields distinct instances. Measuring only <c>IScopedMediator</c> lifts
-/// MassTransit's per-message scope cost out of the comparison — which flatters MassTransit, not us, but
-/// is still not the default shape a consumer gets.
+/// The <c>IScopedMediator</c> row reuses a scope created once outside the measured region.
+/// The plain <c>IMediator</c> row exercises the scope-per-message configuration. Their timing
+/// difference includes all behavior of those entry points and does not isolate pure scope cost.
 /// </para>
 /// <para>
-/// Dispatch likewise publishes its standard <c>AddDispatch()</c> path and its tuned direct-local path,
-/// matching what the MediatR, Wolverine and NServiceBus pairings already did. These two classes were
-/// previously the only comparisons lacking the tuned tier, so MassTransit was being compared against
-/// Dispatch's untuned path alone.
+/// Dispatch reports its standard <c>AddDispatch()</c> path and a separately configured direct-local
+/// path. These settings are disclosed rather than assumed to have identical behavior or latency.
 /// </para>
 /// <para>
 /// Consumers should read the row whose configuration matches their own, which is why each row names its
@@ -131,13 +124,12 @@ public class MassTransitMediatorComparisonBenchmarks
 
 		_mediatorServiceProvider = mediatorServices.BuildServiceProvider();
 
-		// Tier 1: IScopedMediator resolved from a scope created ONCE. Reuses that ambient scope for every
-		// message, so MassTransit's per-message scope cost does not appear in the measured region.
+		// IScopedMediator reuses a scope created once during setup; this is a different
+		// scope-lifetime configuration from the IMediator entry point below.
 		_mediatorScope = _mediatorServiceProvider.CreateScope();
 		_mediator = _mediatorScope.ServiceProvider.GetRequiredService<MassTransit.Mediator.IScopedMediator>();
 
-		// Tier 2: plain IMediator, resolved from the root. Creates a DI scope PER MESSAGE, which is the
-		// default standalone shape and the one that carries the scope cost.
+		// Plain IMediator is resolved from the root and exercises its scope-per-message configuration.
 		_scopePerMessageMediator = _mediatorServiceProvider.GetRequiredService<MassTransit.Mediator.IMediator>();
 
 		// Warm and freeze Dispatch caches so benchmark reflects optimized production mode.
@@ -202,11 +194,10 @@ public class MassTransitMediatorComparisonBenchmarks
 	/// MassTransit Mediator via plain <c>IMediator</c>, which creates a DI scope per message.
 	/// </summary>
 	/// <remarks>
-	/// The row above uses <c>IScopedMediator</c> against a scope built once in setup, so MassTransit's
-	/// per-message scope creation happens outside the measured region. This row uses the plain
-	/// <c>IMediator</c> that a standalone consumer gets, which opens a scope for every message. The delta
-	/// between the two rows IS MassTransit's per-message scope cost, and publishing only the cheaper one
-	/// would understate what a default consumer pays.
+	/// The row above uses <c>IScopedMediator</c> and reuses a scope created once during setup;
+	/// this is a different scope-lifetime configuration. This row uses the plain
+	/// <c>IMediator</c> entry point. Compare the configuration matching the application’s usage;
+	/// the timing difference includes all entry-point behavior and does not isolate pure scope cost.
 	/// </remarks>
 	[Benchmark(Description = "MassTransit Mediator (scope per message): Single command")]
 	public Task MassTransitMediator_SingleCommand_ScopePerMessage()

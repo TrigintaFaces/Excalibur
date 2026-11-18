@@ -8,7 +8,6 @@ using Dapper;
 using Excalibur.Data;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
-using Excalibur.Dispatch.Metadata;
 using Excalibur.Outbox.Postgres.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -32,7 +31,7 @@ namespace Excalibur.Outbox.Postgres;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class coordinates the Dapper request set, outbox message mapping, tenant scoping, and leadership-fencing control-table CAS by design (parity with SqlServerOutboxStore).")]
-public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable, ITenantPartitionedStore
+public sealed partial class PostgresOutboxStore : IOutboxStore, IOutboxPayloadTransformStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable, ITenantPartitionedStore
 {
 	private readonly IDb _db;
 
@@ -95,13 +94,24 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 			return 0;
 		}
 
+		// Validate every producer identity before the first accepting write. This does not change
+		// the existing per-message database transaction or partial-failure behavior.
+		var admittedMessages = new List<(IOutboxMessage Message, string MessageId)>(outboxMessages.Count);
+		foreach (var message in outboxMessages)
+		{
+			ArgumentNullException.ThrowIfNull(message);
+			var messageId = message.MessageId;
+			ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+			admittedMessages.Add((message, messageId));
+		}
+
 		LogSaveMessages(outboxMessages.Count);
 
 		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			// Process messages individually for transaction isolation
-			foreach (var message in outboxMessages)
+			foreach (var (message, messageId) in admittedMessages)
 			{
 				try
 				{
@@ -112,7 +122,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 					// (null/false for other IOutboxMessage shapes, which never carried them).
 					var contextual = message as OutboxMessage;
 					var req = new InsertOutboxMessage(
-						message.MessageId,
+						messageId,
 						message.MessageType,
 						message.MessageMetadata,
 						message.MessageBody,
@@ -137,7 +147,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 				catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
 				{
 					throw new InvalidOperationException(
-						$"Outbox message '{message.MessageId}' already exists.",
+						$"Outbox message '{messageId}' already exists.",
 						ex);
 				}
 				// The IDb resolve layer (DbConnectionExtensions.ResolveAsync) wraps any non-ApiException in an
@@ -149,7 +159,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 					when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } inner)
 				{
 					throw new InvalidOperationException(
-						$"Outbox message '{message.MessageId}' already exists.",
+						$"Outbox message '{messageId}' already exists.",
 						inner);
 				}
 			}
@@ -423,6 +433,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 	public async ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
+		ArgumentException.ThrowIfNullOrWhiteSpace(message.Id);
 
 		// Canonical conversion (OutboxMessage.FromOutboundMessage) so no stage path can silently drop a persisted
 		// field — TenantId in particular, which the bare ctor omits.
@@ -443,6 +454,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
+		ArgumentException.ThrowIfNullOrWhiteSpace(message.Id);
 		ArgumentNullException.ThrowIfNull(transaction);
 
 		if (transaction is not Npgsql.NpgsqlTransaction)
@@ -484,13 +496,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 				cancellationToken);
 
 			// Execute using the externally provided transaction's connection
-			_ = await connection.ExecuteAsync(
-				new Dapper.CommandDefinition(
-					req.Command.CommandText,
-					req.Command.Parameters,
-					transaction,
-					req.Command.CommandTimeout,
-					cancellationToken: cancellationToken)).ConfigureAwait(false);
+			_ = await req.ExecuteInTransactionAsync(connection, transaction).ConfigureAwait(false);
 
 			_logger.LogDebug("Staged outbox message {MessageId} within external transaction", message.Id);
 		}
@@ -523,42 +529,81 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 		"JSON serialization of message payload and metadata may reference types not preserved during trimming. Ensure all serialized types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"JSON serialization of message payload and metadata requires dynamic code generation for reflection-based property access and value conversion.")]
-	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
+	public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, transformPayload: null, transformRequested: false, cancellationToken);
+
+	[RequiresUnreferencedCode(
+		"JSON serialization of message payload and metadata may reference types not preserved during trimming. Ensure all serialized types are annotated with DynamicallyAccessedMembers.")]
+	[RequiresDynamicCode(
+		"JSON serialization of message payload and metadata requires dynamic code generation for reflection-based property access and value conversion.")]
+	ValueTask IOutboxPayloadTransformStore.EnqueueWithPayloadTransformAsync(
+		IDispatchMessage message, IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transformPayload,
+		CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, transformPayload, transformRequested: true, cancellationToken);
+
+	[RequiresUnreferencedCode(
+		"JSON serialization of message payload and metadata may reference types not preserved during trimming. Ensure all serialized types are annotated with DynamicallyAccessedMembers.")]
+	[RequiresDynamicCode(
+		"JSON serialization of message payload and metadata requires dynamic code generation for reflection-based property access and value conversion.")]
+	private async ValueTask EnqueueCoreAsync(
+		IDispatchMessage message, IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>>? transformPayload,
+		bool transformRequested, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
+		if (transformRequested)
+		{
+			ArgumentNullException.ThrowIfNull(transformPayload);
+			cancellationToken.ThrowIfCancellationRequested();
+		}
 
-		// Create OutboundMessage from IDispatchMessage and context. Serialize the RUNTIME type (not the
-		// IDispatchMessage compile-time type, which would drop every derived member) via the canonical event
-		// contract so the payload round-trips byte-for-byte with the default serializer on read.
+		// Absence keeps the constructor's minted identity; a nonblank opaque identity is preserved
+		// exactly. Capture once before any consumer serialization getter can change the context.
+		var contextMessageId = context.MessageId;
+		if (contextMessageId is { Length: > 0 })
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(contextMessageId);
+		}
+
+		// Preserve this provider's runtime canonical JSON, short message type and five framing keys.
+		var messageType = message.GetType();
 		var serializedPayload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
-			message, message.GetType(), EventSerializationDefaults.Canonical);
+			message, messageType, EventSerializationDefaults.Canonical);
 		var headers = new Dictionary<string, object>
 			(StringComparer.Ordinal)
 		{
-			["MessageId"] = context.MessageId ?? string.Empty,
+			["MessageId"] = contextMessageId ?? string.Empty,
 			["CorrelationId"] = context.CorrelationId ?? string.Empty,
 			["CausationId"] = context.CausationId ?? string.Empty,
-			["MessageType"] = message.GetType().Name,
+			["MessageType"] = messageType.Name,
 			["Timestamp"] = DateTimeOffset.UtcNow.ToString("O"),
 		};
 
-		// Uniform construction via the single context->message factory so TenantId/Correlation/Causation
-		// are never dropped on a convenience path. The propagated TenantId is persisted to the
-		// outbox table's tenant_id column on both the direct (InsertOutboxMessage) and scheduled
-		// (ScheduleOutboxMessage) paths and read back on reserve/get-scheduled.
-		// Derive the routing destination from the message context — falling back to the
-		// namespace-qualified type name (FullName, not the bare Name: two message types with the same
-		// short name in different namespaces must not collapse to one destination) rather than a
-		// hardcoded "default", so a consumer's configured destination is persisted and honored on dispatch.
-		var destination = context.ExtractMetadata().GetDestination() ?? message.GetType().FullName ?? message.GetType().Name;
+		// Read the existing routing property directly: ExtractMetadata also validates an unrelated
+		// context identity and would reject the supported empty-ID/minted-ID convenience path.
+		var destination = context.GetDestination() ?? messageType.FullName ?? messageType.Name;
 		var outboundMessage = OutboundMessage.FromContext(
-			message.GetType().Name,
+			messageType.Name,
 			serializedPayload,
 			destination,
 			context,
 			headers);
-		outboundMessage.Id = context.MessageId ?? string.Empty;
+		if (!string.IsNullOrEmpty(contextMessageId))
+		{
+			outboundMessage.Id = contextMessageId;
+		}
+
+		if (transformPayload is not null)
+		{
+			// Canonical serialization returned a fresh provider-owned buffer, stable for this borrowed
+			// callback invocation. Copy only the callback-owned result before any database access.
+			var transformed = await transformPayload(outboundMessage.Payload, outboundMessage.TenantId, cancellationToken).ConfigureAwait(false)
+				?? throw new InvalidOperationException("transformPayload returned a null payload; the message was not enqueued.");
+			outboundMessage.Payload = (byte[])transformed.Clone();
+			cancellationToken.ThrowIfCancellationRequested();
+		}
 
 		await StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
 	}
@@ -569,10 +614,6 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 	/// <param name="batchSize"> Maximum number of messages to retrieve. </param>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> Collection of unsent outbound messages. </returns>
-	[RequiresUnreferencedCode(
-		"JSON deserialization of message payload and metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"JSON deserialization of message payload and metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 		int batchSize,
 		CancellationToken cancellationToken)
@@ -590,10 +631,6 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 	/// Converts reserved <see cref="IOutboxMessage"/> rows into <see cref="OutboundMessage"/> instances,
 	/// rehydrating the metadata header blob. A row that fails conversion is logged and skipped.
 	/// </summary>
-	[RequiresUnreferencedCode(
-		"JSON deserialization of message metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"JSON deserialization of message metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	private List<OutboundMessage> ConvertReservedToOutbound(IEnumerable<IOutboxMessage> reservedMessages)
 	{
 		// Convert IOutboxMessage to OutboundMessage
@@ -604,7 +641,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 			{
 				var headers = string.IsNullOrEmpty(msg.MessageMetadata)
 					? []
-					: System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(msg.MessageMetadata, EventSerializationDefaults.Canonical) ??
+					: Excalibur.Dispatch.Outbox.OutboxHeaderJson.Deserialize(msg.MessageMetadata) ??
 					  [];
 
 				// CorrelationId/CausationId + the routing fields (PartitionKey/GroupKey/TargetTransports/
@@ -684,10 +721,6 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 	/// the claim runs. A stale token yields zero claimable rows — a set-based, non-throwing signal — while
 	/// the high-water advances monotonically to the maximum of its current value and the presented token.
 	/// </remarks>
-	[RequiresUnreferencedCode(
-		"JSON deserialization of message payload and metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"JSON deserialization of message payload and metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 		int batchSize,
 		long fencingToken,
@@ -715,18 +748,23 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		var reservedMessages = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
-		return ConvertReservedToOutbound(reservedMessages);
+		var batch = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
+		if (batch.HighWater > fencingToken)
+		{
+			ReportClaimFenceRefusal(fencingToken, batch.HighWater);
+		}
+
+		return ConvertReservedToOutbound(batch.Messages);
 	}
 
 	/// <inheritdoc />
 	/// <remarks>
 	/// Enforces the fencing high-water and deletes the row in a SINGLE atomic statement (fence
 	/// compare-and-swap folded with the delete under the fence row lock), so no fresher leader can advance
-	/// the high-water between the fence check and the delete. A superseded (stale) token is rejected
-	/// fail-closed with <see cref="StaleOutboxFencingTokenException"/> and nothing is deleted.
+	/// the high-water between the fence check and the delete. A superseded (stale) token is refused
+	/// fail-closed, nothing is deleted, and the refusal is REPORTED in the return value.
 	/// </remarks>
-	public async ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
+	public async ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
@@ -740,23 +778,25 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 
 		var result = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
 
-		// GREATEST(existing, token) == token exactly when the token was >= the previous high-water (accepted).
-		// A strictly greater stored high-water means a successor already advanced past this token (stale leader):
-		// the folded statement deleted nothing, and we reject fail-closed.
-		if (result.HighWaterToken != fencingToken)
-		{
-			throw new StaleOutboxFencingTokenException(
-				$"The presented outbox fencing token ({fencingToken}) is below the recorded high-water mark ({result.HighWaterToken}) for scope '{_options.QualifiedOutboxTableName}' (superseded leader).")
-			{
-				PresentedToken = fencingToken,
-				HighWaterToken = result.HighWaterToken,
-			};
-		}
-
-		if (result.DeletedCount == 0)
-		{
-			throw new InvalidOperationException($"Message {messageId} not found or already sent.");
-		}
+		// CLASSIFIED, NOT THROWN, by the same classifier the fenced failure and dead-letter paths on this
+		// store already use. It judges the fence FIRST, which is the load-bearing part: GREATEST(existing,
+		// token) == token exactly when the token was >= the previous high-water (accepted), and a strictly
+		// greater stored high-water means a successor already advanced past this token. Reading the deleted
+		// count first would report a not-found for a superseded tenure, telling the caller to carry on with
+		// the rest of its batch -- exactly the wrong instruction, because every remaining write it would
+		// make is unfenced.
+		//
+		// rowExists and isTerminal are both false BY CONSTRUCTION on this store, not as a shortcut. Mark-sent
+		// here DELETES the row, so a terminal message leaves nothing behind: the row genuinely is absent and
+		// MessageNotFound is the accurate report. Claiming AlreadyTerminal from a statement that never
+		// observed a terminal row would describe a decision this store did not make, which is what the
+		// classifier's own contract forbids.
+		return FencedCompletionClassifier.Classify(
+			result.HighWaterToken,
+			fencingToken,
+			result.DeletedCount > 0 ? 1 : 0,
+			rowExists: false,
+			isTerminal: false);
 	}
 
 	/// <inheritdoc/>
@@ -875,7 +915,9 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(claimIdentity);
-		return MarkFailedCoreAsync(messageId, errorMessage, retryCount, claimIdentity, cancellationToken);
+		ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+		return CompleteAcquisitionAsync(messageId, claimIdentity, null, PostgresClaimTransition.Failed,
+			errorMessage, retryCount, null, cancellationToken);
 	}
 
 	private async ValueTask<OutboxCompletionOutcome> MarkFailedCoreAsync(
@@ -941,26 +983,8 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 		// The schedule travels as a DELAY rather than an instant so the statement re-anchors it on the
 		// server clock, matching the unfenced backoff path; null means no computed schedule at all, which is
 		// a different write rather than a zero delay.
-		var delaySeconds = nextAttemptAt is { } at
-			? (double?)(at - DateTimeOffset.UtcNow).TotalSeconds
-			: null;
-
-		var req = new FencedSetOutboxMessageFailed(
-			messageId,
-			errorMessage,
-			retryCount,
-			delaySeconds,
-			authority.FencingToken,
-			authority.ClaimIdentity,
-			_options.FailureBackoffFloorSeconds,
-			_options.QualifiedOutboxTableName,
-			_options.QualifiedFenceTableName,
-			DbTimeouts.RegularTimeoutSeconds,
-			cancellationToken);
-
-		var result = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
-
-		return ClassifyFenced(result, authority.FencingToken);
+		return await CompleteAcquisitionAsync(messageId, authority.ClaimIdentity, authority.FencingToken,
+			PostgresClaimTransition.Failed, errorMessage, retryCount, nextAttemptAt, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -1004,25 +1028,6 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 				: OutboxCompletionOutcome.MessageNotFound;
 	}
 
-	/// <summary>
-	/// Reads the four-valued outcome out of the single row the fenced statement returned.
-	/// </summary>
-	/// <remarks>
-	/// <b>The fence is judged FIRST, and the order is load-bearing.</b> A superseded tenure also fails the
-	/// claim term, because the claim it holds was released by whichever tenure superseded it — so testing the
-	/// claim first would report a fence refusal as a lost claim, and the caller would skip one message and
-	/// keep draining when it should have stopped entirely. The two refusals differ in how much work they
-	/// cost, so collapsing them is not a diagnostic nicety.
-	/// <para>
-	/// <b>This store's terminal transitions remove the row</b> -- a sent message is deleted and a
-	/// dead-lettered one is moved to the dead-letter table -- so a row that is present is never terminal,
-	/// and a terminal message is reported as <see cref="OutboxCompletionOutcome.MessageNotFound"/>, which is
-	/// the accurate answer for this idiom.
-	/// </para>
-	/// </remarks>
-	private static OutboxCompletionOutcome ClassifyFenced(FencedClaimMutationResult result, long presentedToken) =>
-		Excalibur.Outbox.FencedCompletionClassifier.Classify(
-			result.HighWaterToken, presentedToken, result.UpdatedCount, result.RowExists, isTerminal: false);
 
 	/// <summary>
 	/// Reads the outcome out of the single row the guarded statement returned.
@@ -1080,8 +1085,9 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(claimIdentity);
-		return MarkFailedWithBackoffCoreAsync(
-			messageId, errorMessage, retryCount, nextAttemptAt, claimIdentity, cancellationToken);
+		ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+		return CompleteAcquisitionAsync(messageId, claimIdentity, null, PostgresClaimTransition.Failed,
+			errorMessage, retryCount, nextAttemptAt, cancellationToken);
 	}
 
 	private async ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffCoreAsync(
@@ -1164,6 +1170,21 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IClaimScopedOutb
 			var messages = records.Select(static r => new OutboundMessage
 			{
 				Id = r.MessageId,
+				// THE RECORD'S TENANT IS PART OF THE RECORD. This admin read spans tenants, so the row's own
+				// tenant is the only thing that says which partition each message belongs to. Dropping it
+				// here did two things: an encrypted message could not be decrypted, because the tenant is
+				// bound as additional authenticated data and the value it must be checked against was
+				// gone; and republishing a message obtained from this list re-emitted it with NO tenant,
+				// silently, which is an isolation defect independent of encryption.
+				//
+				// Normalised through the total store-read conversion rather than assigned raw: the
+				// contract on this property is that a drained message NEVER carries null, and that
+				// untenanted is the reserved sentinel VALUE rather than an absence. The row type defaults
+				// this column to an empty string, so a raw assignment would introduce a second spelling of
+				// "no tenant" -- and a second spelling is a fold, which is a place two paths can disagree
+				// about which partition a message belongs to.
+				TenantId = KeyedTenantPartition.FromStoredValue(r.TenantId).TenantId,
+
 				MessageType = r.MessageType,
 				Payload = r.MessageBody,
 				CreatedAt = r.OccurredOn,

@@ -89,4 +89,13 @@ public sealed class SqlServerLeaderElectionConnectionHardeningShould
 		hardened.ConnectRetryCount.ShouldBe(0);
 		hardened.Pooling.ShouldBeFalse();
 	}
+
+    [Fact]
+    public void DisableAmbientTransactionEnlistmentOnTheDedicatedLockSession()
+    {
+        var hardened = BuildLockConnectionString("Server=localhost;Database=le;Enlist=true;Pooling=true;ConnectRetryCount=3");
+        hardened.Enlist.ShouldBeFalse();
+        hardened.Pooling.ShouldBeFalse();
+        hardened.ConnectRetryCount.ShouldBe(0);
+    }
 }

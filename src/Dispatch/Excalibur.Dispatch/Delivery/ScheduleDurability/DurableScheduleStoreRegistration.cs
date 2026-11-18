@@ -11,29 +11,18 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Delivery;
 
 /// <summary>
-/// Registration-time attestation that the configured <see cref="IScheduleStore" /> keeps pending schedules
-/// across process restarts.
+/// Non-owning, provider-local witnesses of store instances created by the durable registration seam.
 /// </summary>
-/// <remarks>
-/// <para>
-/// The marker is emitted only alongside the registration that supplies a durable store, never on its own,
-/// so a volatile store cannot carry a truthful-looking attestation.
-/// </para>
-/// <para>
-/// A flag on the schedule options would be weaker: it can be set by anything, including a host that
-/// configured a volatile store, so it attests to nothing. Probing whether an
-/// <c>IScheduleStore</c> is registered would be weaker still, because it answers a different
-/// question -- an in-memory store is a registered store. The type exists so the claim cannot be made
-/// except by the code that makes it true.
-/// </para>
-/// </remarks>
 internal interface IDurableScheduleStoreCapability
 {
-	/// <summary>
-	/// Structural-lock member: makes this interface implementable only from within this assembly. Never
-	/// invoked — the capability is consumed purely as a registration-time presence signal.
-	/// </summary>
-	void AssertEmittedAlongsideDurableStoreRegistration();
+	/// <summary>Records an instance created by an attesting store factory in this provider.</summary>
+	/// <param name="store">The instance whose persistence the registration declares.</param>
+	void Attest(IScheduleStore store);
+
+	/// <summary>Checks whether this provider attested the exact selected store instance.</summary>
+	/// <param name="store">The selected store instance.</param>
+	/// <returns>Whether an attesting factory created this instance in this provider.</returns>
+	bool IsFor(IScheduleStore store);
 }
 
 /// <summary>
@@ -48,6 +37,14 @@ public static class DurableScheduleStoreRegistration
 	/// </summary>
 	/// <typeparam name="TScheduleStore"> The durable schedule store implementation type. </typeparam>
 	/// <param name="services"> The service collection. </param>
+	/// <remarks>
+	/// The singleton is created with <see cref="ActivatorUtilities"/>. A constructor marked with
+	/// <see cref="ActivatorUtilitiesConstructorAttribute"/> takes precedence; otherwise the longest
+	/// public constructor whose dependencies can be supplied is selected. Ambiguous or unsatisfied
+	/// constructors fail resolution. This intentionally differs from ordinary implementation-type DI
+	/// registration, which does not honor the preferred-constructor attribute. The container owns the
+	/// resulting store once; no concrete/interface disposal alias is registered.
+	/// </remarks>
 	/// <returns> The same <see cref="IServiceCollection" /> for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> <paramref name="services" /> is <see langword="null" />. </exception>
 	public static IServiceCollection AddDurableScheduleStore<
@@ -57,13 +54,15 @@ public static class DurableScheduleStoreRegistration
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Replace rather than TryAdd, deliberately. AddDispatchScheduling seats the volatile in-memory store
-		// into this same contract key, so a TryAdd here is a silent no-op whenever scheduling was composed
-		// first -- and the attestation below would still be emitted. That combination is the precise defect
-		// this seam exists to prevent: a host that asked for a durable store, passed the gate, and is running
-		// on the volatile one. Replacing keeps the store and its attestation inseparable in either order.
-		_ = services.Replace(ServiceDescriptor.Singleton<IScheduleStore, TScheduleStore>());
+		// The witness is constructed by each provider, never captured by the service collection.
+		// Only this exact factory attests the instance; a later registration cannot inherit it.
 		services.TryAddSingleton<IDurableScheduleStoreCapability, DurableScheduleStoreCapabilityMarker>();
+		_ = services.Replace(ServiceDescriptor.Singleton<IScheduleStore>(static provider =>
+		{
+			var store = ActivatorUtilities.CreateInstance<TScheduleStore>(provider);
+			provider.GetRequiredService<IDurableScheduleStoreCapability>().Attest(store);
+			return store;
+		}));
 
 		return services;
 	}
@@ -89,9 +88,23 @@ public static class DurableScheduleStoreRegistration
 
 	private sealed class DurableScheduleStoreCapabilityMarker : IDurableScheduleStoreCapability
 	{
-		public void AssertEmittedAlongsideDurableStoreRegistration()
+		private readonly HashSet<IScheduleStore> _stores = new(ReferenceEqualityComparer.Instance);
+		private readonly Lock _gate = new();
+
+		public void Attest(IScheduleStore store)
 		{
-			// Never invoked; the type-level unimplementability outside this assembly is the mechanism.
+			lock (_gate)
+			{
+				_ = _stores.Add(store);
+			}
+		}
+
+		public bool IsFor(IScheduleStore store)
+		{
+			lock (_gate)
+			{
+				return _stores.Contains(store);
+			}
 		}
 	}
 }

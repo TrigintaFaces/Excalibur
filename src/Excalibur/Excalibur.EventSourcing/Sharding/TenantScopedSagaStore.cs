@@ -39,7 +39,7 @@ namespace Excalibur.EventSourcing.Sharding;
 /// Registered only when multi-tenancy uses the row-discriminator strategy.
 /// </para>
 /// </remarks>
-public sealed class TenantScopedSagaStore : ISagaStore
+public sealed partial class TenantScopedSagaStore : ISagaStore
 {
 	private readonly ISagaStore _inner;
 	private readonly ITenantContext _tenantContext;

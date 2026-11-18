@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Data;
+using System.Globalization;
 using System.Text.Json;
 
 using Dapper;
@@ -8,6 +10,7 @@ using Dapper;
 using Excalibur.Data;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.ErrorHandling;
+using Excalibur.Outbox.SqlServer.Requests;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
@@ -169,6 +172,29 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 				? explicitName
 				: MessageNameHelper.GetDeclaredName(message.GetType()) ?? string.Empty;
 
+		// The attempt count is the CALLER'S observation and is read from the metadata it supplies, in the
+		// same idiom as the message name above and the three keys mined at the insert below. It used to be
+		// written as the literal 1, which is the one value no caller ever means: this record exists because
+		// a message reached its attempt ceiling, and the ceiling is not 1. The count is public
+		// (DeadLetterEntry.OriginalAttempts), projected on every read, and FILTERABLE through
+		// DeadLetterQueryFilter.MinAttempts, so a fabricated 1 does not merely misreport one row -- it makes
+		// `MinAttempts >= 2` return nothing on every deployment, and an operator asking which messages failed
+		// repeatedly reads that empty result as an answer.
+		//
+		// An absent or unparseable key writes 0, NOT 1. Zero is this column's own declared default, so it
+		// reads as "not stated" by the schema's convention, and it cannot be mistaken for evidence that an
+		// attempt happened. The residual ambiguity is stated rather than hidden: the column is NOT NULL, so
+		// 0 cannot distinguish "nobody told us" from a message genuinely dead-lettered before its first
+		// charged attempt -- which the first-encounter decode path does produce. Separating those two needs
+		// a nullable column and is not taken here.
+		var originalAttempts =
+			metadata is not null
+			&& metadata.TryGetValue("Attempts", out var attemptsText)
+			&& int.TryParse(attemptsText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedAttempts)
+			&& parsedAttempts >= 0
+				? parsedAttempts
+				: 0;
+
 		// Stamp the originating tenant as provenance so a replay re-enters the SAME tenant. Routing through
 		// the keyed partition always yields a concrete, non-null term: the ambient tenant when one is in
 		// scope, or the reserved untenanted sentinel when none is — never NULL, so the keyed TenantId column
@@ -195,9 +221,7 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 
 		await using var connection = _connectionFactory();
 
-		var command = new CommandDefinition(
-			sql,
-			new
+		var enqueueValues = new
 			{
 				Id = id,
 				TenantId = tenantId,
@@ -207,18 +231,39 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 				ExceptionMessage = exception?.Message,
 				ExceptionStackTrace = exception?.StackTrace,
 				EnqueuedAt = DateTimeOffset.UtcNow,
-				OriginalAttempts = 1,
+				OriginalAttempts = originalAttempts,
 				Metadata = metadataJson,
 				CorrelationId = metadata is not null && metadata.TryGetValue("CorrelationId", out var corrId) ? corrId : null,
 				CausationId = metadata is not null && metadata.TryGetValue("CausationId", out var causId) ? causId : null,
 				SourceQueue = metadata is not null && metadata.TryGetValue("SourceQueue", out var srcQueue) ? srcQueue : null,
 				IsReplayed = false,
 				ReplayedAt = (DateTimeOffset?)null
-			},
+			};
+
+		var command = new CommandDefinition(
+			sql,
+			enqueueValues,
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		_ = await StaticDbCommand.ExecuteAsync(connection, command, dbCommand =>
+		{
+			StaticDbCommand.AddParameter(dbCommand, "Id", enqueueValues.Id, DbType.Guid);
+			StaticDbCommand.AddParameter(dbCommand, "TenantId", enqueueValues.TenantId, DbType.String);
+			StaticDbCommand.AddParameter(dbCommand, "MessageType", enqueueValues.MessageType, DbType.String);
+			StaticDbCommand.AddParameter(dbCommand, "Payload", enqueueValues.Payload, DbType.Binary);
+			StaticDbCommand.AddParameter(dbCommand, "Reason", enqueueValues.Reason, DbType.Int32);
+			StaticDbCommand.AddNullableStringParameter(dbCommand, "ExceptionMessage", enqueueValues.ExceptionMessage);
+			StaticDbCommand.AddNullableStringParameter(dbCommand, "ExceptionStackTrace", enqueueValues.ExceptionStackTrace);
+			StaticDbCommand.AddParameter(dbCommand, "EnqueuedAt", enqueueValues.EnqueuedAt, DbType.DateTimeOffset);
+			StaticDbCommand.AddParameter(dbCommand, "OriginalAttempts", enqueueValues.OriginalAttempts, DbType.Int32);
+			StaticDbCommand.AddNullableStringParameter(dbCommand, "Metadata", enqueueValues.Metadata);
+			StaticDbCommand.AddNullableStringParameter(dbCommand, "CorrelationId", enqueueValues.CorrelationId);
+			StaticDbCommand.AddNullableStringParameter(dbCommand, "CausationId", enqueueValues.CausationId);
+			StaticDbCommand.AddNullableStringParameter(dbCommand, "SourceQueue", enqueueValues.SourceQueue);
+			StaticDbCommand.AddParameter(dbCommand, "IsReplayed", enqueueValues.IsReplayed, DbType.Boolean);
+			StaticDbCommand.AddParameter(dbCommand, "ReplayedAt", enqueueValues.ReplayedAt, DbType.DateTimeOffset);
+		}).ConfigureAwait(false);
 
 		_logger.LogInformation(
 			"Dead lettered message {MessageType} with ID {EntryId} for reason {Reason}",
@@ -264,7 +309,7 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var rows = await connection.QueryAsync<DeadLetterRow>(command).ConfigureAwait(false);
+		var rows = await StaticDbCommand.QueryAsync(connection, command, dbCommand => BindFilter(dbCommand, parameters, paginated: true), ReadDeadLetterRow).ConfigureAwait(false);
 
 		return rows.Select(MapRowToEntry).ToList();
 	}
@@ -345,6 +390,87 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		// below is keyed to (Id, TenantId) using this value, so replay affects exactly the row that was read.
 		var storedTenant = row.TenantId;
 
+		// CLAIM THE ENTRY BEFORE THE EFFECT, NEVER AFTER IT.
+		//
+		// IsReplayed used to be set AFTER the handler returned, by a statement matching (Id, TenantId) with
+		// no IsReplayed term and with its rowcount discarded. That made the flag a RECORD of a replay rather
+		// than a CLAIM on one, and three things followed, none of which needs a fault to reach:
+		//
+		//   * two concurrent redrives of one entry both read it, both ran the handler, and both delivered.
+		//     The message was executed twice and the second UPDATE simply rewrote a flag that was already 1.
+		//   * the read has no IsReplayed predicate, so an entry already replayed replayed again. The batch
+		//     surface takes the filter from its caller, so a batch whose filter omits IsReplayed re-delivers
+		//     every entry that has ever been replayed.
+		//   * a crash between the handler and the UPDATE left the entry re-replayable for ever.
+		//
+		// The claim is a conditional update whose ROWCOUNT IS THE DECISION: exactly one caller can move
+		// IsReplayed from 0 to 1, and everyone else observes zero rows and declines. Winning it is what
+		// grants the right to run the handler.
+		//
+		// THE TRADE THIS SELECTS, STATED RATHER THAN LEFT TO BE DISCOVERED, AND THE REASON IS BOUNDEDNESS
+		// RATHER THAN VISIBILITY. Claiming first means a crash between the claim and the handler leaves an
+		// entry marked replayed that was never delivered. What makes that the better half is NOT that
+		// somebody can see it -- see the correction below -- it is that it is BOUNDED:
+		//
+		//   act-then-claim (what this replaced)  the entry stays actionable, so EVERY subsequent batch
+		//                                        re-delivers it. One duplicate per sweep, indefinitely.
+		//   claim-then-act (this)                exactly one lost replay, and the state converges.
+		//
+		// An unbounded stream of duplicate deliveries is worse than a single lost replay, so the ordering
+		// is right. The previous ordering chose the unbounded half without saying so.
+		//
+		// ⚠ A CLAIM MADE HERE EARLIER WAS FALSE AND IS WITHDRAWN, quoted so anyone who absorbed it
+		// recognises it: "an entry visibly marked replayed can be inspected and re-run deliberately."
+		// It cannot. After a crash between this claim and the handler the row reads IsReplayed = 1 with a
+		// ReplayedAt stamp -- BYTE-IDENTICAL to a replay that succeeded. Nothing distinguishes delivered
+		// from claimed-and-died, so the lost replay is SILENT, which is this project's own discriminator
+		// for the most expensive class of defect. The ordering is still correct; the reassurance was not.
+		//
+		// WHAT ACTUALLY FIXES IT, so the next reader does not mistake this for the resting place: the
+		// column is a BOOLEAN over THREE outcomes, so every crash is rendered as a definite verdict that
+		// is false. The repair is a three-state claim -- Pending -> Claimed(by, at) -> Replayed, two
+		// conditional steps -- under which a crash leaves Claimed, distinguishable from both neighbours.
+		// A monotonic generation column carries that and two further properties for the same price: it
+		// separates a second legitimate dead-letter of one message from a duplicate of the first, and it
+		// survives any future "mark for re-replay" feature, which would make this boolean CAS
+		// ABA-vulnerable. That is a schema change and a separate, stated decision; it is not taken here.
+		var claimSql = $"""
+		                UPDATE {_options.QualifiedTableName}
+		                SET IsReplayed = 1, ReplayedAt = @ReplayedAt
+		                WHERE Id = @Id AND TenantId = @TenantId AND IsReplayed = 0
+		                """;
+
+		await using (var claimConnection = _connectionFactory())
+		{
+			var claimValues = new { Id = entryId, TenantId = storedTenant, ReplayedAt = DateTimeOffset.UtcNow };
+
+			var claimCommand = new CommandDefinition(
+				claimSql + SqlServerAffectedRows.Capture,
+				claimValues,
+				commandTimeout: _options.CommandTimeoutSeconds,
+				cancellationToken: cancellationToken);
+
+			// The guarded UPDATE count is captured through its named output; transport rowcounts and
+			// trigger result sets cannot authorize delivery. Zero means the entry was replayed between our read and
+			// our claim -- by another caller, or by an earlier call we are repeating -- so the handler must
+			// not run. This is the whole guard; dropping the IsReplayed term or ignoring this count restores
+			// the double delivery.
+			var claimed = await StaticDbCommand.ExecuteOutputsAsync(claimConnection, claimCommand, dbCommand =>
+			{
+				StaticDbCommand.AddParameter(dbCommand, "Id", claimValues.Id, DbType.Guid);
+				StaticDbCommand.AddParameter(dbCommand, "TenantId", claimValues.TenantId, DbType.String);
+				StaticDbCommand.AddParameter(dbCommand, "ReplayedAt", claimValues.ReplayedAt, DbType.DateTimeOffset);
+				SqlServerAffectedRows.Bind(dbCommand);
+			}, dbCommand => SqlServerAffectedRows.Read(dbCommand)).ConfigureAwait(false);
+			if (claimed != 1)
+			{
+				_logger.LogInformation(
+					"Dead letter entry {EntryId} was not replayed by this call: it is already replayed or was claimed concurrently.",
+					entryId);
+				return false;
+			}
+		}
+
 		try
 		{
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
@@ -379,26 +505,79 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Failed to replay dead letter entry {EntryId}", entryId);
+
+			// RELEASE THE CLAIM, because claiming first must not cost retryability.
+			//
+			// Moving the claim ahead of the handler closes the double delivery, and taken alone it would
+			// trade a liveness property for it: under the previous ordering a handler that threw left
+			// IsReplayed at 0, so a replay that failed because something downstream was briefly unavailable
+			// could simply be run again. Leaving the claim in place would burn the entry on the most ordinary
+			// failure there is, and PendingOnly() would then hide it from the operator who needs to retry.
+			//
+			// Releasing is sound here for the same reason the dead-letter withdrawal is sound on a refusal,
+			// and that sibling is deliberately the model rather than a new invention: the failure is learned
+			// SYNCHRONOUSLY, so nothing else is relying on the claim, and we are the only party that could
+			// act on it.
+			//
+			// It is not cancellable by the caller's token. If the handler failed BECAUSE that token was
+			// cancelled, passing it here would make the release unable even to attempt at precisely the
+			// moment it is required. It is bounded by the store's own command timeout instead, so a host
+			// shutting down is not held open indefinitely.
+			//
+			// RESIDUAL, stated because it does not disappear, and corrected because the first statement of
+			// it was too kind to itself: if the release fails, the entry stays marked replayed and was
+			// never delivered -- and that state is INDISTINGUISHABLE from a replay that succeeded, because
+			// the row carries the same flag and the same stamp either way. The warning below is therefore
+			// the ONLY signal that it happened, which is why it is logged at warning rather than
+			// information and why it names the remedy. It is a log line, not a queryable state: an
+			// operator who does not read it has no way to find the entry. A three-state claim would make
+			// the state itself self-describing; see the note at the claim above.
+			using var releaseCts = new CancellationTokenSource(
+				TimeSpan.FromSeconds(_options.CommandTimeoutSeconds));
+			try
+			{
+				await using var releaseConnection = _connectionFactory();
+				var releaseValues = new { Id = entryId, TenantId = storedTenant };
+
+				var releaseCommand = new CommandDefinition(
+					$"""
+					 UPDATE {_options.QualifiedTableName}
+					 SET IsReplayed = 0, ReplayedAt = NULL
+					 WHERE Id = @Id AND TenantId = @TenantId AND IsReplayed = 1
+					 """ + SqlServerAffectedRows.Capture,
+					releaseValues,
+					commandTimeout: _options.CommandTimeoutSeconds,
+					cancellationToken: releaseCts.Token);
+
+				var released = await StaticDbCommand.ExecuteOutputsAsync(releaseConnection, releaseCommand, dbCommand =>
+			{
+				StaticDbCommand.AddParameter(dbCommand, "Id", releaseValues.Id, DbType.Guid);
+				StaticDbCommand.AddParameter(dbCommand, "TenantId", releaseValues.TenantId, DbType.String);
+				SqlServerAffectedRows.Bind(dbCommand);
+			}, dbCommand => SqlServerAffectedRows.Read(dbCommand)).ConfigureAwait(false);
+				if (released != 1)
+				{
+					_logger.LogWarning(
+						"Dead letter entry {EntryId} failed to replay and its claim could not be released: it remains marked replayed and was not delivered. Reset IsReplayed to retry it.",
+						entryId);
+				}
+			}
+			catch (Exception releaseEx)
+			{
+				// Never let the release displace the real failure: the caller must see why the replay
+				// failed, not why the bookkeeping did.
+				_logger.LogError(
+					releaseEx,
+					"Dead letter entry {EntryId} failed to replay and releasing its claim also failed: it remains marked replayed and was not delivered. Reset IsReplayed to retry it.",
+					entryId);
+			}
+
 			throw;
 		}
 
-		// Mark as replayed
-		var sql = $"""
-		           UPDATE {_options.QualifiedTableName}
-		           SET IsReplayed = 1, ReplayedAt = @ReplayedAt
-		           WHERE Id = @Id AND TenantId = @TenantId
-		           """;
-
-		await using var connection = _connectionFactory();
-
-		var command = new CommandDefinition(
-			sql,
-			new { Id = entryId, TenantId = storedTenant, ReplayedAt = DateTimeOffset.UtcNow },
-			commandTimeout: _options.CommandTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
-		_ = await connection.ExecuteAsync(command).ConfigureAwait(false);
-
+		// No write here. The claim above already set IsReplayed and ReplayedAt, and it did so as the
+		// decision that authorised this replay. A second write of the same flag after the effect is what
+		// the previous implementation did, and it is what made the flag a record instead of a claim.
 		_logger.LogInformation("Replayed dead letter entry {EntryId}", entryId);
 		return true;
 	}
@@ -460,13 +639,20 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 
 		await using var connection = _connectionFactory();
 
+		var purgeValues = new { Id = entryId, TenantId = row.TenantId };
+
 		var command = new CommandDefinition(
-			sql,
-			new { Id = entryId, TenantId = row.TenantId },
+			sql + SqlServerAffectedRows.Capture,
+			purgeValues,
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var deleted = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		var deleted = await StaticDbCommand.ExecuteOutputsAsync(connection, command, dbCommand =>
+		{
+			StaticDbCommand.AddParameter(dbCommand, "Id", purgeValues.Id, DbType.Guid);
+			StaticDbCommand.AddParameter(dbCommand, "TenantId", purgeValues.TenantId, DbType.String);
+			SqlServerAffectedRows.Bind(dbCommand);
+			}, dbCommand => SqlServerAffectedRows.Read(dbCommand)).ConfigureAwait(false);
 
 		if (deleted > 0)
 		{
@@ -489,13 +675,19 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 
 		await using var connection = _connectionFactory();
 
+		var cutoffValues = new { Cutoff = cutoff };
+
 		var command = new CommandDefinition(
-			sql,
-			new { Cutoff = cutoff },
+			sql + SqlServerAffectedRows.Capture,
+			cutoffValues,
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var purgedCount = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		var purgedCount = await StaticDbCommand.ExecuteOutputsAsync(connection, command, dbCommand =>
+		{
+			StaticDbCommand.AddParameter(dbCommand, "Cutoff", cutoffValues.Cutoff, DbType.DateTimeOffset);
+			SqlServerAffectedRows.Bind(dbCommand);
+			}, dbCommand => SqlServerAffectedRows.Read(dbCommand)).ConfigureAwait(false);
 
 		if (purgedCount > 0)
 		{
@@ -526,7 +718,7 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		return await connection.ExecuteScalarAsync<long>(command).ConfigureAwait(false);
+		return StaticDbValue.Int64(await StaticDbCommand.ScalarAsync(connection, command, dbCommand => BindFilter(dbCommand, parameters, paginated: false)).ConfigureAwait(false));
 	}
 
 	private static Func<SqlConnection> CreateConnectionFactory(SqlServerDeadLetterQueueOptions? options)
@@ -683,6 +875,22 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		// oracle — the id itself is the disclosure.
 		var tenantPredicate = scope is null ? string.Empty : " AND TenantId = @ScopeTenantId";
 
+		// ⚠ THE ABSENCE OF AN `AND IsReplayed = 0` TERM HERE IS DELIBERATE AND LOAD-BEARING. DO NOT ADD IT.
+		//
+		// It looks like the oversight that was fixed one method away, where the replay CLAIM gained exactly
+		// that term — so a later reader tidying up for symmetry is the most likely regression in this file.
+		// The two statements answer different questions on purpose:
+		//
+		//   the CLAIM     decides WHO MAY REPLAY. It must refuse an entry already replayed, so it carries
+		//                 the term, and its rowcount is the decision.
+		//   this READ     decides WHAT THE ENTRY IS. It must still resolve an already-replayed entry.
+		//
+		// That is what keeps the claim's own failure mode RECOVERABLE. If the process stops between a
+		// successful claim and the delivery, the entry is left flagged replayed without having been
+		// delivered, and it is indistinguishable from a success — but it is still THERE, still addressable,
+		// and still re-replayable, because this read does not exclude it. Adding the term would make that
+		// state permanent and unrecoverable, converting a bounded, repairable loss into a lost message, and
+		// no test currently fails if you do it.
 		var sql = $"""
 		           SELECT Id, MessageType, Payload, Reason, ExceptionMessage, ExceptionStackTrace,
 		           	   EnqueuedAt, OriginalAttempts, Metadata, CorrelationId, CausationId,
@@ -693,15 +901,24 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 
 		await using var connection = _connectionFactory();
 
+		var rowValues = new { Id = entryId, ScopeTenantId = scope?.TenantId };
+
 		var command = new CommandDefinition(
 			sql,
-			new { Id = entryId, ScopeTenantId = scope?.TenantId },
+			rowValues,
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		try
 		{
-			return await connection.QuerySingleOrDefaultAsync<DeadLetterRow>(command).ConfigureAwait(false);
+			return await StaticDbCommand.SingleOrDefaultAsync(connection, command, dbCommand =>
+			{
+				StaticDbCommand.AddParameter(dbCommand, "Id", rowValues.Id, DbType.Guid);
+				if (scope is not null)
+				{
+					StaticDbCommand.AddParameter(dbCommand, "ScopeTenantId", rowValues.ScopeTenantId, DbType.String);
+				}
+			}, ReadDeadLetterRow).ConfigureAwait(false);
 		}
 		catch (InvalidOperationException ex)
 		{
@@ -715,6 +932,70 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 				"addressed unambiguously and the operation has been refused rather than applied to an " +
 				"arbitrary row.",
 				ex);
+		}
+	}
+
+	private static DeadLetterRow ReadDeadLetterRow(System.Data.Common.DbDataReader reader) => new()
+	{
+		Id = reader.IsDBNull(0) ? Guid.Empty : reader.GetGuid(0),
+		MessageType = StaticDbValue.String(reader, 1) ?? string.Empty,
+		Payload = StaticDbValue.Bytes(reader, 2) ?? [],
+		Reason = StaticDbValue.Int32(reader, 3),
+		ExceptionMessage = StaticDbValue.String(reader, 4),
+		ExceptionStackTrace = StaticDbValue.String(reader, 5),
+		EnqueuedAt = StaticDbValue.DateTimeOffset(reader, 6) ?? default,
+		OriginalAttempts = StaticDbValue.Int32(reader, 7),
+		Metadata = StaticDbValue.String(reader, 8),
+		CorrelationId = StaticDbValue.String(reader, 9),
+		CausationId = StaticDbValue.String(reader, 10),
+		SourceQueue = StaticDbValue.String(reader, 11),
+		IsReplayed = StaticDbValue.Boolean(reader, 12),
+		ReplayedAt = StaticDbValue.DateTimeOffset(reader, 13),
+		TenantId = StaticDbValue.String(reader, 14) ?? string.Empty,
+	};
+
+	private static void BindFilter(System.Data.Common.DbCommand command, DynamicParameters parameters, bool paginated)
+	{
+		if (parameters.ParameterNames.Contains("ScopeTenantId", StringComparer.Ordinal))
+		{
+			StaticDbCommand.AddParameter(command, "ScopeTenantId", StaticDbCommand.Input<string>(parameters, "ScopeTenantId"), DbType.String);
+		}
+		if (parameters.ParameterNames.Contains("MessageType", StringComparer.Ordinal))
+		{
+			StaticDbCommand.AddParameter(command, "MessageType", StaticDbCommand.Input<string>(parameters, "MessageType"), DbType.String);
+		}
+		if (parameters.ParameterNames.Contains("Reason", StringComparer.Ordinal))
+		{
+			StaticDbCommand.AddParameter(command, "Reason", StaticDbCommand.Input<int>(parameters, "Reason"), DbType.Int32);
+		}
+		if (parameters.ParameterNames.Contains("FromDate", StringComparer.Ordinal))
+		{
+			StaticDbCommand.AddParameter(command, "FromDate", StaticDbCommand.Input<DateTimeOffset>(parameters, "FromDate"), DbType.DateTimeOffset);
+		}
+		if (parameters.ParameterNames.Contains("ToDate", StringComparer.Ordinal))
+		{
+			StaticDbCommand.AddParameter(command, "ToDate", StaticDbCommand.Input<DateTimeOffset>(parameters, "ToDate"), DbType.DateTimeOffset);
+		}
+		if (parameters.ParameterNames.Contains("IsReplayed", StringComparer.Ordinal))
+		{
+			StaticDbCommand.AddParameter(command, "IsReplayed", StaticDbCommand.Input<bool>(parameters, "IsReplayed"), DbType.Boolean);
+		}
+		if (parameters.ParameterNames.Contains("SourceQueue", StringComparer.Ordinal))
+		{
+			StaticDbCommand.AddParameter(command, "SourceQueue", StaticDbCommand.Input<string>(parameters, "SourceQueue"), DbType.String);
+		}
+		if (parameters.ParameterNames.Contains("CorrelationId", StringComparer.Ordinal))
+		{
+			StaticDbCommand.AddParameter(command, "CorrelationId", StaticDbCommand.Input<string>(parameters, "CorrelationId"), DbType.String);
+		}
+		if (parameters.ParameterNames.Contains("MinAttempts", StringComparer.Ordinal))
+		{
+			StaticDbCommand.AddParameter(command, "MinAttempts", StaticDbCommand.Input<int>(parameters, "MinAttempts"), DbType.Int32);
+		}
+		if (paginated)
+		{
+			StaticDbCommand.AddParameter(command, "Offset", StaticDbCommand.Input<int>(parameters, "Offset"), DbType.Int32);
+			StaticDbCommand.AddParameter(command, "Limit", StaticDbCommand.Input<int>(parameters, "Limit"), DbType.Int32);
 		}
 	}
 

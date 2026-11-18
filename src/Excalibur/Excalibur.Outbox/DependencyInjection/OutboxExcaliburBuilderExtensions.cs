@@ -19,8 +19,6 @@ public static class OutboxExcaliburBuilderExtensions
 	/// <param name="builder">The Excalibur builder.</param>
 	/// <param name="configure">The outbox configuration action.</param>
 	/// <returns>The same builder for fluent chaining.</returns>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public static IExcaliburBuilder AddOutbox(
 		this IExcaliburBuilder builder,
 		Action<IOutboxBuilder> configure)

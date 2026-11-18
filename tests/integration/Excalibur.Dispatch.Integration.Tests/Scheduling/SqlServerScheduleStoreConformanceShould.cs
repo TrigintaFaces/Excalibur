@@ -43,6 +43,14 @@ public sealed class SqlServerScheduleStoreConformanceShould(SqlServerFixture fix
 			?? throw new InvalidOperationException("The shipped schedule schema is not embedded.");
 		using var text = new StreamReader(stream);
 		var script = await text.ReadToEndAsync(Ct).ConfigureAwait(false);
+		var profileResource = assembly.GetManifestResourceNames().Single(name => name.EndsWith("SqlServer.006_AddScheduleCronRecurrenceProfile.sql", StringComparison.Ordinal));
+		await using var profileStream = assembly.GetManifestResourceStream(profileResource) ?? throw new InvalidOperationException("Missing shipped recurrence profile schema.");
+		using var profileText = new StreamReader(profileStream);
+		var failureResource = assembly.GetManifestResourceNames().Single(name => name.EndsWith("SqlServer.005_CreateScheduleFailureSchema.sql", StringComparison.Ordinal));
+		await using var failureStream = assembly.GetManifestResourceStream(failureResource) ?? throw new InvalidOperationException("Missing shipped failure schema.");
+		using var failureText = new StreamReader(failureStream);
+		script += "\n" + await failureText.ReadToEndAsync(Ct);
+		script += "\n" + await profileText.ReadToEndAsync(Ct);
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync(Ct).ConfigureAwait(false);
 		await using var command = new SqlCommand(script, connection) { CommandTimeout = 30 };
@@ -69,7 +77,7 @@ public sealed class SqlServerScheduleStoreConformanceShould(SqlServerFixture fix
 	{
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync(Ct).ConfigureAwait(false);
-		await using var command = new SqlCommand("DELETE FROM dispatch.ScheduledMessage", connection) { CommandTimeout = 30 };
+		await using var command = new SqlCommand("DELETE FROM dispatch.ScheduleOccurrenceFailure; DELETE FROM dispatch.ScheduledMessage", connection) { CommandTimeout = 30 };
 		_ = await command.ExecuteNonQueryAsync(Ct).ConfigureAwait(false);
 	}
 
@@ -118,6 +126,8 @@ public sealed class SqlServerScheduleStoreConformanceShould(SqlServerFixture fix
 		A.CallTo(() => message.MessageName).Returns("Action");
 		A.CallTo(() => message.MessageBody).Returns("opaque");
 		A.CallTo(() => message.Enabled).Returns(true);
+		A.CallTo(() => message.CronRecurrenceProfileId).Returns((string?)null);
+		A.CallTo(() => message.CronRecurrenceProfileVersion).Returns((int?)null);
 		await NewStore().StoreAsync(message, Ct).ConfigureAwait(false);
 		reads.ShouldBe(1, "Caller identity must be read only when taking the detached snapshot.");
 		(await NewStore().GetAllAsync(Ct).ConfigureAwait(false)).Single().Id.ShouldBe(first);
@@ -281,7 +291,8 @@ public sealed class SqlServerScheduleStoreConformanceShould(SqlServerFixture fix
 
 	private static ScheduledMessage Due() => new()
 	{
-		MessageName = "Action", MessageBody = "{}", NextExecutionUtc = DateTimeOffset.UtcNow, Enabled = true,
+		// Match the inherited due-message margin without changing the database lease clock.
+		MessageName = "Action", MessageBody = "{}", NextExecutionUtc = DateTimeOffset.UtcNow.AddMinutes(-5), Enabled = true,
 	};
 
 	[Fact]
@@ -337,6 +348,9 @@ public sealed class SqlServerScheduleStoreConformanceShould(SqlServerFixture fix
 
 	[Fact]
 	public override Task CanceledOperationsLeaveAuthorityUnchanged() => base.CanceledOperationsLeaveAuthorityUnchanged();
+
+	[Fact]
+	public override Task AdmissionCountRisesUntilSettlementCommits() => base.AdmissionCountRisesUntilSettlementCommits();
 
 	[Fact]
 	public override Task RenewalExtendsCurrentOwnership() => base.RenewalExtendsCurrentOwnership();

@@ -169,19 +169,16 @@ public static class MultiTenancyServiceCollectionExtensions
 			// tenant-unaware provider has already been refused. Wrapping one would pass the decorator's
 			// fail-closed presence check yet leak every tenant's data from the inner store.
 
-			// Shape-robust key-targeted decoration. Providers register IEventStore as several descriptors — a
-			// provider-keyed terminal, a keyed "default" alias, and a non-keyed forwarding alias — so the generic
-			// Decorate<T> (which decorates exactly one and throws on multiple) cannot be used here: it would either
-			// leave a provider terminal raw (a cross-tenant leak) or double-wrap a forwarder. DecorateKeyedStores
-			// wraps every terminal exactly once and leaves the aliases forwarding onto it.
+			// Decorate every non-reserved IEventStore descriptor, including independent unkeyed registrations.
+			// Resolved forwarding aliases inherit this application's output lineage, so they do not add the
+			// same tenant layer again. Public descriptor order, service keys and lifetimes remain unchanged.
 			//
 			// Tiered storage inverts the usual topology: UseTieredStorage moves the raw hot store to a private
 			// key (EventArchiveService.RawHotEventStoreKey) and makes the keyed "default" store the
-			// TieredEventStoreDecorator over (raw hot, raw cold). Without special handling, DecorateKeyedStores
-			// Rule 1 would wrap that private hot key, tenant-scoping the very hot store the archive service
-			// resolves for its intentionally cross-tenant trim (breaking it). Reserving the private hot key makes
-			// decoration target the consumer-facing "default" Tiered store instead (TenantScoped OUTER of Tiered),
-			// leaving the raw hot key untouched for the archive.
+			// TieredEventStoreDecorator over (raw hot, raw cold). The all-descriptor sweep must reserve that
+			// private hot key: the archive service intentionally resolves it for cross-tenant trim. The eligible
+			// consumer-facing "default" Tiered descriptor still receives TenantScoped OUTER of Tiered, while
+			// the reserved raw hot descriptor remains untouched for the archive.
 			//
 			// SCOPE — do NOT overstate this: the reservation fixes (a) the archive-service resolution (it resolves
 			// the RAW hot, not a tenant-scoped store that would throw with no ambient tenant) and (b) fail-closed
@@ -246,8 +243,8 @@ public static class MultiTenancyServiceCollectionExtensions
 
 		if (services.HasStoreRegistrationFor(typeof(ISagaStore)))
 		{
-			// Same shape-robust rule as the event store: saga providers register a provider-keyed terminal plus a
-			// keyed "default" forwarder, so wrap the terminal(s) and leave the aliases forwarding.
+			// Apply the same layer to every eligible saga descriptor; inherited output lineage preserves
+			// forwarding aliases without double-wrapping or leaving independent registrations raw.
 			_ = services.DecorateKeyedStores<ISagaStore>(
 				static (inner, sp) => ActivatorUtilities.CreateInstance<TenantScopedSagaStore>(sp, inner));
 			decoratedAny = true;

@@ -65,17 +65,17 @@ public sealed class AwsSnsPersistedRetryPhysicalRequestsShould
 		processor.Init("sqs-physical-characterization");
 		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
 		(await processor.DispatchPendingMessagesAsync(deadline.Token).ConfigureAwait(false)).ShouldBe(0);
-		message.Status.ShouldBe(OutboxStatus.Failed, Diagnostics(message, state, handler));
-		message.RetryCount.ShouldBe(1);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Failed, Diagnostics(message, state, handler));
+		await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 1);
 		state.PublishCalls.ShouldBe(1, Diagnostics(message, state, handler));
 		handler.Requests.ShouldBe(1, Diagnostics(message, state, handler));
 		await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		(await processor.DispatchPendingMessagesAsync(deadline.Token).ConfigureAwait(false)).ShouldBe(0);
 		state.PublishCalls.ShouldBe(2, "each durable attempt invokes the bus once, without middleware multiplication");
 		handler.Requests.ShouldBe(2, "each durable attempt must make one physical request with no SDK or foreground retry multiplication");
-		message.Status.ShouldBe(OutboxStatus.DeadLettered, Diagnostics(message, state, handler));
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.DeadLettered, Diagnostics(message, state, handler));
 		((global::Excalibur.Dispatch.Transport.Tests.AwsSqs.AwsEventBridgePersistedAcceptanceShould.RetainingQueue)provider.GetRequiredService<global::Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>()).AssertRetained(message, global::Excalibur.Dispatch.ErrorHandling.DeadLetterReason.MaxRetriesExceeded, 2);
-		message.RetryCount.ShouldBe(2, "terminal retirement records both observed attempts; handler and HTTP counts prove the final attempt");
+		await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 2, "terminal retirement records both observed attempts; handler and HTTP counts prove the final attempt");
 		(await processor.DispatchPendingMessagesAsync(deadline.Token).ConfigureAwait(false)).ShouldBe(0);
 		handler.Requests.ShouldBe(2, "the terminal outbox row must not start another SDK call");
 	}
@@ -94,9 +94,9 @@ public sealed class AwsSnsPersistedRetryPhysicalRequestsShould
 		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 		(await processor.DispatchPendingMessagesAsync(deadline.Token).ConfigureAwait(false))
 			.ShouldBe(1, Diagnostics(message, state, handler));
-		message.Status.ShouldBe(OutboxStatus.Sent);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Sent);
 		((global::Excalibur.Dispatch.Transport.Tests.AwsSqs.AwsEventBridgePersistedAcceptanceShould.RetainingQueue)provider.GetRequiredService<global::Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>()).Entries.ShouldBeEmpty();
-		message.RetryCount.ShouldBe(0);
+		await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 0);
 		state.PublishCalls.ShouldBe(1);
 		handler.Requests.ShouldBe(1);
 		(await processor.DispatchPendingMessagesAsync(deadline.Token).ConfigureAwait(false)).ShouldBe(0);
@@ -125,9 +125,9 @@ public sealed class AwsSnsPersistedRetryPhysicalRequestsShould
 			_ = await Should.ThrowAsync<OperationCanceledException>(() => running).ConfigureAwait(false);
 			handler.Requests.ShouldBe(1);
 			state.PublishCalls.ShouldBe(1);
-			message.Status.ShouldNotBe(OutboxStatus.Sent);
-			message.Status.ShouldNotBe(OutboxStatus.DeadLettered);
-			message.RetryCount.ShouldBe(0, "caller cancellation is not a retry-consuming transport failure");
+			await AwsPersistedOutboxObservation.AssertNotStateAsync(provider, message, OutboxStatus.Sent);
+			await AwsPersistedOutboxObservation.AssertNotStateAsync(provider, message, OutboxStatus.DeadLettered);
+			await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 0, "caller cancellation is not a retry-consuming transport failure");
 			((global::Excalibur.Dispatch.Transport.Tests.AwsSqs.AwsEventBridgePersistedAcceptanceShould.RetainingQueue)provider.GetRequiredService<global::Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>()).Entries.ShouldBeEmpty();
 		}
 		finally
@@ -170,6 +170,7 @@ public sealed class AwsSnsPersistedRetryPhysicalRequestsShould
 		services.AddExcalibur(builder => builder.AddOutbox(outbox => outbox.UseInMemory().WithProcessing(processing =>
 			processing.MaxRetryCount(1).PollingInterval(TimeSpan.FromMilliseconds(20)).RetryDelay(TimeSpan.FromMilliseconds(10)))));
 		services.Configure<InMemoryOutboxOptions>(options => options.FailureBackoffFloorSeconds = 1);
+		AwsPersistedOutboxObservation.Register(services);
 		var provider = services.BuildServiceProvider();
 		provider.GetRequiredService<IHandlerRegistry>().Register(typeof(PhysicalRequestEvent), typeof(PublishHandler), expectsResponse: false);
 		return provider;

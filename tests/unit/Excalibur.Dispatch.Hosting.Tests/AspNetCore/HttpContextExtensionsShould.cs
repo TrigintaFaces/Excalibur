@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Features;
@@ -223,18 +223,26 @@ public sealed class HttpContextExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void CreateDispatchMessageContext_WithRequestHeaders_CopiesHeadersToItems()
+	public void CreateDispatchMessageContext_WithAllowlistedRequestHeader_CopiesItUnderThePrefix()
 	{
-		// Arrange
+		// Previously every header was copied under its raw name. Capture is now opt-in by name and the
+		// captured item carries the header. prefix, matching the baggage. convention for values that
+		// arrived from outside the process.
 		var correlationGuid = Guid.NewGuid();
 		var httpContext = CreateAuthenticatedHttpContext("user-123", correlationGuid);
-		httpContext.Request.Headers["X-Custom-Header"] = "custom-value";
 
-		// Act
+		var services = new ServiceCollection();
+		_ = services.AddDispatchRequestHeaderCapture(o => o.AllowedHeaders.Add("X-Custom-Header"));
+		httpContext.RequestServices = services.BuildServiceProvider();
+
+		httpContext.Request.Headers["X-Custom-Header"] = "custom-value";
+		httpContext.Request.Headers.Authorization = "Bearer a-caller-token";
+
 		var result = httpContext.CreateDispatchMessageContext();
 
-		// Assert
-		result.Items["X-Custom-Header"].ShouldBe("custom-value");
+		result.Items["header.X-Custom-Header"].ShouldBe("custom-value");
+		result.Items.Keys.ShouldNotContain("Authorization");
+		result.Items.Keys.ShouldNotContain("header.Authorization");
 	}
 
 	[Fact]

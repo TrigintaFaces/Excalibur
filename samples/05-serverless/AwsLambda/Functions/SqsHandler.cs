@@ -29,8 +29,19 @@ public class SqsHandler
 	/// Initializes a new instance of the <see cref="SqsHandler"/> class.
 	/// </summary>
 	public SqsHandler()
+		: this(Startup.ServiceProvider)
 	{
-		_serviceProvider = Startup.ServiceProvider;
+	}
+
+	/// <summary>
+	/// Initializes a new instance using caller-owned application services.
+	/// </summary>
+	/// <param name="serviceProvider">The application service provider, which remains owned by the caller.</param>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceProvider"/> is null.</exception>
+	public SqsHandler(IServiceProvider serviceProvider)
+	{
+		ArgumentNullException.ThrowIfNull(serviceProvider);
+		_serviceProvider = serviceProvider;
 		_logger = _serviceProvider.GetRequiredService<ILogger<SqsHandler>>();
 	}
 

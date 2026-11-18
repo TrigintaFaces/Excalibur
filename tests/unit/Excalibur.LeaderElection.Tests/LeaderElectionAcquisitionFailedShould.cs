@@ -49,8 +49,8 @@ public sealed class LeaderElectionAcquisitionFailedShould : UnitTestBase
 		await using var winner = CreateElection(resource, "winner-1", sharedState);
 		await using var loser = CreateElection(resource, "loser-2", sharedState);
 
-		LeaderElectionAcquisitionFailedEventArgs? captured = null;
-		loser.AcquisitionFailed += (_, args) => captured = args;
+		var failed = new TaskCompletionSource<LeaderElectionAcquisitionFailedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+		loser.AcquisitionFailed += (_, args) => failed.TrySetResult(args);
 
 		// Act — winner acquires first, then loser attempts and loses the race.
 		await winner.StartAsync(CancellationToken.None);
@@ -60,7 +60,7 @@ public sealed class LeaderElectionAcquisitionFailedShould : UnitTestBase
 		winner.IsLeader.ShouldBeTrue();
 		loser.IsLeader.ShouldBeFalse();
 
-		captured.ShouldNotBeNull();
+		var captured = await failed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		captured.CandidateId.ShouldBe("loser-2");
 		captured.ResourceName.ShouldBe(resource);
 		captured.Reason.ShouldNotBeNullOrWhiteSpace();
@@ -84,6 +84,8 @@ public sealed class LeaderElectionAcquisitionFailedShould : UnitTestBase
 
 		// Assert — winning does NOT raise AcquisitionFailed.
 		winner.IsLeader.ShouldBeTrue();
+		await winner.DisposeAsync();
+		await winner.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 		raised.ShouldBeFalse();
 	}
 
@@ -101,21 +103,24 @@ public sealed class LeaderElectionAcquisitionFailedShould : UnitTestBase
 
 		await winner.StartAsync(CancellationToken.None);
 
-		var handlerInvoked = false;
+		var handlerInvoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var failure = new InvalidOperationException("subscriber blew up");
 		loser.AcquisitionFailed += (_, _) =>
 		{
-			handlerInvoked = true;
-			throw new InvalidOperationException("subscriber blew up");
+			handlerInvoked.TrySetResult();
+			throw failure;
 		};
 
 		// Act — the loser's StartAsync raises AcquisitionFailed into the throwing handler.
-		// The guarded raise must swallow the exception so StartAsync completes normally.
+		// Queued delivery must preserve the error on its terminal task without failing StartAsync.
 		await Should.NotThrowAsync(async () => await loser.StartAsync(CancellationToken.None));
 
 		// Assert — handler ran (raise happened), yet the loop survived and state is consistent.
-		handlerInvoked.ShouldBeTrue();
+		await handlerInvoked.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		loser.IsLeader.ShouldBeFalse();
 		winner.IsLeader.ShouldBeTrue();
+		await loser.DisposeAsync();
+		(await Record.ExceptionAsync(() => loser.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5)))).ShouldBeSameAs(failure);
 	}
 
 	// ---- AC-f2 + AC-f4: telemetry decorator counts Result="failed" and forwards the exception ----
@@ -125,28 +130,37 @@ public sealed class LeaderElectionAcquisitionFailedShould : UnitTestBase
 	{
 		// Arrange
 		var innerFake = A.Fake<ILeaderElection>();
+		Diagnostics.SynchronousElectionFakeNotifications.Configure(innerFake);
 		A.CallTo(() => innerFake.CandidateId).Returns("node-1");
 		A.CallTo(() => innerFake.IsLeader).Returns(false);
 
 		using var harness = new CounterHarness();
-		await using var sut = new TelemetryLeaderElection(innerFake, harness.Meter, harness.ActivitySource, "inmemory");
-
-		// Act — inner election reports a failed acquisition (lost race).
-		innerFake.AcquisitionFailed += Raise.With(
-			new LeaderElectionAcquisitionFailedEventArgs("node-1", "test-resource", "lost the acquisition race", TimeProvider.System.GetUtcNow()));
-
-		// Assert — a single acquisitions counter measurement tagged Result="failed" was recorded.
-		var failed = harness.CounterRecordings
-			.Where(r => r.Name == LeaderElectionTelemetryConstants.MetricNames.Acquisitions &&
-				r.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Result && (string)t.Value! == "failed"))
-			.ToList();
-
-		failed.ShouldNotBeEmpty();
-		failed.ShouldContain(entry => entry.Value == 1);
-		failed[^1].Tags.ShouldContain(t =>
-			t.Key == LeaderElectionTelemetryConstants.TagNames.Provider && (string)t.Value! == "inmemory");
-		failed[^1].Tags.ShouldContain(t =>
-			t.Key == LeaderElectionTelemetryConstants.TagNames.Instance && (string)t.Value! == "node-1");
+		var sut = new TelemetryLeaderElection(innerFake, harness.Meter, harness.ActivitySource, "inmemory");
+		try
+		{
+			// Act — inner election reports a failed acquisition (lost race).
+			innerFake.AcquisitionFailed += Raise.With(
+				new LeaderElectionAcquisitionFailedEventArgs("node-1", "test-resource", "lost the acquisition race", TimeProvider.System.GetUtcNow()));
+	
+			// Assert — a single acquisitions counter measurement tagged Result="failed" was recorded.
+			var failed = harness.CounterRecordings
+				.Where(r => r.Name == LeaderElectionTelemetryConstants.MetricNames.Acquisitions &&
+					r.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Result && (string)t.Value! == "failed"))
+				.ToList();
+	
+			failed.ShouldNotBeEmpty();
+			failed.ShouldContain(entry => entry.Value == 1);
+			failed[^1].Tags.ShouldContain(t =>
+				t.Key == LeaderElectionTelemetryConstants.TagNames.Provider && (string)t.Value! == "inmemory");
+			failed[^1].Tags.ShouldContain(t =>
+				t.Key == LeaderElectionTelemetryConstants.TagNames.Instance && (string)t.Value! == "node-1");
+		
+		}
+		finally
+		{
+			await sut.DisposeAsync();
+			await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+		}
 	}
 
 	[Fact]
@@ -154,30 +168,39 @@ public sealed class LeaderElectionAcquisitionFailedShould : UnitTestBase
 	{
 		// Arrange
 		var innerFake = A.Fake<ILeaderElection>();
+		Diagnostics.SynchronousElectionFakeNotifications.Configure(innerFake);
 		A.CallTo(() => innerFake.CandidateId).Returns("node-1");
 		A.CallTo(() => innerFake.IsLeader).Returns(false);
 
 		using var harness = new CounterHarness();
-		await using var sut = new TelemetryLeaderElection(innerFake, harness.Meter, harness.ActivitySource, "inmemory");
-
-		LeaderElectionAcquisitionFailedEventArgs? forwarded = null;
-		sut.AcquisitionFailed += (_, args) => forwarded = args;
-
-		var cause = new TimeoutException("acquire timed out");
-
-		// Act — inner election reports an ERROR during acquisition with the exception attached.
-		innerFake.AcquisitionFailed += Raise.With(
-			new LeaderElectionAcquisitionFailedEventArgs("node-1", "test-resource", "error during acquisition", TimeProvider.System.GetUtcNow(), cause));
-
-		// Assert — the decorator forwards the event carrying the same exception instance,
-		// and still records the failed acquisition.
-		forwarded.ShouldNotBeNull();
-		forwarded.Exception.ShouldBeSameAs(cause);
-		forwarded.Reason.ShouldContain("error");
-
-		harness.CounterRecordings.ShouldContain(r =>
-			r.Name == LeaderElectionTelemetryConstants.MetricNames.Acquisitions &&
-			r.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Result && (string)t.Value! == "failed"));
+		var sut = new TelemetryLeaderElection(innerFake, harness.Meter, harness.ActivitySource, "inmemory");
+		try
+		{
+			LeaderElectionAcquisitionFailedEventArgs? forwarded = null;
+			sut.AcquisitionFailed += (_, args) => forwarded = args;
+	
+			var cause = new TimeoutException("acquire timed out");
+	
+			// Act — inner election reports an ERROR during acquisition with the exception attached.
+			innerFake.AcquisitionFailed += Raise.With(
+				new LeaderElectionAcquisitionFailedEventArgs("node-1", "test-resource", "error during acquisition", TimeProvider.System.GetUtcNow(), cause));
+	
+			// Assert — the decorator forwards the event carrying the same exception instance,
+			// and still records the failed acquisition.
+			forwarded.ShouldNotBeNull();
+			forwarded.Exception.ShouldBeSameAs(cause);
+			forwarded.Reason.ShouldContain("error");
+	
+			harness.CounterRecordings.ShouldContain(r =>
+				r.Name == LeaderElectionTelemetryConstants.MetricNames.Acquisitions &&
+				r.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Result && (string)t.Value! == "failed"));
+		
+		}
+		finally
+		{
+			await sut.DisposeAsync();
+			await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+		}
 	}
 
 	private static InMemoryLeaderElection CreateElection(

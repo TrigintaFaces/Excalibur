@@ -163,8 +163,7 @@ This earlier table is an unverified planning illustration, not measured threshol
 
 ### Storage Trade-offs
 
-- **More frequent snapshots** = Faster reads, more storage
-- **Less frequent snapshots** = Slower reads, less storage
+More frequent snapshots can reduce replay work but add snapshot creation and storage costs. Measure read latency and storage under the chosen retention policy.
 
 ### Recommended Starting Points
 

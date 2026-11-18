@@ -140,6 +140,11 @@ public sealed class AzureServiceBusCloudEventConformanceTests : CloudEventTransp
 			.ReturnsLazily(() => Task.FromResult<IReadOnlyList<ServiceBusReceivedMessage>>([.. _inbound]));
 
 		var services = new ServiceCollection();
+
+		// The conformance kit exercises a transport's own UseCloudEvents entry point, which cannot
+		// choose a consumer's serialization strategy on their behalf. Registering it here is what a
+		// host does by calling AddCloudEvents; without it the transport's fail-fast guard fires.
+		services.AddSingleton(TestCloudEventSerializers.Reflection);
 		_ = services.AddLogging();
 		// Registered FIRST under the transport's key, which the receiver factory consults before
 		// building its own adapter over the vendor client.

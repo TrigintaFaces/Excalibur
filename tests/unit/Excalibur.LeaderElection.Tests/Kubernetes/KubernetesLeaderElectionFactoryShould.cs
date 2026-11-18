@@ -57,7 +57,7 @@ public sealed class KubernetesLeaderElectionFactoryShould
 		var options = Microsoft.Extensions.Options.Options.Create(new KubernetesLeaderElectionOptions
 		{
 			Namespace = "test-namespace",
-			CandidateId = "test-candidate",
+			InstanceId = "test-candidate",
 		});
 		var factory = new KubernetesLeaderElectionFactory(kubernetesClient, options);
 
@@ -77,7 +77,7 @@ public sealed class KubernetesLeaderElectionFactoryShould
 		var options = Microsoft.Extensions.Options.Options.Create(new KubernetesLeaderElectionOptions
 		{
 			Namespace = "test-namespace",
-			CandidateId = "test-candidate",
+			InstanceId = "test-candidate",
 			EnableHealthChecks = true,
 		});
 		var factory = new KubernetesLeaderElectionFactory(kubernetesClient, options);
@@ -98,7 +98,7 @@ public sealed class KubernetesLeaderElectionFactoryShould
 		var options = Microsoft.Extensions.Options.Options.Create(new KubernetesLeaderElectionOptions
 		{
 			Namespace = "test-namespace",
-			CandidateId = "default-candidate",
+			InstanceId = "default-candidate",
 		});
 		var factory = new KubernetesLeaderElectionFactory(kubernetesClient, options);
 
@@ -117,7 +117,7 @@ public sealed class KubernetesLeaderElectionFactoryShould
 		var options = Microsoft.Extensions.Options.Options.Create(new KubernetesLeaderElectionOptions
 		{
 			Namespace = "test-namespace",
-			CandidateId = "test-candidate",
+			InstanceId = "test-candidate",
 		});
 		options.Value.CandidateMetadata["key1"] = "value1";
 		options.Value.CandidateMetadata["key2"] = "value2";

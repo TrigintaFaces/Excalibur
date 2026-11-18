@@ -172,27 +172,6 @@ public sealed class TestMessageContext : IMessageContext
 	public TimeSpan? RateLimitRetryAfter { get; set; }
 
 	/// <summary>
-	/// Creates a child context copying correlation data from this context.
-	/// </summary>
-	/// <returns>A new <see cref="TestMessageContext"/> with propagated correlation data.</returns>
-	public IMessageContext CreateChildContext()
-	{
-		return new TestMessageContext
-		{
-			CorrelationId = CorrelationId,
-			TenantId = TenantId,
-			UserId = UserId,
-			SessionId = SessionId,
-			WorkflowId = WorkflowId,
-			TraceParent = TraceParent,
-			Source = Source,
-			CausationId = MessageId,
-			MessageId = Guid.NewGuid().ToString(),
-			RequestServices = RequestServices,
-		};
-	}
-
-	/// <summary>
 	/// A minimal test implementation of <see cref="IServiceProvider"/>.
 	/// </summary>
 	private sealed class TestServiceProvider : IServiceProvider

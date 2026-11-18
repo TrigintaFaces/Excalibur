@@ -67,6 +67,11 @@ internal sealed class FencedMarkMessageDeadLettered : DataRequest<FencedClaimMut
 	/// <param name="fenceTableName">The qualified name of the fence control table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public FencedMarkMessageDeadLettered(
 		string messageId,
 		string reason,
@@ -123,6 +128,13 @@ internal sealed class FencedMarkMessageDeadLettered : DataRequest<FencedClaimMut
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds,
 			cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QuerySingleAsync<FencedClaimMutationResult>(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.SingleAsync(conn, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "ScopeKey", StaticDbCommand.Input<string>(Parameters, "ScopeKey"), DbType.String);
+				StaticDbCommand.AddParameter(command, "Token", StaticDbCommand.Input<long>(Parameters, "Token"), DbType.Int64);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "Reason", StaticDbCommand.Input<string>(Parameters, "Reason"), DbType.String);
+				StaticDbCommand.AddParameter(command, "AttemptCount", StaticDbCommand.Input<int>(Parameters, "AttemptCount"), DbType.Int32);
+			}, static reader => new FencedClaimMutationResult { HighWaterToken = StaticDbValue.Int64(reader, 0), UpdatedCount = StaticDbValue.Int32(reader, 1) }).ConfigureAwait(false);
 	}
 }

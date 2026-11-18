@@ -18,6 +18,9 @@ namespace Excalibur.Benchmarks.EventSourcing;
 /// - Aggregate load (100 events): &lt; 5ms
 /// - Event append (single): &lt; 1ms
 /// - Concurrent aggregate ops (10): &lt; 50ms
+/// Write cases use isolated, seeded measurement windows to avoid retaining every adaptive invocation.
+/// Their iteration hooks select single-invocation measurements; these results are not comparable to
+/// the earlier accumulating-store measurements or to the adaptive read-only cases.
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -30,21 +33,21 @@ public class InMemoryEventStoreBenchmarks
 	private string _aggregateWith10000Events = null!;
 
 	[GlobalSetup]
-	public async Task GlobalSetup()
-	{
-		_eventStore = new InMemoryEventStore(UntenantedContext.Instance);
+	public Task GlobalSetup() => InitializeStoreAsync();
 
-		// Pre-populate aggregates with different event counts
-		_aggregateWith10Events = await CreateAggregateWithEventsAsync(10).ConfigureAwait(false);
-		_aggregateWith100Events = await CreateAggregateWithEventsAsync(100).ConfigureAwait(false);
-		_aggregateWith1000Events = await CreateAggregateWithEventsAsync(1000).ConfigureAwait(false);
-		_aggregateWith10000Events = await CreateAggregateWithEventsAsync(10000).ConfigureAwait(false);
-	}
+	/// <summary>Starts a fresh seeded window for one original append operation.</summary>
+	[IterationSetup(Targets = new[] { nameof(AppendSingleEvent), nameof(AppendBatch_10Events), nameof(AppendBatch_100Events), nameof(ConcurrentAppend_10Aggregates) })]
+	public void SetupWriteIteration() => InitializeStoreAsync().GetAwaiter().GetResult();
+
+	/// <summary>Releases retained events after the append operation has completed.</summary>
+	[IterationCleanup(Targets = new[] { nameof(AppendSingleEvent), nameof(AppendBatch_10Events), nameof(AppendBatch_100Events), nameof(ConcurrentAppend_10Aggregates) })]
+	public void CleanupWriteIteration() => _eventStore?.Clear();
+
 
 	[GlobalCleanup]
 	public void GlobalCleanup()
 	{
-		_eventStore.Clear();
+		_eventStore?.Clear();
 	}
 
 	#region Load Benchmarks
@@ -86,7 +89,7 @@ public class InMemoryEventStoreBenchmarks
 	}
 
 	/// <summary>
-	/// Benchmark: Load aggregate from specific version (partial load).
+	/// Benchmark: Load events strictly after stored version 950 (49 of the 1000 events).
 	/// </summary>
 	[Benchmark]
 	public async Task<IReadOnlyList<StoredEvent>> LoadAggregateFromVersion_Last50of1000()
@@ -136,7 +139,7 @@ public class InMemoryEventStoreBenchmarks
 	#region Concurrent Benchmarks
 
 	/// <summary>
-	/// Benchmark: Concurrent load of 10 different aggregates.
+	/// Benchmark: Compose ten loads of the same 100-event aggregate.
 	/// </summary>
 	[Benchmark]
 	public async Task ConcurrentLoad_10Aggregates()
@@ -192,11 +195,35 @@ public class InMemoryEventStoreBenchmarks
 		return events;
 	}
 
+	private async Task InitializeStoreAsync()
+	{
+		_eventStore?.Clear();
+		_eventStore = new InMemoryEventStore(UntenantedContext.Instance);
+
+		try
+		{
+			// Pre-populate aggregates with different event counts
+			_aggregateWith10Events = await CreateAggregateWithEventsAsync(10).ConfigureAwait(false);
+			_aggregateWith100Events = await CreateAggregateWithEventsAsync(100).ConfigureAwait(false);
+			_aggregateWith1000Events = await CreateAggregateWithEventsAsync(1000).ConfigureAwait(false);
+			_aggregateWith10000Events = await CreateAggregateWithEventsAsync(10000).ConfigureAwait(false);
+		}
+		catch
+		{
+			_eventStore.Clear();
+			throw;
+		}
+	}
+
 	private async Task<string> CreateAggregateWithEventsAsync(int eventCount)
 	{
 		var aggregateId = Guid.NewGuid().ToString();
 		var events = CreateEvents(aggregateId, eventCount);
-		_ = await _eventStore.AppendAsync(aggregateId, "TestAggregate", events, -1, CancellationToken.None).ConfigureAwait(false);
+		var result = await _eventStore.AppendAsync(aggregateId, "TestAggregate", events, -1, CancellationToken.None).ConfigureAwait(false);
+		if (!result.Success)
+		{
+			throw new InvalidOperationException("Benchmark seed append failed.");
+		}
 		return aggregateId;
 	}
 

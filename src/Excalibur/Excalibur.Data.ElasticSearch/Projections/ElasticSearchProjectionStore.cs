@@ -1071,8 +1071,8 @@ public sealed partial class ElasticSearchProjectionStore<
 		throw new InvalidOperationException($"Failed to create index '{_indexName}': {errorMessage}");
 	}
 
-	[LoggerMessage(DataElasticsearchEventId.ProjectionStoreInitialized, LogLevel.Information,
-		"Initialized ElasticSearch projection store with index '{IndexName}' for type '{ProjectionType}'")]
+	[LoggerMessage(DataElasticsearchEventId.ProjectionStoreInitialized, LogLevel.Debug,
+		"Scoped ElasticSearch projection store instance ready for index '{IndexName}' and type '{ProjectionType}'")]
 	private partial void LogInitialized(string indexName, string projectionType);
 
 	[LoggerMessage(DataElasticsearchEventId.ProjectionUpserted, LogLevel.Debug, "Upserted projection {ProjectionType}/{Id}")]

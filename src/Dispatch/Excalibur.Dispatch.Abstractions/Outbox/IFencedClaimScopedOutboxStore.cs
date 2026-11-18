@@ -5,7 +5,7 @@ namespace Excalibur.Dispatch;
 
 /// <summary>
 /// An outbox store that can evaluate BOTH the leadership fence and the claim in the one atomic action that
-/// records a delivery failure.
+/// records a completion.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -42,6 +42,22 @@ namespace Excalibur.Dispatch;
 /// </remarks>
 public interface IFencedClaimScopedOutboxStore
 {
+	/// <summary>Marks a message sent only while the caller holds the current tenure and claim.</summary>
+	/// <param name="messageId">The persisted message identifier captured at acquisition.</param>
+	/// <param name="authority">The immutable acquisition evidence captured before delivery.</param>
+	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+	/// <returns>The outcome decided atomically with the guarded terminal transition.</returns>
+	/// <remarks>
+	/// Missing or released leases return <see cref="OutboxCompletionOutcome.ClaimLost"/>.
+	/// Validate nonblank identifiers before mutation. A fenced authority additionally requires a positive
+	/// tenure; evaluate its fence before row-level outcomes. Retained terminal rows return
+	/// <see cref="OutboxCompletionOutcome.AlreadyTerminal"/>. Never infer the outcome from a later read.
+	/// </remarks>
+	ValueTask<OutboxCompletionOutcome> MarkSentAsync(
+		string messageId,
+		OutboxWriteAuthority authority,
+		CancellationToken cancellationToken);
+
 	/// <summary>
 	/// Records a delivery failure, applying it only if the caller still holds BOTH the tenure and the claim.
 	/// </summary>

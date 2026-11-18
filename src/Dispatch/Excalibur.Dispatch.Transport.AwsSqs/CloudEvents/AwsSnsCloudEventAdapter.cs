@@ -40,7 +40,7 @@ internal sealed class AwsSnsCloudEventAdapter : ICloudEventEncoder<PublishReques
 	private const string TraceParentAttribute = "traceparent";
 	private const string StringAttributeType = "String";
 
-	private readonly JsonEventFormatter _jsonFormatter = new();
+	private readonly CloudEventSerializer _serializer;
 	private readonly ILogger<AwsSnsCloudEventAdapter> _logger;
 	private readonly AwsSnsCloudEventOptions _snsOptions;
 
@@ -49,10 +49,14 @@ internal sealed class AwsSnsCloudEventAdapter : ICloudEventEncoder<PublishReques
 	/// </summary>
 	public AwsSnsCloudEventAdapter(
 		IOptions<CloudEventOptions> options,
+		CloudEventSerializer serializer,
 		ILogger<AwsSnsCloudEventAdapter> logger,
 		IOptions<AwsSnsCloudEventOptions>? snsOptions = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
+
+		_serializer = serializer;
 		ArgumentNullException.ThrowIfNull(logger);
 
 		Options = options.Value ?? throw new ArgumentNullException(nameof(options));
@@ -117,8 +121,6 @@ internal sealed class AwsSnsCloudEventAdapter : ICloudEventEncoder<PublishReques
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async Task<PublishRequest> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -139,7 +141,7 @@ internal sealed class AwsSnsCloudEventAdapter : ICloudEventEncoder<PublishReques
 		switch (mode)
 		{
 			case CloudEventMode.Structured:
-				var payload = _jsonFormatter.EncodeStructuredModeMessage(cloudEvent, out _);
+				var payload = _serializer.Formatter.EncodeStructuredModeMessage(cloudEvent, out _);
 				request.Message = Encoding.UTF8.GetString(payload.Span);
 				request.MessageAttributes[StructuredContentTypeAttribute] =
 					CreateStringAttribute(CloudEventsStructuredContentType);
@@ -200,8 +202,6 @@ internal sealed class AwsSnsCloudEventAdapter : ICloudEventEncoder<PublishReques
 	/// Convenience API to convert a CloudEvent to an SNS <see cref="PublishRequest" /> for a specific topic.
 	/// </summary>
 	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public async Task<PublishRequest> ToSnsMessageAsync(
 		CloudEvent cloudEvent,
 		string topicArn,
@@ -285,15 +285,13 @@ internal sealed class AwsSnsCloudEventAdapter : ICloudEventEncoder<PublishReques
 		}
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private static string EncodeBinaryBody(CloudEvent cloudEvent) => cloudEvent.Data switch
+	private string EncodeBinaryBody(CloudEvent cloudEvent) => cloudEvent.Data switch
 	{
 		null => string.Empty,
 		string text => text,
 		byte[] bytes => Encoding.UTF8.GetString(bytes),
 		ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.Span),
-		_ => JsonSerializer.Serialize(cloudEvent.Data),
+		_ => _serializer.SerializePayload(cloudEvent.Data),
 	};
 
 	private static MessageAttributeValue CreateStringAttribute(string value) =>
@@ -449,7 +447,7 @@ internal sealed class AwsSnsCloudEventAdapter : ICloudEventEncoder<PublishReques
 		}
 
 		await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(message));
-		var cloudEvent = await _jsonFormatter.DecodeStructuredModeMessageAsync(stream, contentType: null, extensionAttributes: null)
+		var cloudEvent = await _serializer.Formatter.DecodeStructuredModeMessageAsync(stream, contentType: null, extensionAttributes: null)
 			.ConfigureAwait(false);
 		return cloudEvent;
 	}

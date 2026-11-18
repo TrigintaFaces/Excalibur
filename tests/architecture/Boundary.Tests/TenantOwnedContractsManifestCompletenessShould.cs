@@ -123,11 +123,34 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
             "KNOWN OPEN cross-tenant read-model isolation gap (view rows keyed by (ViewName,ViewId), no " +
             "tenant); real fix carried.",
 
+        // --- Saga capabilities (discovered through their selected outer stores) ----------------------
+        ["ISagaAtomicTransitionStore"] =
+            "Optional atomic-transition facet reached through manifested ISagaStore.GetService, not a " +
+            "separately composed state store. TenantScopedSagaStore and TenantRoutingSagaStore facades " +
+            "revalidate the requested tenant and selected inner capability on every call; the SQL kernel " +
+            "also compares the request tenant with its current store authority. ISagaStore's registration " +
+            "gate remains in force. This classification does not certify every provider's atomic behavior.",
+        ["ISagaTimerRecoveryStore"] =
+            "Recovery protocol facet of the actual selected ISagaTimeoutStore, obtained through its " +
+            "GetService rather than as an independent store registration. Journal/domain/delivery carry " +
+            "explicit tenant authority; the SQL and in-memory receivers compare it with current receiver " +
+            "authority before effects. The owner ISagaTimeoutStore lives in Excalibur.Saga.Abstractions, " +
+            "outside this guard's declared population. This is not a claim that the owner is manifested " +
+            "here or that all timeout-provider tenancy is certified.",
+
         // --- Excalibur.Dispatch (inbox/outbox capability facets + CDC state) ---------------------------
         ["ITenantPartitionedStore"] =
             "Not a store contract: a capability DECLARATION a provider implements to state that it carries " +
             "the tenant on the row rather than reading it from ambient scope. It stores nothing itself, so " +
             "it has no rows to isolate; the stores that declare it are manifested on their own contracts.",
+        ["IOutboxPayloadTransformStore"] =
+            "Segregated payload-transformation facet of manifested IOutboxStore. Obtained through the " +
+            "owning store's GetService and performs that same store's provider-owned Enqueue construction/" +
+            "persistence with transformed payload bytes; not an independently registered store or worker " +
+            "admission. Primary IOutboxStore row-partition registration/provenance remains authoritative. " +
+            "Callback tenant is the prepared envelope tenant; transformation cannot replace row identity, " +
+            "routing, headers or tenant. This classification does not certify provider transaction, tenant " +
+            "or crypto behavior.",
         ["IDeadLetterableOutboxStore"] =
             "Segregated capability facet of the manifested IOutboxStore (composition, not inheritance): " +
             "dead-letter operations over the same outbox rows already gated via IOutboxStore. Not a " +
@@ -135,6 +158,13 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
         ["IBackoffSchedulableOutboxStore"] =
             "Segregated capability facet of the manifested IOutboxStore: backoff scheduling over the same " +
             "outbox rows. Not a distinct store.",
+        ["IClaimScopedDeadLetterableOutboxStore"] =
+            "Segregated capability facet of the manifested IOutboxStore, completing the SAME owning " +
+            "store's rows by persisted ID and exact acquisition. Conditionally discovered through that " +
+            "store's GetService, not a standalone tenant store. IOutboxStore remains subject to the " +
+            "row-partition capability gate; this classification does not attest provider safety. " +
+            "Terminal completion preserves tenant provenance from the stored row, without an ambient " +
+            "tenant predicate that would stall the cross-tenant drain.",
         ["IClaimScopedOutboxStore"] =
             "Segregated capability facet of the manifested IOutboxStore (composition, not inheritance): " +
             "the claim-scoped variants of mark-failed and backoff scheduling over the same outbox rows " +
@@ -178,9 +208,10 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
         // --- Excalibur.Compliance (erasure/legal-hold facets, inventory, audit, consent) ----------------
         ["IErasureBackgroundQueryStore"] =
             "Trusted-background discovery facet of manifested IErasureStore, on the same instance through " +
-            "GetService. Awaiting-key-destruction discovery spans tenants and returns recorded ownership " +
-            "for per-request processing. Not a distinct store or authorization boundary; an ambient " +
-            "tenant discriminator here would stall background completion.",
+            "GetService. Each member is one background worker's own discovery predicate -- requests " +
+            "awaiting key destruction, and requests a legal hold deferred -- and both span tenants and " +
+            "return recorded ownership for per-request processing. Not a distinct store or authorization " +
+            "boundary; an ambient tenant discriminator on either member would stall that worker silently.",
         ["IErasureQueryStore"] =
             "Segregated query facet of the manifested IErasureStore, implemented on the same store instance " +
             "and reached through GetService: its tenant-facing read applies the same ambient tenant " +

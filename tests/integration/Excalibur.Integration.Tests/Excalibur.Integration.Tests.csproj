@@ -228,4 +228,19 @@
     -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MySql\Excalibur.Data.MySql.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\samples\11-real-world\ECommerceSample\ECommerceSample.csproj" />
+  </ItemGroup>
+  <Target Name="CopyCommerceProcessSample" AfterTargets="Build">
+    <MSBuild Projects="..\..\..\samples\11-real-world\ECommerceSample\ECommerceSample.csproj"
+             Targets="GetTargetPath" Properties="Configuration=$(Configuration);TargetFramework=net10.0">
+      <Output TaskParameter="TargetOutputs" ItemName="CommerceExecutable" />
+    </MSBuild>
+    <ItemGroup>
+      <CommerceProcessFiles Include="%(CommerceExecutable.RootDir)%(CommerceExecutable.Directory)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CommerceProcessFiles)"
+          DestinationFiles="@(CommerceProcessFiles->'$(OutDir)ecommerce-process-sample\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

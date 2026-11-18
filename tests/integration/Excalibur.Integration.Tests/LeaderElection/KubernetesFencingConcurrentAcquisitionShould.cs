@@ -72,7 +72,7 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 			Options.Create(new KubernetesLeaderElectionOptions
 			{
 				Namespace = "default",
-				CandidateId = candidateId,
+				InstanceId = candidateId,
 				LeaseDuration = TimeSpan.FromSeconds(15),
 				RenewInterval = TimeSpan.FromSeconds(1),
 				RetryInterval = TimeSpan.FromMilliseconds(250),
@@ -83,15 +83,19 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 	[Fact]
 	public async Task ConcurrentAcquisition_YieldsExactlyOneWinner_WithAConsistentFencingToken()
 	{
+        var ownership = new KubernetesElectionTestLifetime();
+        await ownership.RunAsync(async () =>
+        {
+
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"lb5ckv/pc9azv Kubernetes concurrent-atomicity coverage is a split-brain safety control -- this real-k3s lock must never be skipped");
 
-		var client = await _fixture.CreateClientAsync();
+		var client = ownership.OwnClient(await _fixture.CreateClientAsync());
 		var resourceName = UniqueResourceName();
 		const int concurrency = 8;
 
 		var elections = Enumerable.Range(0, concurrency)
-			.Select(i => CreateElection(client, resourceName, $"candidate-{i}"))
+			.Select(i => ownership.Track(CreateElection(client, resourceName, $"candidate-{i}"), client, $"{resourceName}-leader-election", "default"))
 			.ToList();
 
 		// Every candidate's acquisition outcome is OBSERVABLE on the public surface: a winner flips
@@ -103,8 +107,6 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 			e.AcquisitionFailed += (_, args) => decidedLosers[args.CandidateId] = 0;
 		}
 
-		try
-		{
 			// Act -- every candidate starts (and therefore attempts to acquire) concurrently.
 			await Task.WhenAll(elections.Select(e => e.StartAsync(TestContext.Current.CancellationToken)));
 
@@ -131,8 +133,7 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 			// Assert -- the winner's own fencing token (read via the SAME provider the auto-registered DI
 			// path constructs) must be present and >= 1: a genuine transition happened, and the provider
 			// observed it.
-			var fencingProvider = CreateFencingProvider(client, out var fencingServices);
-			await using var _fencingServices = fencingServices;
+			var fencingProvider = CreateFencingProvider(client, ownership);
 			var token = await fencingProvider.GetTokenAsync(resourceName, TestContext.Current.CancellationToken);
 			token.ShouldNotBeNull("a real leadership transition occurred, so the Lease's leaseTransitions counter must be observable");
 			token!.Value.ShouldBeGreaterThanOrEqualTo(1L);
@@ -140,34 +141,25 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 			leaders[0].CurrentLeadership.ShouldNotBeNull();
 			leaders[0].CurrentLeadership!.Value.FencingToken.ShouldBe(token,
 				"the winning election's own tenure token must agree with the provider read independently against the same Lease");
-		}
-		finally
-		{
-			await Task.WhenAll(elections.Select(async e =>
-			{
-				try
-				{
-					await e.DisposeAsync();
-				}
-				catch (ObjectDisposedException)
-				{
-				}
-			}));
-		}
-	}
+
+
+        });
+    }
 
 	[Fact]
 	public async Task ConcurrentReads_NeverAdvanceTheCounter_ForOneGenuineTransition()
 	{
+        var ownership = new KubernetesElectionTestLifetime();
+        await ownership.RunAsync(async () =>
+        {
+
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"lb5ckv/pc9azv Kubernetes concurrent-atomicity coverage is a split-brain safety control -- this real-k3s lock must never be skipped");
 
-		var client = await _fixture.CreateClientAsync();
+		var client = ownership.OwnClient(await _fixture.CreateClientAsync());
 		var resourceName = UniqueResourceName();
 
-		var election = CreateElection(client, resourceName, "sole-candidate");
-		try
-		{
+		var election = ownership.Track(CreateElection(client, resourceName, "sole-candidate"), client, $"{resourceName}-leader-election", "default");
 			await election.StartAsync(TestContext.Current.CancellationToken);
 
 			// Poll the acquisition itself rather than sleeping past it. The assertion is POSITIVE, so the
@@ -178,8 +170,7 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 				cancellationToken: TestContext.Current.CancellationToken);
 			election.IsLeader.ShouldBeTrue("the sole candidate must acquire leadership -- one real transition");
 
-			var fencingProvider = CreateFencingProvider(client, out var fencingServices);
-			await using var _fencingServices = fencingServices;
+			var fencingProvider = CreateFencingProvider(client, ownership);
 
 			// Act -- N concurrent reads against a Lease with exactly ONE genuine transition behind it.
 			const int concurrency = 16;
@@ -194,25 +185,26 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 				$"reading a fencing token must never itself advance the counter -- got {distinct.Count} distinct values " +
 				$"({string.Join(", ", distinct)}) from {concurrency} concurrent reads against one real transition");
 			distinct[0].ShouldNotBeNull();
-		}
-		finally
-		{
-			await election.DisposeAsync();
-		}
-	}
+
+
+        });
+    }
 
 	[Fact]
 	public async Task SequentialHandover_YieldsAStrictlyGreaterFencingToken()
 	{
+        var ownership = new KubernetesElectionTestLifetime();
+        await ownership.RunAsync(async () =>
+        {
+
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"lb5ckv/pc9azv Kubernetes concurrent-atomicity coverage is a split-brain safety control -- this real-k3s lock must never be skipped");
 
-		var client = await _fixture.CreateClientAsync();
+		var client = ownership.OwnClient(await _fixture.CreateClientAsync());
 		var resourceName = UniqueResourceName();
-		var fencingProvider = CreateFencingProvider(client, out var fencingServices);
-		await using var _fencingServices = fencingServices;
+		var fencingProvider = CreateFencingProvider(client, ownership);
 
-		var electionA = CreateElection(client, resourceName, "candidate-a");
+		var electionA = ownership.Track(CreateElection(client, resourceName, "candidate-a"), client, $"{resourceName}-leader-election", "default");
 		await electionA.StartAsync(TestContext.Current.CancellationToken);
 		_ = await WaitHelpers.WaitUntilAsync(
 			() => electionA.IsLeader,
@@ -224,9 +216,7 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 		await electionA.StopAsync(TestContext.Current.CancellationToken);
 		await electionA.DisposeAsync();
 
-		var electionB = CreateElection(client, resourceName, "candidate-b");
-		try
-		{
+		var electionB = ownership.Track(CreateElection(client, resourceName, "candidate-b"), client, $"{resourceName}-leader-election", "default");
 			await electionB.StartAsync(TestContext.Current.CancellationToken);
 
 			// The successor's acquisition is a second real CAS against a Lease A has only just vacated, so
@@ -241,12 +231,10 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 			secondToken.ShouldNotBeNull();
 			secondToken!.Value.ShouldBeGreaterThan(firstToken!.Value,
 				"a genuine handover is a second real transition, so leaseTransitions -- and therefore the fencing token -- must strictly increase");
-		}
-		finally
-		{
-			await electionB.DisposeAsync();
-		}
-	}
+
+
+        });
+    }
 
 	/// <summary>
 	/// Builds <see cref="IFencingTokenProvider"/> through the PUBLIC registration path
@@ -255,13 +243,14 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 	/// <c>InternalsVisibleTo</c> by <c>Excalibur.LeaderElection.Kubernetes</c>, and going through the same
 	/// public seam a consumer uses is the more faithful proof anyway.
 	/// </summary>
-	private static IFencingTokenProvider CreateFencingProvider(IKubernetes client, out ServiceProvider services)
+	private static IFencingTokenProvider CreateFencingProvider(IKubernetes client, KubernetesElectionTestLifetime ownership)
 	{
 		var collection = new ServiceCollection();
 		_ = collection.AddSingleton(client);
 		_ = collection.AddSingleton(Options.Create(new KubernetesLeaderElectionOptions { Namespace = "default" }));
 		_ = collection.AddKubernetesFencingTokenProvider();
-		services = collection.BuildServiceProvider();
+		var services = collection.BuildServiceProvider();
+        ownership.OwnServices(services);
 		return services.GetRequiredService<IFencingTokenProvider>();
 	}
 }

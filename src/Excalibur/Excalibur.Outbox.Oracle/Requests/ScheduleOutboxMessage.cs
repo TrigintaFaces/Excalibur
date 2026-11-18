@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
@@ -29,6 +29,11 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 	/// <param name="outboxTableName"> The name of the outbox table. </param>
 	/// <param name="sqlTimeOutSeconds"> The SQL command timeout in seconds. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public ScheduleOutboxMessage(
 		string messageId,
 		string messageType,
@@ -41,6 +46,8 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(messageBody);
+
 		// The tenant term is supplied by the caller and stamped into the row below, so the
 		// declaration and the INSERT agree. FromStoredValue (not Scoped) is total: it maps null,
 		// empty and the reserved sentinel alike onto the untenanted partition, which is this
@@ -54,7 +61,7 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 				(:MessageId, :MessageType, :MessageMetadata, :MessageBody, :TenantId, :Destination, SYSTIMESTAMP, 0, NULL, NULL, :ScheduledAt)
 			""";
 
-		var parameters = new DynamicParameters();
+		var parameters = OracleOutboxBlobBinding.CreateParameters();
 		parameters.Add("MessageId", messageId, direction: ParameterDirection.Input);
 		parameters.Add("MessageType", messageType, direction: ParameterDirection.Input);
 		parameters.Add("MessageMetadata", messageMetadata, direction: ParameterDirection.Input);
@@ -69,6 +76,16 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 		parameters.Add("ScheduledAt", scheduledAt, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.ExecuteAsync(conn, Command, command =>
+			{
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "MessageType", StaticDbCommand.Input<string>(Parameters, "MessageType"), DbType.String);
+				StaticDbCommand.AddParameter(command, "MessageMetadata", StaticDbCommand.Input<string>(Parameters, "MessageMetadata"), DbType.String);
+				OracleOutboxBlobBinding.AddMessageBody(command, StaticDbCommand.RequiredInput<byte[]>(Parameters, "MessageBody"));
+				StaticDbCommand.AddParameter(command, "TenantId", StaticDbCommand.Input<string>(Parameters, "TenantId"), DbType.String);
+				StaticDbCommand.AddNullableStringParameter(command, "Destination", StaticDbCommand.Input<string?>(Parameters, "Destination"));
+				StaticDbCommand.AddParameter(command, "ScheduledAt", StaticDbCommand.Input<DateTimeOffset?>(Parameters, "ScheduledAt"), DbType.DateTimeOffset);
+			}).ConfigureAwait(false);
 	}
 }

@@ -17,9 +17,9 @@ This package is included in the following metapackages:
 This package provides RabbitMQ integration for Excalibur.Dispatch, enabling:
 
 - **Message Publishing & Consuming**: Full support for exchanges, queues, and routing
-- **CloudEvents Support**: DoD-compliant structured and binary mode CloudEvents on outbound messages. Inbound messages are decoded automatically. On the send path, registering the bundled encoder is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventEncoder<TOutbound>` over a source-generated serializer to avoid the requirement. Inbound decoding is trim-safe and ahead-of-time-safe, attaches the decoded event to the message rather than replacing it, and delivers every message in the batch — a malformed one arrives carrying a decode error instead of a decoded event, never dropped.
+- **CloudEvents Support**: DoD-compliant structured and binary mode CloudEvents on outbound messages. Inbound messages are decoded automatically. On the send path, select payload serialization separately through core `AddCloudEvents`: use `AddCloudEvents(MyPayloadContext.Default)` with generated metadata for your payload types when trimming or publishing with Native AOT. The bundled encoder uses that configured serializer; a custom encoder is not required for metadata serialization. The parameterless core overload remains the annotated reflective choice. Validate transport dependencies and custom converters separately. Inbound decoding is trim-safe and ahead-of-time-safe, attaches the decoded event to the message rather than replacing it, and delivers every message in the batch — a malformed one arrives carrying a decode error instead of a decoded event, never dropped.
 - **Reliability Features**: Dead letter queues, publisher confirms, automatic recovery
-- **Batching**: Configurable batch processing for high-throughput scenarios
+- **Batching**: Configurable batch processing; measure completed work and resource use
 
 ## Installation
 
@@ -34,28 +34,57 @@ dotnet add package Excalibur.Dispatch.Transport.RabbitMQ
 #### Using Connection String
 
 ```csharp
-services.Configure<RabbitMqOptions>(options =>
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RabbitMqRegistration36
 {
-    options.Connection.ConnectionString = "amqp://user:password@localhost:5672/vhost";
-});
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddRabbitMQTransport("rabbitmq", rmq =>
+            rmq.ConnectionString("amqps://user:password@rabbitmq:5671/vhost"));
+    }
+}
 ```
 
-Alternatively, register the transport with the fluent builder, which populates the same options:
+The transport builder owns the live connection input. The former `RabbitMqOptions.Connection` copy and `RabbitMqConnectionOptions` type have been removed. Supplied URI structure and explicit default URI credentials are checked at registration; absent URI selects host/port parts. Actual internal factory creation rechecks structure and applies the existing TLS and parts-credential security posture. Caller-supplied channel/factory paths do not cause unused internal defaults to be dialed or eagerly validated for TLS.
+
+Configure host parts with the same builder:
 
 ```csharp
-services.AddRabbitMQTransport("rabbitmq", rmq => rmq.HostName("localhost").Port(5672));
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RabbitMqRegistration45
+{
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddRabbitMQTransport("rabbitmq", rmq => rmq.HostName("rabbitmq")
+            .Port(5671).UseSsl().Credentials("app-user", "app-password"));
+    }
+}
 ```
 
 #### Using Individual Properties
 
 ```csharp
-services.Configure<RabbitMqOptions>(options =>
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RabbitMqRegistration52
 {
-    options.Connection.ConnectionString = "amqp://localhost";
-    options.Exchange = "dispatch.events";
-    options.Queue.QueueName = "my-service-queue";
-    options.RoutingKey = "orders.*";
-});
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddRabbitMQTransport("rabbitmq", rmq =>
+            rmq.HostName("rabbitmq").Port(5671).UseSsl().Credentials("app-user", "app-password"));
+        services.Configure<RabbitMqOptions>("rabbitmq", options =>
+        {
+            options.Exchange = "dispatch.events";
+            options.Queue.QueueName = "my-service-queue";
+            options.RoutingKey = "orders.*";
+        });
+    }
+}
 ```
 
 #### Environment Variables
@@ -63,13 +92,26 @@ services.Configure<RabbitMqOptions>(options =>
 Configure via environment variables for containerized deployments:
 
 ```bash
-RABBITMQ__CONNECTION__CONNECTIONSTRING=amqp://user:password@rabbitmq:5672/
+RABBITMQ__CONNECTION__CONNECTIONSTRING=amqps://user:password@rabbitmq:5671/
 RABBITMQ__EXCHANGE=dispatch.events
 RABBITMQ__QUEUE__QUEUENAME=my-service-queue
 ```
 
 ```csharp
-services.Configure<RabbitMqOptions>(configuration.GetSection("RabbitMQ"));
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+
+public static class RabbitMqRegistration73
+{
+    public static void Configure(IServiceCollection services, IConfiguration configuration)
+    {
+        var brokerUri = configuration["RabbitMQ:Connection:ConnectionString"]
+            ?? throw new InvalidOperationException("RabbitMQ connection URI is required.");
+        services.AddRabbitMQTransport("rabbitmq", rmq => rmq.ConnectionString(brokerUri));
+        services.Configure<RabbitMqOptions>("rabbitmq", configuration.GetSection("RabbitMQ"));
+    }
+}
 ```
 
 ### Authentication
@@ -77,7 +119,17 @@ services.Configure<RabbitMqOptions>(configuration.GetSection("RabbitMQ"));
 #### Username/Password (Connection String)
 
 ```csharp
-options.Connection.ConnectionString = "amqp://username:password@hostname:5672/vhost";
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RabbitMqRegistration84
+{
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddRabbitMQTransport(rmq =>
+            rmq.ConnectionString("amqps://username:password@hostname:5671/vhost"));
+    }
+}
 ```
 
 #### TLS/SSL Configuration
@@ -85,7 +137,17 @@ options.Connection.ConnectionString = "amqp://username:password@hostname:5672/vh
 For production environments, enable TLS:
 
 ```csharp
-options.Connection.ConnectionString = "amqps://user:password@hostname:5671/";
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RabbitMqRegistration93
+{
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddRabbitMQTransport(rmq =>
+            rmq.ConnectionString("amqps://user:password@hostname:5671/"));
+    }
+}
 ```
 
 #### Certificate-Based Authentication
@@ -333,33 +395,41 @@ Enable detailed logging for troubleshooting:
 ## Complete Configuration Reference
 
 ```csharp
-services.Configure<RabbitMqOptions>(options =>
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RabbitMqRegistration342
 {
-    // Connection
-    options.Connection.ConnectionString = "amqp://user:pass@localhost:5672/";
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddRabbitMQTransport("rabbitmq", rmq =>
+            rmq.ConnectionString("amqps://user:pass@rabbitmq:5671/"));
+        services.Configure<RabbitMqOptions>("rabbitmq", options =>
+        {
+            // Exchange
+            options.Exchange = "dispatch.events";
 
-    // Exchange
-    options.Exchange = "dispatch.events";
+            // Queue. QueueArguments is a populated dictionary, not a settable property.
+            options.Queue.QueueName = "my-service";
+            options.Queue.QueueDurable = true;
+            options.Queue.QueueExclusive = false;
+            options.Queue.QueueAutoDelete = false;
+            options.Queue.QueueArguments["x-message-ttl"] = 86400000;  // 24 hours
+            options.Queue.QueueArguments["x-max-length"] = 100000;
 
-    // Queue. QueueArguments is a populated dictionary, not a settable property.
-    options.Queue.QueueName = "my-service";
-    options.Queue.QueueDurable = true;
-    options.Queue.QueueExclusive = false;
-    options.Queue.QueueAutoDelete = false;
-    options.Queue.QueueArguments["x-message-ttl"] = 86400000;  // 24 hours
-    options.Queue.QueueArguments["x-max-length"] = 100000;
+            // Routing
+            options.RoutingKey = "orders.#";
 
-    // Routing
-    options.RoutingKey = "orders.#";
+            // Consumer
+            options.Consumption.MaxPayloadBytes = null;  // No inbound payload cap
 
-    // Consumer
-    options.Consumption.MaxPayloadBytes = null;  // No inbound payload cap
-
-    // Dead Letter
-    options.DeadLetter.EnableDeadLetterExchange = true;
-    options.DeadLetter.DeadLetterExchange = "dispatch.dlx";
-    options.DeadLetter.DeadLetterRoutingKey = "failed";
-});
+            // Dead Letter
+            options.DeadLetter.EnableDeadLetterExchange = true;
+            options.DeadLetter.DeadLetterExchange = "dispatch.dlx";
+            options.DeadLetter.DeadLetterRoutingKey = "failed";
+        });
+    }
+}
 ```
 
 Connection recovery and prefetch are configured on the transport builder rather than on

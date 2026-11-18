@@ -29,7 +29,7 @@ public sealed class InMemoryLeaderElectionSharedState
     /// <summary>
     /// Gets the dictionary of current leaders per resource name.
     /// </summary>
-    internal ConcurrentDictionary<string, string?> Leaders { get; } = new(StringComparer.Ordinal);
+    internal ConcurrentDictionary<string, TenureOwnership> Leaders { get; } = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the dictionary of candidate health data per resource name.
@@ -39,6 +39,12 @@ public sealed class InMemoryLeaderElectionSharedState
     internal object CandidateGate { get; } = new();
 
     internal Dictionary<string, CandidateBucket> CandidateBuckets { get; } = new(StringComparer.Ordinal);
+
+    // Reference identity represents one acquisition, never a public display-name identity.
+    internal sealed class TenureOwnership(string candidateId)
+    {
+        internal string CandidateId { get; } = candidateId;
+    }
 
     internal sealed class CandidateBucket(ConcurrentDictionary<string, CandidateHealth> members)
     {

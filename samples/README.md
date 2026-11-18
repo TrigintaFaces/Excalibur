@@ -154,8 +154,8 @@ Each transport sample includes Docker Compose for local development.
 
 | Sample | Serializer | Best For |
 |--------|------------|----------|
-| [MemoryPackSample](08-serialization/MemoryPackSample/) | MemoryPack | Maximum .NET performance, Native AOT |
-| [MessagePackSample](08-serialization/MessagePackSample/) | MessagePack + LZ4 | High throughput, compact binary |
+| [MemoryPackSample](08-serialization/MemoryPackSample/) | MemoryPack | .NET binary serialization; verify the complete NativeAOT application |
+| [MessagePackSample](08-serialization/MessagePackSample/) | MessagePack + LZ4 | Binary serialization with optional LZ4; compare actual payload size and processing cost |
 | [Protobuf](08-serialization/Protobuf/) | Protocol Buffers | Cross-language interoperability |
 
 ### [09-advanced/](09-advanced/) — Advanced Patterns (subcategorized)
@@ -176,7 +176,7 @@ See the [09-advanced README](09-advanced/README.md) for detailed learning tracks
 
 | Sample | Description |
 |--------|-------------|
-| [Excalibur.Dispatch.Aot.Sample](10-aot/Excalibur.Dispatch.Aot.Sample/) | AOT-compatible Dispatch with source generators — no reflection, no dynamic code |
+| [Excalibur.Dispatch.Aot.Sample](10-aot/Excalibur.Dispatch.Aot.Sample/) | Selected source-generated Dispatch paths with a NativeAOT sample configuration |
 
 ### [11-real-world/](11-real-world/) — Production Reference
 

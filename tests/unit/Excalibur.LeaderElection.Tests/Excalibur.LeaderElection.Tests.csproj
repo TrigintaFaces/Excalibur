@@ -16,6 +16,10 @@
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/LeaderElection/LeaderElectionBenchmarkSetup.cs" Link="Benchmarks/LeaderElectionBenchmarkSetup.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Testing.Conformance\Excalibur.Testing.Conformance.csproj" />
     <!-- ProjectReferences from all merged leader election test projects -->
     <!-- From Excalibur.LeaderElection.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />

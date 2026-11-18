@@ -49,14 +49,37 @@ public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceT
 	protected override bool TerminalTransitionRemovesMessage => true;
 
 	private readonly OracleOutboxStoreContainerFixture _fixture;
+	private readonly ITestOutputHelper _output;
+	private bool _permitCompositeRepresentationNa;
+	private int _compositeRepresentationNaCount;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="OracleOutboxStoreConformanceShould"/> class.
 	/// </summary>
 	/// <param name="fixture">The Oracle container fixture.</param>
-	public OracleOutboxStoreConformanceShould(OracleOutboxStoreContainerFixture fixture)
+	/// <param name="output">Reports representation NA and the executed Oracle scope proofs.</param>
+	public OracleOutboxStoreConformanceShould(OracleOutboxStoreContainerFixture fixture, ITestOutputHelper output)
 	{
 		_fixture = fixture;
+		_output = output;
+	}
+
+	// Oracle fences by durable physical-table scope and has no per-document fencing-token column.
+	// Only that exact representation-specific arm is NA; missing infrastructure/capabilities still fail.
+	protected override void OnArmSkipped(ConformanceArmSkip skip)
+	{
+		base.OnArmSkipped(skip);
+		if (_permitCompositeRepresentationNa
+			&& string.Equals(skip.Arm, nameof(Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent), StringComparison.Ordinal)
+			&& skip.Capability == typeof(IFencedOutboxStore)
+			&& string.Equals(skip.Reason, "This store exposes no per-document fencing state for this arm to overwrite.", StringComparison.Ordinal))
+		{
+			_compositeRepresentationNaCount++;
+			_compositeRepresentationNaCount.ShouldBe(1, "only the exact base arm may report one representation NA");
+			_output.WriteLine("Representation NA: base per-document overwrite is unsupported; the Oracle scope composite must execute next.");
+			return;
+		}
+		throw new InvalidOperationException($"Unexpected unverified Oracle conformance arm: {skip.Arm}: {skip.Reason}");
 	}
 
 	/// <inheritdoc/>
@@ -82,7 +105,8 @@ public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceT
 			MaxAttempts = 3,
 		});
 
-		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance);
+		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance,
+			workerConnections: OracleWorkerConnectionSource.FromConnectionString(_fixture.ConnectionString));
 	}
 
 	/// <inheritdoc/>
@@ -105,7 +129,8 @@ public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceT
 			FailureBackoffFloorSeconds = floorSeconds,
 		});
 
-		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance);
+		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance,
+			workerConnections: OracleWorkerConnectionSource.FromConnectionString(_fixture.ConnectionString));
 	}
 
 	/// <inheritdoc/>
@@ -273,7 +298,18 @@ public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceT
 	public Task Fencing_HighWaterMark_ShouldSurviveCleanup_Test() => Fencing_HighWaterMark_ShouldSurviveCleanup();
 
 	[Fact]
-	public Task Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent_Test() => Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent();
+	public async Task Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent_Test()
+	{
+		_compositeRepresentationNaCount = 0;
+		_permitCompositeRepresentationNa = true;
+		try
+		{
+			await Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent().ConfigureAwait(false);
+			_compositeRepresentationNaCount.ShouldBe(1);
+		}
+		finally { _permitCompositeRepresentationNa = false; }
+		await OracleScopeCompositeControl.VerifyAsync(_fixture, _output).ConfigureAwait(false);
+	}
 
 	[Fact]
 	public Task Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent_Test() => Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent();
@@ -364,6 +400,9 @@ public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceT
 
 	[Fact]
 	public Task MarkFailedAsync_ShouldSetErrorMessage_Test() => MarkFailedAsync_ShouldSetErrorMessage();
+
+	[Fact]
+	public Task FailedMessagesAdminRead_MustCarryEachMessageOwnTenant_Test() => FailedMessagesAdminRead_MustCarryEachMessageOwnTenant();
 
 	[Fact]
 	public Task MarkFailedAsync_ShouldSetRetryCount_Test() => MarkFailedAsync_ShouldSetRetryCount();

@@ -26,6 +26,11 @@ public sealed class DeleteOutboxMessage : DataRequest<int>
 	/// <param name="outboxTableName">The name of the outbox table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public DeleteOutboxMessage(string messageId, string outboxTableName, int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
@@ -39,6 +44,10 @@ public sealed class DeleteOutboxMessage : DataRequest<int>
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
 
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.ExecuteAsync(conn, Command, command =>
+			{
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+			}).ConfigureAwait(false);
 	}
 }

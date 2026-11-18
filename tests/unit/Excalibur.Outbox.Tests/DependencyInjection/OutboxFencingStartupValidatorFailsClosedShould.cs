@@ -58,7 +58,7 @@ public sealed class OutboxFencingStartupValidatorFailsClosedShould
 			"processor's own guard cannot fire on it; the startup validator is the only thing standing between this " +
 			"composition and an unfenced split-brain drain.");
 
-		ex.Message.ShouldContain("does not implement IFencedOutboxStore", Case.Sensitive);
+		ex.Message.ShouldContain("fenced polling worker requires IFencedOutboxStore and IFencedClaimScopedOutboxStore", Case.Sensitive);
 	}
 
 	[Fact]
@@ -114,6 +114,14 @@ public sealed class OutboxFencingStartupValidatorFailsClosedShould
 			"fires without an active leader gate and would reject every single-instance non-fenced deployment.");
 	}
 
+	[Fact]
+	public async Task PermitStagingOnlyWithoutActivatingTheUnfencedElectedWorker()
+	{
+		await using var provider = BuildProvider(A.Fake<IOutboxStore>(), A.Fake<ILeaderProcessingGate>(),
+			singleActiveWriter: false, registerWorker: false);
+		await Should.NotThrowAsync(() => Validator(provider).StartAsync(CancellationToken.None));
+	}
+
 	// Resolves the REAL OutboxPrerequisiteValidator (an IHostedService) the host would run at IHost.StartAsync().
 	private static OutboxPrerequisiteValidator Validator(IServiceProvider provider) =>
 		provider.GetServices<IHostedService>().OfType<OutboxPrerequisiteValidator>().Single();
@@ -124,12 +132,17 @@ public sealed class OutboxFencingStartupValidatorFailsClosedShould
 	private static ServiceProvider BuildProvider(
 		IOutboxStore store,
 		ILeaderProcessingGate? leaderGate,
-		bool singleActiveWriter)
+		bool singleActiveWriter, bool registerWorker = true)
 	{
 		var services = new ServiceCollection();
+		services.AddLogging();
+		// Resolve the actual hosted validator without constructing a transport-dependent publisher.
+		// No background service is started by these direct validator calls.
+		services.AddSingleton(A.Fake<IOutboxPublisher>());
 		_ = services.AddExcalibur(x =>
 			x.AddOutbox(o =>
 			{
+				if (registerWorker) { _ = o.EnableBackgroundProcessing(); }
 				if (singleActiveWriter)
 				{
 					// The real, observable opt-out — IOutboxBuilder.AsSingleWriter() sets
@@ -157,7 +170,11 @@ public sealed class OutboxFencingStartupValidatorFailsClosedShould
 	// implements and null otherwise; the fake must too.
 	private static IOutboxStore HonestFake(Action<IFakeOptions<IOutboxStore>>? configure = null)
 	{
-		var fake = configure is null ? A.Fake<IOutboxStore>() : A.Fake<IOutboxStore>(configure);
+		var fake = A.Fake<IOutboxStore>(b =>
+		{
+			b.Implements<IClaimScopedOutboxStore>();
+			configure?.Invoke(b);
+		});
 		A.CallTo(() => fake.GetService(A<Type>._))
 			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(fake) ? fake : null);
 		return fake;

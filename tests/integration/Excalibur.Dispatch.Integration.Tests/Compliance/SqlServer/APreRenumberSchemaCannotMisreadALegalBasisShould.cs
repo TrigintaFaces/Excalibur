@@ -26,15 +26,18 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 /// </para>
 /// <para>
 /// <b>Two mechanisms stand between that and a consumer, and both are asserted here.</b> The migration
-/// REPLACES the column rather than renaming it, so pre-upgrade ordinals are discarded and existing rows land
-/// on the not-established member. And the column has a NEW NAME, so a database that never ran the migration
-/// fails the store's schema probe by name instead of starting and misreading its rows.
+/// REPLACES the column and backfills it with the stored ordinal shifted onto the member it named, so a
+/// pre-upgrade row keeps the ground it was written under. And the column has a NEW NAME, so a database that
+/// never ran the migration fails the store's schema probe by name instead of starting and misreading its
+/// rows.
 /// </para>
 /// <para>
 /// <b>A rename would have been the wrong shape, and that is asserted rather than assumed.</b> Renaming
-/// preserves values, so the old ordinals would survive under the new name and be read through the new
-/// numbering. <see cref="ReadAPreUpgradeRowAsNotEstablished_RatherThanAsADifferentGround"/> is the arm that
-/// fails if the migration is ever changed to a rename: the row would come back carrying its old ordinal.
+/// preserves values WITHOUT shifting them, so the old ordinals would survive under the new name and be read
+/// through the new numbering.
+/// <see cref="ReadAPreUpgradeRowAsTheGroundItWasWrittenUnder_RatherThanDiscardingIt"/> is the arm that
+/// fails if the migration is ever changed to a rename, and equally if the backfill is dropped so every row
+/// lands on the default.
 /// </para>
 /// <para>
 /// Real SQL Server via TestContainers, never skipped. Every property here is server-side — whether the
@@ -157,20 +160,32 @@ public sealed class APreRenumberSchemaCannotMisreadALegalBasisShould : IAsyncLif
 	}
 
 	/// <summary>
-	/// SAFETY. After the migration a pre-upgrade row reports its ground as not established, rather than as
-	/// whatever its old ordinal happens to mean under the new numbering.
+	/// SAFETY. After the migration a pre-upgrade row reports the ground it was actually written under, and
+	/// never the different ground its old ordinal names under the new numbering.
 	/// </summary>
 	/// <remarks>
-	/// <b>RED input:</b> change the migration from replace-the-column to RENAME-the-column. A rename
-	/// preserves values, so every row comes back carrying its old ordinal — <c>1</c> reads as freedom of
-	/// expression where it meant legal obligation — and this arm fails. It is the arm that makes the choice
-	/// of <c>ADD</c>-then-<c>DROP</c> over <c>sp_rename</c> a tested decision rather than a preference.
+	/// <para>
+	/// <b>This arm asserted the opposite until the renumbering was measured, and the measurement reversed
+	/// it.</b> It required every pre-upgrade row to read as <c>NotEstablished</c>, on the stated grounds
+	/// that the framework could no longer say which ground a stored ordinal named. The enumeration diff
+	/// refutes that: across the commit that introduced the zero member, every member of both affected
+	/// enumerations moved up by exactly one and none was renamed, reordered or removed. So <c>old + 1</c> is
+	/// a total mapping onto the new numbering, the stored ground was always recoverable, and discarding it
+	/// destroyed an Article 17(1) record that conversion preserves exactly.
+	/// </para>
+	/// <para>
+	/// <b>RED input, and it is the same mutation as before:</b> change the migration to RENAME the column. A
+	/// rename preserves the ordinal WITHOUT shifting it, so <c>1</c> comes back as freedom of expression
+	/// where it meant legal obligation, and the expected set below does not match. Dropping the backfill
+	/// entirely reddens it too — every row would land on the default and read as not established. The arm
+	/// now fails for both mistakes rather than requiring one of them.
+	/// </para>
 	/// </remarks>
 	[Fact]
-	public async Task ReadAPreUpgradeRowAsNotEstablished_RatherThanAsADifferentGround()
+	public async Task ReadAPreUpgradeRowAsTheGroundItWasWrittenUnder_RatherThanDiscardingIt()
 	{
 		_fixture.DockerAvailable.ShouldBeTrue(
-			"the replacement is a real-SqlServer invariant -- never skipped.");
+			"the conversion is a real-SqlServer invariant -- never skipped.");
 
 		await ShippedKeyEscrowSchema.ApplyShippedScriptAsync(
 			MigrationScript, _databaseConnectionString, CancellationToken.None);
@@ -183,13 +198,68 @@ public sealed class APreRenumberSchemaCannotMisreadALegalBasisShould : IAsyncLif
 
 		stored.Length.ShouldBe(
 			OrdinalsWrittenByThePreviousVersion.Length,
-			"the rows themselves must survive -- only the legal-basis ordinal is not carried across");
+			"the rows themselves must survive the migration");
 
-		stored.ShouldAllBe(
-			static g => g == ErasureLegalBasis.NotEstablished,
-			"this framework can no longer say which ground a pre-upgrade ordinal named, and the enumeration "
-			+ "now has a member that says exactly that. Any other value here is a guess presented as a "
-			+ "measurement");
+		// Every ordinal the previous version wrote, shifted onto the member it named. Asserted as an
+		// ordered set rather than row-by-row because the table has no ordering guarantee, and asserting
+		// per-row would pass on a query that happened to return them in insertion order.
+		var expected = OrdinalsWrittenByThePreviousVersion
+			.Select(static o => o + 1)
+			.OrderBy(static o => o)
+			.ToArray();
+
+		stored
+			.Select(static g => (int)g)
+			.OrderBy(static o => o)
+			.ToArray()
+			.ShouldBe(
+				expected,
+				"each pre-upgrade ordinal must come back as the ground it was written under. The old "
+				+ "numbering is recoverable by construction -- every member moved up by exactly one -- so "
+				+ "a row reading as not established here is a destroyed compliance record, not an honest "
+				+ "admission of ignorance");
+
+		stored.ShouldNotContain(
+			ErasureLegalBasis.NotEstablished,
+			"no row in this fixture held a value outside the old enumeration, so none of them has any "
+			+ "reason to read as not established");
+	}
+
+	/// <summary>
+	/// SAFETY. A stored value that named no member of the old enumeration is the one case that becomes
+	/// not-established, because it is the one case where nothing can be said.
+	/// </summary>
+	/// <remarks>
+	/// The conversion is <c>old + 1</c> over the old range only. Shifting a value the old enumeration never
+	/// named would invent a ground, which is the failure the previous behaviour was reaching for and applied
+	/// to every row instead of only to this one.
+	/// <b>RED input:</b> drop the <c>BETWEEN</c> bound from the migration's <c>CASE</c>, so an
+	/// out-of-range ordinal is shifted like any other and comes back naming a member nobody wrote.
+	/// </remarks>
+	[Fact]
+	public async Task ReadAValueTheOldEnumerationNeverNamedAsNotEstablished()
+	{
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"the fallback is a real-SqlServer invariant -- never skipped.");
+
+		await using (var seed = new SqlConnection(_databaseConnectionString))
+		{
+			await seed.OpenAsync(CancellationToken.None);
+
+			// 99 named no member of the old enumeration, which ran 0..6.
+			_ = await seed.ExecuteAsync(
+				"INSERT INTO [compliance].[ErasureRequests] (RequestId, LegalBasis) VALUES (@Id, 99);",
+				new { Id = Guid.NewGuid() });
+		}
+
+		await ShippedKeyEscrowSchema.ApplyShippedScriptAsync(
+			MigrationScript, _databaseConnectionString, CancellationToken.None);
+
+		var stored = await StoredGroundsAsync();
+
+		stored.Count(static g => g == ErasureLegalBasis.NotEstablished).ShouldBe(
+			1,
+			"exactly the unnameable row becomes not established -- the convertible ones must not join it");
 	}
 
 	/// <summary>

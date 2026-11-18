@@ -48,7 +48,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </remarks>
 /// <example>
 /// <code>
-/// // 1. Define timer markers (empty structs recommended for zero allocation)
+/// // 1. Define timer markers (empty structs carry no marker state)
 /// public struct CleanupTimer : ICronTimerMarker { }
 /// public struct DailyReportTimer : ICronTimerMarker { }
 /// public struct HealthCheckTimer : ICronTimerMarker { }

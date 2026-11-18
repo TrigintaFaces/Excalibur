@@ -1,7 +1,6 @@
 # WarmPath epoch 2026-09-03 22:30
 
-This is the run every current performance claim in the repository quotes -- the README table,
-`docs-site/docs/performance/*`, and `docs-site/docs/migration/from-mediatr.md`.
+This directory preserves the September 3 epoch previously cited by consumer documentation. It does not establish current-source performance.
 
 ```
 BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9168/25H2)
@@ -22,7 +21,7 @@ read one, and it moved the standard path substantially:
 | `Dispatch: Single command handler` | 50.57 ns / 96 B | 30.49 ns / 24 B |
 
 So the earlier directory is not stale data to be corrected -- it is the before side of that change,
-and it is kept for that reason. Anything quoting a current figure should cite **this** directory.
+and it is kept for that reason. Cite this directory only for its recorded historical epoch.
 
 ## Contents
 

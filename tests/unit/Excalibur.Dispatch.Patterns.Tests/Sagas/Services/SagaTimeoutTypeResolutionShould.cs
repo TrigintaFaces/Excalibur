@@ -5,6 +5,7 @@ using Excalibur.Dispatch;
 using Excalibur.Saga;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Services;
+using Excalibur.Saga.Storage;
 
 using FakeItEasy;
 
@@ -61,14 +62,6 @@ public sealed class SagaTimeoutTypeResolutionShould
 			DueAt: DateTimeOffset.UtcNow.AddMinutes(-1),
 			ScheduledAt: DateTimeOffset.UtcNow.AddMinutes(-2));
 
-		var store = A.Fake<ISagaTimeoutStore>();
-
-		// Every claim returns the same due timeout. A one-shot setup followed by an empty one does NOT work
-		// here: FakeItEasy matches the most recently configured rule first, so the empty result shadows the
-		// one-shot and the service never sees a timeout at all -- the arm then passes or fails for reasons
-		// unrelated to type resolution.
-		_ = A.CallTo(() => store.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
-			.Returns(Task.FromResult<IReadOnlyList<ClaimedSagaTimeout>>([new ClaimedSagaTimeout(timeout, "test-claim-token")]));
 
 		// A registry that is PRESENT but does not know this type -- the realistic shape of an unregistered
 		// type in a configured host, as opposed to a host with no registry at all.
@@ -78,8 +71,12 @@ public sealed class SagaTimeoutTypeResolutionShould
 		var dispatcher = A.Fake<IDispatcher>();
 		var services = new ServiceCollection();
 		_ = services.AddSingleton(dispatcher);
+		services.AddDefaultTenantContext();
 
 		using var provider = services.BuildServiceProvider();
+		var store = new InMemorySagaTimeoutStore(provider.GetRequiredService<ITenantContext>());
+		await store.ScheduleTimeoutAsync(timeout, CancellationToken.None);
+		var failures = ((IServiceProvider)store).GetService(typeof(ISagaTimeoutFailureStore)).ShouldBeAssignableTo<ISagaTimeoutFailureStore>().ShouldNotBeNull();
 
 		var options = MsOptions.Create(new SagaTimeoutOptions
 		{
@@ -97,21 +94,40 @@ public sealed class SagaTimeoutTypeResolutionShould
 		// Act
 		await service.StartAsync(CancellationToken.None);
 
-		// The refusal path marks the timeout delivered so it does not retry forever; poll for that observable
-		// rather than sleeping a fixed interval, so the arm is not timing-dependent.
-		var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
-		while (DateTimeOffset.UtcNow < deadline
-			&& !Fake.GetCalls(store).Any(call => call.Method.Name == nameof(ISagaTimeoutStore.MarkDeliveredAsync)))
+		// R08 preserves unresolved sources as Unknown holds instead of blindly acknowledging them.
+		SagaTimeoutHoldPage page;
+		try
 		{
-			await Task.Delay(10);
+			var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+			do
+			{
+				page = await failures.GetHeldFailuresAsync(TenantDefaults.DefaultTenantId, timeout.SagaId, 10, null, CancellationToken.None);
+				if (page.Items.Count != 0)
+				{
+					break;
+				}
+
+				await Task.Delay(10);
+			}
+			while (DateTimeOffset.UtcNow < deadline);
+		}
+		finally
+		{
+			await service.StopAsync(CancellationToken.None);
 		}
 
-		await service.StopAsync(CancellationToken.None);
-
-		// Assert -- the timeout was retired without ever reaching the dispatcher.
-		A.CallTo(() => store.MarkDeliveredAsync(
-			A<ClaimedSagaTimeout>.That.Matches(c => c.Timeout.TimeoutId == "timeout-1"),
-			A<CancellationToken>._)).MustHaveHappened();
+		var held = page.Items.ShouldHaveSingleItem();
+		held.Kind.ShouldBe(MessageFailureKind.Unknown);
+		held.State.ShouldBe(SagaTimeoutHoldState.Held);
+		held.Timeout.TimeoutId.ShouldBe(timeout.TimeoutId);
+		held.Timeout.SagaId.ShouldBe(timeout.SagaId);
+		held.Timeout.SagaType.ShouldBe(timeout.SagaType);
+		held.Timeout.TimeoutType.ShouldBe(timeout.TimeoutType);
+		held.Timeout.TimeoutData.ShouldBe(timeout.TimeoutData);
+		held.Timeout.DueAt.ShouldBe(timeout.DueAt);
+		(await store.GetDueTimeoutsAsync(DateTimeOffset.UtcNow, CancellationToken.None)).ShouldHaveSingleItem().TimeoutId.ShouldBe(timeout.TimeoutId);
+		(await store.ClaimDueTimeoutsAsync(DateTimeOffset.UtcNow.AddMinutes(3), 10, CancellationToken.None)).ShouldBeEmpty();
+		A.CallTo(() => registry.ResolveType(timeout.TimeoutType)).MustHaveHappened();
 		A.CallTo(dispatcher).MustNotHaveHappened();
 	}
 }

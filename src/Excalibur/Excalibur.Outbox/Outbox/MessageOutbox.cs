@@ -1,12 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
-using System.Text.Json;
 
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Outbox;
 using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Serialization;
 
@@ -91,8 +90,6 @@ public sealed partial class MessageOutbox : IOutboxDispatcher, IDisposable
 	/// <returns> Task containing the total number of messages processed during the dispatch session. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when dispatcherId is null or empty. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when the outbox processor cannot be initialized. </exception>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(dispatcherId);
@@ -170,14 +167,6 @@ public sealed partial class MessageOutbox : IOutboxDispatcher, IDisposable
 	/// <returns> Task representing the asynchronous event saving operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when integrationEvents is null. </exception>
 	/// <exception cref="Excalibur.Dispatch.Serialization.SerializationException"> Thrown when event or metadata serialization fails. </exception>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "Outbox serialization uses runtime type metadata for dispatch payloads.")]
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "Outbox serialization relies on runtime type discovery.")]
 	public async Task SaveEventsAsync(
 		IReadOnlyCollection<IIntegrationEvent> integrationEvents,
 		IMessageMetadata metadata,
@@ -214,14 +203,6 @@ public sealed partial class MessageOutbox : IOutboxDispatcher, IDisposable
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "Outbox serialization uses runtime type metadata for dispatch payloads.")]
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "Outbox serialization relies on runtime type discovery.")]
 	public async Task<int> SaveMessagesAsync(ICollection<IOutboxMessage> outboxMessages, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(outboxMessages);
@@ -258,14 +239,6 @@ public sealed partial class MessageOutbox : IOutboxDispatcher, IDisposable
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "Outbox message retrieval uses runtime deserialization to restore message payloads.")]
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "Outbox message retrieval uses Type.GetType and JSON deserialization.")]
 	public async Task<IEnumerable<IDispatchMessage>> GetPendingMessagesAsync(CancellationToken cancellationToken)
 	{
 		// Get pending messages from the outbox store
@@ -332,7 +305,7 @@ public sealed partial class MessageOutbox : IOutboxDispatcher, IDisposable
 	/// An undeclared name takes the same path an unresolvable one always took: it is logged and the row is
 	/// left staged, not marked sent, so nothing is dropped. This is also not the delivery path —
 	/// <see cref="GetPendingMessagesAsync"/> is an inspection API, and the drain runs through
-	/// <c>IOutboxProcessor</c> over the stored payload without materialising the message type at all — so
+	/// <c>IOutboxProcessor</c> using its explicit message registry and configured payload metadata — so
 	/// declaring nothing costs visibility here and not delivery.
 	/// </para>
 	/// </remarks>
@@ -496,13 +469,11 @@ public sealed partial class MessageOutbox : IOutboxDispatcher, IDisposable
 	/// </summary>
 	/// <param name="outboxMessage"> The outbox message to convert. </param>
 	/// <returns> An OutboundMessage instance. </returns>
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
 	private static OutboundMessage ConvertToOutboundMessage(OutboxMessage outboxMessage)
 	{
 		var headers = string.IsNullOrEmpty(outboxMessage.MessageMetadata)
 			? []
-			: JsonSerializer.Deserialize<Dictionary<string, object>>(outboxMessage.MessageMetadata, EventSerializationDefaults.Canonical) ?? [];
+			: OutboxHeaderJson.Deserialize(outboxMessage.MessageMetadata) ?? [];
 
 		return new OutboundMessage(
 			messageType: outboxMessage.MessageType,
@@ -531,8 +502,6 @@ public sealed partial class MessageOutbox : IOutboxDispatcher, IDisposable
 	/// </summary>
 	/// <param name="outboxMessage"> The outbox message to convert. </param>
 	/// <returns> An OutboundMessage instance. </returns>
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
 	private static OutboundMessage ConvertIOutboxMessageToOutboundMessage(IOutboxMessage outboxMessage)
 	{
 		// The concrete OutboxMessage carries the dedicated routing/correlation fields; route through the
@@ -544,7 +513,7 @@ public sealed partial class MessageOutbox : IOutboxDispatcher, IDisposable
 
 		var headers = string.IsNullOrEmpty(outboxMessage.MessageMetadata)
 			? []
-			: JsonSerializer.Deserialize<Dictionary<string, object>>(outboxMessage.MessageMetadata, EventSerializationDefaults.Canonical) ?? [];
+			: OutboxHeaderJson.Deserialize(outboxMessage.MessageMetadata) ?? [];
 
 		return new OutboundMessage(
 			messageType: outboxMessage.MessageType,

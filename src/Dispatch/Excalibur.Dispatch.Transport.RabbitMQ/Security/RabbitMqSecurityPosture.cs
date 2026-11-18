@@ -85,4 +85,49 @@ internal static class RabbitMqSecurityPosture
 			TransportName = TransportLabel,
 			FailureReason = TransportSecurityFailureReason.TlsNotEnabled,
 		};
+
+	/// <summary>
+	/// Builds the refusal raised when the configured connection would present the broker's default
+	/// credentials.
+	/// </summary>
+	/// <returns>The exception to throw.</returns>
+	/// <remarks>
+	/// <para>
+	/// Lives beside the TLS refusal deliberately, and is raised from the same place, because the two
+	/// conditions are one question asked of one connection: may this be dialled? The options validator
+	/// already refuses <c>guest:guest</c> inside a supplied AMQP URI, but it can only ever see a URI
+	/// string -- a transport configured by host parts keeps its credentials in separate properties the
+	/// validator never receives. Refusing in only one of those two places means the same credentials are
+	/// rejected or accepted according to which spelling the consumer chose, which is not a security
+	/// posture but an accident of configuration syntax.
+	/// </para>
+	/// <para>
+	/// Raised where the connection is BUILT rather than at registration, which is the same seam the TLS
+	/// refusal uses. A composition that never dials a broker -- a container assembled to check wiring,
+	/// an annotation test -- is not made safer by refusing it, and refusing at registration would reject
+	/// those while changing nothing about what reaches a broker.
+	/// </para>
+	/// </remarks>
+	internal static TransportSecurityException RefuseDefaultCredentials() =>
+		new("Cannot establish the RabbitMQ connection: it would authenticate as 'guest'/'guest', the "
+			+ "broker's published default account, which grants anyone who can reach the broker the same "
+			+ "access this application has. Call Credentials(username, password) on the transport builder "
+			+ "with an account provisioned for this application, or supply them in an 'amqps://' "
+			+ "connection string. There is deliberately no option to accept them: the same credentials "
+			+ "are already refused when they arrive inside a connection string, and accepting them here "
+			+ "would mean the spelling decided the posture.")
+		{
+			TransportName = TransportLabel,
+			FailureReason = TransportSecurityFailureReason.DefaultCredentials,
+		};
+
+	/// <summary>
+	/// Determines whether the supplied credentials are the broker's well-known default account.
+	/// </summary>
+	/// <param name="username">The configured user name.</param>
+	/// <param name="password">The configured password.</param>
+	/// <returns><see langword="true"/> when both are the default; otherwise <see langword="false"/>.</returns>
+	internal static bool AreDefaultCredentials(string? username, string? password) =>
+		string.Equals(username, "guest", StringComparison.OrdinalIgnoreCase)
+		&& string.Equals(password, "guest", StringComparison.OrdinalIgnoreCase);
 }

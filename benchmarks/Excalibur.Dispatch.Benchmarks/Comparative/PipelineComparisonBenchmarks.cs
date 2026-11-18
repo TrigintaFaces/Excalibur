@@ -76,7 +76,7 @@ public class PipelineComparisonBenchmarks
 		_ = dispatchServices.AddLogging(); // Required for FinalDispatchHandler
 		_ = dispatchServices.AddDispatch(builder =>
 		{
-			_ = builder.ConfigurePipeline("BenchmarkPipeline", pipeline => pipeline.UseProfile(DefaultPipelineProfiles.Default));
+			// Keep the three DI-registered stages; selecting an empty profile clears them.
 			_ = builder.WithOptions(options =>
 			{
 				options.UseLightMode = true;
@@ -531,6 +531,7 @@ public static class WolverinePipelineCommandHandler
 /// Wolverine passthrough middleware 1 (logging stage equivalent).
 /// Uses Wolverine convention: BeforeAsync/AfterAsync methods.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1052", Justification = "Used as the type argument to Wolverine AddMiddleware<T>; static classes cannot be type arguments.")]
 public class WolverinePipelineMiddleware1
 {
 	/// <summary>No-op before handler execution.</summary>
@@ -540,6 +541,7 @@ public class WolverinePipelineMiddleware1
 /// <summary>
 /// Wolverine passthrough middleware 2 (validation stage equivalent).
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1052", Justification = "Used as the type argument to Wolverine AddMiddleware<T>; static classes cannot be type arguments.")]
 public class WolverinePipelineMiddleware2
 {
 	/// <summary>No-op before handler execution.</summary>
@@ -549,6 +551,7 @@ public class WolverinePipelineMiddleware2
 /// <summary>
 /// Wolverine passthrough middleware 3 (timing stage equivalent).
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1052", Justification = "Used as the type argument to Wolverine AddMiddleware<T>; static classes cannot be type arguments.")]
 public class WolverinePipelineMiddleware3
 {
 	/// <summary>No-op before handler execution.</summary>

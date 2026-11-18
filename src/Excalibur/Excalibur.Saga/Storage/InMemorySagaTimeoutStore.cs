@@ -32,7 +32,7 @@ namespace Excalibur.Saga.Storage;
 /// that presents as silence and that a safety-only isolation test still passes.
 /// </para>
 /// </remarks>
-internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : ISagaTimeoutStore
+internal sealed partial class InMemorySagaTimeoutStore(ITenantContext tenantContext) : ISagaTimeoutStore
 {
 	private static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(120);
 
@@ -79,10 +79,12 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 		// The owning tenant is stamped from the TENANT CONTEXT, never from timeout.TenantId: a scheduled timeout
 		// must not be able to claim a tenant its caller never established. timeout.TenantId is an output-of-read
 		// on this type and is deliberately ignored on the write, exactly as in the relational stores.
-		var stamped = timeout with { TenantId = CurrentPartition().TenantId };
+		var stamped = CopyFailureTimeout(timeout) with { TenantId = CurrentPartition().TenantId };
 
 		lock (_dueLock)
 		{
+            BeforePublicSchedule(stamped);
+            StartFailureSource(stamped);
 			_timeouts[stamped.TimeoutId] = stamped;
 		}
 
@@ -103,10 +105,12 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 
 		lock (_dueLock)
 		{
+            RecordPublicCancellation(partition, sagaId, timeoutId);
 			if (_timeouts.TryGetValue(timeoutId, out var existing)
 				&& OwnedBy(existing, partition)
-				&& string.Equals(existing.SagaId, sagaId, StringComparison.Ordinal))
+				&& MatchesPublicSaga(existing, partition, sagaId))
 			{
+				EndFailureSource(timeoutId);
 				_ = _timeouts.TryRemove(timeoutId, out _);
 				_ = _claims.Remove(timeoutId);
 			}
@@ -127,14 +131,16 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 		lock (_dueLock)
 		{
 			var partition = CurrentPartition();
+            RecordPublicCancellation(partition, sagaId, null);
 			var keysToRemove = _timeouts
 				.Where(kvp => OwnedBy(kvp.Value, partition)
-					&& string.Equals(kvp.Value.SagaId, sagaId, StringComparison.Ordinal))
+					&& MatchesPublicSaga(kvp.Value, partition, sagaId))
 				.Select(kvp => kvp.Key)
 				.ToList();
 
 			foreach (var key in keysToRemove)
 			{
+				EndFailureSource(key);
 				_ = _timeouts.TryRemove(key, out _);
 				_ = _claims.Remove(key);
 			}
@@ -158,7 +164,7 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 		lock (_dueLock)
 		{
 			var due = _timeouts.Values
-				.Where(t => t.DueAt <= asOf
+				.Where(t => t.DueAt <= asOf && !IsFailureHeld(t.TimeoutId)
 					&& (!_claims.TryGetValue(t.TimeoutId, out var existing) || existing.ClaimedAt + LeaseTimeout < asOf))
 				.OrderBy(t => t.DueAt)
 				.Take(batchSize)
@@ -174,7 +180,7 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 				// nothing. This is an ownership identity and not a secret, so a GUID is the right tool.
 				var token = Guid.NewGuid().ToString("N");
 				_claims[timeout.TimeoutId] = (token, asOf);
-				claimed.Add(new ClaimedSagaTimeout(timeout, token));
+				claimed.Add(ProjectFailureEpochs(ClaimWithRecoveryAuthority(timeout, token)));
 			}
 
 			return Task.FromResult<IReadOnlyList<ClaimedSagaTimeout>>(claimed);
@@ -191,6 +197,7 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 			var due = _timeouts.Values
 				.Where(t => t.DueAt <= asOf)
 				.OrderBy(t => t.DueAt)
+				.Select(CopyFailureTimeout)
 				.ToList();
 
 			return Task.FromResult<IReadOnlyList<SagaTimeout>>(due);
@@ -229,6 +236,7 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 				return Task.FromResult(SagaTimeoutRetirementOutcome.Superseded);
 			}
 
+			EndFailureSource(timeoutId);
 			_ = _timeouts.TryRemove(timeoutId, out _);
 			_ = _claims.Remove(timeoutId);
 		}
@@ -269,6 +277,8 @@ internal sealed class InMemorySagaTimeoutStore(ITenantContext tenantContext) : I
 	{
 		lock (_dueLock)
 		{
+			_failureSources.Clear();
+			_failureTokens.Clear();
 			_timeouts.Clear();
 
 			// The claims go with the timeouts. Clearing only the rows left this map populated, so a later

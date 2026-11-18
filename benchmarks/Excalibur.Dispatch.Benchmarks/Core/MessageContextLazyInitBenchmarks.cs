@@ -3,8 +3,8 @@
 // Sprint 205 - Core Performance Foundation
 // Task cw6tf: Benchmark baseline before/after
 //
-// Purpose: Measure the performance improvement from lazy-initializing the
-// ConcurrentDictionary<string, object> Items in MessageContext.
+// Purpose: Measure context creation and item-access costs. Historical Sprint 205
+// targets below are not current measurements or proof of an improvement.
 // -----------------------------------------------------------------------------
 
 #pragma warning disable CA1707 // Remove underscores from member names (benchmark naming convention)
@@ -18,21 +18,21 @@ using Excalibur.Dispatch.Features;
 namespace Excalibur.Dispatch.Benchmarks.Core;
 
 /// <summary>
-/// Benchmarks comparing MessageContext performance with lazy-init ConcurrentDictionary.
+/// Benchmarks measuring MessageContext creation and item access with lazy dictionary initialization.
 /// Sprint 205: Core Performance Foundation.
 /// </summary>
 /// <remarks>
 /// <para>
-/// These benchmarks measure the impact of Option B: Lazy-init ConcurrentDictionary
-/// in MessageContext. Key scenarios:
+/// These benchmarks retain the original context and item-access workloads. They do
+/// not invoke the dispatcher. Key scenarios:
 /// </para>
 /// <list type="bullet">
-/// <item><description>Context creation without Items usage (zero allocation target)</description></item>
-/// <item><description>Context creation with Items read (zero allocation target)</description></item>
+/// <item><description>Context creation without Items usage (historical zero-dictionary-allocation target)</description></item>
+/// <item><description>Context creation with Items read (historical zero-dictionary-allocation target)</description></item>
 /// <item><description>Context creation with Items write (allocates on first write)</description></item>
 /// </list>
 /// <para>
-/// Performance Targets (Sprint 205):
+/// Historical Performance Targets (Sprint 205; not current measurements):
 /// - Context creation without Items: ~10-20ns (down from ~100ns)
 /// - Memory without Items: ~200-400B (down from ~896B)
 /// </para>
@@ -56,7 +56,7 @@ public class MessageContextLazyInitBenchmarks
 
 	/// <summary>
 	/// Baseline: Create MessageContext and set basic properties only.
-	/// With lazy-init, ConcurrentDictionary should NOT be allocated.
+	/// The workload also initializes identity/routing features; total allocations are measured.
 	/// </summary>
 	[Benchmark(Baseline = true, Description = "MessageContext: Create (no Items)")]
 	public Messaging.MessageContext CreateContext_NoItemsUsage()
@@ -77,37 +77,37 @@ public class MessageContextLazyInitBenchmarks
 	}
 
 	// =========================================================================
-	// SECTION 2: Read-Only Items Access (Target: Zero Allocation)
+	// SECTION 2: Read-Only Items Access (context allocation is included)
 	// =========================================================================
 
 	/// <summary>
-	/// Check ContainsItem on fresh context (should NOT allocate dictionary).
+	/// Check an absent key on a fresh context, including context creation.
 	/// </summary>
-	[Benchmark(Description = "ContainsItem on fresh context (no alloc)")]
+	[Benchmark(Description = "ContainsItem on fresh context (absent key)")]
 	public bool ContainsItem_FreshContext()
 	{
 		var context = new Messaging.MessageContext();
-		return context.ContainsItem("SomeKey"); // Should return false, no allocation
+		return context.ContainsItem("SomeKey"); // Absent-key control; includes context creation.
 	}
 
 	/// <summary>
-	/// Get item from fresh context (should NOT allocate dictionary).
+	/// Read an absent item on a fresh context, including context creation.
 	/// </summary>
-	[Benchmark(Description = "GetItem on fresh context (no alloc)")]
+	[Benchmark(Description = "GetItem on fresh context (absent key)")]
 	public string? GetItem_FreshContext()
 	{
 		var context = new Messaging.MessageContext();
-		return context.GetItem<string>("SomeKey"); // Should return null, no allocation
+		return context.GetItem<string>("SomeKey"); // Absent-key control; includes context creation.
 	}
 
 	/// <summary>
-	/// Remove item from fresh context (should NOT allocate dictionary).
+	/// Remove an absent item on a fresh context, including context creation.
 	/// </summary>
-	[Benchmark(Description = "RemoveItem on fresh context (no alloc)")]
+	[Benchmark(Description = "RemoveItem on fresh context (absent key)")]
 	public void RemoveItem_FreshContext()
 	{
 		var context = new Messaging.MessageContext();
-		context.RemoveItem("SomeKey"); // Should no-op, no allocation
+		context.RemoveItem("SomeKey"); // Absent-key removal control; includes context creation.
 	}
 
 	// =========================================================================
@@ -121,7 +121,7 @@ public class MessageContextLazyInitBenchmarks
 	public void SetItem_FreshContext()
 	{
 		var context = new Messaging.MessageContext();
-		context.SetItem("Key", "Value"); // Allocates ConcurrentDictionary on first write
+		context.SetItem("Key", "Value"); // First item write; total allocations are measured.
 	}
 
 	/// <summary>
@@ -131,18 +131,18 @@ public class MessageContextLazyInitBenchmarks
 	public int AccessItems_FreshContext()
 	{
 		var context = new Messaging.MessageContext();
-		return context.Items.Count; // Allocates ConcurrentDictionary
+		return context.Items.Count; // Materializes Items; total allocations are measured.
 	}
 
 	// =========================================================================
-	// SECTION 4: Realistic Dispatch Scenarios
+	// SECTION 4: Context-Only Dispatch Simulations (no dispatcher invocation)
 	// =========================================================================
 
 	/// <summary>
 	/// Simulates simple dispatch: create context, access properties, no Items.
-	/// This is the optimized hot path with lazy-init.
+	/// This is a context-only simulation; it does not invoke the dispatcher.
 	/// </summary>
-	[Benchmark(Description = "Simple dispatch: no Items usage")]
+	[Benchmark(Description = "Context simulation: no Items usage")]
 	public string? SimpleDispatch_NoItems()
 	{
 		var context = new Messaging.MessageContext
@@ -160,7 +160,7 @@ public class MessageContextLazyInitBenchmarks
 		_ = context.GetUserId();
 		_ = context.GetTenantId();
 
-		// Check for cached result (read-only, no allocation)
+		// Check for a cached result; total method allocations include context/features.
 		_ = context.ContainsItem("Dispatch:CachedResult");
 
 		return context.CorrelationId;
@@ -170,7 +170,7 @@ public class MessageContextLazyInitBenchmarks
 	/// Simulates dispatch with middleware writing to Items.
 	/// Allocates dictionary when middleware writes.
 	/// </summary>
-	[Benchmark(Description = "Dispatch: middleware writes Items")]
+	[Benchmark(Description = "Context simulation: middleware item writes")]
 	public string? Dispatch_WithMiddlewareItems()
 	{
 		var context = new Messaging.MessageContext
@@ -216,14 +216,14 @@ public class MessageContextLazyInitBenchmarks
 	// =========================================================================
 
 	/// <summary>
-	/// Multiple read operations without triggering allocation.
+	/// Multiple absent-key operations on a fresh context; includes context creation.
 	/// </summary>
-	[Benchmark(Description = "Multiple reads (no alloc)")]
+	[Benchmark(Description = "Multiple absent-key reads on fresh context")]
 	public bool MultipleReads_NoAllocation()
 	{
 		var context = new Messaging.MessageContext();
 
-		// All these should NOT allocate
+		// Absent-key controls; context creation is part of the workload.
 		var a = context.ContainsItem("Key1");
 		var b = context.ContainsItem("Key2");
 		var c = context.ContainsItem("Key3");
@@ -235,9 +235,9 @@ public class MessageContextLazyInitBenchmarks
 	}
 
 	/// <summary>
-	/// Single write triggers allocation, subsequent writes are cheap.
+	/// Five writes to a fresh context, including initial storage and any growth.
 	/// </summary>
-	[Benchmark(Description = "First write allocs, subsequent cheap")]
+	[Benchmark(Description = "Five item writes on fresh context")]
 	public void FirstWriteAllocates_SubsequentCheap()
 	{
 		var context = new Messaging.MessageContext();
@@ -245,7 +245,7 @@ public class MessageContextLazyInitBenchmarks
 		// First write allocates dictionary
 		context.SetItem("Key1", "Value1");
 
-		// Subsequent writes use existing dictionary (no new allocation)
+		// Subsequent writes reuse item storage and may grow it.
 		context.SetItem("Key2", "Value2");
 		context.SetItem("Key3", "Value3");
 		context.SetItem("Key4", "Value4");

@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Data.CloudNative;
@@ -88,6 +88,10 @@ internal sealed class OutboxPrerequisiteValidator : IHostedService, IStartupPrer
 			throw new InvalidOperationException(OutboxStorePrerequisite.MissingStoreMessage);
 		}
 
+		// A staging-only host does not activate a polling worker merely by registering an election.
+		// Direct Publisher/Processor constructors still validate their configured capabilities.
+		if (_services.GetService<OutboxDrainMarker>() is null) { return; }
+
 		// Fencing composition invariant — enforced at host startup so it covers EVERY drain path,
 		// including the default OutboxBackgroundService -> IOutboxPublisher drain, which never
 		// constructs OutboxProcessor (so the processor's own defense-in-depth check cannot fire on it).
@@ -100,8 +104,26 @@ internal sealed class OutboxPrerequisiteValidator : IHostedService, IStartupPrer
 		var electionRegistered = OutboxFencingStartupInvariant.IsLeaderElectionRegistered(_services);
 		var leaderGate = _services.GetService<ILeaderProcessingGate>();
 		var deliveryOptions = _services.GetRequiredService<IOptions<OutboxDeliveryOptions>>().Value;
+		var fencedWorker = !deliveryOptions.SingleActiveWriter && (electionRegistered || leaderGate is not null);
+		if (!fencedWorker)
+		{
+			if (store.GetService(typeof(IClaimScopedOutboxStore)) is not IClaimScopedOutboxStore)
+			{
+				throw new InvalidOperationException(
+					"The configured polling worker requires IClaimScopedOutboxStore. Configure the provider's owned worker connection factory when staging uses a borrowed connection; no borrowed-transaction fallback is permitted.");
+			}
+			// Publisher-only polling does not invent a dead-letter feature on stores such as Marten.
+			// Processor construction independently requires its terminal-disposition capabilities.
+			return;
+		}
+		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore
+			|| store.GetService(typeof(IFencedClaimScopedOutboxStore)) is not IFencedClaimScopedOutboxStore)
+		{
+			throw new InvalidOperationException(
+				"The configured fenced polling worker requires IFencedOutboxStore and IFencedClaimScopedOutboxStore. Configure the provider's owned worker connection factory when staging uses a borrowed connection; no downgrade is permitted.");
+		}
 		OutboxFencingStartupInvariant.EnsureFencingCapableStore(
-			electionRegistered, leaderGate, deliveryOptions.SingleActiveWriter, store);
+			electionRegistered, leaderGate, deliveryOptions.SingleActiveWriter, store, requiresDeadLetterCompletion: false);
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

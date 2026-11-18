@@ -797,7 +797,7 @@ If the work must survive a crash or a restart, do not background it — route it
 
 ## Batching Middleware
 
-Batches multiple messages for unified processing, improving throughput:
+Groups messages for processing. Measure completed throughput, latency and memory for the configured workload:
 
 ```csharp
 services.AddDispatch(dispatch =>
@@ -826,8 +826,8 @@ processed concurrently.
 during startup with a message naming the setting and the value it was given.
 
 This is deliberate, because two of the three would otherwise fail silently. A `MaxBatchSize` of
-zero means a batch is never full, so batches only ever flush on the delay timer — throughput
-collapses with nothing logged. A non-positive `MaxBatchDelay` turns the flush timer into a busy
+zero means a batch is never full, so batches flush only on the delay timer, which can reduce
+completed throughput or increase waiting time without logging a configuration error. A non-positive `MaxBatchDelay` turns the flush timer into a busy
 loop. Neither reports an error on its own; you would see the symptom in production and have no
 signal pointing at the cause.
 :::

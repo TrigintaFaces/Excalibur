@@ -73,7 +73,8 @@ public sealed class OracleOutboxMarkFailedRecordsOnDrainPathShould
 			MaxAttempts = MaxAttempts,
 		});
 
-		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance);
+		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance,
+			workerConnections: OracleWorkerConnectionSource.FromConnectionString(_fixture.ConnectionString));
 	}
 
 	private static OutboundMessage NewMessage() => new("Test.Poison", "payload"u8.ToArray(), "test-queue");

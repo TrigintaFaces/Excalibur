@@ -58,5 +58,7 @@ public sealed class SampleTenantShardMap : ITenantShardMap
 	}
 
 	/// <inheritdoc />
+	public ShardInfo GetShardById(string shardId) => _shards.TryGetValue(shardId, out var shard) ? shard : throw new KeyNotFoundException(shardId);
+
 	public IReadOnlyCollection<string> GetRegisteredShardIds() => (IReadOnlyCollection<string>)_shards.Keys;
 }

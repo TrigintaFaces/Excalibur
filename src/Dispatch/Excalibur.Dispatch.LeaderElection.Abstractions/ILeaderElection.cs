@@ -9,6 +9,16 @@ namespace Excalibur.Dispatch.LeaderElection;
 /// </summary>
 public interface ILeaderElection : IAsyncDisposable
 {
+	/// <summary>Gets this instance's permanent notification-completion task.</summary>
+	/// <remarks>
+	/// The same task is returned from construction through disposal. Stop and restart do not complete it.
+	/// It settles only after permanent disposal seals all producers and every admitted synchronous event
+	/// invocation returns. A retained first notification failure faults this task independently of resource
+	/// disposal. Async-void continuations and consumer-spawned tasks are not included. Dispose does not
+	/// await this task, and consumers must not await it from one of this instance's own callbacks.
+	/// </remarks>
+	Task NotificationsCompleted { get; }
+
 	/// <summary>
 	/// Event raised when this instance becomes the leader.
 	/// </summary>
@@ -52,6 +62,27 @@ public interface ILeaderElection : IAsyncDisposable
 	/// the leader.
 	/// </summary>
 	/// <remarks>
+	/// <para>
+	/// <b>INVARIANT, binding on every implementation: a reported tenure carries a usable fencing token
+	/// whenever fencing is configured.</b> <see cref="Leadership.FencingToken"/> is <see langword="null"/>
+	/// if and only if the deployment configured no fencing. An implementation that cannot obtain a usable
+	/// token does not report a tenure — it RELINQUISHES, releasing whatever claim it holds so another
+	/// candidate can take it, and reports the failed acquisition instead.
+	/// </para>
+	/// <para>
+	/// That invariant is what lets a downstream guard treat a null token as a deliberate opt-out rather
+	/// than as an unknown, so it must hold on EVERY path that declares a tenure — not only on acquisition.
+	/// A tenure can also be concluded from a store read: a recovery after a write whose response was lost,
+	/// or a poll that confirms this candidate still holds the claim. Those paths cannot see the
+	/// acquisition path's checks and must make the same decision themselves.
+	/// </para>
+	/// <para>
+	/// <b>The structurally safer shape is to pass the token as a PARAMETER to whatever declares
+	/// leadership, rather than to derive leadership from state and set the token separately.</b> Where the
+	/// token is an argument, a tenure cannot be declared without one. Where leadership is derived — for
+	/// example from a cached holder identity that a background poll assigns — every assignment to that
+	/// state is a second declaration of leadership, and each one needs the check.
+	/// </para>
 	/// This is the authoritative, atomic check for leadership: it is non-null if and only if this instance
 	/// currently considers itself the leader, and the returned <see cref="Leadership"/> carries the
 	/// fencing token minted for the current tenure alongside the instant it began. Read once per tenure

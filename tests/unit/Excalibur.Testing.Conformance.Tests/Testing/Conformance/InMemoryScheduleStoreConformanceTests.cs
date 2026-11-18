@@ -128,4 +128,7 @@ public sealed class InMemoryScheduleStoreConformanceTests : ScheduleExecutionSto
 
 	[Fact]
 	public override Task CanceledOperationsLeaveAuthorityUnchanged() => base.CanceledOperationsLeaveAuthorityUnchanged();
+
+	[Fact]
+	public override Task AdmissionCountRisesUntilSettlementCommits() => base.AdmissionCountRisesUntilSettlementCommits();
 }

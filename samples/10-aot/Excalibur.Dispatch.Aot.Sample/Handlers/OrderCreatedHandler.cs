@@ -17,10 +17,13 @@ namespace Excalibur.Dispatch.Aot.Sample.Handlers;
 /// </remarks>
 public sealed class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
 {
+	internal static OrderCreatedEvent? LastReceived { get; private set; }
+
 	/// <inheritdoc />
 	public Task HandleAsync(OrderCreatedEvent evt, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(evt);
+		LastReceived = evt;
 
 		Console.WriteLine("[OrderCreatedHandler] Processing OrderCreatedEvent");
 		Console.WriteLine($"[OrderCreatedHandler] Order {evt.OrderId} created at {evt.OccurredAt}");
@@ -42,10 +45,13 @@ public sealed class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
 /// </summary>
 public sealed class OrderAnalyticsHandler : IEventHandler<OrderCreatedEvent>
 {
+	internal static OrderCreatedEvent? LastReceived { get; private set; }
+
 	/// <inheritdoc />
 	public Task HandleAsync(OrderCreatedEvent evt, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(evt);
+		LastReceived = evt;
 
 		Console.WriteLine($"[OrderAnalyticsHandler] Recording analytics for order {evt.OrderId}");
 

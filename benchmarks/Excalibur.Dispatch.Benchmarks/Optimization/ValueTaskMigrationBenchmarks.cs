@@ -18,11 +18,11 @@ namespace Excalibur.Dispatch.Benchmarks.Optimization;
 /// </summary>
 /// <remarks>
 /// <para>
-/// These benchmarks validate that ValueTask migration enables zero-allocation
-/// dispatch on synchronous completion paths.
+/// These benchmarks measure complete dispatch and direct result paths. Fresh contexts
+/// are not returned; these are not pooled rent/return measurements.
 /// </para>
 /// <para>
-/// Target: Zero allocation on sync completion path (cache hit, fast handler).
+/// The direct completion method allocates a SuccessResult; zero allocation is not an established result.
 /// </para>
 /// </remarks>
 [MemoryDiagnoser]
@@ -48,7 +48,7 @@ public class ValueTaskMigrationBenchmarks
 		_ = services.AddDispatch();
 
 		// Add minimal middleware to test ValueTask pass-through
-		_ = services.AddMiddleware<PassthroughMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, PassthroughMiddleware>();
 
 		_serviceProvider = services.BuildServiceProvider();
 		_dispatcher = _serviceProvider.GetRequiredService<IDispatcher>();
@@ -75,7 +75,7 @@ public class ValueTaskMigrationBenchmarks
 	}
 
 	/// <summary>
-	/// Awaited dispatch - measures async path behavior.
+	/// Awaited dispatch; the await does not force asynchronous suspension.
 	/// </summary>
 	[Benchmark]
 	public async Task<IMessageResult> SingleDispatch_Awaited()
@@ -128,7 +128,7 @@ public class ValueTaskMigrationBenchmarks
 	}
 
 	/// <summary>
-	/// Synchronous completion path - validates zero-allocation behavior.
+	/// Synchronous completion with an explicitly allocated SuccessResult.
 	/// </summary>
 	[Benchmark]
 	public IMessageResult SyncCompletionPath()
@@ -136,12 +136,12 @@ public class ValueTaskMigrationBenchmarks
 		var result = new SuccessResult();
 		var valueTask = new ValueTask<IMessageResult>(result);
 
-		// This should not allocate since it's already completed
+		// The ValueTask is complete; the SuccessResult above is still allocated.
 		return valueTask.IsCompletedSuccessfully ? valueTask.Result : valueTask.AsTask().Result;
 	}
 
 	/// <summary>
-	/// Concurrent dispatches (10 parallel) - validates thread-safety.
+	/// Ten submitted dispatch tasks; completion does not prove overlap or thread safety.
 	/// </summary>
 	[Benchmark]
 	public async Task<int> ConcurrentDispatches()

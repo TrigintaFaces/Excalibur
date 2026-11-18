@@ -31,15 +31,27 @@ fi
 filter_desc="(unspecified filter)"
 expect=""
 expect_supplied=false
+minimum=1
+minimum_supplied=false
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --filter) [ "$#" -ge 2 ] || exit "$EXIT_REFUSE"; filter_desc="$2"; shift 2 ;;
         --filter=*) filter_desc="${1#--filter=}"; shift ;;
+        --minimum-executed-tests|--minimum-executed-tests=*)
+            if $minimum_supplied; then echo 'REFUSE: duplicate minimum option.' >&2; exit "$EXIT_REFUSE"; fi
+            minimum_supplied=true
+            if [[ "$1" == *=* ]]; then minimum="${1#*=}"; shift
+            else [ "$#" -ge 2 ] || exit "$EXIT_REFUSE"; minimum="$2"; shift 2; fi ;;
         --expect) [ "$#" -ge 2 ] || exit "$EXIT_REFUSE"; expect="$2"; expect_supplied=true; shift 2 ;;
         --expect=*) expect="${1#--expect=}"; expect_supplied=true; shift ;;
         *) echo "REFUSE (assert-tests-executed): unknown argument '$1'." >&2; exit "$EXIT_REFUSE" ;;
     esac
 done
+
+if ! [[ "$minimum" =~ ^[1-9][0-9]{0,9}$ ]] || [ "$minimum" -gt 2147483647 ]; then
+    echo 'REFUSE: minimum-executed-tests must be canonical positive decimal <=2147483647.' >&2
+    exit "$EXIT_REFUSE"
+fi
 
 # A malformed --expect must REFUSE, never silently degrade to the weaker >= 1 check. Treating
 # `--expect abc` as "no expectation given" would turn a typo into a permanently weaker gate that
@@ -97,6 +109,7 @@ while IFS= read -r summary; do
 done <<<"$summaries"
 
 if [ "$executed" -gt 0 ]; then
+    if [ "$executed" -lt "$minimum" ]; then echo "REFUSE: executed=$executed below minimum-executed-tests=$minimum" >&2; exit "$EXIT_REFUSE"; fi
     # Zero-match is excluded. If the caller declared an expected arm count, the run must match it
     # EXACTLY; without --expect, behaviour is unchanged from the original >= 1 contract.
     if [ -n "$expect" ]; then

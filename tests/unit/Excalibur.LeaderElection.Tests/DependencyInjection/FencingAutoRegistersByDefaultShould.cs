@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.LeaderElection.Fencing;
+using Excalibur.LeaderElection.DependencyInjection;
 using Excalibur.LeaderElection.MongoDB;
 using Excalibur.LeaderElection.Postgres;
 
@@ -78,6 +79,17 @@ public sealed class FencingAutoRegistersByDefaultShould
 		using var services = Build(entryPoint, optOut: false);
 
 		var provider = services.GetRequiredService<IFencingTokenProvider>();
+		if (entryPoint.StartsWith("kubernetes", StringComparison.Ordinal))
+		{
+			(provider is IFencingTokenIssuer).ShouldBeFalse();
+			services.GetService<IFencingTokenIssuer>().ShouldBeNull();
+		}
+		else
+		{
+			provider.ShouldBeAssignableTo<IFencingTokenIssuer>();
+			services.GetRequiredService<IFencingTokenIssuer>().ShouldNotBeNull();
+		}
+
 
 		provider.GetType().Name.ShouldBe(expectedProviderTypeName,
 			$"'{entryPoint}' must auto-register its OWN arbitrated fencing-token provider, not a null/no-op " +
@@ -91,10 +103,37 @@ public sealed class FencingAutoRegistersByDefaultShould
 		// OPT-OUT arm, proven in the direction the safety arm cannot: the switch must actually suppress
 		// registration, not merely swap in a disabled stub that still satisfies GetRequiredService.
 		using var services = Build(entryPoint, optOut: true);
+		services.GetService<IFencingTokenIssuer>().ShouldBeNull();
 
 		services.GetService<IFencingTokenProvider>().ShouldBeNull(
 			$"WithoutFencingTokens() on '{entryPoint}' must leave IFencingTokenProvider unresolved, proving " +
 			"the opt-out suppresses registration rather than disabling a stub that would still resolve.");
+	}
+
+	[Fact]
+	public async Task ProjectTheActualSelectedDefaultIssuer()
+	{
+		using var services = Build("inmemory-standalone", optOut: false);
+		var reader = services.GetRequiredService<IFencingTokenProvider>();
+		var issuer = services.GetRequiredService<IFencingTokenIssuer>();
+		var token = await issuer.IssueTokenAsync("selected-default", CancellationToken.None);
+		(await reader.GetTokenAsync("selected-default", CancellationToken.None)).ShouldBe(token);
+		(await reader.ValidateTokenAsync("selected-default", token, CancellationToken.None)).ShouldBeTrue();
+	}
+
+	[Fact]
+	public void RefuseAnEnabledSelfMintingDefaultWhenTheSelectedReaderCannotMint()
+	{
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var readOnly = A.Fake<IFencingTokenProvider>();
+		services.AddSingleton(readOnly);
+		services.AddInMemoryLeaderElection();
+		using var provider = services.BuildServiceProvider();
+		provider.GetRequiredService<IFencingTokenProvider>().ShouldBeSameAs(readOnly);
+		var validator = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+			.OfType<FencingTokenPrerequisiteValidator>().ShouldHaveSingleItem();
+		Should.Throw<InvalidOperationException>(() => validator.Validate()).Message.ShouldContain("IFencingTokenIssuer");
 	}
 
 	private static ServiceProvider Build(string entryPoint, bool optOut)

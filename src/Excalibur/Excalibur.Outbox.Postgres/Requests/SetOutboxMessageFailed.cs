@@ -76,6 +76,11 @@ internal sealed class SetOutboxMessageFailed : DataRequest<ClaimMutationResult>
 	/// <param name="outboxTableName">The name of the outbox table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public SetOutboxMessageFailed(
 		string messageId,
 		int retryCount,
@@ -169,6 +174,24 @@ internal sealed class SetOutboxMessageFailed : DataRequest<ClaimMutationResult>
 		parameters.Add("FailureBackoffFloorSeconds", failureBackoffFloorSeconds, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QuerySingleAsync<ClaimMutationResult>(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.SingleAsync(conn, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "RetryCount", StaticDbCommand.Input<int>(Parameters, "RetryCount"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "ErrorMessage", StaticDbCommand.Input<string>(Parameters, "ErrorMessage"), DbType.String);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				if (Parameters.ParameterNames.Contains("DispatcherId", StringComparer.Ordinal))
+				{
+					StaticDbCommand.AddParameter(command, "DispatcherId", StaticDbCommand.Input<string>(Parameters, "DispatcherId"), DbType.String);
+				}
+				if (Parameters.ParameterNames.Contains("ProcessPrefix", StringComparer.Ordinal))
+				{
+					StaticDbCommand.AddParameter(command, "ProcessPrefix", StaticDbCommand.Input<string>(Parameters, "ProcessPrefix"), DbType.String);
+				}
+				if (Parameters.ParameterNames.Contains("ProcessPrefixLength", StringComparer.Ordinal))
+				{
+					StaticDbCommand.AddParameter(command, "ProcessPrefixLength", StaticDbCommand.Input<int>(Parameters, "ProcessPrefixLength"), DbType.Int32);
+				}
+				StaticDbCommand.AddParameter(command, "FailureBackoffFloorSeconds", StaticDbCommand.Input<int>(Parameters, "FailureBackoffFloorSeconds"), DbType.Int32);
+			}, static reader => new ClaimMutationResult { UpdatedCount = StaticDbValue.Int32(reader, 0), RowExists = StaticDbValue.Boolean(reader, 1) }).ConfigureAwait(false);
 	}
 }

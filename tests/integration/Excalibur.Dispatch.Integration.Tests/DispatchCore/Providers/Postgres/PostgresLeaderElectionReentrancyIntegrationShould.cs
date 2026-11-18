@@ -64,6 +64,7 @@ public sealed class PostgresLeaderElectionReentrancyIntegrationShould : Integrat
 		await sut.StartAsync(TestCancellationToken);
 		sut.IsLeader.ShouldBeTrue("precondition: acquired Postgres advisory-lock leadership");
 
+        var callbackRan = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var lockHeldDuringHandler = false;
 		sut.LostLeadership += (_, _) =>
 		{
@@ -76,10 +77,12 @@ public sealed class PostgresLeaderElectionReentrancyIntegrationShould : Integrat
 			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 			lockHeldDuringHandler = !probed.Wait(TimeSpan.FromSeconds(2));
 			#pragma warning restore RS0030
+            callbackRan.TrySetResult();
 		};
 
 		// Act
 		await sut.StopAsync(TestCancellationToken);
+        await callbackRan.Task.WaitAsync(TimeSpan.FromSeconds(5), TestCancellationToken);
 
 		// Assert — non-vacuity: pre-fix the handler is raised INSIDE the lock → the cross-thread probe
 		// blocks → true (RED). Post-fix (raised outside) → false (GREEN).

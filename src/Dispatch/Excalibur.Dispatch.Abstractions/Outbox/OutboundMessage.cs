@@ -72,13 +72,77 @@ public sealed class OutboundMessage
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		return new OutboundMessage(messageType, payload, destination, headers)
+		// The values the application marked for propagation are carried HERE, not by each caller. They
+		// used to arrive through the optional `headers` parameter, which seven of the nine stores never
+		// passed -- so a marked value reached the broker on some providers and was silently dropped on
+		// the rest, with nothing downstream able to tell which had happened. An optional parameter is
+		// not a postcondition; doing it here is what makes omitting it inexpressible THROUGH THIS
+		// FACTORY, for the same reason CorrelationId and TenantId are read from the context rather than
+		// asked for. A store that builds an OutboundMessage by hand is still responsible for the
+		// postcondition itself -- which is why the postcondition is stated on IOutboxStore.EnqueueAsync.
+		var propagated = context.GetPropagatedItems();
+
+		// ALWAYS a fresh bag, even when nothing was marked. Passing the caller's dictionary straight
+		// through would make the staged message ALIAS it, so a later write by the caller would change a
+		// message already staged -- and the aliasing would hold on exactly the path nothing was marked,
+		// which is the common one and the one an arm about marked values cannot see.
+		var merged = new Dictionary<string, object>(
+			propagated.Count + (headers?.Count ?? 0),
+			StringComparer.Ordinal);
+
+		foreach (var entry in propagated)
+		{
+			merged[entry.Key] = entry.Value;
+		}
+
+		// A caller's own envelope keys win: they are this store's framing, not consumer data, and a
+		// store's framing must not be forgeable by consumer data. This overlay is now unreachable for a
+		// collision, because SetPropagatedItem refuses the reserved names outright -- a consumer learns
+		// at the line they wrote rather than discovering on two of nine providers that their value
+		// vanished. It is kept because the reserved set is a list and an overlay is a rule.
+		if (headers is not null)
+		{
+			foreach (var entry in headers)
+			{
+				merged[entry.Key] = entry.Value;
+			}
+		}
+
+		return new OutboundMessage(messageType, payload, destination, merged)
 		{
 			CorrelationId = context.CorrelationId,
 			CausationId = context.CausationId,
 			TenantId = context.GetTenantId(),
 		};
 	}
+
+	/// <summary>
+	/// The header names an outbox store supplies as its own envelope framing.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Declared once, here, because it is a property of the staging contract rather than of any one
+	/// provider. Two of the nine stores supply exactly these five; the other seven supply none. While a
+	/// consumer could mark one of these names for propagation, their value reached the broker on the
+	/// seven and was silently replaced by the store's on the two — the same consumer code with a
+	/// different observable result per provider, which is the defect class the propagation surface
+	/// exists to remove, in different keys.
+	/// </para>
+	/// <para>
+	/// <see cref="MessageContextPropagationExtensions.SetPropagatedItem" /> refuses these names, so the
+	/// collision is inexpressible rather than resolved by precedence. The precedent is
+	/// <c>CloudEventItemAttributes.ReservedNames</c>, which exists for the same reason and records a live
+	/// defect in its own remarks.
+	/// </para>
+	/// </remarks>
+	internal static readonly string[] ReservedHeaderNames =
+	[
+		"MessageId",
+		"CorrelationId",
+		"CausationId",
+		"MessageType",
+		"Timestamp",
+	];
 
 	/// <summary>
 	/// Gets or sets the unique identifier of the outbound message.

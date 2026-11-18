@@ -160,11 +160,6 @@ public sealed record ErasureStatus
 	public Guid? CertificateId { get; init; }
 
 	/// <summary>
-	/// Gets information about any blocking legal hold.
-	/// </summary>
-	public LegalHoldInfo? BlockingHold { get; init; }
-
-	/// <summary>
 	/// Gets any error message if the request failed.
 	/// </summary>
 	public string? ErrorMessage { get; init; }

@@ -275,22 +275,20 @@ public static class DefaultPipelineProfiles
 	}
 
 	/// <summary>
-	/// Creates the direct pipeline profile for high-frequency message processing. Minimizes middleware overhead for maximum throughput
-	/// scenarios.
+	/// Creates the direct pipeline profile without configuring middleware stages.
 	/// </summary>
 	/// <remarks>
 	/// Correlation and context management is handled directly in the Dispatcher,
-	/// allowing direct profiles to have zero middleware overhead while still maintaining message tracing.
+	/// so this factory does not add middleware stages for those responsibilities.
 	/// </remarks>
 	public static IPipelineProfile CreateDirectProfile()
 	{
 		var profile = new PipelineProfile(Direct, MessageKinds.All)
 		{
-			Description = "Ultra-lightweight pipeline for direct message processing with zero middleware overhead",
+			Description = "Direct message processing; this factory configures no middleware stages.",
 		};
 
-		// No middleware needed - correlation is now handled at the Dispatcher level
-		// This provides maximum throughput with zero allocation overhead
+		// No middleware stages are added by this factory.
 		return profile;
 	}
 

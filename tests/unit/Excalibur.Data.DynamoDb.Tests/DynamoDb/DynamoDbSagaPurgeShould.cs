@@ -19,7 +19,7 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// Reference: mirrors the cross-provider purge contract asserted behaviorally by the shared
 /// <c>SagaStoreConformanceTestBase</c> purge test (d0wpug/w8aqq3). Because DynamoDB exposes an
 /// <see cref="IAmazonDynamoDB"/> seam, this store is driven through a faked client — the purge is
-/// exercised end-to-end (Scan → BatchWriteItem) rather than only source-asserted.
+/// exercised end-to-end (Scan → conditional DeleteItem) rather than only source-asserted.
 /// </para>
 /// <para>
 /// Contract: <c>PurgeCompletedBeforeAsync(threshold, ct)</c> deletes ONLY sagas that are completed
@@ -155,16 +155,16 @@ public sealed class DynamoDbSagaPurgeShould
 	{
 		// Arrange — the server (honoring attribute_exists + age bound) returns exactly one eligible key.
 		var eligible = KeyItem("SAGA#old", "TYPE#TestSagaState");
-		BatchWriteItemRequest? deleteRequest = null;
+		DeleteItemRequest? deleteRequest = null;
 
 		var client = A.Fake<IAmazonDynamoDB>();
 		_ = A.CallTo(() => client.ScanAsync(A<ScanRequest>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new ScanResponse { Items = [eligible], LastEvaluatedKey = [] }));
-		_ = A.CallTo(() => client.BatchWriteItemAsync(A<BatchWriteItemRequest>._, A<CancellationToken>._))
-			.ReturnsLazily((BatchWriteItemRequest r, CancellationToken _) =>
+		_ = A.CallTo(() => client.DeleteItemAsync(A<DeleteItemRequest>._, A<CancellationToken>._))
+			.ReturnsLazily((DeleteItemRequest r, CancellationToken _) =>
 			{
 				deleteRequest = r;
-				return Task.FromResult(new BatchWriteItemResponse { UnprocessedItems = [] });
+				return Task.FromResult(new DeleteItemResponse());
 			});
 
 		var store = CreateStore(client);
@@ -175,9 +175,10 @@ public sealed class DynamoDbSagaPurgeShould
 		// Assert — the matched saga is physically deleted and counted.
 		removed.ShouldBe(1);
 		deleteRequest.ShouldNotBeNull();
-		var writes = deleteRequest!.RequestItems[TableName];
-		writes.Count.ShouldBe(1);
-		var deletedKey = writes[0].DeleteRequest.Key;
+		deleteRequest!.ConditionExpression.ShouldBe("attribute_exists(#c) AND #c < :cutoff AND #t = :tenantId AND attribute_not_exists(#rb)");
+        deleteRequest.ExpressionAttributeNames["#rb"].ShouldBe("timerRecoveryPendingBatch");
+        deleteRequest.ExpressionAttributeValues[":tenantId"].S.ShouldBe(TenantScope.UntenantedSentinel);
+        var deletedKey = deleteRequest.Key;
 		deletedKey[DynamoDbSagaDocument.PK].S.ShouldBe("SAGA#old");
 		deletedKey[DynamoDbSagaDocument.SK].S.ShouldBe("TYPE#TestSagaState");
 	}
@@ -194,7 +195,30 @@ public sealed class DynamoDbSagaPurgeShould
 		var removed = await store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow, CancellationToken.None);
 
 		removed.ShouldBe(0);
-		A.CallTo(() => client.BatchWriteItemAsync(A<BatchWriteItemRequest>._, A<CancellationToken>._))
+		A.CallTo(() => client.DeleteItemAsync(A<DeleteItemRequest>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
+    [Fact]
+    public async Task Purge_DoesNotCountAConditionallyProtectedPendingJournal_AndStillDeletesHealthyRow()
+    {
+        var client = A.Fake<IAmazonDynamoDB>();
+        var pending = KeyItem("SAGA#pending", "TYPE#TestSagaState");
+        var healthy = KeyItem("SAGA#healthy", "TYPE#TestSagaState");
+        A.CallTo(() => client.ScanAsync(A<ScanRequest>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(new ScanResponse { Items = [pending, healthy], LastEvaluatedKey = [] }));
+        var requests = new List<DeleteItemRequest>();
+        A.CallTo(() => client.DeleteItemAsync(A<DeleteItemRequest>._, A<CancellationToken>._))
+            .ReturnsLazily((DeleteItemRequest request, CancellationToken _) =>
+            {
+                requests.Add(request);
+                return request.Key[DynamoDbSagaDocument.PK].S == "SAGA#pending"
+                    ? Task.FromException<DeleteItemResponse>(new ConditionalCheckFailedException("test-owned current pending journal"))
+                    : Task.FromResult(new DeleteItemResponse());
+            });
+        using var store = CreateStore(client);
+        (await store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow, CancellationToken.None)).ShouldBe(1);
+        requests.Count.ShouldBe(2);
+        requests.ShouldAllBe(request => request.ConditionExpression.Contains("attribute_not_exists(#rb)", StringComparison.Ordinal));
+        A.CallTo(() => client.BatchWriteItemAsync(A<BatchWriteItemRequest>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
 }

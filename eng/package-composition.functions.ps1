@@ -13,7 +13,8 @@ function Get-CompositionSourceIdentity {
     # Include inherited sample configuration and preserve Git's case-sensitive path semantics.
     # This records repository inputs, not a claim of a hermetic SDK/environment dependency graph.
     $selectors = @('src', 'eng', 'samples/01-getting-started/DispatchOnly', 'Excalibur.sln',
-        'LICENSE', 'licenses', 'images/Dispatch/png/icon.png', 'images/Excalibur/png/icon.png')
+        'LICENSE', 'licenses', 'THIRD-PARTY-NOTICES.md',
+        'images/Dispatch/png/icon.png', 'images/Excalibur/png/icon.png')
     foreach ($ancestor in @('', 'samples/', 'samples/01-getting-started/')) {
         $selectors += @("${ancestor}global.json", "${ancestor}.editorconfig", "${ancestor}.globalconfig",
             "${ancestor}.gitattributes", "${ancestor}.gitignore", ":(glob)${ancestor}Directory.*", ":(icase)${ancestor}NuGet.config")

@@ -516,7 +516,15 @@ public abstract class DeadLetterStoreConformanceTestKit : ConformanceTestKit
 
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
 
-		await store.MarkAsReplayedAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+		var claim = await store.MarkAsReplayedAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+
+		if (claim != DeadLetterReplayOutcome.Claimed)
+		{
+			throw new TestFixtureAssertionException(
+				$"The first mark of an unreplayed message reported {claim}, not Claimed. Winning this is "
+				+ "what grants the right to replay, so a store that cannot report it leaves every caller "
+				+ "unable to tell whether it may act.");
+		}
 
 		var retrieved = await store.GetByIdAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
 
@@ -540,45 +548,115 @@ public abstract class DeadLetterStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that MarkAsReplayedAsync is idempotent for non-existent messages.
+	/// Verifies that marking an absent message reports MessageNotFound rather than merely not throwing.
 	/// </summary>
-	public virtual async Task MarkAsReplayedAsync_NonExistent_ShouldBeIdempotent()
+	/// <remarks>
+	/// The absence of a throw was the whole of the previous requirement, and it is satisfied by a store that
+	/// reports a successful claim on a message that does not exist, which would send a caller on to replay
+	/// nothing. The outcome is the contract.
+	/// </remarks>
+	/// <returns>The arm.</returns>
+	public virtual async Task MarkAsReplayedAsync_NonExistent_ShouldReportMessageNotFound()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateMessageId();
 
-		// Should not throw - idempotent operation
-		await store.MarkAsReplayedAsync(nonExistentId, CancellationToken.None).ConfigureAwait(false);
+		var claim = await store.MarkAsReplayedAsync(nonExistentId, CancellationToken.None).ConfigureAwait(false);
 
-		// Success - no exception thrown
+		if (claim != DeadLetterReplayOutcome.MessageNotFound)
+		{
+			throw new TestFixtureAssertionException(
+				$"Marking an absent message reported {claim}, not MessageNotFound. An absence and a taken "
+				+ "claim have opposite diagnoses and the store can tell them apart for free.");
+		}
 	}
 
 	/// <summary>
-	/// Verifies that MarkAsReplayedAsync is idempotent for already replayed messages.
+	/// Verifies the second mark of one message is REFUSED, and that releasing the claim makes it claimable
+	/// again.
 	/// </summary>
-	public virtual async Task MarkAsReplayedAsync_AlreadyReplayed_ShouldBeIdempotent()
+	/// <remarks>
+	/// <para>
+	/// <b>This deliberately reverses the previous requirement, which was that a second mark be
+	/// idempotent.</b> Idempotence is the wrong property for a claim: if the second caller is told the same
+	/// thing as the first, both believe they may replay and the message is dispatched twice. The second
+	/// caller must be refused, by name.
+	/// </para>
+	/// <para>
+	/// The release half is required too, and it is the liveness arm. A store that refused every mark after
+	/// the first, including after the claim had been given back, would satisfy the refusal above while
+	/// making a failed replay permanently unretryable.
+	/// </para>
+	/// </remarks>
+	/// <returns>The arm.</returns>
+	public virtual async Task MarkAsReplayedAsync_AlreadyReplayed_ShouldBeRefused()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var message = CreateDeadLetterMessage();
+		message.IsReplayed = false;
 
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
 
-		// Mark as replayed twice
-		await store.MarkAsReplayedAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
-		await store.MarkAsReplayedAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+		var first = await store.MarkAsReplayedAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+
+		if (first != DeadLetterReplayOutcome.Claimed)
+		{
+			throw new TestFixtureAssertionException($"The first mark reported {first}, not Claimed.");
+		}
+
+		var second = await store.MarkAsReplayedAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+
+		if (second != DeadLetterReplayOutcome.AlreadyReplayed)
+		{
+			throw new TestFixtureAssertionException(
+				$"The second mark of one message reported {second}, not AlreadyReplayed. Two callers told "
+				+ "the same thing both replay it, which is the duplicate this claim exists to prevent.");
+		}
 
 		var retrieved = await store.GetByIdAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
 
-		if (retrieved is null)
+		if (retrieved is null || !retrieved.IsReplayed)
 		{
 			throw new TestFixtureAssertionException(
-				"Message should remain in store after double MarkAsReplayedAsync");
+				"The message must remain stored and marked replayed after a refused second mark.");
 		}
 
-		if (!retrieved.IsReplayed)
+		// LIVENESS: giving the claim back must make the message claimable again, or a replay that failed
+		// could never be attempted a second time.
+		await store.ReleaseReplayClaimAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+
+		var afterRelease = await store.MarkAsReplayedAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+
+		if (afterRelease != DeadLetterReplayOutcome.Claimed)
 		{
 			throw new TestFixtureAssertionException(
-				"IsReplayed should still be true after double MarkAsReplayedAsync");
+				$"After releasing the claim the mark reported {afterRelease}, not Claimed. A store that "
+				+ "refuses every mark after the first makes a failed replay permanently unretryable.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that releasing a claim nobody holds, or on a message that does not exist, is a no-op.
+	/// </summary>
+	/// <returns>The arm.</returns>
+	public virtual async Task ReleaseReplayClaimAsync_WithoutAClaim_ShouldBeANoOp()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var message = CreateDeadLetterMessage();
+		message.IsReplayed = false;
+
+		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
+
+		await store.ReleaseReplayClaimAsync(GenerateMessageId(), CancellationToken.None).ConfigureAwait(false);
+		await store.ReleaseReplayClaimAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+
+		var claim = await store.MarkAsReplayedAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+
+		if (claim != DeadLetterReplayOutcome.Claimed)
+		{
+			throw new TestFixtureAssertionException(
+				$"After releasing an unheld claim the message reported {claim}, not Claimed. Releasing what "
+				+ "nobody holds must leave the message exactly as claimable as it was.");
 		}
 	}
 

@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
@@ -76,10 +75,9 @@ internal static class LeaderElectionAotHelpers
 		// services. Registering it by implementation type asked the container to resolve a string, which it
 		// can never do, so the registration could not produce an instance under any composition. The factory
 		// below supplies the values and takes the decorated factory from the container.
-		services.TryAddSingleton(static sp => new TelemetryLeaderElectionFactory(
+		services.TryAddSingleton(static sp => TelemetryLeaderElectionFactory.CreateOwned(
 			sp.GetRequiredService<ILeaderElectionFactory>(),
-			new Meter(LeaderElectionTelemetryConstants.MeterName),
-			new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName),
+			sp.GetService<IMeterFactory>(),
 			sp.GetRequiredService<ILeaderElectionFactory>().GetType().Name));
 		return services;
 	}

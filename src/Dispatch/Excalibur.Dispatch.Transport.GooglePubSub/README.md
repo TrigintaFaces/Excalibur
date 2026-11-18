@@ -231,7 +231,7 @@ You do not need to author a health check yourself.
 - **Message ordering**: Use ordering keys for partitioned processing
 
 ```csharp
-// High-throughput configuration
+// Publisher configuration example
 services.AddGooglePubSubTransport("pubsub", transport => transport
     .ProjectId("your-gcp-project-id")
     .TopicId("orders")
@@ -248,11 +248,13 @@ services.AddGooglePubSubTransport("pubsub", transport => transport
 
 - Topics auto-scale automatically
 - Use multiple subscriptions for different consumer groups
-- Consider regional topics for lower latency
+- Evaluate supported endpoint and message-storage location settings against deployment requirements; measure end-to-end latency
 
 ### Performance Tuning
 
-#### High-Throughput Publisher
+#### Publisher Configuration Example
+
+Evaluate these values using completed-work, memory and latency measurements.
 
 ```csharp
 services.AddGooglePubSubTransport("pubsub", transport => transport
@@ -275,7 +277,9 @@ services.Configure<GooglePubSubCloudEventOptions>(options =>
 });
 ```
 
-#### Low-Latency Consumer
+#### Consumer Configuration Example
+
+Evaluate these values using completed-work, memory and latency measurements.
 
 ```csharp
 services.AddGooglePubSubTransport("pubsub", transport => transport
@@ -330,7 +334,7 @@ Key Cloud Monitoring metrics:
 
 ### Cost Optimization
 
-1. **Use regional topics** when possible (cheaper than multi-region)
+1. **Evaluate supported endpoint and message-storage location settings** against deployment requirements and actual charges
 2. **Set message retention** appropriately (shorter = cheaper)
 3. **Enable compression** for large messages
 4. **Monitor unused subscriptions** and delete them

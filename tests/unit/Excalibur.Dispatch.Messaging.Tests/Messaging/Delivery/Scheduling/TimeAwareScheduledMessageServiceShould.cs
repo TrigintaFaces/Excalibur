@@ -30,7 +30,18 @@ public sealed class ScheduledMessageServiceTimeAwareShould : IDisposable
 {
 	private readonly ServiceProvider _scopeProvider = new ServiceCollection().BuildServiceProvider();
 
-	public void Dispose() => _scopeProvider.Dispose();
+	private readonly List<ScheduleFixtureFailureAuthority> _authorities = [];
+	public void Dispose()
+	{
+		foreach (var authority in _authorities) { authority.Dispose(); }
+		_scopeProvider.Dispose();
+	}
+	private IScheduleExecutionFailureStore Observe(IScheduleStore store)
+	{
+		var authority = new ScheduleFixtureFailureAuthority(store);
+		_authorities.Add(authority);
+		return authority.RuntimeStore;
+	}
 	// Scaled by TEST_TIMEOUT_MULTIPLIER (3 on CI): this budget bounds a wait on real background
 	// work, so a fixed value times out on a loaded runner with nothing actually wrong.
 	private static readonly TimeSpan ScheduleProcessingTimeout =
@@ -123,15 +134,12 @@ public sealed class ScheduledMessageServiceTimeAwareShould : IDisposable
 		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 
-		// LIVENESS: it IS persisted, because the row must still advance. This assertion was previously
-		// ShouldBe(0) -- asserting the row was left untouched, which is exactly why a body that can never
-		// deserialize stayed due and was re-processed and re-logged on every poll for the life of the
-		// process. Advancing is the fix, so the write is the observable evidence of it.
-		store.StoreCalls.ShouldBe(1, "a failed row advances once without replaying the poisoned payload");
+		// Failure persistence is observable, but does not certify successful advancement.
+		store.StoreCalls.ShouldBe(1, "failure persistence retains the original occurrence before bounded retry/quarantine");
 		var stored = store.StoredMessages.ShouldHaveSingleItem();
-		stored.Enabled.ShouldBeTrue("an interval schedule can still be advanced, so it keeps running");
+		stored.Enabled.ShouldBeTrue("the first failed admission remains due for its bounded retry policy");
 		stored.LastExecutionUtc.ShouldBeNull();
-		stored.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		stored.NextExecutionUtc.ShouldBe(schedule.NextExecutionUtc, "unfulfilled work retains its exact occurrence");
 		schedule.LastExecutionUtc.ShouldBeNull();
 		schedule.NextExecutionUtc.ShouldNotBeNull().ShouldBeLessThan(DateTimeOffset.UtcNow);
 	}
@@ -152,13 +160,11 @@ public sealed class ScheduledMessageServiceTimeAwareShould : IDisposable
 
 		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._)).MustNotHaveHappened();
 
-		// Graceful means the row is skipped AND advanced. Leaving its next-execution time untouched -- which is
-		// what a store call count of zero would mean -- makes the same unresolvable row due again on every poll
-		// forever, ahead of every other schedule.
+		// The unresolvable occurrence remains due with a bounded failure disposition.
 		store.StoreCalls.ShouldBe(1);
 		var stored = store.StoredMessages.ShouldHaveSingleItem();
 		stored.LastExecutionUtc.ShouldBeNull();
-		stored.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		stored.NextExecutionUtc.ShouldBe(schedule.NextExecutionUtc, "unfulfilled work retains its exact occurrence");
 	}
 
 	[Fact]
@@ -244,7 +250,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould : IDisposable
 		var failed = store.StoredMessages.Single(row => row.Id == failedId);
 		failed.Enabled.ShouldBeTrue();
 		failed.LastExecutionUtc.ShouldBeNull();
-		failed.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		failed.NextExecutionUtc.ShouldNotBeNull().ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow, "failure stays due while the following healthy row progresses");
 		var healthy = store.StoredMessages.Single(row => row.Id == healthyId);
 		healthy.Enabled.ShouldBeTrue();
 		healthy.LastExecutionUtc.ShouldNotBeNull();
@@ -269,7 +275,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould : IDisposable
 		DispatchJsonSerializer serializer,
 		ITimePolicy timePolicy) =>
 		new(
-			store,
+			Observe(store),
 			dispatcher,
 			serializer,
 			A.Fake<ICronScheduler>(),

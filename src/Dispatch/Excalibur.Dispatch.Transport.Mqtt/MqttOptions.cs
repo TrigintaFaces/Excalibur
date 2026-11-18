@@ -127,6 +127,14 @@ public sealed class MqttOptions
 	public string? Password { get; set; }
 
 	/// <summary>Gets or sets the maximum accepted payload size in bytes, or <see langword="null"/> to opt out.</summary>
-	/// <value>The maximum payload size in bytes, or <see langword="null"/> for no limit.</value>
-	public int? MaxPayloadBytes { get; set; }
+	/// <value>
+	/// The maximum payload size in bytes, or <see langword="null"/> for no limit. Defaults to 4 MiB, matching
+	/// the framework-wide inbound payload default that every other transport applies.
+	/// </value>
+	/// <remarks>
+	/// A bounded default is deliberate. An unbounded one leaves the limit inert for every consumer who never
+	/// sets it, which is indistinguishable from having no limit at all while the option reads as though a
+	/// protection were configured. An over-limit payload is rejected, never truncated.
+	/// </remarks>
+	public int? MaxPayloadBytes { get; set; } = PayloadSizeGuard.DefaultMaxPayloadBytes;
 }

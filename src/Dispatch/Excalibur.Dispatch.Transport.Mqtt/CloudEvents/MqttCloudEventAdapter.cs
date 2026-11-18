@@ -50,7 +50,7 @@ internal sealed class MqttCloudEventAdapter : ICloudEventEncoder<MqttApplication
 
 	private const string TraceParentAttribute = "traceparent";
 
-	private readonly JsonEventFormatter _jsonFormatter = new();
+	private readonly CloudEventSerializer _serializer;
 	private readonly ILogger<MqttCloudEventAdapter> _logger;
 	private readonly MqttCloudEventOptions _mqttOptions;
 
@@ -58,14 +58,19 @@ internal sealed class MqttCloudEventAdapter : ICloudEventEncoder<MqttApplication
 	/// Initializes a new instance of the <see cref="MqttCloudEventAdapter" /> class.
 	/// </summary>
 	/// <param name="options"> The CloudEvents configuration options. </param>
+	/// <param name="serializer"> The decided CloudEvents serializer, carrying the resolver the consumer configured. </param>
 	/// <param name="logger"> Logger used for diagnostics. </param>
 	/// <param name="mqttOptions"> Provider specific CloudEvent options. </param>
 	public MqttCloudEventAdapter(
 		IOptions<CloudEventOptions> options,
+		CloudEventSerializer serializer,
 		ILogger<MqttCloudEventAdapter> logger,
 		IOptions<MqttCloudEventOptions>? mqttOptions = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
+
+		_serializer = serializer;
 		ArgumentNullException.ThrowIfNull(logger);
 
 		Options = options.Value ?? throw new ArgumentNullException(nameof(options));
@@ -98,8 +103,6 @@ internal sealed class MqttCloudEventAdapter : ICloudEventEncoder<MqttApplication
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public Task<MqttApplicationMessage> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -126,7 +129,7 @@ internal sealed class MqttCloudEventAdapter : ICloudEventEncoder<MqttApplication
 		switch (mode)
 		{
 			case CloudEventMode.Structured:
-				var payload = _jsonFormatter.EncodeStructuredModeMessage(cloudEvent, out _);
+				var payload = _serializer.Formatter.EncodeStructuredModeMessage(cloudEvent, out _);
 				message.Payload = new ReadOnlySequence<byte>(payload);
 				message.ContentType = CloudEventsStructuredContentType;
 				break;
@@ -185,15 +188,13 @@ internal sealed class MqttCloudEventAdapter : ICloudEventEncoder<MqttApplication
 		return cloudEvent;
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private static byte[] EncodeBinaryBody(CloudEvent cloudEvent) => cloudEvent.Data switch
+	private byte[] EncodeBinaryBody(CloudEvent cloudEvent) => cloudEvent.Data switch
 	{
 		null => [],
 		byte[] binary => binary,
 		ReadOnlyMemory<byte> rom => rom.ToArray(),
 		string text => Encoding.UTF8.GetBytes(text),
-		_ => Encoding.UTF8.GetBytes(JsonSerializer.Serialize(cloudEvent.Data)),
+		_ => _serializer.SerializePayloadToUtf8Bytes(cloudEvent.Data),
 	};
 
 	private static object DeserializeMessageBody(byte[] body, string? contentType)
@@ -324,12 +325,6 @@ internal sealed class MqttCloudEventAdapter : ICloudEventEncoder<MqttApplication
 			properties.Add(new MQTTnet.Packets.MqttUserProperty(CeDataSchemaAttribute, cloudEvent.DataSchema.ToString()));
 		}
 
-		var traceParent = cloudEvent[TraceParentAttribute] as string;
-		if (!string.IsNullOrWhiteSpace(traceParent))
-		{
-			properties.Add(new MQTTnet.Packets.MqttUserProperty(TraceParentAttribute, traceParent));
-		}
-
 		foreach (var extension in cloudEvent.ExtensionAttributes)
 		{
 			var value = cloudEvent[extension.Name];
@@ -344,7 +339,7 @@ internal sealed class MqttCloudEventAdapter : ICloudEventEncoder<MqttApplication
 				continue;
 			}
 
-			properties.Add(new MQTTnet.Packets.MqttUserProperty(attributeName, value.ToString()!));
+			properties.Add(new MQTTnet.Packets.MqttUserProperty(attributeName, extension.Format(value)));
 		}
 	}
 
@@ -377,7 +372,7 @@ internal sealed class MqttCloudEventAdapter : ICloudEventEncoder<MqttApplication
 		}
 
 		await using var stream = new MemoryStream(payload);
-		return await _jsonFormatter.DecodeStructuredModeMessageAsync(
+		return await _serializer.Formatter.DecodeStructuredModeMessageAsync(
 				stream,
 				new ContentType("application/json"),
 				extensionAttributes: null)

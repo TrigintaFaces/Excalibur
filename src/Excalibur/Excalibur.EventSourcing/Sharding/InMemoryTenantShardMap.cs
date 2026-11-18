@@ -82,6 +82,15 @@ internal sealed class InMemoryTenantShardMap : ITenantShardMap
 	}
 
 	/// <inheritdoc />
+	public ShardInfo GetShardById(string shardId)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(shardId);
+		return _shards.TryGetValue(shardId, out var shard)
+			? shard
+			: throw new KeyNotFoundException($"Physical shard '{shardId}' is not registered.");
+	}
+
+	/// <inheritdoc />
 	public IReadOnlyCollection<string> GetRegisteredShardIds() =>
 		_shards.Keys.ToArray();
 }

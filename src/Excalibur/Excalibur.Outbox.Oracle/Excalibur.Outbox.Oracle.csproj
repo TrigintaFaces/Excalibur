@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -6,12 +6,14 @@
     <Description>Oracle implementation of the transactional outbox pattern for Excalibur, providing reliable message delivery with at-least-once semantics using Oracle Database as the backing store.</Description>
     <PackageTags>excalibur;outbox;transactional-outbox;messaging;reliable-delivery;oracle;dapper</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Oracle.ManagedDataAccess.Core" />
     <PackageReference Include="Dapper" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />

@@ -21,7 +21,7 @@ namespace Excalibur.EventSourcing.Sharding;
 /// Cross-tenant steps dispatch through the normal pipeline with tenant routing.
 /// </para>
 /// </remarks>
-internal sealed class TenantRoutingSagaStore : ISagaStore
+internal sealed partial class TenantRoutingSagaStore : ISagaStore
 {
 	private readonly ITenantStoreResolver<ISagaStore> _resolver;
 	private readonly ITenantContext _tenantContext;

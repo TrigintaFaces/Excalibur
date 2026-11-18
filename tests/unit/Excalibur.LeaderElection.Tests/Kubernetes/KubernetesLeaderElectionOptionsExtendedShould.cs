@@ -112,13 +112,17 @@ public sealed class KubernetesLeaderElectionOptionsExtendedShould
 	}
 
 	[Fact]
-	public void AllowSettingCandidateId()
+	public void AllowSettingTheInheritedInstanceId()
 	{
 		// Act
-		var options = new KubernetesLeaderElectionOptions { CandidateId = "pod-123" };
+		var options = new KubernetesLeaderElectionOptions { InstanceId = "pod-123" };
 
 		// Assert
-		options.CandidateId.ShouldBe("pod-123");
+		options.InstanceId.ShouldBe(
+			"pod-123",
+			"this provider used to declare its own CandidateId option and read only that, so a consumer "
+			+ "who configured the abstraction's InstanceId got an identity nobody chose. There is now one "
+			+ "property for one concept.");
 	}
 
 	[Fact]
@@ -142,13 +146,17 @@ public sealed class KubernetesLeaderElectionOptionsExtendedShould
 	}
 
 	[Fact]
-	public void HaveNullCandidateIdByDefault()
+	public void HaveNullInstanceIdByDefault()
 	{
 		// Act
 		var options = new KubernetesLeaderElectionOptions();
 
 		// Assert
-		options.CandidateId.ShouldBeNull();
+		options.InstanceId.ShouldBeNull(
+			"null is what makes \"nobody configured one\" EXPRESSIBLE. A non-null default would make a "
+			+ "generated identity indistinguishable from a chosen one, and every provider would have to "
+			+ "treat the value as deliberate. The identity is resolved from this value exactly once, in "
+			+ "LeaderCandidateIdentity.");
 	}
 
 	[Fact]

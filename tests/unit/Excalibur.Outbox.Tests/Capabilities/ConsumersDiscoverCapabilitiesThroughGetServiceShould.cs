@@ -54,7 +54,8 @@ public sealed class ConsumersDiscoverCapabilitiesThroughGetServiceShould
 	public async Task SeeAFencedStore_AsFenced_EvenBehindADecorator()
 	{
 		// LIVENESS — the arm that catches the split-brain regression.
-		var fencedInner = HonestFake(b => b.Implements<IFencedOutboxStore>());
+		var fencedInner = HonestFake(b => b.Implements<IFencedOutboxStore>()
+			.Implements<IFencedClaimScopedOutboxStore>().Implements<IFencedDeadLetterableOutboxStore>());
 		await using var processor = CreateProcessor(new TelemetryOutboxStoreDecorator(fencedInner));
 
 		ResolvedFencedStore(processor).ShouldNotBeNull(
@@ -86,7 +87,8 @@ public sealed class ConsumersDiscoverCapabilitiesThroughGetServiceShould
 		// NON-VACUITY for the reflection seam itself. If FencedStoreProperty read the wrong member or the resolution
 		// never works, the liveness arm could pass or fail for the wrong reason. A bare fenced store (no decorator)
 		// must resolve non-null, proving the property and the GetService path are live before decoration is added.
-		var fenced = HonestFake(b => b.Implements<IFencedOutboxStore>());
+		var fenced = HonestFake(b => b.Implements<IFencedOutboxStore>()
+			.Implements<IFencedClaimScopedOutboxStore>().Implements<IFencedDeadLetterableOutboxStore>());
 		await using var processor = CreateProcessor(fenced);
 
 		ResolvedFencedStore(processor).ShouldNotBeNull(
@@ -126,7 +128,11 @@ public sealed class ConsumersDiscoverCapabilitiesThroughGetServiceShould
 	// must too, or these arms are worthless.
 	private static IOutboxStore HonestFake(Action<IFakeOptions<IOutboxStore>>? configure = null)
 	{
-		var fake = configure is null ? A.Fake<IOutboxStore>() : A.Fake<IOutboxStore>(configure);
+		var fake = A.Fake<IOutboxStore>(b =>
+		{
+			b.Implements<IClaimScopedOutboxStore>().Implements<IClaimScopedDeadLetterableOutboxStore>();
+			configure?.Invoke(b);
+		});
 		A.CallTo(() => fake.GetService(A<Type>._))
 			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(fake) ? fake : null);
 		return fake;

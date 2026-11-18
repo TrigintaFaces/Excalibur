@@ -41,7 +41,7 @@ Excalibur.Dispatch supports three caching modes out of the box:
 
 ### In-Memory Only
 
-Best for single-instance applications or development:
+An option for single-instance applications or development; entries remain local to the process:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -49,7 +49,8 @@ using Microsoft.Extensions.DependencyInjection;
 services.AddDispatchMemoryCaching(
     configureMemory: options =>
     {
-        options.SizeLimit = 1024; // Max entries
+        // Optional size limits require consistent size units on every cache entry.
+        // Do not impose a limit on a shared cache unless all writers supply sizes.
     },
     configureCaching: options =>
     {
@@ -58,17 +59,12 @@ services.AddDispatchMemoryCaching(
     });
 ```
 
-:::caution Tag invalidation needs Redis to be exact
+:::caution Tag invalidation has consistency limits
 
-Cache **tag** invalidation is atomic only on Redis. On any other `IDistributedCache` backend
-(SQL Server, for example) the tag-to-keys set is maintained with a read-modify-write, because
-`IDistributedCache` offers no atomic set-add. Two instances registering different keys under the
-same tag at the same time can lose one of them, and a key that falls out of the set is **not**
-invalidated when its tag is — that entry serves stale data until its own expiry elapses.
-
-Register a Redis connection if you rely on tag invalidation being exact. Otherwise keep entry
-lifetimes short enough that the staleness window is acceptable. The framework logs a warning at
-startup when it selects the best-effort tracker, so this is visible rather than silent.
+The custom distributed tag tracker uses opaque version stamps for registered distributed backends,
+not a Redis-only tag-to-keys set. Local memoization and backend failures affect when another instance
+observes a change. Invalidation is not a transaction with handler effects or cache publication; choose
+entry lifetimes and application consistency rules accordingly. See [Tag Tracking](#tag-tracking).
 
 :::
 
@@ -105,7 +101,7 @@ With `appsettings.json`:
 
 ### Hybrid (Memory + Redis)
 
-Recommended for production. Checks local memory first, falls back to Redis:
+Combines local memory with Redis. Evaluate hit rate, resource cost and consistency requirements for the application:
 
 ```csharp
 services.AddDispatchHybridCaching(
@@ -141,7 +137,7 @@ dispatch.UseCaching()
         options.CacheMode = CacheMode.Hybrid;
         options.Behavior.DefaultExpiration = TimeSpan.FromMinutes(10);
         options.Behavior.UseSlidingExpiration = true;
-        options.Behavior.JitterRatio = 0.10; // 10% TTL jitter to avoid stampedes
+        options.Behavior.JitterRatio = 0.10; // 10% TTL jitter to spread expirations
     });
 ```
 
@@ -237,7 +233,7 @@ public sealed class ProductCacheKeyBuilder : ICacheKeyBuilder
 | Member | Purpose |
 |--------|---------|
 | `string? CreateKey(IDispatchAction action, IMessageContext context)` | Derives the cache key for an in-flight request. Returns `null` to signal "do not cache". |
-| `string CreateKey(string logicalKey, string? tenantId, string? userId)` | Builds the stored key for a logical key under a tenant/user identity, **without** a live `IMessageContext`. Used for direct-key invalidation — turns a raw logical key into the exact stored key to remove. Performs no serialization (AOT-/trimming-safe). |
+| `string CreateKey(string logicalKey, string? tenantId, string? userId)` | Builds the stored key for a logical key under a tenant/user identity, **without** a live `IMessageContext`. Used for direct-key invalidation. The built-in implementation performs no serialization; verify custom implementations and the complete native composition. |
 
 The action/context overload returns `string?`:
 
@@ -286,11 +282,11 @@ per dispatch:
 | What happens | Handler invocations |
 |---|---|
 | Cache hit | **none** — the stored value is returned and your handler never runs |
-| N concurrent dispatches of the same key | **one** — they are collapsed onto a single in-flight factory call |
+| Concurrent compatible requests for the same key on one cache instance | May share an in-flight factory; this is not a distributed exactly-once guarantee, including across cancellation and retries |
 | Background refresh | **one extra**, on a task no dispatch is awaiting |
 
-So the invocation count is unrelated to the dispatch count in both directions, and no configuration changes
-that — it is how a single-flight cache avoids stampeding your backend, which is the reason to use one.
+Handler invocation count therefore need not match dispatch count. Do not rely on cache coalescing to
+provide exactly-once effects.
 
 Read it as: a cached handler answers *"what is the value for this key"* and nothing else. Anything that must
 happen exactly once per request — a write, an outbound message, a counter, an audit entry — belongs outside
@@ -416,7 +412,38 @@ When the projection handler processes `ProductUpdatedEvent`, the `IProjectionCac
 
 ## Tag Tracking
 
-`HybridCache` (used in Hybrid mode) has native tag-based invalidation support, but that coverage is L1-only. The `ICacheTagTracker` interface covers the rest: each tag is a single, opaque version stamp. A cache entry written under a tag records that tag's stamp at write time; a read compares the entry's own recorded stamp against the tag's *current* stamp, and invalidating a tag simply replaces its stamp. Every entry that recorded the old stamp stops matching on its next read and is evicted lazily, at that point — there is no key-set to maintain and no key-to-tag mapping to keep in sync.
+### NativeAOT verification limits
+
+`AddDispatchCaching` carries trimming and dynamic-code warnings because result caching reconstructs
+values using their runtime types. Do not treat the package's `IsAotCompatible` setting or a managed
+test pass as proof that this result-caching path works in a native executable.
+
+The 2026-11-04 UTC direct-invalidation probe using HybridCache 10.5.0 also failed native compilation
+with IL2026, IL3050 and IL2070 diagnostics in its default JSON serializer factory. This is a failed
+verification of that composition, not a measured NativeAOT pass or proof that every configuration
+is unsupported. Original logs are under
+`artifacts/benchmarks/current-refresh-20261101/direct-invalidation-native-publish-r1` and
+`direct-invalidation-native-publish-r2`; the harness is
+`tests/harnesses/CacheInvalidationAotProbe`.
+Microsoft's [HybridCache NativeAOT guidance](https://learn.microsoft.com/aspnet/core/performance/caching/hybrid?view=aspnetcore-10.0#use-hybrid-cache-with-native-aot)
+requires compatible serialization and trimming configuration. Verify the actual published executable
+and its cached types before relying on native deployment.
+
+### Ordinary-tag propagation
+
+`HybridCache` has native logical tag invalidation. Dispatch also uses `ICacheTagTracker` version stamps:
+entries record stamps at write time and the middleware compares them on reads, subject to local memoization
+and failure handling. There is no reverse tag-to-keys set. Both `CacheInvalidationMiddleware` and the
+registered `ICacheInvalidationService` bump custom stamps for ordinary tags. Direct service invalidation
+first awaits native `HybridCache.RemoveByTagAsync`, then bumps each distinct ordinary tag sequentially.
+Other instances observe the new stamps after their local stamp memo refreshes; this is not immediate
+cross-instance visibility. Native invalidation or tracker failures propagate from the direct service,
+and a failure partway through multiple tags can leave earlier tags invalidated.
+
+Null, empty and whitespace-only tags retain native no-op handling. The reserved `"*"` tag is passed to
+native HybridCache without creating a custom wildcard stamp. Cross-instance wildcard propagation is not
+established by the ordinary-tag tests. Calling `HybridCache` directly bypasses Dispatch's custom tracker.
+Tag invalidation does not change configured cache-entry retention or physically delete every tagged entry.
 
 ### ICacheTagTracker
 
@@ -431,7 +458,7 @@ public interface ICacheTagTracker
 | Method | Purpose |
 |--------|---------|
 | `GetOrCreateStampAsync` | Resolves a tag's current version stamp, creating one the first time the tag is seen. Used both to embed a tag's stamp into a new entry at write time, and to check an existing entry's recorded stamp against the tag's current one at read time. |
-| `BumpStampAsync` | Invalidates a tag by replacing its version stamp. Every entry that recorded the old stamp is treated as invalidated on its next read. |
+| `BumpStampAsync` | Replaces a tag's version stamp. Entries recording the old stamp are rejected when subsequent validation observes the replacement; local memoization and failure handling affect visibility. |
 
 A tag with no stamp yet in the backend (nothing has ever invalidated it) and a cache entry with no recorded stamp for one of its own tags (typically an entry written before this mechanism existed) are different conditions: the former is safe to treat as still valid, while the latter cannot be proven valid and is treated as invalidated. Cached data written under the previous key-tracking mechanism requires no migration — it is read as this second, "unprovable" case on its first post-upgrade read (one cache miss), and every subsequent write is stamped normally from then on.
 
@@ -442,18 +469,27 @@ The correct implementation is selected automatically based on `CacheMode` and wh
 | Implementation | Selected When | Storage |
 |----------------|---------------|---------|
 | `InMemoryCacheTagTracker` | Memory mode, or Distributed/Hybrid without a real distributed cache | In-process `ConcurrentDictionary`, bounded by `TagTrackerCapacity` |
-| `DistributedCacheTagTracker` | Distributed or Hybrid mode with a real `IDistributedCache` (not `MemoryDistributedCache`) | One key per tag in the distributed cache; resolving or invalidating a tag is a single atomic Get/Set |
+| `DistributedCacheTagTracker` | Distributed or Hybrid mode with a real `IDistributedCache` (not `MemoryDistributedCache`) | One key per tag in the distributed cache, plus a local memo; cold initialization can perform Get followed by Set |
 
-You do not need to register `ICacheTagTracker` manually -- `AddDispatchCaching()` and `UseCaching()` handle it automatically. A resolved stamp is memoized per tag for `TagStampRefreshInterval` (default 5 seconds) before the backend is checked again, so steady-state reads cost no backend round trip; that interval is also the bound on how long an invalidation made on one instance takes to be observed by another.
+You do not need to register `ICacheTagTracker` manually -- `AddDispatchCaching()` and `UseCaching()` handle it automatically. A locally memoized stamp can avoid a backend round trip until `TagStampRefreshInterval` (default 5 seconds) elapses. Refresh happens on demand; backend latency, failures and overlapping operations mean this is not a strict cross-instance visibility deadline.
 
 :::info Fail-open and atomicity
 
-Tag stamp resolution and invalidation are **cross-cutting** concerns, so they **fail open**: if the tag-store backend throws while resolving or bumping a stamp, the error is logged and skipped — it is **never** propagated to the dispatch result, so a tag-store outage cannot break core message handling (cancellation still propagates; a request that cannot be served from cache simply falls through to the handler). Resolving or invalidating a tag is a single-key operation, which is **atomic** on every `IDistributedCache` backend — there is no multi-key read-modify-write window.
+Pipeline middleware handles tag-store failures by logging and continuing without the affected cache operation; cancellation still propagates. This policy does not cover direct calls to `ICacheInvalidationService`, whose failures propagate to its caller. Individual backend calls do not make cold initialization, multi-tag invalidation, cache publication and handler effects one atomic transaction. Verify the consistency contract of the selected backend.
 :::
 
 ### Capacity Limits
 
-`InMemoryCacheTagTracker` is bounded by `CacheOptions.TagTrackerCapacity` (default: 10,000 distinct tags), to prevent unbounded memory growth when tag names are derived from unbounded input. Increase this value if your application uses more than 10,000 distinct tags:
+`CacheOptions.TagTrackerCapacity` (default: 10,000 distinct tags) bounds locally retained tag entries.
+The in-memory tracker serializes admission with its capacity check. The distributed tracker now applies
+the same option to its local memo: new tags at capacity still read or write their backend stamps, but
+are not memoized. Existing memo entries can refresh. Successful bumps remove the local memo entry so
+the next read reloads the backend, avoiding publication of a superseded stamp after overlapping writes.
+
+This expands the option's earlier in-memory-only scope and can increase distributed-cache reads under
+tag pressure or after invalidation. It does not change backend stamp lifetime or cached-entry retention.
+The bound covers retained entry count, not tag-string byte size or backend operations already in flight.
+Measure distinct-tag growth and backend load before increasing capacity:
 
 ```csharp
 services.AddDispatchCaching(options =>
@@ -472,8 +508,8 @@ services.AddDispatchCaching(options =>
 | `Enabled` | `bool` | `false` | Must be explicitly enabled |
 | `CacheMode` | `CacheMode` | `Hybrid` | `Memory`, `Distributed`, or `Hybrid` |
 | `DefaultTags` | `string[]` | `[]` | Tags applied to all cached items |
-| `TagTrackerCapacity` | `int` | `10,000` | Max distinct tags tracked by `InMemoryCacheTagTracker` |
-| `TagStampRefreshInterval` | `TimeSpan` | 5 sec | How long a resolved tag version stamp is trusted before re-checking the backend; bounds cross-instance invalidation visibility |
+| `TagTrackerCapacity` | `int` | `10,000` | Max locally retained tag entries; distributed overflow bypasses memoization without deleting backend stamps |
+| `TagStampRefreshInterval` | `TimeSpan` | 5 sec | Local memo refresh interval, checked on demand; not a strict cross-instance visibility deadline |
 | `TagStampLifetime` | `TimeSpan` | 1000 days | How long a tag's version stamp record is retained in the distributed cache backend; must exceed `DefaultExpiration` |
 | `GlobalPolicy` | `IResultCachePolicy?` | `null` | Cross-cutting cache policy |
 | `CacheKeyBuilder` | `ICacheKeyBuilder?` | `null` | Custom key generation (default: `DefaultCacheKeyBuilder`) |
@@ -485,7 +521,7 @@ services.AddDispatchCaching(options =>
 | `DefaultExpiration` | `TimeSpan` | 10 min | Default TTL for cached items |
 | `UseSlidingExpiration` | `bool` | `true` | Reset expiration on access |
 | `CacheTimeout` | `TimeSpan` | 200 ms | Max wait for a single distributed (L2) backend call. A read that runs longer is treated as a miss and a write that runs longer is dropped, so a slow backend degrades to a cache miss rather than slowing every request. It does **not** bound handler execution — a cached handler may take as long as its work takes without losing single-flight protection. The deadline is enforced by cancelling the backend call, so it depends on your `IDistributedCache` honouring its `CancellationToken`; a backend that ignores cancellation will still block for as long as it takes. |
-| `JitterRatio` | `double` | `0.10` | Random TTL variance (0-1) to prevent stampedes |
+| `JitterRatio` | `double` | `0.10` | Random TTL variance (0-1) to spread expirations; not a stampede-prevention guarantee |
 | `EnableStatistics` | `bool` | `false` | Collect hit/miss/eviction metrics |
 | `EnableCompression` | `bool` | `false` | Compress values in distributed cache |
 
@@ -494,7 +530,7 @@ services.AddDispatchCaching(options =>
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `KeyPrefix` | `string` | `"dispatch:"` | Prefix for all distributed cache keys |
-| `UseBinarySerialization` | `bool` | `false` | Binary serialization (more efficient, less debuggable) |
+| `UseBinarySerialization` | `bool` | `false` | Binary serialization; measure size and CPU cost for the selected serializer and payload |
 | `MaxRetryAttempts` | `int` | `3` | Retry attempts for distributed operations |
 | `RetryDelay` | `TimeSpan` | 100 ms | Delay between retries |
 
@@ -586,16 +622,16 @@ When Redis is registered, `CacheHealthMonitor` pings Redis via `IConnectionMulti
 |----------|-----------------|
 | Single server, low latency required | `Memory` |
 | Multiple servers, shared state needed | `Distributed` (Redis) |
-| Multiple servers, best performance | `Hybrid` (default) |
+| Multiple servers, local cache plus shared backing store | `Hybrid` (default); measure hit rate, latency and consistency requirements |
 | Serverless (Azure Functions, AWS Lambda) | `Distributed` (Redis) |
 
-**TTL jitter:** Keep `JitterRatio` at 0.10 (10%) to avoid cache stampedes where many entries expire simultaneously.
+**TTL jitter:** The default `JitterRatio` is 0.10 (10%). Jitter spreads expirations but does not guarantee stampede prevention; measure concurrent misses and backend load.
 
-**Circuit breaker:** Leave enabled in production. If Redis goes down, the circuit breaker opens after 5 failures and the pipeline falls back to direct handler execution for 30 seconds before retrying.
+**Circuit breaker:** Review its failure threshold, failure window, open duration and half-open behavior for the deployment. The default threshold is 5 failures and the default open duration is 30 seconds; actual transitions and fallback behavior depend on configuration and observed failures.
 
 **Statistics:** Enable `Behavior.EnableStatistics` in staging/production to track hit rates. Low hit rates may indicate poor key design or too-short TTLs.
 
-**Compression:** Enable `Behavior.EnableCompression` for large cached objects in distributed mode to reduce Redis memory usage and network bandwidth.
+**Compression:** Evaluate `Behavior.EnableCompression` with representative payloads. Compare stored size and network traffic against compression/decompression CPU and latency; large payloads are not necessarily compressible.
 
 ## What's Next
 

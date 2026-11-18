@@ -129,7 +129,7 @@ public sealed class InMemoryLegalHoldStoreShould
 		await _sut.SaveHoldAsync(hold3, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		var results = await _sut.GetActiveHoldsForDataSubjectAsync("hash-1", null, CancellationToken.None).ConfigureAwait(false);
+		var results = await _sut.GetActiveHoldsForDataSubjectAsync("hash-1", null, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		results.Count.ShouldBe(1);
@@ -148,7 +148,7 @@ public sealed class InMemoryLegalHoldStoreShould
 		await _sut.SaveHoldAsync(validHold, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		var results = await _sut.GetActiveHoldsForDataSubjectAsync("hash-1", null, CancellationToken.None).ConfigureAwait(false);
+		var results = await _sut.GetActiveHoldsForDataSubjectAsync("hash-1", null, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		results.Count.ShouldBe(1);
@@ -165,7 +165,7 @@ public sealed class InMemoryLegalHoldStoreShould
 		await _sut.SaveHoldAsync(hold2, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		var results = await _sut.GetActiveHoldsForDataSubjectAsync("hash-1", "tenant-a", CancellationToken.None).ConfigureAwait(false);
+		var results = await _sut.GetActiveHoldsForDataSubjectAsync("hash-1", "tenant-a", DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		results.Count.ShouldBe(1);
@@ -186,7 +186,7 @@ public sealed class InMemoryLegalHoldStoreShould
 		await _sut.SaveHoldAsync(hold2, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		var results = await _sut.GetActiveHoldsForTenantAsync("tenant-a", CancellationToken.None).ConfigureAwait(false);
+		var results = await _sut.GetActiveHoldsForTenantAsync("tenant-a", DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		results.Count.ShouldBe(1);
@@ -206,7 +206,7 @@ public sealed class InMemoryLegalHoldStoreShould
 		await _sut.SaveHoldAsync(inactive, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		var results = await _sut.ListActiveHoldsAsync(null, CancellationToken.None).ConfigureAwait(false);
+		var results = await _sut.ListActiveHoldsAsync(null, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		results.Count.ShouldBe(1);
@@ -222,7 +222,7 @@ public sealed class InMemoryLegalHoldStoreShould
 		await _sut.SaveHoldAsync(hold2, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		var results = await _sut.ListActiveHoldsAsync("tenant-a", CancellationToken.None).ConfigureAwait(false);
+		var results = await _sut.ListActiveHoldsAsync("tenant-a", DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		results.Count.ShouldBe(1);

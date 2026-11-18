@@ -9,56 +9,93 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ;
 
 /// <summary>
-/// Microsoft-first fail-fast lock for RabbitMQ options: the transport wires
-/// <see cref="IValidateOptions{RabbitMqOptions}"/> plus <c>ValidateOnStart()</c>, so a bad configuration is
-/// rejected eagerly instead of failing later at first use. Asserts the testing-patterns §3 safety∧liveness pair.
+/// Validates the live connection input at registration and projects a secure factory without dialing.
+/// Existing test identities are retained; the deleted shadow-options validator no longer owns this check.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RabbitMqOptionsValidateOnStartShould : UnitTestBase
 {
-	// SAFETY: an invalid config (missing connection string) is rejected when the options are materialized --
-	// the wired IValidateOptions fires. RED if the validator registration or ValidateOnStart were dropped.
 	[Fact]
-	public void RejectMissingConnectionString()
+	public void RejectMalformedConnectionString()
 	{
 		var services = new ServiceCollection();
-		services.AddLogging();
-		_ = services.AddRabbitMQTransport("test", _ => { /* no connection string configured */ });
+		_ = services.AddLogging();
 
-		using var provider = services.BuildServiceProvider();
+		var error = Should.Throw<OptionsValidationException>(() =>
+			services.AddRabbitMQTransport("test", rmq => rmq.ConnectionString("not-a-uri")));
 
-		_ = Should.Throw<OptionsValidationException>(
-			() => provider.GetRequiredService<IOptions<RabbitMqOptions>>().Value);
+		error.OptionsType.ShouldBe(typeof(RabbitMQConnectionOptions));
+		error.OptionsName.ShouldBe("test");
 	}
 
-	// SAFETY: the validator also rejects insecure default guest:guest credentials.
 	[Fact]
 	public void RejectDefaultGuestCredentials()
 	{
 		var services = new ServiceCollection();
-		services.AddLogging();
-		_ = services.AddRabbitMQTransport("test", rmq => rmq.ConnectionString("amqp://guest:guest@localhost:5672/"));
+		_ = services.AddLogging();
 
-		using var provider = services.BuildServiceProvider();
+		var error = Should.Throw<OptionsValidationException>(() =>
+			services.AddRabbitMQTransport("test", rmq => rmq.ConnectionString("amqp://guest:guest@localhost:5672/")));
 
-		_ = Should.Throw<OptionsValidationException>(
-			() => provider.GetRequiredService<IOptions<RabbitMqOptions>>().Value);
+		error.OptionsType.ShouldBe(typeof(RabbitMQConnectionOptions));
+		error.OptionsName.ShouldBe("test");
 	}
 
-	// LIVENESS: a valid, secure config materializes without throwing -- validation must not reject good input
-	// (a validator that rejected everything would satisfy the safety arm alone).
 	[Fact]
 	public void AcceptValidSecureConfiguration()
 	{
 		var services = new ServiceCollection();
-		services.AddLogging();
-		_ = services.AddRabbitMQTransport("test", rmq => rmq.ConnectionString("amqp://appuser:S3cretPw0rd@localhost:5672/"));
+		_ = services.AddLogging();
+		_ = services.AddRabbitMQTransport("test", rmq => rmq.ConnectionString("amqps://appuser:S3cretPw0rd@localhost:5671/"));
+		using var provider = services.BuildServiceProvider();
+		var factory = provider.GetRequiredService<global::RabbitMQ.Client.IConnectionFactory>()
+			.ShouldBeOfType<global::RabbitMQ.Client.ConnectionFactory>();
 
+		factory.HostName.ShouldBe("localhost");
+		factory.Port.ShouldBe(5671);
+		factory.UserName.ShouldBe("appuser");
+		factory.Ssl.Enabled.ShouldBeTrue();
+	}
+
+	[Theory]
+	[InlineData("", 0)]
+	[InlineData("", -1)]
+	[InlineData("test", 0)]
+	[InlineData("test", -1)]
+	[Trait(TraitNames.Pattern, "Regression")]
+	public void RejectNonPositiveRetainedPayloadLimit(string optionsName, int maxPayloadBytes)
+	{
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddRabbitMQTransport("test", rmq => rmq.ConnectionString("amqps://appuser:S3cretPw0rd@localhost:5671/"));
+		services.Configure<RabbitMqOptions>(optionsName, options => options.Consumption.MaxPayloadBytes = maxPayloadBytes);
 		using var provider = services.BuildServiceProvider();
 
-		var options = provider.GetRequiredService<IOptions<RabbitMqOptions>>().Value;
+		var error = Should.Throw<OptionsValidationException>(() =>
+			provider.GetRequiredService<IOptionsMonitor<RabbitMqOptions>>().Get(optionsName));
 
-		options.Connection.ConnectionString.ShouldBe("amqp://appuser:S3cretPw0rd@localhost:5672/");
+		error.OptionsType.ShouldBe(typeof(RabbitMqOptions));
+		error.OptionsName.ShouldBe(optionsName);
+		error.Failures.ShouldContain("RabbitMQ Consumption.MaxPayloadBytes must be null or greater than zero.");
+	}
+
+	[Theory]
+	[InlineData("", null)]
+	[InlineData("", 1)]
+	[InlineData("test", null)]
+	[InlineData("test", 1)]
+	[Trait(TraitNames.Pattern, "Regression")]
+	public void PreserveNullAndPositiveRetainedPayloadLimit(string optionsName, int? maxPayloadBytes)
+	{
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddRabbitMQTransport("test", rmq => rmq.ConnectionString("amqps://appuser:S3cretPw0rd@localhost:5671/"));
+		services.Configure<RabbitMqOptions>(optionsName, options => options.Consumption.MaxPayloadBytes = maxPayloadBytes);
+		using var provider = services.BuildServiceProvider();
+
+		var options = provider.GetRequiredService<IOptionsMonitor<RabbitMqOptions>>().Get(optionsName);
+
+		options.Consumption.MaxPayloadBytes.ShouldBe(maxPayloadBytes);
 	}
 }

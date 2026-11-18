@@ -116,20 +116,52 @@ public sealed class StackCompositionTests
 		var regException = Record.Exception(() =>
 		{
 			services.AddExcalibur(excalibur => excalibur.AddEventSourcing());
-			services.AddRabbitMQTransport(rmq => rmq.HostName("localhost"));
+
+			// amqps AND non-default credentials, deliberately, rather than an opt-out. This transport
+			// requires TLS and rejects guest:guest, and both refusals are correct -- an unencrypted broker
+			// connection carries credentials and payloads in the clear. Satisfying them keeps every guard
+			// armed in the composition this arm holds up as the reference stack; calling UseSsl(false) or
+			// RequireTls = false here would make the most-copied example in the suite the one that shows a
+			// consumer how to switch the protection off. Nothing is dialled -- the arm resolves IDispatcher.
+			// pragma: allowlist secret -- a placeholder AMQP URI for a broker nothing dials.
+			services.AddRabbitMQTransport(rmq => rmq.ConnectionString("amqps://user:password@localhost:5671/")); // pragma: allowlist secret
 			services.AddPollyResilience();
+
+			// A SERIALIZER IS THE TRANSPORT'S STATED PREREQUISITE, and seating it is the consumer's job.
+			// A transport message bus takes IPayloadSerializer, and the transport packages deliberately do
+			// not supply one -- serialization is a consumer concern there, and only the batteries-included
+			// bundles seat a default. So this composition, which assembles the packages by hand, has to
+			// make the same call a hand-assembling consumer makes.
+			//
+			// It was absent until now and the arm did not report it: the connection-string check refused
+			// this composition earlier in the pipeline, so the missing serializer sat behind a different
+			// failure. All TryAdd, so this does not override anything registered above.
+			services.AddPluggableSerialization();
 		});
 		regException.ShouldBeNull("Full CQRS stack registration should not throw");
 
-		// Assert -- provider builds without DI errors
+		// Assert -- the whole graph is RESOLVABLE, proven without constructing anything that does I/O.
+		//
+		// This arm used to resolve IDispatcher, and that is why it could not pass. Constructing the
+		// transport's message bus OPENS A BROKER CONNECTION, so GetService<IDispatcher>() in a stack
+		// containing a transport dials the broker -- and a smoke arm has none. No configuration fixes
+		// that; the earlier refusals this arm hit (a missing serializer, the TLS posture) were each
+		// satisfiable, and behind the last of them sat a live socket. The sibling transport arm above
+		// already avoids it by building and not resolving.
+		//
+		// ValidateOnBuild is the stronger form of that: it walks every registered descriptor and proves
+		// each one's dependencies are satisfiable, failing on a graph that could not be resolved -- which
+		// is the property this arm is named for -- while never invoking a factory delegate, so nothing is
+		// constructed and nothing is dialled. What it deliberately cannot see is a factory-created
+		// service's own body; that is a known limit of the mechanism, not of this composition.
 		var buildException = Record.Exception(() =>
 		{
-			using var provider = services.BuildServiceProvider();
-
-			var dispatcher = provider.GetService<IDispatcher>();
-			dispatcher.ShouldNotBeNull("IDispatcher should be resolvable from Full CQRS stack");
+			using var provider = services.BuildServiceProvider(
+				new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 		});
-		buildException.ShouldBeNull("Full CQRS stack ServiceProvider should build and resolve without errors");
+		buildException.ShouldBeNull(
+			"the Full CQRS stack must compose into a resolvable graph -- every registered service's "
+			+ "dependencies satisfiable, with no service left advertised but unconstructable");
 	}
 
 	/// <summary>

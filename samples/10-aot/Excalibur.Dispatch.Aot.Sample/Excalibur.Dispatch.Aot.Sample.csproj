@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- This ahead-of-time acceptance surface must report both trim and dynamic-code diagnostics.
@@ -33,7 +33,12 @@
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.Mqtt\Excalibur.Dispatch.Transport.Mqtt.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+  </ItemGroup>
+  <!-- Native outbox authority: reuse the framework's public in-memory store registration. -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
   </ItemGroup>
   <!-- S2: Event Sourcing dependencies -->
   <ItemGroup>
@@ -45,6 +50,9 @@
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Cdc.SqlServer\Excalibur.Cdc.SqlServer.csproj" />
+  </ItemGroup>
   <!-- S4: Compliance dependencies (SOC 2 configuration binding + report export) -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
@@ -52,6 +60,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs.DataProcessing\Excalibur.Jobs.DataProcessing.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs.Cdc\Excalibur.Jobs.Cdc.csproj" />
     <PackageReference Include="Microsoft.Data.SqlClient" />
   </ItemGroup>
 </Project>

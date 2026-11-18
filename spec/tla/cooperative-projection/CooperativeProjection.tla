@@ -2,7 +2,7 @@
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 (***************************************************************************
-SCOPE
+SCOPE:
 Three actors: API and Background share a process-local FIFO page gate; Jobs
 runs in a second process. Two required projection rows and a finite two-event
 stream. A page is one event: it reads a checkpoint, reads/folds/CASes each row,

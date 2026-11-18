@@ -4,6 +4,7 @@
 #pragma warning disable IL2026 // RequiresUnreferencedCode
 #pragma warning disable IL3050 // RequiresDynamicCode
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using System.Text.Json;
 
 using Azure.Messaging.EventHubs;
@@ -36,13 +37,13 @@ public sealed class AzureEventHubsCloudEventAdapterShould
 			PartitionKeyStrategy = PartitionKeyStrategy.CorrelationId,
 		});
 
-		_adapter = new AzureEventHubsCloudEventAdapter(options, eventHubOptions);
+		_adapter = new AzureEventHubsCloudEventAdapter(options, TestCloudEventSerializers.Reflection, eventHubOptions);
 	}
 
 	[Fact]
 	public void ThrowWhenOptionsIsNull()
 	{
-		Should.Throw<ArgumentNullException>(() => new AzureEventHubsCloudEventAdapter(null!));
+		Should.Throw<ArgumentNullException>(() => new AzureEventHubsCloudEventAdapter(null!, TestCloudEventSerializers.Reflection));
 	}
 
 	[Fact]
@@ -89,7 +90,7 @@ public sealed class AzureEventHubsCloudEventAdapterShould
 			UsePartitionKeys = true,
 			PartitionKeyStrategy = PartitionKeyStrategy.CorrelationId,
 		});
-		var adapter = new AzureEventHubsCloudEventAdapter(options, eventHubOptions);
+		var adapter = new AzureEventHubsCloudEventAdapter(options, TestCloudEventSerializers.Reflection, eventHubOptions);
 
 		var cloudEvent = new CloudEvent(CloudEventsSpecVersion.V1_0)
 		{

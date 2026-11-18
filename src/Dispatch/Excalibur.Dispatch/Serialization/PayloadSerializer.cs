@@ -24,13 +24,10 @@ namespace Excalibur.Dispatch.Serialization;
 ///   <item>Routing to the appropriate <see cref="ISerializer"/> implementation</item>
 /// </list>
 /// <para>
-/// <b>Performance Characteristics:</b>
+/// Serialization and format-detection costs depend on the serializer, payload, runtime, and
+/// configuration. Measure complete operations with representative payloads; header handling
+/// and registry lookup do not have a guaranteed fixed latency or allocation cost.
 /// </para>
-/// <list type="bullet">
-///   <item><b>Serialize:</b> ~2ns overhead (magic byte prepend via Buffer.BlockCopy)</item>
-///   <item><b>Deserialize (fast path):</b> &lt;1ns overhead (current serializer match)</item>
-///   <item><b>Deserialize (migration path):</b> ~5ns overhead (registry lookup)</item>
-/// </list>
 /// <para>
 /// See the pluggable serialization architecture documentation for the magic byte format.
 /// </para>

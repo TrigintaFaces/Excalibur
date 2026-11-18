@@ -87,6 +87,38 @@ public sealed class RabbitMqNamedMessageBusShould
 		A.CallTo(() => channel.DisposeAsync()).MustNotHaveHappened();
 	}
 
+	[Fact]
+	public async Task BorrowASelectedChannelWithoutConstructingUnusedDefaultConnectionSettings()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddDispatch(dispatch => dispatch.WithSerialization(s => s.RegisterSystemTextJson().UseSystemTextJson()));
+		var channel = A.Fake<IChannel>();
+		A.CallTo(() => channel.BasicPublishAsync(A<string>._, A<string>._, A<bool>._, A<BasicProperties>._,
+			A<ReadOnlyMemory<byte>>._, A<CancellationToken>._)).Returns(ValueTask.CompletedTask);
+		_ = services.AddKeyedSingleton<IChannel>("borrowed", channel);
+		_ = services.AddSingleton<IConnectionFactory>(_ =>
+			throw new InvalidOperationException("Unused connection factory must remain uncalled."));
+		_ = services.AddRabbitMQTransport("borrowed", rabbit =>
+			rabbit.ConfigureExchange(exchange => exchange.Name("borrowed-exchange")));
+		_ = services.Configure<RabbitMqCloudEventOptions>("borrowed", options =>
+		{
+			options.Exchange.EnablePublisherConfirms = false;
+			options.Publisher.EnableConfirms = false;
+		});
+
+		await using (var provider = services.BuildServiceProvider())
+		{
+			await provider.GetRequiredService<IMessageBusProvider>().GetRemoteMessageBus("borrowed")
+				.ShouldNotBeNull().PublishAsync(new ChannelEvent("borrowed"), CreateContext(), CancellationToken.None);
+		}
+
+		A.CallTo(() => channel.BasicPublishAsync("borrowed-exchange", A<string>._, A<bool>._,
+			A<BasicProperties>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => channel.Dispose()).MustNotHaveHappened();
+		A.CallTo(() => channel.DisposeAsync()).MustNotHaveHappened();
+	}
+
 	private static IMessageContext CreateContext()
 	{
 		var context = A.Fake<IMessageContext>();

@@ -30,6 +30,7 @@ public static class InMemoryFencingTokenServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		services.TryAddSingleton<IFencingTokenProvider, InMemoryFencingTokenProvider>();
+		services.RegisterFencingIssuerProjection();
 		services.TryAddSingleton<FencingTokenMiddleware>();
 
 		return services;

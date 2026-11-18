@@ -15,7 +15,7 @@ dotnet add package Excalibur.LeaderElection
 - `IHealthBasedLeaderElection` - Health-aware leader election
 - `InMemoryLeaderElection` - In-memory implementation for testing
 - TypeForwarders for backward compatibility
-- AOT-compatible with full Native AOT support
+- NativeAOT compatibility depends on configured providers, payload metadata and dependencies; validate by publishing and executing the application’s native binary.
 
 ## Usage
 
@@ -41,7 +41,7 @@ Choose the provider that matches your infrastructure:
 | Package | Backend | Use Case |
 |---------|---------|----------|
 | `Excalibur.LeaderElection.SqlServer` | SQL Server | On-premises, Azure SQL |
-| `Excalibur.LeaderElection.Redis` | Redis | High-performance, distributed cache |
+| `Excalibur.LeaderElection.Redis` | Redis | Redis-backed coordination |
 | `Excalibur.LeaderElection.Consul` | HashiCorp Consul | Service mesh, multi-datacenter |
 | `Excalibur.LeaderElection.Kubernetes` | Kubernetes Lease API | Cloud-native Kubernetes deployments |
 

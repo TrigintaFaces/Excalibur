@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using CloudNative.CloudEvents;
 
 using Excalibur.Dispatch.CloudEvents;
@@ -26,7 +27,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Mqtt;
 public sealed class MqttCloudEventAdapterShould
 {
 	private readonly MqttCloudEventAdapter _adapter = new(
-		Microsoft.Extensions.Options.Options.Create(new CloudEventOptions()),
+		Microsoft.Extensions.Options.Options.Create(new CloudEventOptions()), TestCloudEventSerializers.Reflection,
 		NullLogger<MqttCloudEventAdapter>.Instance);
 
 	[Fact]

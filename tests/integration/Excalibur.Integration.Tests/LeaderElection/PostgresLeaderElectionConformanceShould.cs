@@ -168,6 +168,7 @@ public sealed class PostgresLeaderElectionConformanceShould : LeaderElectionConf
 			InstanceId = $"cand-{Guid.NewGuid():N}"[..24],
 			LeaseDuration = TimeSpan.FromSeconds(5),
 			RenewInterval = TimeSpan.FromSeconds(1),
+			GracePeriod = TimeSpan.FromSeconds(2),
 			RetryInterval = TimeSpan.FromMilliseconds(250),
 		});
 

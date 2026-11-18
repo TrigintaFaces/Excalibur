@@ -172,7 +172,7 @@ Expect-Success 'source fingerprint observes dirty source contents' {
     $after = Get-CompositionSourceIdentity $fixture
     if ($before.sha256 -eq $after.sha256) { throw 'Changed source did not alter fingerprint' }
 }
-foreach ($relative in @('LICENSE','licenses/LICENSE-FIXTURE.txt','images/Dispatch/png/icon.png','images/Excalibur/png/icon.png','src/A/packages.lock.json',
+foreach ($relative in @('LICENSE','licenses/LICENSE-FIXTURE.txt','THIRD-PARTY-NOTICES.md','images/Dispatch/png/icon.png','images/Excalibur/png/icon.png','src/A/packages.lock.json',
     'NuGet.config','.globalconfig','.gitattributes','.gitignore','Directory.Solution.targets',
     'samples/Directory.Build.props','samples/Directory.Build.targets','samples/Directory.Packages.props','samples/NuGet.config','samples/global.json','samples/.editorconfig','samples/.globalconfig',
     'samples/01-getting-started/Directory.Build.props','samples/01-getting-started/NuGet.Config','samples/01-getting-started/.editorconfig','samples/01-getting-started/.globalconfig')) {

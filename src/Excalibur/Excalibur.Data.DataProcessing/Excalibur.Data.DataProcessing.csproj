@@ -28,6 +28,7 @@
     <ProjectReference Include="..\Excalibur.Data.Analyzers\Excalibur.Data.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\Excalibur.Data\Excalibur.Data.csproj" />
     <ProjectReference Include="..\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
   </ItemGroup>
   <!-- Development mode: Dispatch ProjectReferences -->
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">

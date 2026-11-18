@@ -126,14 +126,22 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 
 Use a different storage backend for snapshots:
 
+:::warning No `ISnapshotManager` implementation ships with the framework — you supply it
+Snapshot **stores** ship for Redis, SQL Server, Postgres, Oracle, SQLite, MongoDB, Cosmos DB,
+DynamoDB, Firestore and in-memory. The **manager** that drives them does not: the repository
+performs no snapshot read and no snapshot write unless one is registered, and it resolves the
+manager optionally, so a host without one simply never snapshots rather than failing at startup.
+`UseSnapshotManager<T>` is the supported extension point and takes your own type.
+:::
+
 ```csharp
-// Register event store and a custom snapshot store
+// Register event store and a snapshot store
 services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
 
-// Use a custom snapshot manager
+// Register YOUR snapshot manager -- the framework ships none
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
-    builder.UseSnapshotManager<RedisSnapshotManager>();
+    builder.UseSnapshotManager<MySnapshotManager>();
 }));
 ```
 
@@ -239,10 +247,17 @@ Control when snapshots are created:
 ```csharp
 public interface ISnapshotManager
 {
-    Task SaveSnapshotAsync<TAggregate>(TAggregate aggregate, CancellationToken ct)
-        where TAggregate : IAggregateRoot;
+    Task<ISnapshot> CreateSnapshotAsync<TAggregate>(
+        TAggregate aggregate, CancellationToken cancellationToken);
 
-    Task<TSnapshot?> LoadSnapshotAsync<TSnapshot>(string streamId, CancellationToken ct);
+    Task SaveSnapshotAsync(
+        string streamId, ISnapshot snapshot, CancellationToken cancellationToken);
+
+    Task<ISnapshot?> GetLatestSnapshotAsync(
+        string streamId, CancellationToken cancellationToken);
+
+    Task<TAggregate> RestoreFromSnapshotAsync<TAggregate>(
+        ISnapshot snapshot, CancellationToken cancellationToken);
 }
 ```
 
@@ -251,8 +266,12 @@ public interface ISnapshotManager
 Force a snapshot outside normal strategy:
 
 ```csharp
+// Resolves only if you registered a manager via UseSnapshotManager<T>; with none
+// registered this throws, because nothing supplies the interface.
 var manager = services.GetRequiredService<ISnapshotManager>();
-await manager.SaveSnapshotAsync(aggregate, ct);
+
+var snapshot = await manager.CreateSnapshotAsync(aggregate, ct);
+await manager.SaveSnapshotAsync(streamId, snapshot, ct);
 ```
 
 ### Bulk Snapshot Creation

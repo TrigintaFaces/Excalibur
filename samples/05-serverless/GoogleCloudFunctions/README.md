@@ -8,7 +8,7 @@ This sample demonstrates how to use **Excalibur.Dispatch** messaging in Google C
 - **Pub/Sub Triggers** - Event-driven processing with Cloud Pub/Sub
 - **Cloud Scheduler Triggers** - Periodic scheduled tasks
 - **Dispatch Integration** - Full messaging pipeline with handlers
-- **Cold Start Optimization** - Configured for optimal serverless performance
+- **Serverless Configuration** - Demonstrates function configuration; deployed cold-start performance must be measured
 
 ## Project Structure
 

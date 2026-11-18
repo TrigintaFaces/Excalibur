@@ -31,6 +31,31 @@ namespace Excalibur.Dispatch;
 public abstract record DomainEvent : IDomainEvent
 {
 	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// <strong>This value must be the same on every delivery of this event.</strong> It is the identity
+	/// the inbox deduplicates on, so an event whose <c>EventId</c> differs between a delivery and its own
+	/// redelivery is never recognised as a duplicate: the handler runs again and nothing records that it
+	/// did.
+	/// </para>
+	/// <para>
+	/// <strong>A payload that omits this field is refused.</strong> The initializer below supplies an
+	/// identity when you construct an event in process, so you never have to invent one — but it does
+	/// NOT fire for a deserialized payload, and a property initializer never does. Before the field was
+	/// required on the wire, an omitted <c>eventId</c> therefore produced a non-nullable string holding
+	/// <see langword="null" />, and the inbox skipped it and deduplicated on whatever transport-level
+	/// identity answered next, or on none at all. Deserialization now fails instead, so a producer that
+	/// does not emit the field learns immediately rather than losing deduplication silently.
+	/// </para>
+	/// <para>
+	/// <strong>Do not override this as a computed value.</strong> The idiom
+	/// <see cref="CorrelationId" /> and <see cref="CausationId" /> use immediately below — deriving from
+	/// <see cref="Metadata" /> — is wrong here: a computed property is never deserialized, and it is
+	/// null whenever <see cref="Metadata" /> is absent, which reintroduces exactly the missing-identity
+	/// case the requirement above closes. Keep this a stored value and make sure it round-trips.
+	/// </para>
+	/// </remarks>
+	[System.Text.Json.Serialization.JsonRequired]
 	public virtual string EventId { get; init; } = Uuid7Extensions.GenerateGuid().ToString();
 
 	/// <inheritdoc/>

@@ -18,28 +18,22 @@ namespace Excalibur.Dispatch.Caching;
 /// <remarks>
 /// <para>
 /// Storage scheme: a tag's current stamp is a single opaque string stored under
-/// <c>dispatch:tagver:{tag}</c>. Resolving or invalidating a tag is therefore a single-key read or
-/// write, both of which are atomic on every <see cref="IDistributedCache"/> backend -- unlike the
-/// key-set model this type previously implemented, there is no multi-key read-modify-write and no
-/// possibility of a lost update between concurrent writers.
+/// <c>dispatch:tagver:{tag}</c>. Resolution reads this key and, when absent, writes a new stamp.
+/// Invalidation writes a new stamp. These operations do not form an atomic read-modify-write
+/// transaction; consistency also depends on the selected backend and overlapping operations.
 /// </para>
 /// <para>
-/// The stamp record's TTL (<see cref="CacheOptions.TagStampLifetime"/>) is enforced by
-/// <see cref="CacheOptionsValidator"/> to strictly exceed the largest configurable cache entry
-/// expiration. This is what makes it safe to treat a tag whose stamp record is absent from the backend
-/// as still valid (fail open): under that invariant, a cache entry cannot legitimately outlive the tag
-/// record it was written against, so an absent record means either a genuinely new tag (nothing to
-/// invalidate yet) or a backend that lost the record out of band -- in neither case does treating the
-/// referencing entries as pre-emptively invalidated buy any correctness, and doing so would effectively
-/// flush every tagged entry on every cold or newly provisioned backend.
+/// Backend stamp retention uses <see cref="CacheOptions.TagStampLifetime"/>. Local memo capacity
+/// does not delete backend stamps or alter their expiration. An absent backend record causes a
+/// new stamp to be created; entries carrying a different stamp can then be treated as stale.
 /// </para>
 /// <para>
-/// Resolution is memoized per tag, per instance, as an in-flight <see cref="Task{TResult}"/> (never as
-/// a completed value) so that concurrent callers for the same tag collapse onto one backend round trip,
-/// and the memo is refreshed on a bounded interval (<see cref="CacheOptions.TagStampRefreshInterval"/>)
-/// so that an invalidation from another instance is observed within a bounded, configurable window
-/// rather than never. In steady state -- no refresh due -- resolving a tag costs one dictionary lookup
-/// and no backend I/O at all.
+/// Both in-flight and completed resolution tasks are memoized up to
+/// <see cref="CacheOptions.TagTrackerCapacity"/>. New tags at capacity bypass memoization.
+/// Refresh is demand-driven after <see cref="CacheOptions.TagStampRefreshInterval"/>; backend latency,
+/// failures and overlapping operations prevent a strict cross-instance visibility deadline.
+/// Callers sharing a memo task share its initiating cancellation token. A backend must not recursively
+/// await resolution of the same tag through this tracker, since it would await its own pending task.
 /// </para>
 /// </remarks>
 internal sealed class DistributedCacheTagTracker : ICacheTagTracker
@@ -51,6 +45,11 @@ internal sealed class DistributedCacheTagTracker : ICacheTagTracker
 	private readonly TimeSpan _refreshInterval;
 	private readonly TimeProvider _timeProvider;
 	private readonly ConcurrentDictionary<string, StampMemo> _memo = new(StringComparer.Ordinal);
+	private readonly Lock _memoLock = new();
+	private readonly int _capacity;
+
+	/// <summary>Number of locally memoized tags, exposed for bounded-retention regression tests.</summary>
+	internal int MemoizedTagCount => _memo.Count;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DistributedCacheTagTracker"/> class.
@@ -70,6 +69,7 @@ internal sealed class DistributedCacheTagTracker : ICacheTagTracker
 
 		_cache = cache;
 		_timeProvider = timeProvider ?? TimeProvider.System;
+		_capacity = options.Value.TagTrackerCapacity > 0 ? options.Value.TagTrackerCapacity : 10_000;
 
 		var ttl = options.Value.TagStampLifetime;
 		_entryOptions = new DistributedCacheEntryOptions
@@ -87,22 +87,48 @@ internal sealed class DistributedCacheTagTracker : ICacheTagTracker
 		ArgumentException.ThrowIfNullOrEmpty(tag);
 
 		var now = _timeProvider.GetTimestamp();
+		var frequency = _timeProvider.TimestampFrequency;
+		if (frequency <= 0)
+		{
+			throw new InvalidOperationException("TimeProvider.TimestampFrequency must be positive.");
+		}
+		var ticksPerTimestamp = (double)TimeSpan.TicksPerSecond / frequency;
 
 		if (_memo.TryGetValue(tag, out var existing)
 			&& !existing.StampTask.IsFaulted
 			&& !existing.StampTask.IsCanceled
-			&& _timeProvider.GetElapsedTime(existing.FetchedAt, now) < _refreshInterval)
+			&& (long)((now - existing.FetchedAt) * ticksPerTimestamp) < _refreshInterval.Ticks)
 		{
 			return existing.StampTask;
 		}
 
-		// Started outside any lock: a cold or expired memo may race with another caller resolving the
-		// same tag concurrently, and both are allowed to hit the backend rather than one blocking the
-		// other -- a lock held across the backend round trip would let a slow tag resolution stall
-		// every other reader/writer waiting on that same tag.
-		var factory = ResolveStampAsync(tag, cancellationToken);
-		_memo[tag] = new StampMemo(factory, now);
-		return factory;
+		TaskCompletionSource<string>? completion = null;
+		lock (_memoLock)
+		{
+			if (_memo.TryGetValue(tag, out existing)
+				&& !existing.StampTask.IsFaulted
+				&& !existing.StampTask.IsCanceled
+				&& (long)((now - existing.FetchedAt) * ticksPerTimestamp) < _refreshInterval.Ticks)
+			{
+				return existing.StampTask;
+			}
+
+			if (existing is not null || _memo.Count < _capacity)
+			{
+				completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+				// Publish before calling the backend: a reentrant bump can remove this entry.
+				// Completing a displaced promise must never reinstall its stale stamp.
+				_memo[tag] = new StampMemo(completion.Task, now);
+			}
+		}
+
+		if (completion is null)
+		{
+			return ResolveStampAsync(tag, cancellationToken);
+		}
+
+		_ = CompleteResolutionAsync(tag, completion, cancellationToken);
+		return completion.Task;
 	}
 
 	/// <inheritdoc />
@@ -115,9 +141,28 @@ internal sealed class DistributedCacheTagTracker : ICacheTagTracker
 		var bytes = Encoding.UTF8.GetBytes(stamp);
 		await _cache.SetAsync(stampKey, bytes, _entryOptions, cancellationToken).ConfigureAwait(false);
 
-		// This instance can trust its own bump immediately; other instances converge within
-		// _refreshInterval the next time they resolve this tag.
-		_memo[tag] = new StampMemo(Task.FromResult(stamp), _timeProvider.GetTimestamp());
+		// Concurrent writes may complete out of backend-write order. Reload the backend on the
+		// next read instead of publishing a possibly superseded local stamp.
+		lock (_memoLock)
+		{
+			_ = _memo.TryRemove(tag, out _);
+		}
+	}
+
+	private async Task CompleteResolutionAsync(string tag, TaskCompletionSource<string> completion, CancellationToken cancellationToken)
+	{
+		try
+		{
+			completion.TrySetResult(await ResolveStampAsync(tag, cancellationToken).ConfigureAwait(false));
+		}
+		catch (OperationCanceledException exception)
+		{
+			completion.TrySetCanceled(exception.CancellationToken);
+		}
+		catch (Exception exception)
+		{
+			completion.TrySetException(exception);
+		}
 	}
 
 	private async Task<string> ResolveStampAsync(string tag, CancellationToken cancellationToken)

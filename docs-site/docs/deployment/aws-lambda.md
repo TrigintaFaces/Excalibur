@@ -10,6 +10,10 @@ description: Run Excalibur on AWS Lambda with API Gateway and SQS handlers, Nati
 
 ---
 
+The compiler-checked examples on this page use the optional dependency/compiler profile of the existing `samples/05-serverless/AwsLambda/AwsLambda.csproj` project, together with the normal Dispatch runtime references. They do not borrow its application types or demonstrate a deployed cloud host or successful NativeAOT publication. The scheduled outbox entry point also requires `Amazon.Lambda.CloudWatchEvents`; tracing below uses `Excalibur.Dispatch.Observability`, not the legacy X-Ray recorder packages.
+
+The order examples declare an application-owned `IOrderApplication`; register your real implementation in the host before startup. These snippets supply contracts, not a simulated business service.
+
 ## Before You Start
 
 - **.NET 10.0**
@@ -25,9 +29,23 @@ Deploy Excalibur applications to AWS Lambda for serverless, event-driven workloa
 - Event-driven processing (API Gateway, SQS, SNS, EventBridge, S3)
 - Variable or unpredictable load
 - Cost optimization for low-traffic scenarios
-- Multi-region deployment with low latency
+- Multi-region deployment; measure latency to callers and dependencies
 
 ---
+
+## Invocation lifecycle and dependencies
+
+`AddAwsLambdaServerless()` registers the platform adapter, cold-start optimizer and validated hosting options; it does not compose messaging, persistence, health endpoints or trigger settlement. The `AddExcaliburAwsLambdaServerless()` entry point forwards to those same services. Configure `AddDispatch(...)` and the domain/provider services your function uses explicitly. See the [registration boundary](https://github.com/TrigintaFaces/Excalibur/blob/main/src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/README.md).
+
+| Concern | Application and host responsibility |
+|---|---|
+| Connection reuse | Keep the application container and thread-safe SDK clients for the host instance rather than rebuilding them per message. The selected transport owns its registered clients; do not dispose them after each invocation. Open and dispose database connections per operation so the driver's pool can reuse connections. Size each pool against maximum active instances and per-instance concurrency: scale-out creates more pools, not one shared application-wide limit. See [pool tuning](../operations/performance-tuning.md#connection-pool-tuning) and [AWS connection-reuse guidance](https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html). |
+| Health | Hosting registration does not register an endpoint or a dependency probe. With the corresponding transport registry configured, opt in to `AddHealthChecks().AddTransportHealthChecks()`; with a claim-check provider configured, `AddClaimCheckHealthCheck()` exercises a real store/retrieve/delete probe. Route protected health requests through the platform's HTTP surface or run explicit checks from monitoring. A platform process-health signal is not proof that the broker, database or claim-check storage is usable. |
+| Invocation limits | Set timeout, memory and concurrency in the platform deployment. `ServerlessHostOptions.MemoryLimitMB` validates a supplied value; it does not allocate platform memory. `ExecutionTimeout` only caps the budget when invoking through `IServerlessHostProvider.ExecuteAsync`, which combines cancellation with the context's remaining time and cleanup reserve. Calling `IDispatcher` directly does not automatically use that wrapper. Propagate cancellation, await required work before returning, and make effects idempotent for trigger redelivery. |
+| Freeze, resume and replacement | Treat in-memory state and timers as temporary. A host may stop scheduling your code or replace the instance; completing an invocation must not depend on a later in-process timer. Persist essential work before returning and drive durable outbox work from a platform trigger with background polling disabled. Reused clients may need their documented stale-connection recovery; initialization/warmup is not proof a connection is still live after an idle period. See [AWS execution-environment guidance](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html). |
+| Invocation scope and failures | Resolve scoped handler dependencies from the current invocation/message scope; do not cache them in a shared function object. Dispose application-owned scopes after awaited work, using async disposal when their services require it. The SDK trigger adapter owns acknowledgement, retries and batch responses. Check dispatch results before reporting success when using a result-returning path; a caught exception and a failed result are different observations. |
+
+The repository's local adapter and sample tests demonstrate their selected DI, cancellation and handler paths; they do not simulate a cloud freeze, service settlement or scale-out. In the AWS SQS sample, partial failures are expressed with the SDK's `SQSBatchResponse`; Azure and Google trigger retry behavior comes from their host configuration. Application command/event types, handlers, business services and resource names below are illustrative application code, not extra services installed by the hosting registration.
 
 ## Quick Start
 
@@ -61,10 +79,10 @@ public class Function
     {
         services.AddDispatch(options =>
         {
-            options.ServiceLifetime = ServiceLifetime.Scoped;
+            options.AddHandlersFromAssembly(typeof(CreateOrderCommandHandler).Assembly);
         });
 
-        services.AddScoped<CreateOrderCommandHandler>();
+        services.AddScoped<Excalibur.Dispatch.Delivery.IActionHandler<CreateOrderCommand>, CreateOrderCommandHandler>();
     }
 
     public async Task<APIGatewayProxyResponse> FunctionHandler(
@@ -80,8 +98,8 @@ public class Function
 
             return new APIGatewayProxyResponse
             {
-                StatusCode = 200,
-                Body = JsonSerializer.Serialize(result),
+                StatusCode = result.Succeeded ? 200 : 500,
+                Body = JsonSerializer.Serialize(new { succeeded = result.Succeeded }),
                 Headers = new Dictionary<string, string>
                 {
                     ["Content-Type"] = "application/json"
@@ -117,13 +135,11 @@ This function builds the container with `BuildServiceProvider()` and never start
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <AWSProjectType>Lambda</AWSProjectType>
 
-    <!-- Enable Native AOT (optional, significantly reduces cold start) -->
-    <PublishAot>true</PublishAot>
-    <StripSymbols>true</StripSymbols>
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Managed Lambda class library; Native AOT needs an executable bootstrap (see below). -->
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Amazon.Lambda.CloudWatchEvents" Version="4.4.1" />
     <PackageReference Include="Amazon.Lambda.Core" Version="2.3.0" />
     <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="2.4.3" />
     <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="2.7.1" />
@@ -168,33 +184,13 @@ The following estimates are not measured framework cloud results. Cold-start tim
 - **70% smaller package**: ~10MB vs 35MB
 - **Lower memory usage**: ~50MB vs 150MB
 
-### Configuration
+### Executable Lambda bootstrap and deployment
 
-```xml
-<PropertyGroup>
-  <PublishAot>true</PublishAot>
-  <StripSymbols>true</StripSymbols>
-  <InvariantGlobalization>true</InvariantGlobalization>
-  <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
-  <IlcGenerateDgmlFile>false</IlcGenerateDgmlFile>
-</PropertyGroup>
-```
+The managed class-library quickstart above is not an executable Native AOT Lambda application. Setting `PublishAot` and zipping that library's publish directory does not supply the Lambda Runtime API bootstrap.
 
-### Publish
+Start from AWS's [Native AOT Lambda template and deployment procedure](https://docs.aws.amazon.com/lambda/latest/dg/dotnet-native-aot.html) for the supported runtime and architecture you select. Its executable `Main` creates `LambdaBootstrapBuilder`, binds the handler and runs the runtime client. Configure `SourceGeneratorLambdaJsonSerializer<TContext>` with generated metadata for every input/output type. Build using the matching Amazon Linux environment and architecture described by AWS, and use the template's Lambda tooling/package procedure. Preserve those bootstrap and serialization requirements when adding the framework's generated registration path; the managed assembly-scanning examples on this page are not Native AOT certification.
 
-```bash
-# Publish with Native AOT
-dotnet publish -c Release -r linux-x64 /p:PublishAot=true
-
-# Create deployment package
-cd bin/Release/net10.0/linux-x64/publish
-zip -r ../../../../function.zip .
-
-# Deploy
-aws lambda update-function-code \
-  --function-name your-function \
-  --zip-file fileb://function.zip
-```
+Measure and test the actual deployed workload. Local managed tests and a successful generic `dotnet publish` alone do not prove a Lambda bootstrap, cloud invocation, trimming compatibility or the illustrative timing figures below.
 
 **Earlier unverified cold-start illustration (not measured framework cloud results):**
 
@@ -206,6 +202,33 @@ aws lambda update-function-code \
 ---
 
 ## SQS Queue Processing
+
+### Message size, and the claim check
+
+Every broker here caps the size of a single message, and the cap has moved: Amazon raised the SQS maximum
+payload from 256 KiB to 1 MiB in August 2025, and AWS's own quota pages have been reported lagging such
+announcements. So **read the current service quota rather than any number written in a document**, this one
+included — that is why no figure is quoted here.
+
+What matters for composition is that the cap exists and that exceeding it fails the send, not the handler.
+The framework ships the claim-check pattern for it: the payload goes to object storage and the message
+carries a reference, so message size stops tracking payload size.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddAwsS3ClaimCheck(options =>
+{
+    options.BucketName = "your-payload-bucket";
+});
+```
+
+Two consequences worth planning for rather than discovering: the handler's storage read is now on the
+critical path of every oversized message, and the retention policy on that bucket becomes part of your
+delivery guarantee — a payload collected by a lifecycle rule before its message is consumed is a message
+that can no longer be processed. Set the bucket's retention longer than your queue's maximum retention plus
+your dead-letter window.
+
 
 ### SQS Event Handler
 
@@ -242,7 +265,11 @@ public class SqsFunction
                 var integrationEvent = JsonSerializer.Deserialize<OrderCreatedIntegrationEvent>(
                     record.Body);
 
-                await _dispatcher.DispatchAsync(integrationEvent, CancellationToken.None);
+                var result = await _dispatcher.DispatchAsync(integrationEvent, CancellationToken.None);
+                if (!result.Succeeded)
+                {
+                    throw new InvalidOperationException("Integration event dispatch failed.");
+                }
 
                 context.Logger.LogInformation($"Message processed: {record.MessageId}");
             }
@@ -282,7 +309,9 @@ aws lambda create-event-source-mapping \
 // OutboxProcessorFunction.cs
 using Amazon.Lambda.Core;
 using Amazon.Lambda.CloudWatchEvents;
-using Excalibur.Outbox;
+using Excalibur.Dispatch;
+using Excalibur.Outbox.SqlServer;
+using Microsoft.Extensions.DependencyInjection;
 
 public class OutboxProcessorFunction
 {
@@ -292,16 +321,32 @@ public class OutboxProcessorFunction
     {
         var services = new ServiceCollection();
 
-        // Configure SQL Server Outbox
-        services.AddSqlServerOutboxStore(options =>
-        {
-            options.ConnectionString = Environment.GetEnvironmentVariable("SqlConnectionString");
-        });
+        var connectionString = Environment.GetEnvironmentVariable("SqlConnectionString")
+            ?? throw new InvalidOperationException("SqlConnectionString is required.");
 
-        services.AddSingleton<IOutboxPublisher, MessageBusOutboxPublisher>();
+        // The outbox BUILDER is what registers IOutboxProcessor. AddSqlServerOutboxStore registers the
+        // store only, so resolving the processor after it fails with "No service for type
+        // IOutboxProcessor" -- the builder is not a stylistic preference here.
+        //
+        // The dead-letter queue is REQUIRED, not optional: the processor resolves IDeadLetterQueue and
+        // throws when none is registered. To discard exhausted messages instead, register
+        // NullDeadLetterQueue.Instance explicitly, so discard is a choice rather than an accident.
+        services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+        {
+            outbox.UseSqlServer(sql => sql.ConnectionString(connectionString));
+            outbox.WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString);
+        }));
+
+        services.AddLogging();
+        services.AddDispatch(dispatch =>
+        {
+            dispatch.AddHandlersFromAssembly(typeof(OutboxProcessorFunction).Assembly);
+            // Configure the outbound transport required by your messages here.
+        });
 
         var serviceProvider = services.BuildServiceProvider();
         _outboxProcessor = serviceProvider.GetRequiredService<IOutboxProcessor>();
+        _outboxProcessor.Init($"serverless-outbox-{Guid.NewGuid():N}");
     }
 
     public async Task FunctionHandler(CloudWatchEvent<object> cloudWatchEvent, ILambdaContext context)
@@ -467,149 +512,24 @@ aws stepfunctions start-execution \
 
 ## DynamoDB Event Sourcing
 
-### DynamoDB Event Store
+Install `Excalibur.EventSourcing.DynamoDb` and use the existing event-sourcing builder alongside the function's `AddDispatch(...)` composition:
 
 ```csharp
-// DynamoDbEventStore.cs
-using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DocumentModel;
+using Amazon;
+using Excalibur.EventSourcing.DynamoDb;
+using Microsoft.Extensions.DependencyInjection;
 
-// The stored EventType column holds the event's declared [MessageName] -- the same name used by the
-// outbox MessageType and the CloudEvents type. See ../event-sourcing/domain-events.md#stable-message-names.
-public class DynamoDbEventStore : IEventStore
+public static class DynamoDbRegistration
 {
-    private readonly Table _table;
-    private readonly IEventTypeRegistry _eventTypes;
-
-    public DynamoDbEventStore(IAmazonDynamoDB client, string tableName, IEventTypeRegistry eventTypes)
-    {
-        _table = Table.LoadTable(client, tableName);
-        _eventTypes = eventTypes;
-    }
-
-    public async Task AppendAsync(
-        string aggregateId,
-        IEnumerable<IDomainEvent> events,
-        int expectedVersion,
-        CancellationToken cancellationToken)
-    {
-        var transactItems = new List<TransactWriteItem>();
-
-        // The store assigns each event's stream version; the event payload no longer carries one.
-        var version = expectedVersion;
-        foreach (var @event in events)
-        {
-            var document = new Document
-            {
-                ["AggregateId"] = aggregateId,
-                ["Version"] = ++version,
-                ["EventType"] = MessageNameHelper.GetName(@event.GetType()),
-                ["EventData"] = JsonSerializer.Serialize(@event),
-                ["OccurredAt"] = @event.OccurredAt.ToString("o")
-            };
-
-            transactItems.Add(new TransactWriteItem
-            {
-                Put = new Put
-                {
-                    TableName = _table.TableName,
-                    Item = Document.ToAttributeMap(document),
-                    ConditionExpression = "attribute_not_exists(AggregateId) AND attribute_not_exists(Version)"
-                }
-            });
-        }
-
-        try
-        {
-            var request = new TransactWriteItemsRequest { TransactItems = transactItems };
-            await _table.DynamoDBContext.Client.TransactWriteItemsAsync(request, cancellationToken);
-        }
-        catch (TransactionCanceledException)
-        {
-            throw new ConcurrencyException($"Concurrency conflict for aggregate {aggregateId}");
-        }
-    }
-
-    public async Task<IEnumerable<IDomainEvent>> GetEventsAsync(
-        string aggregateId,
-        CancellationToken cancellationToken)
-    {
-        var search = _table.Query(aggregateId, new QueryFilter());
-        var documents = await search.GetRemainingAsync(cancellationToken);
-
-        var events = new List<IDomainEvent>();
-        foreach (var doc in documents.OrderBy(d => (int)d["Version"]))
-        {
-            var eventType = _eventTypes.ResolveType((string)doc["EventType"]);
-            var eventData = (string)doc["EventData"];
-            var @event = JsonSerializer.Deserialize(eventData, eventType) as IDomainEvent;
-            events.Add(@event);
-        }
-
-        return events;
-    }
+    public static void Configure(IServiceCollection services) =>
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+            es.UseDynamoDb(dynamo => dynamo
+                .Region(RegionEndpoint.USEast1)
+                .TableName("event-store"))));
 }
 ```
 
-**DynamoDB table definition:**
-
-```bash
-aws dynamodb create-table \
-  --table-name EventStore \
-  --attribute-definitions \
-    AttributeName=AggregateId,AttributeType=S \
-    AttributeName=Version,AttributeType=N \
-  --key-schema \
-    AttributeName=AggregateId,KeyType=HASH \
-    AttributeName=Version,KeyType=RANGE \
-  --billing-mode PAY_PER_REQUEST
-```
-
-### DynamoDB Streams for Projections
-
-```csharp
-// ProjectionFunction.cs
-using Amazon.Lambda.Core;
-using Amazon.Lambda.DynamoDBEvents;
-
-public class ProjectionFunction
-{
-    private readonly IProjectionService _projectionService;
-    private readonly IEventTypeRegistry _eventTypes;
-
-    public async Task FunctionHandler(DynamoDBEvent dynamoEvent, ILambdaContext context)
-    {
-        foreach (var record in dynamoEvent.Records)
-        {
-            if (record.EventName == "INSERT")
-            {
-                var eventType = record.Dynamodb.NewImage["EventType"].S;
-                var eventData = record.Dynamodb.NewImage["EventData"].S;
-
-                // EventType is the declared [MessageName]; resolve it through the registry.
-                var type = _eventTypes.ResolveType(eventType);
-                var @event = JsonSerializer.Deserialize(eventData, type) as IDomainEvent;
-
-                await _projectionService.ProjectAsync(@event, CancellationToken.None);
-            }
-        }
-    }
-}
-```
-
-**Enable DynamoDB Streams:**
-
-```bash
-aws dynamodb update-table \
-  --table-name EventStore \
-  --stream-specification StreamEnabled=true,StreamViewType=NEW_IMAGE
-
-aws lambda create-event-source-mapping \
-  --function-name projection-processor \
-  --event-source-arn arn:aws:dynamodb:us-east-1:ACCOUNT_ID:table/EventStore/stream/... \
-  --batch-size 100 \
-  --starting-position LATEST
-```
+This selects the framework's DynamoDB event store; it does not create a custom `IEventStore` or adapt arbitrary DynamoDB documents. Follow [DynamoDB provider setup](../event-sourcing/providers.md#amazon-dynamodb) for credentials, table/key provisioning and repository registration. Use the provider's documented change-feed path for DynamoDB Streams and the [projection guide](../event-sourcing/projections.md) for projection composition. The serverless hosting registration does not install a Streams consumer or convert its records into domain events for you.
 
 ---
 
@@ -670,49 +590,56 @@ aws lambda update-function-configuration \
 ### CloudWatch Logs
 
 ```csharp
-public async Task FunctionHandler(APIGatewayProxyRequest request, ILambdaContext context)
-{
-    // Automatic CloudWatch Logs integration
-    context.Logger.LogInformation($"Request: {request.RequestContext.RequestId}");
-    context.Logger.LogError($"Error occurred: {ex.Message}");
+using Amazon.Lambda.APIGatewayEvents;
+using Amazon.Lambda.Core;
+using System.Text.Json;
 
-    // Structured logging with Lambda Insights
-    Console.WriteLine(JsonSerializer.Serialize(new
+public sealed class StructuredLoggingFunction
+{
+    public Task FunctionHandler(APIGatewayProxyRequest request, ILambdaContext context)
     {
-        level = "INFO",
-        message = "Order processed",
-        orderId = "123",
-        duration = 150
-    }));
+        context.Logger.LogInformation($"Request: {request.RequestContext.RequestId}");
+        try
+        {
+            // Illustrative structured JSON log; Lambda sends stdout to its configured log destination.
+            Console.WriteLine(JsonSerializer.Serialize(new
+            {
+                level = "INFO",
+                message = "Request received",
+                requestId = request.RequestContext.RequestId
+            }));
+            return Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            context.Logger.LogError(ex.ToString());
+            throw;
+        }
+    }
 }
 ```
 
-### X-Ray Tracing
+### Dispatch tracing with OpenTelemetry
 
 ```xml
-<PackageReference Include="AWSXRayRecorder.Core" Version="2.15.0" />
-<PackageReference Include="AWSXRayRecorder.Handlers.AwsSdk" Version="2.12.0" />
+<PackageReference Include="Excalibur.Dispatch.Observability" Version="10.0.0" />
 ```
 
+This configures Dispatch activity sources and meters for an OTLP collector. It does not register AWS SDK-wide X-Ray auto-instrumentation. Configure the collector, credentials and exporter lifecycle for your Lambda host separately; see [AWS OpenTelemetry guidance](https://docs.aws.amazon.com/xray/latest/devguide/xray-services-adot.html).
+
 ```csharp
-using Amazon.XRay.Recorder.Core;
-using Amazon.XRay.Recorder.Handlers.AwsSdk;
+using Excalibur.Dispatch.Observability.Metrics;
+using Microsoft.Extensions.DependencyInjection;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
 
-// Initialize in constructor
-AWSSDKHandler.RegisterXRayForAllServices();
-
-// Instrument code
-public async Task FunctionHandler(APIGatewayProxyRequest request, ILambdaContext context)
+public static class LambdaDispatchTelemetry
 {
-    AWSXRayRecorder.Instance.BeginSubsegment("ProcessOrder");
-    try
+    public static void Configure(IServiceCollection services)
     {
-        var result = await _dispatcher.DispatchAsync(command, CancellationToken.None);
-        return new APIGatewayProxyResponse { StatusCode = 200 };
-    }
-    finally
-    {
-        AWSXRayRecorder.Instance.EndSubsegment();
+        services.AddOpenTelemetry()
+            .AddDispatchInstrumentation()
+            .WithTracing(tracing => tracing.AddOtlpExporter());
     }
 }
 ```
@@ -752,6 +679,63 @@ aws lambda update-function-configuration \
 ```
 
 **Earlier unverified estimate:** ~90% cold start reduction (100ms vs 1-3s). This is not a measured framework cloud result or a promise for this function. Check [SnapStart runtime and deployment requirements](https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html) and measure the actual workload.
+
+#### The framework side of SnapStart
+
+The AWS CLI call above enables SnapStart on the function. It does not put anything of this framework's
+into the snapshot. Two steps do that, and without them a restored environment still pays dependency
+injection, JIT and SDK initialization on its first invocation — the cost SnapStart exists to remove.
+
+Register the Lambda hosting services, which seat the Lambda host provider and the cold-start optimizer:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddAwsLambdaServerless();
+```
+
+Then register the optimizer's warmup so it runs while the snapshot is being taken, from your function's
+construction or initialization path — a static initializer or the handler type's constructor — rather than
+from a first invocation:
+
+```csharp
+using Excalibur.Dispatch.Hosting.AwsLambda;
+using Excalibur.Dispatch.Hosting.Serverless;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+public sealed class Function
+{
+    private readonly IServiceProvider _services;
+
+    public Function()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        _ = services.AddAwsLambdaServerless();
+        // ... your own registrations
+
+        _services = services.BuildServiceProvider();
+
+        AwsLambdaSnapStartHooks.RegisterWarmup(
+            _services.GetRequiredService<IColdStartOptimizer>(),
+            _services.GetRequiredService<ILoggerFactory>().CreateLogger<Function>());
+    }
+}
+```
+
+`RegisterWarmup` is **fail-open**: on a runtime without snapshot-hook support it logs a warning and
+continues, and the warmup then runs on the first invocation exactly as it would have anyway. So adding the
+call is safe on a function that is not using SnapStart.
+
+What stays yours either way: enabling SnapStart on the function, restoring network state after a restore,
+and re-deriving anything that must be unique per environment — a random seed captured into a snapshot is
+shared by every environment restored from it.
+
+Cold-start optimization is enabled from the `AWS_LAMBDA_FUNCTION_NAME` environment variable, which Lambda
+sets on every invocation, so it switches itself on when running on Lambda and off elsewhere. Nothing needs
+configuring for that.
+
 
 ---
 
@@ -841,7 +825,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Install Lambda tools
         run: dotnet tool install -g Amazon.Lambda.Tools

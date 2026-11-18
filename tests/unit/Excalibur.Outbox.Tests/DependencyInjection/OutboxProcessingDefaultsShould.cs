@@ -49,11 +49,15 @@ public sealed class OutboxProcessingDefaultsShould
         A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
         store.ClaimSizes.First().ShouldBe(7);
-        message.Status.ShouldBe(retries == 0 ? OutboxStatus.DeadLettered : OutboxStatus.Failed);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(retries == 0 ? OutboxStatus.DeadLettered : OutboxStatus.Failed);
         if (retries == 1)
         {
-            message.RetryCount.ShouldBe(1);
+            PersistedInMemoryOutboxState.Read(provider, message.Id).RetryCount.ShouldBe(1);
             var schedule = store.Schedules.Single();
+            var captured = store.Claims.Single();
+            captured.Id.ShouldBe(message.Id);
+            captured.Claim.ShouldNotBeNullOrWhiteSpace();
+            store.StrongBackoffClaims.Single().ShouldBe(captured);
             schedule.ShouldBeGreaterThanOrEqualTo(before.AddSeconds(5));
             schedule.ShouldBeLessThanOrEqualTo(after.AddSeconds(5));
             await Task.Delay(TimeSpan.FromMilliseconds(1200), deadline.Token); // delay-ok: part of the default 5s schedule must elapse; the assertion is that the message is STILL not due
@@ -64,6 +68,7 @@ public sealed class OutboxProcessingDefaultsShould
             store.Schedules.ShouldBeEmpty();
             (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         }
+        store.WeakWriteCount.ShouldBe(0, "real drain completion must not downgrade to ID-only writes");
         A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
     }
@@ -98,26 +103,77 @@ public sealed class OutboxProcessingDefaultsShould
         A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
     }
 
+	private static IOutboxStore ConstructorStore()
+	{
+		var store = A.Fake<IOutboxStore>(b => b.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
+		A.CallTo(() => store.GetService(A<Type>._))
+			.ReturnsLazily((Type type) => type.IsInstanceOfType(store) ? store : null);
+		return store;
+	}
+
     private sealed record BudgetEvent(string Value) : IIntegrationEvent;
 
     private sealed class ObservedStore(IOutboxStore inner) : OutboxStoreDecorator(inner)
     {
         internal ConcurrentQueue<int> ClaimSizes { get; } = new();
         internal ConcurrentQueue<DateTimeOffset> Schedules { get; } = new();
-        public override ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
+        internal ConcurrentQueue<(string Id, string Claim)> Claims { get; } = new();
+        internal ConcurrentQueue<(string Id, string Claim)> StrongBackoffClaims { get; } = new();
+        private int _weakWrites;
+        internal int WeakWriteCount => Volatile.Read(ref _weakWrites);
+        public override async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
         {
             ClaimSizes.Enqueue(batchSize);
-            return base.GetUnsentMessagesAsync(batchSize, cancellationToken);
+            var rows = (await base.GetUnsentMessagesAsync(batchSize, cancellationToken).ConfigureAwait(false)).ToArray();
+            foreach (var row in rows) { Claims.Enqueue((row.Id, row.DispatcherId!)); }
+            return rows;
         }
-        public override object? GetService(Type serviceType) => serviceType == typeof(IBackoffSchedulableOutboxStore)
-            ? Inner.GetService(serviceType) is IBackoffSchedulableOutboxStore schedulable
-                ? new ObservedBackoff(schedulable, Schedules) : null
-            : base.GetService(serviceType);
+        public override object? GetService(Type serviceType)
+        {
+            if (serviceType == typeof(IClaimScopedOutboxStore))
+            {
+                return Inner.GetService(serviceType) is IClaimScopedOutboxStore claimScoped
+                    ? new ObservedClaimBackoff(claimScoped, Schedules, StrongBackoffClaims) : null;
+            }
+            return serviceType == typeof(IBackoffSchedulableOutboxStore)
+                ? Inner.GetService(serviceType) is IBackoffSchedulableOutboxStore schedulable
+                    ? new ObservedBackoff(schedulable, Schedules, () => Interlocked.Increment(ref _weakWrites)) : null
+                : base.GetService(serviceType);
+        }
 
-        private sealed class ObservedBackoff(IBackoffSchedulableOutboxStore inner, ConcurrentQueue<DateTimeOffset> schedules) : IBackoffSchedulableOutboxStore
+        public override ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _weakWrites);
+            return base.MarkSentAsync(messageId, cancellationToken);
+        }
+
+        public override ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _weakWrites);
+            return base.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken);
+        }
+
+        private sealed class ObservedClaimBackoff(IClaimScopedOutboxStore inner, ConcurrentQueue<DateTimeOffset> schedules,
+            ConcurrentQueue<(string Id, string Claim)> claims) : IClaimScopedOutboxStore
+        {
+            public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string id, string claim, CancellationToken token)
+                => inner.MarkSentAsync(id, claim, token);
+            public ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string id, string error, int attempts, string claim, CancellationToken token)
+                => inner.MarkFailedAsync(id, error, attempts, claim, token);
+            public ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffAsync(string id, string error, int attempts, DateTimeOffset nextAttemptAt, string claim, CancellationToken token)
+            {
+                schedules.Enqueue(nextAttemptAt);
+                claims.Enqueue((id, claim));
+                return inner.MarkFailedWithBackoffAsync(id, error, attempts, nextAttemptAt, claim, token);
+            }
+        }
+
+        private sealed class ObservedBackoff(IBackoffSchedulableOutboxStore inner, ConcurrentQueue<DateTimeOffset> schedules, Action weakWrite) : IBackoffSchedulableOutboxStore
         {
             public ValueTask MarkFailedWithBackoffAsync(string messageId, string errorMessage, int retryCount, DateTimeOffset nextAttemptAt, CancellationToken cancellationToken)
             {
+                weakWrite();
                 schedules.Enqueue(nextAttemptAt);
                 return inner.MarkFailedWithBackoffAsync(messageId, errorMessage, retryCount, nextAttemptAt, cancellationToken);
             }
@@ -133,7 +189,7 @@ public sealed class OutboxProcessingDefaultsShould
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>(Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
-        services.AddSingleton(A.Fake<IOutboxStore>());
+        services.AddSingleton(ConstructorStore());
         services.AddExcalibur(builder => builder.AddOutbox(outbox => outbox.WithProcessing(processing =>
             processing.BatchSize(7).MaxRetryCount(retries).RetryDelay(TimeSpan.FromSeconds(5)))));
         await using var provider = services.BuildServiceProvider();

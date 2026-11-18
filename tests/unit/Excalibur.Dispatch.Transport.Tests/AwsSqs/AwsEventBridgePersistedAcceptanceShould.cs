@@ -42,16 +42,16 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		var processor = provider.GetRequiredService<IOutboxProcessor>();
 		processor.Init("eventbridge-rejected-ingestion");
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(0, Diagnostics(message, state, handler));
-		message.Status.ShouldBe(OutboxStatus.Failed, Diagnostics(message, state, handler));
-		message.RetryCount.ShouldBe(1);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Failed, Diagnostics(message, state, handler));
+		await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 1);
 		state.Calls.ShouldBe(1);
 		handler.Requests.ShouldBe(1);
 		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(0);
 		handler.Requests.ShouldBe(2, Diagnostics(message, state, handler));
 		state.Calls.ShouldBe(2);
-		message.RetryCount.ShouldBe(2, "terminal retirement must record both observed logical delivery attempts");
-		message.Status.ShouldBe(OutboxStatus.DeadLettered, Diagnostics(message, state, handler));
+		await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 2, "terminal retirement must record both observed logical delivery attempts");
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.DeadLettered, Diagnostics(message, state, handler));
 		var queue = provider.GetRequiredService<RetainingQueue>();
 		queue.Entries.ShouldHaveSingleItem().Payload.ShouldBe(message.Payload);
 		queue.Entries[0].OriginalAttempts.ShouldBe(2);
@@ -69,7 +69,7 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		var processor = provider.GetRequiredService<IOutboxProcessor>();
 		processor.Init("eventbridge-accepted-ingestion");
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(1, Diagnostics(message, state, handler));
-		message.Status.ShouldBe(OutboxStatus.Sent);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Sent);
 		state.Calls.ShouldBe(1);
 		handler.Requests.ShouldBe(1);
 	}
@@ -85,12 +85,12 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		var processor = provider.GetRequiredService<IOutboxProcessor>();
 		processor.Init("eventbridge-throttled-then-accepted");
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(0);
-		message.Status.ShouldBe(OutboxStatus.Failed);
-		message.RetryCount.ShouldBe(1);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Failed);
+		await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 1);
 		handler.Requests.ShouldBe(1);
 		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(1, Diagnostics(message, state, handler));
-		message.Status.ShouldBe(OutboxStatus.Sent);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Sent);
 		state.Calls.ShouldBe(2);
 		handler.Requests.ShouldBe(2);
 	}
@@ -113,7 +113,7 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		var processor = provider.GetRequiredService<IOutboxProcessor>();
 		processor.Init("eventbridge-permanent-ingestion");
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(0, Diagnostics(message, state, handler));
-		message.Status.ShouldBe(OutboxStatus.DeadLettered, Diagnostics(message, state, handler));
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.DeadLettered, Diagnostics(message, state, handler));
 		state.Calls.ShouldBe(1);
 		handler.Requests.ShouldBe(1);
 		var queue = provider.GetRequiredService<RetainingQueue>();
@@ -145,14 +145,14 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		var processor = provider.GetRequiredService<IOutboxProcessor>();
 		processor.Init("eventbridge-unestablished-ingestion");
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(0, Diagnostics(message, state, handler));
-		message.Status.ShouldBe(OutboxStatus.Failed, Diagnostics(message, state, handler));
-		message.RetryCount.ShouldBe(1);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Failed, Diagnostics(message, state, handler));
+		await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 1);
 		handler.Requests.ShouldBe(1);
 		state.Calls.ShouldBe(1);
 		provider.GetRequiredService<RetainingQueue>().Entries.ShouldBeEmpty();
 		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(1);
-		message.Status.ShouldBe(OutboxStatus.Sent);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Sent);
 		message.Id.ShouldBe(originalId);
 		message.Payload.ShouldBe(originalPayload);
 		state.Calls.ShouldBe(2);
@@ -170,10 +170,10 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		await using var provider = Build(CreateClient(http), state);
 		var message = await StageAsync(provider).ConfigureAwait(false);
 		await DrainAsync(provider, "uncertain-first").ConfigureAwait(false);
-		message.Status.ShouldBe(OutboxStatus.Failed);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Failed);
 		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		await DrainAsync(provider, "uncertain-recreated").ConfigureAwait(false);
-		message.Status.ShouldBe(OutboxStatus.DeadLettered);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.DeadLettered);
 		handler.Requests.ShouldBe(2);
 		state.Calls.ShouldBe(2);
 		var queue = provider.GetRequiredService<RetainingQueue>();
@@ -198,13 +198,13 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		var message = await StageAsync(provider).ConfigureAwait(false);
 		var originalPayload = message.Payload.ToArray();
 		await DrainAsync(provider, "queue-outage-first").ConfigureAwait(false);
-		message.Status.ShouldBe(OutboxStatus.Failed);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Failed);
 		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		await DrainAsync(provider, "queue-outage-exhausted").ConfigureAwait(false);
 		handler.Requests.ShouldBe(2);
 		queue.EnqueueAttempts.ShouldBe(1);
-		message.Status.ShouldNotBe(OutboxStatus.DeadLettered);
-		message.RetryCount.ShouldBe(2, "the observed physical attempt must be persisted even though the external queue write failed");
+		await AwsPersistedOutboxObservation.AssertNotStateAsync(provider, message, OutboxStatus.DeadLettered);
+		await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 2, "the observed physical attempt must be persisted even though the external queue write failed");
 		message.Payload.ShouldBe(originalPayload);
 		queue.Entries.ShouldBeEmpty();
 		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
@@ -216,7 +216,7 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		await DrainAsync(provider, "queue-recovered").ConfigureAwait(false);
 		handler.Requests.ShouldBe(2);
 		state.Calls.ShouldBe(2);
-		message.Status.ShouldBe(OutboxStatus.DeadLettered);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.DeadLettered);
 		queue.Entries.ShouldHaveSingleItem().Payload.ShouldBe(originalPayload);
 		queue.OriginalMessageIds.ShouldBe([message.Id]);
 	}
@@ -292,6 +292,7 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		services.AddExcalibur(builder => builder.AddOutbox(outbox => outbox.UseInMemory().WithProcessing(processing =>
 			processing.MaxRetryCount(1).PollingInterval(TimeSpan.FromMilliseconds(20)).RetryDelay(TimeSpan.FromMilliseconds(10)))));
 		services.Configure<InMemoryOutboxOptions>(options => options.FailureBackoffFloorSeconds = 1);
+		AwsPersistedOutboxObservation.Register(services);
 		var provider = services.BuildServiceProvider();
 		provider.GetRequiredService<IHandlerRegistry>().Register(typeof(AcceptanceEvent), typeof(PublishHandler), expectsResponse: false);
 		return provider;

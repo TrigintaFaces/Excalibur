@@ -32,6 +32,7 @@ public static class RedisFencingTokenServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		services.TryAddSingleton<IFencingTokenProvider, RedisFencingTokenProvider>();
+		services.RegisterFencingIssuerProjection();
 		services.TryAddSingleton<FencingTokenMiddleware>();
 
 		return services;

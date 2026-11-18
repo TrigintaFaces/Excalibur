@@ -465,12 +465,12 @@ public abstract class ScheduleStoreConformanceTestKit : ConformanceTestKit
 	// This permits storage normalization while preventing aliases from redefining the completion oracle.
 	// Round-trip date text preserves both timestamp precision and offset, not only the UTC instant.
 	private sealed record ScheduleRecordSnapshot(Guid Id, string MessageName, string MessageBody, bool Enabled,
-		string? CorrelationId, string CronExpression, string? TimeZoneId, TimeSpan? Interval,
+		string? CorrelationId, string CronExpression, string? TimeZoneId, string? CronRecurrenceProfileId, int? CronRecurrenceProfileVersion, TimeSpan? Interval,
 		string? NextExecutionUtc, string? TenantId, string? TraceParent, string? UserId,
 		string? LastExecutionUtc, MissedExecutionBehavior? MissedExecutionBehavior)
 	{
 		public static ScheduleRecordSnapshot Capture(IScheduledMessage row) => new(row.Id, row.MessageName, row.MessageBody,
-			row.Enabled, row.CorrelationId, row.CronExpression, row.TimeZoneId, row.Interval,
+			row.Enabled, row.CorrelationId, row.CronExpression, row.TimeZoneId, row.CronRecurrenceProfileId, row.CronRecurrenceProfileVersion, row.Interval,
 			row.NextExecutionUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
 			row.TenantId, row.TraceParent, row.UserId,
 			row.LastExecutionUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture), row.MissedExecutionBehavior);
@@ -503,6 +503,12 @@ public abstract class ScheduleStoreConformanceTestKit : ConformanceTestKit
 
 		/// <inheritdoc />
 		public string? TimeZoneId { get; set; }
+
+		/// <inheritdoc />
+		public string? CronRecurrenceProfileId { get; set; }
+
+		/// <inheritdoc />
+		public int? CronRecurrenceProfileVersion { get; set; }
 
 		/// <inheritdoc />
 		public TimeSpan? Interval { get; set; }

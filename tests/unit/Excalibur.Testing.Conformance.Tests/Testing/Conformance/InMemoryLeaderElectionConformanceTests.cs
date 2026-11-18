@@ -123,6 +123,10 @@ public sealed class InMemoryLeaderElectionConformanceTests : LeaderElectionConfo
 	public Task CurrentLeadership_AfterStop_ShouldBeNull_Test() =>
 		CurrentLeadership_AfterStop_ShouldBeNull();
 
+	[Fact]
+	public Task IsLeader_AfterDispose_ShouldBeFalse_Test() =>
+		IsLeader_AfterDispose_ShouldBeFalse();
+
 	#endregion Property Tests
 
 	#region Suite Wiring
@@ -136,6 +140,10 @@ public sealed class InMemoryLeaderElectionConformanceTests : LeaderElectionConfo
 	/// survive an edit: a new arm added to the shipped kit turns this red here instead of going silently
 	/// unrun.
 	/// </remarks>
+	[Fact]
+	public Task StartAsync_ShouldCompeteUnderTheConfiguredIdentity_Test() =>
+		StartAsync_ShouldCompeteUnderTheConfiguredIdentity();
+
 	[Fact]
 	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 

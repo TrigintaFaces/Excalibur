@@ -28,6 +28,16 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 {
 	private static readonly string[] AllowedContextKeys = ["Environment", "Version", "Component", "Feature"];
 
+	/// <summary>
+	/// How long the release of a replay claim may take before it is abandoned and logged.
+	/// </summary>
+	/// <remarks>
+	/// Bounded because the release runs on the failure path with its own token: a store that has stopped
+	/// answering must not hold the caller there indefinitely. Abandoning it leaves one message marked
+	/// replayed that was not delivered, which is logged as an error rather than left silent.
+	/// </remarks>
+	private static readonly TimeSpan ClaimReleaseBudget = TimeSpan.FromSeconds(5);
+
 	private volatile bool _disposed;
 
 	private readonly IDeadLetterStore _deadLetterStore;
@@ -173,6 +183,25 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 				return false;
 			}
 
+			// REFUSE A MESSAGE THAT HAS ALREADY BEEN REPLAYED. Without this, a second call to this member
+			// for the same id dispatches the message a second time: the mark happens AFTER the dispatch,
+			// so nothing between the two reads consulted it. That needs no concurrency at all -- a
+			// sequential second call is enough, and an operator retrying a replay that appeared to hang is
+			// the ordinary way to make it happen.
+			//
+			// This is READ-THEN-ACT AND IT IS NOT A CLAIM, which is the honest limit of it. Two callers
+			// racing can both pass this guard, because the mark it reads is written after the effect and
+			// cannot refuse: IDeadLetterStore.MarkAsReplayedAsync returns plain Task, so it is
+			// structurally unable to report that somebody else got there first. Closing the concurrent
+			// case needs that member to become a claim and to return an outcome, which is a change to a
+			// shipped contract with three implementations and is tracked separately. What this removes is
+			// the reachable sequential case, which is the one a consumer meets.
+			if (deadLetterMessage.IsReplayed)
+			{
+				LogDeadLetterMessageAlreadyReplayed(messageId);
+				return false;
+			}
+
 			// Deserialize the original message - uses TypeResolver for AOT compatibility.
 			// EXPLICIT allowAssemblyScan: false — a dead-letter message's stored type name is untrusted
 			// input (THE gadget-chain vector), so it must never fall back to the unbounded assembly scan; only
@@ -215,25 +244,61 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 			context.Items["IsReplay"] = true;
 			context.Items["OriginalDeadLetterId"] = deadLetterMessage.Id;
 
-			// Dispatch the message
-			var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
-			var result = await dispatcher.DispatchAsync(dispatchMessage, context, cancellationToken)
-				.ConfigureAwait(false);
-
-			if (result is { Succeeded: true })
+			// CLAIM BEFORE THE EFFECT, NEVER AFTER IT.
+			//
+			// The mark used to be written after a successful dispatch, which made it a RECORD of a replay
+			// rather than a CLAIM on one. Two callers could both read an unmarked message, both dispatch it,
+			// and the second mark would rewrite a flag that was already set -- so the message was delivered
+			// twice and nothing recorded that. The early guard above closes the SEQUENTIAL case by reading
+			// the flag, and no read can close the concurrent one: both reads see the same value.
+			//
+			// The claim is the store's own conditional write, whose outcome is the decision. Exactly one
+			// caller receives Claimed; everyone else is told why not and stands down.
+			//
+			// It is taken HERE rather than at the top of the method on purpose: a message that cannot be
+			// resolved, decoded or dispatched at all fails above without consuming its claim, so an
+			// undecodable entry stays exactly as replayable as it was.
+			var claim = await _deadLetterStore.MarkAsReplayedAsync(messageId, cancellationToken).ConfigureAwait(false);
+			if (claim != DeadLetterReplayOutcome.Claimed)
 			{
-				await _deadLetterStore.MarkAsReplayedAsync(messageId, cancellationToken).ConfigureAwait(false);
+				LogDeadLetterReplayClaimRefused(messageId, claim.ToString());
 
-				LogSuccessfullyReplayedDeadLetterMessage(messageId);
-
-				_ = (activity?.SetTag("replay.success", value: true));
-				return true;
+				_ = (activity?.SetTag("replay.success", value: false));
+				return false;
 			}
 
-			LogFailedToReplayDeadLetterMessage(messageId, result?.ErrorMessage ?? "Unknown error");
+			// FROM HERE THE CLAIM IS HELD, so every exit either keeps it (the replay succeeded) or releases
+			// it. A claim kept after a failure would mark a message replayed that was never delivered, and
+			// the row would be indistinguishable from one that was.
+			try
+			{
+				// Dispatch the message
+				var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+				var result = await dispatcher.DispatchAsync(dispatchMessage, context, cancellationToken)
+					.ConfigureAwait(false);
 
-			_ = (activity?.SetTag("replay.success", value: false));
-			return false;
+				if (result is { Succeeded: true })
+				{
+					LogSuccessfullyReplayedDeadLetterMessage(messageId);
+
+					_ = (activity?.SetTag("replay.success", value: true));
+					return true;
+				}
+
+				LogFailedToReplayDeadLetterMessage(messageId, result?.ErrorMessage ?? "Unknown error");
+
+				await ReleaseReplayClaimAsync(messageId).ConfigureAwait(false);
+
+				_ = (activity?.SetTag("replay.success", value: false));
+				return false;
+			}
+			catch
+			{
+				// Including cancellation. A caller that gave up is the case where releasing matters most:
+				// the message was not delivered and must stay replayable. The outer handler logs.
+				await ReleaseReplayClaimAsync(messageId).ConfigureAwait(false);
+				throw;
+			}
 		}
 		catch (Exception ex)
 		{
@@ -241,6 +306,37 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 
 			_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
 			return false;
+		}
+	}
+
+	/// <summary>
+	/// Returns a held replay claim so a replay that did not succeed can be attempted again.
+	/// </summary>
+	/// <param name="messageId">The message whose claim is being released.</param>
+	/// <remarks>
+	/// <para>
+	/// <b>Deliberately does NOT take the caller's token.</b> A cancelled replay is exactly when the release
+	/// is required, so passing a token that is already cancelled would skip the one write that keeps the
+	/// message replayable. It gets its own small budget instead, so a wedged store cannot hang the caller.
+	/// </para>
+	/// <para>
+	/// <b>And it never throws.</b> It runs on the failure path, so an exception raised here would replace
+	/// the real reason the replay failed with a secondary one. A release that could not be written is
+	/// logged, because the consequence -- one message marked replayed that was never delivered -- is a
+	/// state an operator may need to correct by hand.
+	/// </para>
+	/// </remarks>
+	private async Task ReleaseReplayClaimAsync(string messageId)
+	{
+		using var budget = new CancellationTokenSource(ClaimReleaseBudget);
+
+		try
+		{
+			await _deadLetterStore.ReleaseReplayClaimAsync(messageId, budget.Token).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			LogDeadLetterReplayClaimNotReleased(messageId, ex);
 		}
 	}
 
@@ -305,9 +401,13 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 			attemptCount = count;
 		}
 
-		if (context.Items.TryGetValue("FirstAttemptTime", out var firstTime) && firstTime is DateTimeOffset first)
+		if (context.GetProcessingFeature()?.FirstAttemptTime is { } first)
 		{
 			firstAttemptTime = first;
+		}
+		else if (context.Items.TryGetValue("FirstAttemptTime", out var firstTime) && firstTime is DateTimeOffset legacyFirst)
+		{
+			firstAttemptTime = legacyFirst;
 		}
 
 		if (context.Items.TryGetValue("CurrentAttemptTime", out var currentTime) && currentTime is DateTimeOffset current)
@@ -396,6 +496,21 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 	[LoggerMessage(DeliveryEventId.PoisonHandlerProcessingError, LogLevel.Error,
 		"Failed to handle poison message '{MessageId}'. Original reason: {Reason}")]
 	private partial void LogFailedToHandlePoisonMessageOriginalReason(string messageId, string reason, Exception ex);
+
+	[LoggerMessage(DeliveryEventId.PoisonReplayClaimRefused, LogLevel.Warning,
+		"Dead letter message '{MessageId}' was not claimed for replay ({Outcome}); it was not dispatched. "
+		+ "Another caller holds or completed this replay")]
+	private partial void LogDeadLetterReplayClaimRefused(string messageId, string outcome);
+
+	[LoggerMessage(DeliveryEventId.PoisonReplayClaimNotReleased, LogLevel.Error,
+		"The replay claim on dead letter message '{MessageId}' could not be released after a replay that "
+		+ "did not succeed; it remains marked replayed although it was not delivered")]
+	private partial void LogDeadLetterReplayClaimNotReleased(string messageId, Exception exception);
+
+	[LoggerMessage(DeliveryEventId.PoisonReplayAlreadyReplayed, LogLevel.Warning,
+		"Dead letter message '{MessageId}' was already replayed; this replay was refused rather than "
+		+ "dispatching it a second time")]
+	private partial void LogDeadLetterMessageAlreadyReplayed(string messageId);
 
 	[LoggerMessage(DeliveryEventId.PoisonReplayNotFound, LogLevel.Warning,
 		"Dead letter message '{MessageId}' not found for replay")]

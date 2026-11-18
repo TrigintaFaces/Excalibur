@@ -15,12 +15,7 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void CreateWithRequiredProperties()
 	{
-		var config = new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn"
-		};
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn");
 
 		config.DatabaseName.ShouldBe("TestDb");
 		config.DatabaseConnectionIdentifier.ShouldBe("db-conn");
@@ -30,12 +25,7 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void HaveDefaultStopOnMissingTableHandler()
 	{
-		var config = new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn"
-		};
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn");
 
 		config.StopOnMissingTableHandler.ShouldBe(DatabaseOptionsDefaults.CdcDefaultStopOnMissingTableHandler);
 	}
@@ -43,12 +33,7 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void HaveDefaultCaptureInstances()
 	{
-		var config = new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn"
-		};
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn");
 
 		config.CaptureInstances.ShouldBeEmpty();
 	}
@@ -56,12 +41,7 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void HaveDefaultQueueSize()
 	{
-		var config = new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn"
-		};
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn");
 
 		config.QueueSize.ShouldBe(DatabaseOptionsDefaults.CdcDefaultQueueSize);
 	}
@@ -69,12 +49,7 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void HaveDefaultProducerBatchSize()
 	{
-		var config = new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn"
-		};
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn");
 
 		config.ProducerBatchSize.ShouldBe(DatabaseOptionsDefaults.CdcDefaultProducerBatchSize);
 	}
@@ -82,12 +57,7 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void HaveDefaultConsumerBatchSize()
 	{
-		var config = new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn"
-		};
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn");
 
 		config.ConsumerBatchSize.ShouldBe(DatabaseOptionsDefaults.CdcDefaultConsumerBatchSize);
 	}
@@ -95,11 +65,8 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void DeriveCaptureInstancesFromTables()
 	{
-		var config = new DatabaseOptions
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn")
 		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn",
 			Tables =
 			[
 				new CdcTableConfig { TableName = "dbo.Orders", CaptureInstance = "dbo_Orders" },
@@ -113,11 +80,8 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void DeriveCaptureInstanceFromTableNameWhenCaptureInstanceOmitted()
 	{
-		var config = new DatabaseOptions
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn")
 		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn",
 			Tables = [new CdcTableConfig { TableName = "Account" }]
 		};
 
@@ -129,11 +93,8 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void ThrowWhenTablesIsNull()
 	{
-		Should.Throw<ArgumentNullException>(() => new DatabaseOptions
+		Should.Throw<ArgumentNullException>(() => new DatabaseOptions("TestDb", "db-conn", "state-conn")
 		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn",
 			Tables = null!
 		});
 	}
@@ -141,11 +102,8 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void ThrowWhenQueueSizeIsNegative()
 	{
-		Should.Throw<ArgumentOutOfRangeException>(() => new DatabaseOptions
+		Should.Throw<ArgumentOutOfRangeException>(() => new DatabaseOptions("TestDb", "db-conn", "state-conn")
 		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn",
 			QueueSize = -1
 		});
 	}
@@ -153,11 +111,8 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void ThrowWhenProducerBatchSizeIsZero()
 	{
-		Should.Throw<ArgumentOutOfRangeException>(() => new DatabaseOptions
+		Should.Throw<ArgumentOutOfRangeException>(() => new DatabaseOptions("TestDb", "db-conn", "state-conn")
 		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn",
 			ProducerBatchSize = 0
 		});
 	}
@@ -165,11 +120,8 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void ThrowWhenConsumerBatchSizeIsZero()
 	{
-		Should.Throw<ArgumentOutOfRangeException>(() => new DatabaseOptions
+		Should.Throw<ArgumentOutOfRangeException>(() => new DatabaseOptions("TestDb", "db-conn", "state-conn")
 		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn",
 			ConsumerBatchSize = 0
 		});
 	}
@@ -177,12 +129,7 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void HaveDefaultCaptureInstanceToTableNameMap()
 	{
-		var config = new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn"
-		};
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn");
 
 		config.CaptureInstanceToTableNameMap.ShouldNotBeNull();
 		config.CaptureInstanceToTableNameMap.ShouldBeEmpty();
@@ -191,11 +138,8 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void DeriveCaptureInstanceToTableNameMapFromTablesAcrossSchemas()
 	{
-		var config = new DatabaseOptions
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn")
 		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn",
 			Tables =
 			[
 				new CdcTableConfig { TableName = "sales.Customers", CaptureInstance = "sales_Customers" },
@@ -211,12 +155,7 @@ public sealed class DatabaseConfigShould
 	[Fact]
 	public void HaveNullRecoveryOptionsByDefault()
 	{
-		var config = new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn"
-		};
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn");
 
 		config.RecoveryOptions.ShouldBeNull();
 	}
@@ -225,11 +164,8 @@ public sealed class DatabaseConfigShould
 	public void AllowCustomRecoveryOptions()
 	{
 		var recoveryOptions = new CdcRecoveryOptions();
-		var config = new DatabaseOptions
+		var config = new DatabaseOptions("TestDb", "db-conn", "state-conn")
 		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "db-conn",
-			StateConnectionIdentifier = "state-conn",
 			RecoveryOptions = recoveryOptions
 		};
 

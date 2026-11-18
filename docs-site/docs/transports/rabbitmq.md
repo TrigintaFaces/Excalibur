@@ -27,10 +27,19 @@ dotnet add package Excalibur.Dispatch.RabbitMQ
 ```
 
 ```csharp
-services.AddDispatchRabbitMQ(rmq =>
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RabbitMqSiteRegistration29
 {
-    rmq.ConnectionString("amqps://guest:guest@localhost:5671/");
-});
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddDispatchRabbitMQ(rmq =>
+        {
+            rmq.ConnectionString("amqps://app-user:configured-password@rabbitmq:5671/");
+        });
+    }
+}
 ```
 
 `AddDispatchRabbitMQ` calls `AddDispatch` internally and configures `UseRabbitMQ`, `UseResilience`, and `UseObservability`. Pass an optional second parameter (`Action<IDispatchBuilder>`) for additional pipeline configuration. See [Package Guide](../package-guide.md#experience-metapackages) for details.
@@ -40,35 +49,53 @@ services.AddDispatchRabbitMQ(rmq =>
 
 ### Using the Dispatch Builder (Recommended)
 ```csharp
-services.AddPluggableSerialization(); // Transports don't seat a default serializer
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
 
-services.AddDispatch(dispatch =>
+public static class RabbitMqSiteRegistration42
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.UseRabbitMQ(rmq =>
+    public static void Configure(IServiceCollection services, System.Reflection.Assembly handlerAssembly)
     {
-        rmq.ConnectionString("amqps://guest:guest@localhost:5671/")
-           .ConfigureExchange(exchange => exchange.Name("dispatch.events").Type(RabbitMQExchangeType.Topic))
-           .ConfigureCloudEvents(ce => ce.EnablePublisherConfirms = true);
-    });
-});
+        services.AddPluggableSerialization(); // Transports don't seat a default serializer
+
+        services.AddDispatch(dispatch =>
+        {
+            dispatch.AddHandlersFromAssembly(handlerAssembly);
+            dispatch.UseRabbitMQ(rmq =>
+            {
+                rmq.ConnectionString("amqps://app-user:configured-password@rabbitmq:5671/")
+                   .ConfigureExchange(exchange => exchange.Name("dispatch.events").Type(RabbitMQExchangeType.Topic))
+                   .ConfigureCloudEvents(ce => ce.Exchange.EnablePublisherConfirms = true);
+            });
+        });
+    }
+}
 ```
 
 ### Standalone Registration
 ```csharp
-services.AddPluggableSerialization(); // Transports don't seat a default serializer
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
 
-services.AddDispatch(dispatch =>
+public static class RabbitMqSiteRegistration58
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+    public static void Configure(IServiceCollection services, System.Reflection.Assembly handlerAssembly)
+    {
+        services.AddPluggableSerialization(); // Transports don't seat a default serializer
 
-services.AddRabbitMQTransport(rmq =>
-{
-    rmq.ConnectionString("amqps://guest:guest@localhost:5671/")
-       .ConfigureExchange(exchange => exchange.Name("dispatch.events").Type(RabbitMQExchangeType.Topic))
-       .ConfigureCloudEvents(ce => ce.EnablePublisherConfirms = true);
-});
+        services.AddDispatch(dispatch =>
+        {
+            dispatch.AddHandlersFromAssembly(handlerAssembly);
+        });
+
+        services.AddRabbitMQTransport(rmq =>
+        {
+            rmq.ConnectionString("amqps://app-user:configured-password@rabbitmq:5671/")
+               .ConfigureExchange(exchange => exchange.Name("dispatch.events").Type(RabbitMQExchangeType.Topic))
+               .ConfigureCloudEvents(ce => ce.Exchange.EnablePublisherConfirms = true);
+        });
+    }
+}
 ```
 
 RabbitMQ registers a keyed `IMessageBus` named `rabbitmq`:
@@ -82,6 +109,13 @@ Use `AddRabbitMQTransport("orders", ...)` or `UseRabbitMQ("orders", ...)` to con
 named publisher. Resolve it through `IMessageBusProvider.GetRemoteMessageBus("orders")`.
 Each name uses its own options and default connection/channel. Explicit SDK overrides may
 intentionally share resources; the publisher borrows those resources.
+
+Resolving `IDispatcher`, or using it only for local messages, does not open the named
+RabbitMQ publisher's connection. A remote dispatch resolves the selected publisher on first
+use; connection failures then follow the existing dispatch error policy. A successful bus is
+reused. This does not defer explicit resolution of a remote bus, SDK channel or connection,
+and hosted receivers may connect when the host starts. Consumer-supplied SDK resources keep
+their existing borrowed-resource ownership rules.
 
 `MapExchange<TMessage>("events")` selects the exchange for the exact runtime message type,
 retaining the configured publication routing key. `MapQueue<TMessage>("orders")` alone
@@ -126,10 +160,21 @@ The two combine. Certificate settings supplied through `UseSsl` are added to wha
 already resolved, so an `amqps://` string keeps the peer name it derived from the host.
 
 A local broker with no certificate is a real configuration, and it has to be asked for:
+Use a broker provisioned with nondefault credentials; disabling TLS does not permit `guest:guest`.
 
 ```csharp
-rmq.ConnectionString("amqp://guest:guest@localhost:5672/")
-   .RequireTls(false);   // credentials and payloads travel in the clear
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RabbitMqSiteRegistration138
+{
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddRabbitMQTransport("local-development", rmq =>
+            rmq.ConnectionString("amqp://app-user:configured-password@localhost:5672/")
+               .RequireTls(false));   // credentials and payloads travel in the clear
+    }
+}
 ```
 
 Every AMQP client the transport creates -- the connection, its channels, the senders, receivers,
@@ -187,30 +232,67 @@ services.AddRabbitMQTransport(rmq =>
 Use `RabbitMqOptions` when you need fine-grained control over queue arguments, consumer behavior, or dead letter exchanges. The fluent builder above covers most scenarios.
 :::
 
+:::warning Removed dead connection options
+
+`RabbitMqOptions.Connection` and `RabbitMqConnectionOptions` have been removed. Configure the actual
+broker URI or host/port/virtual-host/credentials through `AddRabbitMQTransport` as shown above.
+The live `RabbitMQConnectionOptions` belongs to that builder and remains supported. Supplied URI
+structure and explicit default URI credentials are checked during registration, before a host starts;
+missing URI selects host parts, whose host and port must be valid. Structural validation raises
+`OptionsValidationException` naming the live connection type and transport. TLS and default
+host-parts credentials retain their existing lazy typed security refusal when the internal factory is
+actually constructed. A caller-supplied channel does not require unused internal connection defaults.
+
+:::
+
 Configure low-level broker behavior via `RabbitMqOptions`:
 
+This example names the transport `"orders-processing"` and declares no explicit builder queue.
+The keyed subscriber therefore uses that transport name as its queue; the low-level options below
+use the same name and declare its TTL and dead-letter arguments once. Setting
+`RabbitMqOptions.Queue.QueueName` alone does not retarget a subscriber whose transport name or
+explicit builder queue differs.
+
+The examples below apply the same low-level settings to **all** named and unnamed RabbitMQ options
+instances with `ConfigureAll`. Register them after the transport builder. Plain
+`Configure<RabbitMqOptions>(...)` only configures the unnamed instance, while topology and subscriber
+setup read the instance named for the transport (`"rabbitmq"` by default). For distinct per-transport
+topology, use each named transport builder rather than copying these global settings unchanged.
+
 ```csharp
-services.Configure<RabbitMqOptions>(options =>
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RabbitMqSiteRegistration225
 {
-    options.Connection.ConnectionString = "amqps://user:pass@rabbitmq:5671/vhost";
-    options.Exchange = "dispatch.events";
-    options.RoutingKey = "orders.#";
-    options.Queue.QueueName = "orders-processing";
+    public static void Configure(IServiceCollection services)
+    {
+        // The connection itself is configured on the builder, not in this block.
+        services.AddRabbitMQTransport("orders-processing", rmq =>
+            rmq.ConnectionString("amqps://user:pass@rabbitmq:5671/vhost"));
 
-    // Queue behavior
-    options.Queue.QueueDurable = true;
-    options.Queue.QueueExclusive = false;
-    options.Queue.QueueAutoDelete = false;
-    options.Queue.QueueArguments["x-message-ttl"] = 86400000; // 24 hours
+        services.ConfigureAll<RabbitMqOptions>(options =>
+        {
+            options.Exchange = "dispatch.events";
+            options.RoutingKey = "orders.#";
+            options.Queue.QueueName = "orders-processing";
 
-    // Consumer ingress guard: over-limit messages are rejected before deserialization
-    options.Consumption.MaxPayloadBytes = 4 * 1024 * 1024;
+            // Queue behavior
+            options.Queue.QueueDurable = true;
+            options.Queue.QueueExclusive = false;
+            options.Queue.QueueAutoDelete = false;
+            options.Queue.QueueArguments["x-message-ttl"] = 86400000; // 24 hours
 
-    // Dead letter exchange (non-CloudEvents)
-    options.DeadLetter.EnableDeadLetterExchange = true;
-    options.DeadLetter.DeadLetterExchange = "dispatch.dlx";
-    options.DeadLetter.DeadLetterRoutingKey = "failed";
-});
+            // Consumer ingress guard: over-limit messages are rejected before deserialization
+            options.Consumption.MaxPayloadBytes = 4 * 1024 * 1024;
+
+            // Dead letter exchange (non-CloudEvents)
+            options.DeadLetter.EnableDeadLetterExchange = true;
+            options.DeadLetter.DeadLetterExchange = "dispatch.dlx";
+            options.DeadLetter.DeadLetterRoutingKey = "failed";
+        });
+    }
+}
 ```
 
 Acknowledgment is not a knob on these options: the transport always consumes with manual
@@ -265,6 +347,11 @@ backed by a source-generated serializer.
 :::
 
 ```csharp
+// Choose how CloudEvent payloads are serialized. This is required once, and the transport
+// registration below reports it at startup if you leave it out.
+//   - with a source-generated context: reflection-free, and safe to trim or publish ahead-of-time
+//   - AddCloudEvents() with no argument: the reflective path, annotated so your build warns you
+services.AddDispatch(dispatch => dispatch.AddCloudEvents(MyPayloadContext.Default));
 services.AddCloudEventsForRabbitMq(options =>
 {
     options.Exchange.DefaultExchange = "cloudevents";
@@ -287,7 +374,7 @@ services.AddCloudEventsForRabbitMq(options =>
 ## Consumer Handling Options
 
 Acknowledgment is not configurable: the transport always consumes with manual acknowledgment and acts on
-what your handler returns. `MessageAction.Complete` acks the delivery, `Reject` nacks it without requeue
+what your handler returns. `MessageAction.Acknowledge` acks the delivery, `Reject` nacks it without requeue
 (routed to the dead-letter exchange when one is configured), and `Requeue` nacks it with requeue so the
 broker redelivers it. Retry policy and backoff are pipeline concerns rather than transport ones -- compose
 them with the resilience middleware, which applies uniformly across every transport.
@@ -306,6 +393,11 @@ never poison-loops or strands the batch. The limit is `RabbitMqOptions.Consumpti
 Enable publisher confirms for guaranteed delivery:
 
 ```csharp
+// Choose how CloudEvent payloads are serialized. This is required once, and the transport
+// registration below reports it at startup if you leave it out.
+//   - with a source-generated context: reflection-free, and safe to trim or publish ahead-of-time
+//   - AddCloudEvents() with no argument: the reflective path, annotated so your build warns you
+services.AddDispatch(dispatch => dispatch.AddCloudEvents(MyPayloadContext.Default));
 services.AddCloudEventsForRabbitMq(options =>
 {
     options.Publisher.EnableConfirms = true;
@@ -341,11 +433,20 @@ await subscriber.SubscribeAsync(async (message, ct) =>
 Enable the dead-letter exchange itself via `RabbitMqOptions`:
 
 ```csharp
-services.Configure<RabbitMqOptions>(options =>
+using Excalibur.Dispatch.Transport.RabbitMQ;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RabbitMqSiteRegistration389
 {
-    options.DeadLetter.EnableDeadLetterExchange = true;
-    options.DeadLetter.DeadLetterExchange = "dispatch.dlx";
-});
+    public static void Configure(IServiceCollection services)
+    {
+        services.ConfigureAll<RabbitMqOptions>(options =>
+        {
+            options.DeadLetter.EnableDeadLetterExchange = true;
+            options.DeadLetter.DeadLetterExchange = "dispatch.dlx";
+        });
+    }
+}
 ```
 
 ## Health Checks
@@ -380,7 +481,7 @@ services.AddOpenTelemetry()
 - [ ] Use TLS (`amqps://`) in production, and leave `RequireTls` on so a plaintext connection is refused rather than made
 
 ## Next Steps
-- [Kafka Transport](kafka.md) -- High-throughput streaming
+- [Kafka Transport](kafka.md) -- Partitioned event streaming
 - [Multi-Transport Routing](multi-transport.md) -- Combine RabbitMQ with other transports
 
 ## See Also

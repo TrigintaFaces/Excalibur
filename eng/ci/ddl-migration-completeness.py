@@ -507,7 +507,7 @@ _compiler = None
 
 
 @functools.lru_cache(maxsize=4096)
-def csharp_facts(source: str):
+def csharp_facts(source: str, companions: tuple[tuple[str, str], ...] = ()):
     global _compiler
     if _compiler is None:
         dll = os.path.join(REPO, "eng", "tools", "RepositoryChecks", "bin", "Release", "net10.0", "RepositoryChecks.dll")
@@ -516,7 +516,8 @@ def csharp_facts(source: str):
         _compiler = subprocess.Popen(["dotnet", dll, "--ddl-facts"], stdin=subprocess.PIPE,
                                      stdout=subprocess.PIPE, text=True, encoding="utf-8")
         atexit.register(_compiler.terminate)
-    _compiler.stdin.write(json.dumps(source) + "\n")
+    request = {"source": source, "companions": dict(companions)} if companions else source
+    _compiler.stdin.write(json.dumps(request) + "\n")
     _compiler.stdin.flush()
     response = _compiler.stdout.readline()
     if not response:
@@ -687,6 +688,189 @@ def package_alter_index(root: str, pkgdir: str, defaults: "Defaults") -> dict[st
                 resolved = table_key(resolved)
                 index.setdefault(resolved.upper(), []).append(text[match.start() : end])
     return {k: "\n".join(v) for k, v in index.items()}
+
+
+# Only the two selected-target migration forms below are recognized. These are source
+# correspondences, not a general SQL evaluator or a proof of runtime transaction behavior.
+_DYNAMIC_LITERAL = r"N?'(?:''|[^'])*'"
+
+
+def _dynamic_decode(literal: str) -> str:
+    value = literal[1:] if literal[:1].upper() == "N" else literal
+    return value[1:-1].replace("''", "'")
+
+
+def _dynamic_mask(text: str) -> str:
+    return re.sub(_DYNAMIC_LITERAL, lambda match: re.sub(r"[^\r\n]", " ", match.group()), text, flags=re.I)
+
+
+def _dynamic_match(pattern: str, text: str):
+    return re.fullmatch(pattern, text.strip(), re.I | re.S)
+
+
+def _dynamic_full_name(name: str) -> tuple[str, str] | None:
+    # No guessed owner, database, alias, interpolation or quoted-dot interpretation.
+    parts = name.strip().split(".")
+    if len(parts) != 2:
+        return None
+    values = []
+    for part in parts:
+        part = part.strip()
+        if part.startswith("[") and part.endswith("]"):
+            part = part[1:-1]
+        elif part.startswith('"') and part.endswith('"'):
+            part = part[1:-1]
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$#]*", part):
+            return None
+        values.append(part)
+    # Conservative spelling equality; do not invent database-collation/alias equivalence.
+    return tuple(values)
+
+
+def _dynamic_items(target: str, body: str, path: str):
+    identity = _dynamic_full_name(target)
+    if identity is None:
+        raise Refuse("Unsupported dynamic ALTER owner/table in " + path)
+    body = body.strip().removesuffix(";").strip()
+    if ";" in _dynamic_mask(body):
+        raise Refuse("Multiple statements in dynamic ALTER items in " + path)
+    tables = parse_tables("CREATE TABLE " + target + " (" + body + ");", path)
+    if len(tables) != 1:
+        raise Refuse("Unresolved dynamic ALTER items in " + path)
+    table = next(iter(tables.values()))
+    return identity, set(table.columns), {constraint_signature(item) for item in table.constraints}
+
+
+def _sql_selected_dynamic_add(text: str, path: str):
+    literal = _DYNAMIC_LITERAL
+    mask = _dynamic_mask(text)
+    declarations = list(re.finditer(
+        r"DECLARE\s+@Sql\s+NVARCHAR\s*\(\s*MAX\s*\)\s*=\s*(" + literal + r")\s*\+\s*@Qualified\s*\+\s*(" + literal + r")\s*;", text, re.I | re.S))
+    declarations = [match for match in declarations if mask[match.start():match.start()+7].upper() == "DECLARE"]
+    declarations = [match for match in declarations if _dynamic_decode(match[1]).strip().upper() == "ALTER TABLE"]
+    sinks = list(re.finditer(r"\bEXEC\s+sys\.sp_executesql\s+@Sql\s*;", mask, re.I))
+    if not declarations or not sinks:
+        return []  # Unrelated or unused strings do not provide coverage.
+    if len(declarations) != 1 or len(sinks) != 1:
+        raise Refuse("Ambiguous selected SQL ALTER/sink in " + path)
+    declaration, sink = declarations[0], sinks[0]
+    prefix = text[:declaration.start()]
+    pattern = (
+        r"(?:SET\s+(?:XACT_ABORT|ANSI_NULLS|QUOTED_IDENTIFIER)\s+ON\s*;\s*)*"
+        r"DECLARE\s+@Target\s+NVARCHAR\s*\(\s*776\s*\)\s*=\s*(?P<target>" + literal + r")\s*;\s*"
+        r"IF\s+PARSENAME\(@Target,\s*3\)\s+IS\s+NOT\s+NULL\s+OR\s+PARSENAME\(@Target,\s*1\)\s+IS\s+NULL\s+"
+        r"OR\s+OBJECT_ID\(@Target,\s*N?'U'\)\s+IS\s+NULL\s+THROW\s+\d+\s*,\s*" + literal + r"\s*,\s*1\s*;\s*"
+        r"DECLARE\s+@Object\s+INT\s*=\s*OBJECT_ID\(@Target,\s*N?'U'\)\s*;\s*"
+        r"DECLARE\s+@Qualified\s+NVARCHAR\s*\(\s*776\s*\)\s*=\s*QUOTENAME\(OBJECT_SCHEMA_NAME\(@Object\)\)\s*\+\s*N?'\.'\s*\+\s*QUOTENAME\(OBJECT_NAME\(@Object\)\)\s*;\s*"
+        r"BEGIN\s+TRANSACTION\s*;\s*BEGIN\s+TRY\s*"
+        r"DECLARE\s+@Count\s+INT\s*=\s*\(SELECT\s+COUNT\(\*\)\s+FROM\s+sys\.columns\s+WHERE\s+object_id\s*=\s*@Object\s+AND\s+name\s+IN\s*\((?:\s*" + literal + r"\s*,?)+\)\)\s*;\s*"
+        r"IF\s+@Count\s*<>\s*0\s+AND\s+@Count\s*<>\s*12\s+THROW\s+\d+\s*,\s*" + literal + r"\s*,\s*1\s*;\s*"
+        r"IF\s+@Count\s*=\s*0\s+BEGIN\s*")
+    binding = _dynamic_match(pattern, prefix)
+    ending = re.search(r"COMMIT\s+TRANSACTION\s*;\s*END\s+TRY\s+BEGIN\s+CATCH\s+IF\s+XACT_STATE\(\)\s*<>\s*0\s+ROLLBACK\s+TRANSACTION\s*;\s*THROW\s*;\s*END\s+CATCH\s*;\s*$", mask, re.I)
+    if (binding is None or ending is None or sink.start() < declaration.end()
+            or text[declaration.end():sink.start()].strip()
+            or not re.match(r"\s*SET\s+@Count\s*=\s*12\s*;\s*END\s*;", text[sink.end():], re.I)
+            or re.search(r"\b(?:SET|SELECT)\s+@(?:Target|Object|Qualified|Sql)\s*=", mask, re.I)
+            or re.search(r"\b(?:RETURN|ROLLBACK|COMMIT)\b", mask[:ending.start()], re.I)
+            or len(re.findall(r"\bDECLARE\s+@(?:Target|Object|Qualified|Sql)\b", mask, re.I)) != 4):
+        raise Refuse("Unsupported/reassigned selected SQL ALTER binding in " + path)
+    body = _dynamic_decode(declaration[2])
+    if not re.match(r"\s+ADD\s+", body, re.I):
+        raise Refuse("Unsupported selected SQL ALTER operation in " + path)
+    return [_dynamic_items(_dynamic_decode(binding["target"]), re.sub(r"^\s+ADD\s+", "", body, count=1, flags=re.I), path)]
+
+
+def _oracle_selected_dynamic_add(text: str, path: str):
+    # Restrict the helper to its catalog-guarded, executed ADD template and literal main-body calls.
+    if not re.search(r"\bPROCEDURE\s+ensure_column\s*\(\s*p_column_name\s+VARCHAR2\s*,\s*p_column_definition\s+VARCHAR2\s*\)", _dynamic_mask(text), re.I):
+        return []
+    mask = _dynamic_mask(text)
+    mains = [match for match in re.finditer(r"END\s*;\s*BEGIN\s+qualified_target\s*:=\s*target_owner\s*\|\|\s*'\.'\s*\|\|\s*target_table\s*;", text, re.I)
+             if mask[match.start():match.start()+3].upper() == "END"]
+    main = mains[0] if len(mains) == 1 else None
+    if main is None:
+        raise Refuse("Unresolved Oracle selected migration main body in " + path)
+    main_text = text[main.end():]
+    calls = [match for match in re.finditer(r"\bensure_column\s*\(\s*(" + _DYNAMIC_LITERAL + r")\s*,\s*(" + _DYNAMIC_LITERAL + r")\s*\)\s*;", main_text, re.I)
+             if mask[main.end()+match.start():main.end()+match.start()+13].lower() == "ensure_column"]
+    if not calls:
+        return []
+    owner_matches = [match for match in re.finditer(r"target_owner\s+VARCHAR2\(128\)\s*:=\s*UPPER\(DBMS_ASSERT\.SCHEMA_NAME\(('(?:''|[^'])*')\)\)\s*;", text, re.I)
+                     if mask[match.start():match.start()+12].lower() == "target_owner"]
+    table_matches = [match for match in re.finditer(r"target_table\s+VARCHAR2\(128\)\s*:=\s*UPPER\(DBMS_ASSERT\.SIMPLE_SQL_NAME\(('(?:''|[^'])*')\)\)\s*;", text, re.I)
+                     if mask[match.start():match.start()+12].lower() == "target_table"]
+    owner = [match[1] for match in owner_matches]
+    table = [match[1] for match in table_matches]
+    procedure = re.search(
+        r"PROCEDURE\s+ensure_column\(p_column_name\s+VARCHAR2,\s*p_column_definition\s+VARCHAR2\)\s+IS\s+BEGIN\s+"
+        r"SELECT\s+COUNT\(\*\)\s+INTO\s+n\s+FROM\s+ALL_TAB_COLUMNS\s+WHERE\s+OWNER=target_owner\s+AND\s+TABLE_NAME=target_table\s+AND\s+COLUMN_NAME=UPPER\(p_column_name\)\s*;\s*"
+        r"IF\s+n=0\s+THEN\s+EXECUTE\s+IMMEDIATE\s+'ALTER TABLE '\s*\|\|\s*qualified_target\s*\|\|\s*' ADD \('\s*\|\|\s*p_column_name\s*\|\|\s*' '\s*\|\|\s*p_column_definition\s*\|\|\s*'\)'\s*;\s*END\s+IF\s*;\s*END\s*;", text, re.I)
+    if procedure is not None and mask[procedure.start():procedure.start()+9].upper() != "PROCEDURE":
+        procedure = None
+    first_procedure = re.search(r"\bPROCEDURE\b", mask, re.I)
+    pre_calls = main_text[:calls[0].start()]
+    direct_guard = r"\s*SELECT\s+COUNT\(\*\)\s+INTO\s+n\s+FROM\s+ALL_TABLES\s+WHERE\s+OWNER=target_owner\s+AND\s+TABLE_NAME=target_table\s*;\s*IF\s+n<>1\s+THEN\s+RAISE_APPLICATION_ERROR\(-\d+,\s*" + _DYNAMIC_LITERAL + r"\)\s*;\s*END\s+IF\s*;\s*(?:require_default\(\s*" + _DYNAMIC_LITERAL + r"\s*,\s*" + _DYNAMIC_LITERAL + r"\s*\)\s*;\s*)*"
+    if (len(owner) != 1 or len(table) != 1 or procedure is None or procedure.end() > main.start()
+            or first_procedure is None or owner_matches[0].end() > first_procedure.start()
+            or table_matches[0].end() > first_procedure.start()
+            or len(re.findall(r"\bPROCEDURE\s+ensure_column\s*\(", mask, re.I)) != 1
+            or _dynamic_match(direct_guard, pre_calls) is None
+            or len(re.findall(r"\bqualified_target\s*:=", mask, re.I)) != 1
+            or re.search(r"\b(?:target_owner|target_table)\s*:=|\bINTO\s+(?:target_owner|target_table|qualified_target)\b", mask, re.I)):
+        raise Refuse("Unsupported/reassigned Oracle selected ALTER binding in " + path)
+    result = []
+    end = calls[0].start()
+    target = _dynamic_decode(owner[0]).upper() + "." + _dynamic_decode(table[0]).upper()
+    for call in calls:
+        if main_text[end:call.start()].strip():
+            raise Refuse("Conditional/nonliteral Oracle ADD calls in " + path)
+        result.append(_dynamic_items(target, _dynamic_decode(call[1]) + " " + _dynamic_decode(call[2]), path))
+        end = call.end()
+    # Calls are a contiguous top-level run, before the existing LOCK/update/default tail.
+    if not re.match(r"\s*EXECUTE\s+IMMEDIATE\s+'LOCK TABLE '\s*\|\|\s*qualified_target", main_text[end:], re.I):
+        raise Refuse("Unsupported Oracle migration call boundary in " + path)
+    return result
+
+
+@functools.lru_cache(maxsize=256)
+def package_dynamic_alter_index(pkgdir: str):
+    index = {}
+    for directory, directories, filenames in os.walk(pkgdir):
+        directories[:] = [name for name in directories if name not in ("obj", "bin")]
+        if directory != pkgdir and any(name.lower().endswith(".csproj") for name in filenames):
+            directories[:] = []
+            continue
+        for name in filenames:
+            if not name.lower().endswith(".sql"):
+                continue
+            path = os.path.join(directory, name)
+            try:
+                with open(path, encoding="utf-8-sig") as source:
+                    text = strip_comments(source.read())
+            except (OSError, UnicodeError) as error:
+                raise Refuse("Unreadable selected dynamic migration: " + path) from error
+            for identity, columns, constraints in _sql_selected_dynamic_add(text, path) + _oracle_selected_dynamic_add(text, path):
+                aggregate = index.setdefault(identity, {"columns": set(), "constraints": set()})
+                aggregate["columns"].update(columns)
+                aggregate["constraints"].update(constraints)
+    return index
+
+
+def dynamic_alter_covers(index, current: str | None, after: str, table: str, kind: str, name: str, path: str) -> bool:
+    candidates = []
+    for match in _CREATE_TABLE.finditer(strip_comments(current if current is not None else after)):
+        if table_key(match["name"]).upper() == table:
+            candidates.append(_dynamic_full_name(match["name"]))
+    explicit = {candidate for candidate in candidates if candidate is not None}
+    if len(explicit) > 1:
+        raise Refuse("Ambiguous provisioning owner for dynamic ALTER in " + path)
+    if not candidates or None in candidates or not explicit:
+        return False  # An unqualified CREATE cannot provide physical owner correspondence.
+    operation = index.get(next(iter(explicit)))
+    if operation is None:
+        return False
+    return constraint_signature(name) in operation["constraints"] if kind == "constraint-added" else name in operation["columns"]
 
 
 # ---------------------------------------------------------------------------------------------
@@ -941,6 +1125,8 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
                 covered = bool(re.search("\\b" + re.escape(name) + "\\b", window, re.I))
                 key = f"{pkg}:{resolved}:{name}"
             if not covered:
+                covered = dynamic_alter_covers(package_dynamic_alter_index(pkgdir), current, after, table, kind, name, path)
+            if not covered:
                 findings.append(Finding(key, f"{kind} in {path} ({label})"))
     return findings
 
@@ -967,6 +1153,44 @@ _COLUMN_PROBE = re.compile(
     "all_tab_columns|pragma\\s+table_info|COL_LENGTH\\s*\\(",
     re.IGNORECASE,
 )
+
+
+def verification_companions(root: str, full: str) -> tuple[tuple[str, str], ...]:
+    """Current owning-package snapshots, excluding nested projects and generated output."""
+    relative = os.path.relpath(full, root).replace(os.sep, "/")
+    package = package_dir(root, relative)
+    if package is None:
+        raise Refuse("Cannot resolve schema verifier package for " + relative)
+    package = os.path.realpath(package)
+    projects = [name for name in os.listdir(package) if name.lower().endswith(".csproj")]
+    if len(projects) != 1:
+        raise Refuse("Ambiguous schema verifier package for " + relative)
+    snapshots = []
+    identities = set()
+    for directory, directories, filenames in os.walk(package):
+        directories[:] = [name for name in directories if name not in ("obj", "bin", ".git")
+                          and not os.path.islink(os.path.join(directory, name))]
+        if directory != package and any(name.lower().endswith(".csproj") for name in filenames):
+            directories[:] = []
+            continue
+        for name in filenames:
+            candidate = os.path.join(directory, name)
+            if not name.lower().endswith(".cs") or os.path.abspath(candidate) == os.path.abspath(full):
+                continue
+            resolved = os.path.realpath(candidate)
+            if os.path.commonpath((package, resolved)) != package:
+                raise Refuse("Schema verifier companion escapes owning package: " + candidate)
+            identity = os.path.relpath(candidate, package).replace(os.sep, "/")
+            key = identity.casefold()
+            if key in identities:
+                raise Refuse("Duplicate schema verifier source identity: " + identity)
+            identities.add(key)
+            try:
+                with open(candidate, encoding="utf-8-sig") as source:
+                    snapshots.append((identity, source.read()))
+            except (OSError, UnicodeError) as error:
+                raise Refuse("Unreadable schema verifier companion: " + candidate) from error
+    return tuple(sorted(snapshots))
 
 
 def check_verifications(root: str, out, err) -> tuple[int, list[str]]:
@@ -1002,7 +1226,11 @@ def check_verifications(root: str, out, err) -> tuple[int, list[str]]:
             # promised -- and what certifies a broken database as healthy -- is a store that
             # advertises "verify the schema is present, else fail fast".
             if any(not (_TABLE_PROBE.search(probe) or _COLUMN_PROBE.search(probe)) for probe in facts["verifications"]):
-                raise Refuse("Unresolved schema verifier in " + os.path.relpath(full, root))
+                # Resolve only reachable declarations from the advertised root, never union every
+                # companion's catalog strings. Keep historical artifact extraction single-source.
+                facts = csharp_facts(text, verification_companions(root, full))
+                if any(not (_TABLE_PROBE.search(probe) or _COLUMN_PROBE.search(probe)) for probe in facts["verifications"]):
+                    raise Refuse("Unresolved schema verifier in " + os.path.relpath(full, root))
             probes = [probe for probe in facts["verifications"] if _TABLE_PROBE.search(probe)]
             if not probes:
                 continue
@@ -1098,6 +1326,7 @@ def scan(out=sys.stdout, err=sys.stderr, base: str | None = None,
          head: str | None = None) -> int:
     package_defaults.cache_clear()
     package_alter_index.cache_clear()
+    package_dynamic_alter_index.cache_clear()
     root = repo_root()
     # The resolved subject is part of the finding, not context. A count with no stated subject
     # cannot be reproduced or challenged, and a positive control passes just as happily against the
@@ -1587,6 +1816,182 @@ public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
     quoted_constraint = 'CREATE TABLE example_table ([A B] INT NOT NULL, [AB] INT NOT NULL, UNIQUE([A B]));'
     literal_constraint = "CREATE TABLE example_table (Id INT NOT NULL, CHECK('a b' = 'a b'));"
 
+    delegated = "src/Example.Package/SchemaProbe.cs"
+    delegated_root = """namespace Fixture;
+public sealed class Store
+{
+    public const string Create = "CREATE TABLE Widgets (Id INT NOT NULL PRIMARY KEY)";
+    public string VerifySchemaExistsAsync() => new SchemaProbe().Read();
+}
+"""
+    delegated_column = """namespace Fixture;
+public sealed class SchemaProbe
+{
+    public string Read() => "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID('Widgets')";
+}
+"""
+    delegated_table = delegated_column.replace("sys.columns", "sys.tables")
+    unrelated_catalog = "src/Example.Package/Unrelated.cs"
+    unrelated_column = 'namespace Fixture; public sealed class Unrelated { public string Read() => "SELECT name FROM sys.columns"; }'
+    conditional_probe = """namespace Fixture;
+public sealed class SchemaProbe
+{
+#if COLUMN_CHECK
+    public string Read() => "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID('Widgets')";
+#else
+    public string Read() => "SELECT name FROM sys.tables WHERE object_id = OBJECT_ID('Widgets')";
+#endif
+}
+"""
+
+    # Frozen copies of actual selected-target migration statements; runtime scripts stay unchanged.
+    sql_targeted_migration = r"""-- Apply explicitly before hosted preserving timeout delivery. No runtime migration.
+-- Set this selected DIRECT schema/table to SqlServerSagaTimeoutStoreOptions. Default/case aliases
+-- resolve to the same object; distinct custom direct tables each require this migration.
+SET XACT_ABORT ON;
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+DECLARE @Target NVARCHAR(776)=N'dbo.SagaTimeouts';
+IF PARSENAME(@Target,3) IS NOT NULL OR PARSENAME(@Target,1) IS NULL
+ OR OBJECT_ID(@Target,N'U') IS NULL
+ THROW 51004,'Select the direct timeout table, not a view, synonym or cross-database object.',1;
+DECLARE @Object INT=OBJECT_ID(@Target,N'U');
+DECLARE @Qualified NVARCHAR(776)=QUOTENAME(OBJECT_SCHEMA_NAME(@Object))+N'.'+QUOTENAME(OBJECT_NAME(@Object));
+BEGIN TRANSACTION;
+BEGIN TRY
+ DECLARE @Count INT=(SELECT COUNT(*) FROM sys.columns WHERE object_id=@Object AND name IN
+ (N'FailureSourceEpoch',N'FailureDeliveryEpoch',N'FailureHeld',N'FailureVersion',N'FailureToken',N'FailureOperation',
+ N'FailureOriginalClaim',N'FailureCurrentClaim',N'FailureObservedDeliveryEpoch',N'FailureKind',N'FailureReason',N'FailureResumeCommand'));
+ IF @Count<>0 AND @Count<>12 THROW 51004,'Resolve the partial timeout failure-hold schema before migration.',1;
+ IF @Count=0
+ BEGIN
+  -- ALTER obtains schema authority; persisted legacy winners initialize ONCE under that boundary.
+  DECLARE @Sql NVARCHAR(MAX)=N'ALTER TABLE '+@Qualified+N' ADD FailureSourceEpoch UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+    FailureDeliveryEpoch UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+    FailureHeld BIT NOT NULL DEFAULT 0,
+    FailureVersion BIGINT NOT NULL DEFAULT 0,
+    FailureToken UNIQUEIDENTIFIER NULL,
+    FailureOperation UNIQUEIDENTIFIER NULL,
+    FailureOriginalClaim NVARCHAR(200) NULL,
+    FailureCurrentClaim NVARCHAR(200) NULL,
+    FailureObservedDeliveryEpoch UNIQUEIDENTIFIER NULL,
+    FailureKind INT NULL,
+    FailureReason NVARCHAR(1024) NULL,
+    FailureResumeCommand UNIQUEIDENTIFIER NULL, CHECK (FailureSourceEpoch<>''00000000-0000-0000-0000-000000000000'' AND FailureDeliveryEpoch<>''00000000-0000-0000-0000-000000000000''),
+    CHECK (FailureVersion>=0),
+    CHECK (FailureHeld=0 OR (FailureVersion>0 AND FailureToken IS NOT NULL AND FailureOperation IS NOT NULL
+      AND FailureOriginalClaim IS NOT NULL AND FailureCurrentClaim IS NOT NULL AND FailureObservedDeliveryEpoch IS NOT NULL
+      AND FailureKind IS NOT NULL AND FailureKind IN(1,2,4) AND FailureReason IS NOT NULL));';
+  EXEC sys.sp_executesql @Sql;
+  SET @Count=12;
+ END;
+ IF @Count=12 AND (SELECT COUNT(*) FROM sys.columns c
+ JOIN sys.default_constraints d ON d.object_id=c.default_object_id
+ WHERE c.object_id=@Object AND
+ ((c.name IN(N'FailureSourceEpoch',N'FailureDeliveryEpoch') AND UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(d.definition,N'(',N''),N')',N''),N' ',N''),NCHAR(9),N''),NCHAR(10),N''),NCHAR(13),N''))=N'NEWID')
+  OR (c.name IN(N'FailureHeld',N'FailureVersion') AND UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(d.definition,N'(',N''),N')',N''),N' ',N''),NCHAR(9),N''),NCHAR(10),N''),NCHAR(13),N''))=N'0')))<>4
+ THROW 51004,'Timeout failure-hold default definitions must use NEWID epochs and zero state.',1;
+ IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=1 AND major_id=@Object AND minor_id=0 AND name=N'Excalibur.TimeoutFailureTarget')
+ BEGIN
+  DECLARE @Epoch UNIQUEIDENTIFIER=NEWID(),@Schema SYSNAME=OBJECT_SCHEMA_NAME(@Object),@Table SYSNAME=OBJECT_NAME(@Object);
+  EXEC sys.sp_addextendedproperty @name=N'Excalibur.TimeoutFailureTarget',@value=@Epoch,
+   @level0type=N'SCHEMA',@level0name=@Schema,@level1type=N'TABLE',@level1name=@Table;
+ END;
+ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=@Object AND name=N'IX_TimeoutFailureHeld')
+ BEGIN
+  DECLARE @IndexSql NVARCHAR(MAX)=N'CREATE INDEX IX_TimeoutFailureHeld ON '+@Qualified+N'(TenantId,FailureHeld,TimeoutId);';
+  EXEC sys.sp_executesql @IndexSql;
+ END;
+ COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK TRANSACTION;
+ THROW;
+END CATCH;
+"""
+    oracle_targeted_migration = r"""-- Oracle selected timeout hold profile v1. Offline/quiesced migration; no runtime DDL.
+-- Edit ONLY the two owner/table literals below for a configured direct physical target.
+-- Preserve the existing timeout table and payload; this never truncates/deletes it.
+-- Runtime separately checks actual table identity/types; views and synonyms are unsupported.
+WHENEVER SQLERROR EXIT FAILURE ROLLBACK
+DECLARE
+    target_owner VARCHAR2(128) := UPPER(DBMS_ASSERT.SCHEMA_NAME('DISPATCH'));
+    target_table VARCHAR2(128) := UPPER(DBMS_ASSERT.SIMPLE_SQL_NAME('SAGATIMEOUTS'));
+    qualified_target VARCHAR2(300);
+    n NUMBER;
+    PROCEDURE ensure_column(p_column_name VARCHAR2, p_column_definition VARCHAR2) IS
+    BEGIN
+        SELECT COUNT(*) INTO n FROM ALL_TAB_COLUMNS
+        WHERE OWNER=target_owner AND TABLE_NAME=target_table AND COLUMN_NAME=UPPER(p_column_name);
+        IF n=0 THEN
+            EXECUTE IMMEDIATE 'ALTER TABLE '||qualified_target||' ADD ('||p_column_name||' '||p_column_definition||')';
+        END IF;
+    END;
+    PROCEDURE require_default(p_column_name VARCHAR2, p_expected VARCHAR2) IS
+        v_default LONG;
+        normalized VARCHAR2(32767);
+    BEGIN
+        SELECT COUNT(*) INTO n FROM ALL_TAB_COLUMNS WHERE OWNER=target_owner AND TABLE_NAME=target_table AND COLUMN_NAME=UPPER(p_column_name);
+        IF n<>0 THEN
+            SELECT DATA_DEFAULT INTO v_default FROM ALL_TAB_COLUMNS WHERE OWNER=target_owner AND TABLE_NAME=target_table AND COLUMN_NAME=UPPER(p_column_name);
+            normalized := UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(v_default,'(',''),')',''),' ',''),CHR(9),''),CHR(10),''),CHR(13),''));
+            IF normalized IS NULL OR normalized<>p_expected THEN
+                RAISE_APPLICATION_ERROR(-20131,'Timeout hold default definitions must use SYS_GUID epochs and zero state; existing defaults were not changed.');
+            END IF;
+        END IF;
+    END;
+    PROCEDURE ensure_not_null(p_column_name VARCHAR2) IS
+    BEGIN
+        SELECT COUNT(*) INTO n FROM ALL_TAB_COLUMNS WHERE OWNER=target_owner AND TABLE_NAME=target_table
+            AND COLUMN_NAME=UPPER(p_column_name) AND NULLABLE='Y';
+        IF n=1 THEN EXECUTE IMMEDIATE 'ALTER TABLE '||qualified_target||' MODIFY ('||p_column_name||' NOT NULL)'; END IF;
+    END;
+BEGIN
+    qualified_target := target_owner||'.'||target_table;
+    SELECT COUNT(*) INTO n FROM ALL_TABLES WHERE OWNER=target_owner AND TABLE_NAME=target_table;
+    IF n<>1 THEN RAISE_APPLICATION_ERROR(-20131,'Timeout hold profile requires the configured direct physical table.'); END IF;
+    -- Refuse incompatible consumer profiles without rewriting their defaults or payload.
+    require_default('FailureSourceEpoch','SYS_GUID');
+    require_default('FailureDeliveryEpoch','SYS_GUID');
+    require_default('FailureHeld','0');
+    require_default('FailureVersion','0');
+    ensure_column('FailureSourceEpoch','RAW(16) DEFAULT SYS_GUID()');
+    ensure_column('FailureDeliveryEpoch','RAW(16) DEFAULT SYS_GUID()');
+    ensure_column('FailureHeld','NUMBER(1,0) DEFAULT 0');
+    ensure_column('FailureVersion','NUMBER(19,0) DEFAULT 0');
+    ensure_column('FailureReceipt','BLOB NULL');
+    -- Persist a SINGLE winner for legacy rows. Reads/claims never invent missing epochs.
+    -- Quiesce all writers: Oracle DDL commits implicitly before/after statements.
+    EXECUTE IMMEDIATE 'LOCK TABLE '||qualified_target||' IN EXCLUSIVE MODE';
+    EXECUTE IMMEDIATE 'UPDATE '||qualified_target||' SET FailureSourceEpoch=SYS_GUID() WHERE FailureSourceEpoch IS NULL';
+    EXECUTE IMMEDIATE 'UPDATE '||qualified_target||' SET FailureDeliveryEpoch=SYS_GUID() WHERE FailureDeliveryEpoch IS NULL';
+    EXECUTE IMMEDIATE 'UPDATE '||qualified_target||' SET FailureHeld=0 WHERE FailureHeld IS NULL';
+    EXECUTE IMMEDIATE 'UPDATE '||qualified_target||' SET FailureVersion=0 WHERE FailureVersion IS NULL';
+    COMMIT;
+    EXECUTE IMMEDIATE 'ALTER TABLE '||qualified_target||' MODIFY (FailureSourceEpoch DEFAULT SYS_GUID(), FailureDeliveryEpoch DEFAULT SYS_GUID(), FailureHeld DEFAULT 0, FailureVersion DEFAULT 0)';
+    ensure_not_null('FailureSourceEpoch');
+    ensure_not_null('FailureDeliveryEpoch');
+    ensure_not_null('FailureHeld');
+    ensure_not_null('FailureVersion');
+END;
+/
+"""
+    sql_target_before = "CREATE TABLE dbo.SagaTimeouts (TimeoutId NVARCHAR(450) NOT NULL);"
+    sql_target_after = "CREATE TABLE dbo.SagaTimeouts (TimeoutId NVARCHAR(450) NOT NULL, FailureVersion BIGINT NOT NULL DEFAULT 0, CHECK (FailureVersion>=0));"
+    oracle_target_before = "CREATE TABLE DISPATCH.SAGATIMEOUTS (TimeoutId VARCHAR2(450 CHAR) NOT NULL);"
+    oracle_target_after = "CREATE TABLE DISPATCH.SAGATIMEOUTS (TimeoutId VARCHAR2(450 CHAR) NOT NULL, FailureReceipt BLOB NULL);"
+    sql_wrong_target = sql_targeted_migration.replace("N'dbo.SagaTimeouts'", "N'other.SagaTimeouts'")
+    sql_unexecuted = sql_targeted_migration.replace("  EXEC sys.sp_executesql @Sql;", "  SELECT 1;")
+    sql_missing_constraint = sql_targeted_migration.replace("    CHECK (FailureVersion>=0),", "")
+    oracle_wrong_target = oracle_targeted_migration.replace("SCHEMA_NAME('DISPATCH')", "SCHEMA_NAME('OTHER')")
+    oracle_unexecuted = oracle_targeted_migration.replace("    ensure_column('", "    -- ensure_column('")
+    oracle_missing_column = oracle_targeted_migration.replace("    ensure_column('FailureReceipt','BLOB NULL');", "")
+    # Mutation guards ensure test data never silently changes its intended fault when scripts evolve.
+    assert sql_wrong_target != sql_targeted_migration and sql_unexecuted != sql_targeted_migration
+    assert sql_missing_constraint != sql_targeted_migration
+    assert oracle_wrong_target != oracle_targeted_migration and oracle_unexecuted != oracle_targeted_migration
+    assert oracle_missing_column != oracle_targeted_migration
+
     # (label, v1, v2, baseline entries, expected exit, commit v2?)
     arms: list[tuple[str, dict[str, str], dict[str, str], set[str], int, bool]] = [
         ("SAFETY mixed refusal still reports independent defect",
@@ -1818,6 +2223,36 @@ public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
          {sql: _V1_SQL, verify: _VERIFY_EXISTENCE_ONLY_CS.replace('private static Task Query', 'private string Unused() => "sys.columns"; private static Task Query')},
          {sql: _V2_SQL_COMMENT_ONLY, verify: _VERIFY_EXISTENCE_ONLY_CS.replace('private static Task Query', 'private string Unused() => "sys.columns"; private static Task Query')}, set(), 1, True),
     ])
+
+    # Same assembled gate path and current compiler protocol: before the fix these roots REFUSE,
+    # so no missing future API or private extractor approximation can earn the intended verdict.
+    arms.extend([
+        ("LIVENESS delegated separate-file column verifier is allowed",
+         {verify: delegated_root, delegated: delegated_column},
+         {verify: delegated_root, delegated: delegated_column}, set(), 0, True),
+        ("SAFETY delegated separate-file table-only verifier is detected",
+         {verify: delegated_root, delegated: delegated_table},
+         {verify: delegated_root, delegated: delegated_table}, set(), 1, True),
+        ("SAFETY unrelated companion column probe cannot certify delegation",
+         {verify: delegated_root, delegated: delegated_table, unrelated_catalog: unrelated_column},
+         {verify: delegated_root, delegated: delegated_table, unrelated_catalog: unrelated_column}, set(), 1, True),
+        ("SAFETY coherent conditional helper retains its table-only branch",
+         {verify: delegated_root, delegated: conditional_probe},
+         {verify: delegated_root, delegated: conditional_probe}, set(), 1, True),
+    ])
+
+    # Four semantic controls per actual operation form, using the unchanged existing full scan.
+    for label, before, after, migration_body, expected in (
+        ("LIVENESS executed SQL selected-target ALTER covers column and CHECK", sql_target_before, sql_target_after, sql_targeted_migration, 0),
+        ("SAFETY SQL executed ALTER on another target cannot cover this table", sql_target_before, sql_target_after, sql_wrong_target, 1),
+        ("SAFETY SQL unexecuted ALTER string cannot cover this table", sql_target_before, sql_target_after, sql_unexecuted, 1),
+        ("SAFETY SQL ADD column cannot certify an absent CHECK", sql_target_before, sql_target_after, sql_missing_constraint, 1),
+        ("LIVENESS called Oracle ensure_column covers its selected target", oracle_target_before, oracle_target_after, oracle_targeted_migration, 0),
+        ("SAFETY Oracle ensure_column on another target cannot cover this table", oracle_target_before, oracle_target_after, oracle_wrong_target, 1),
+        ("SAFETY Oracle uncalled ALTER procedure cannot cover this table", oracle_target_before, oracle_target_after, oracle_unexecuted, 1),
+        ("SAFETY Oracle other column calls cannot cover absent FailureReceipt", oracle_target_before, oracle_target_after, oracle_missing_column, 1),
+    ):
+        arms.append((label, {sql: before}, {sql: after, migration: migration_body}, set(), expected, True))
 
     print("self-test: proving this gate can report FAIL, PASS and REFUSE")
     failures = 0

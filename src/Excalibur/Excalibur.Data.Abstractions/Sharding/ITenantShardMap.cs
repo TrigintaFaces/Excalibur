@@ -33,4 +33,10 @@ public interface ITenantShardMap
 	/// </summary>
 	/// <returns>The collection of registered shard identifiers.</returns>
 	IReadOnlyCollection<string> GetRegisteredShardIds();
+
+	/// <summary>Gets a registered physical shard without tenant routing or default fallback.</summary>
+	/// <param name="shardId">The registered physical shard identifier.</param>
+	/// <returns>The exact shard's configured coordinates.</returns>
+	/// <exception cref="KeyNotFoundException">The physical shard is not registered.</exception>
+	ShardInfo GetShardById(string shardId);
 }

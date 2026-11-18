@@ -81,6 +81,7 @@ public sealed class RedisLeaderElectionKitConformanceShould : LeaderElectionConf
 			InstanceId = candidateId ?? GenerateCandidateId()[..24],
 			LeaseDuration = TimeSpan.FromSeconds(5),
 			RenewInterval = TimeSpan.FromSeconds(1),
+			GracePeriod = TimeSpan.FromSeconds(2),
 			RetryInterval = TimeSpan.FromMilliseconds(250),
 			EnableHealthChecks = false,
 		});
@@ -149,6 +150,13 @@ public sealed class RedisLeaderElectionKitConformanceShould : LeaderElectionConf
 
 	[Fact]
 	public Task CurrentLeadership_AfterStop_ShouldBeNull_Test() => CurrentLeadership_AfterStop_ShouldBeNull();
+
+	[Fact]
+	public Task IsLeader_AfterDispose_ShouldBeFalse_Test() => IsLeader_AfterDispose_ShouldBeFalse();
+
+	[Fact]
+	public Task StartAsync_ShouldCompeteUnderTheConfiguredIdentity_Test() =>
+		StartAsync_ShouldCompeteUnderTheConfiguredIdentity();
 
 	[Fact]
 	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();

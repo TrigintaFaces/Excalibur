@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.LeaderElection.Abstractions.Tests.Fencing;
 /// <remarks>
 /// Both arms are load-bearing and pin the guard against a one-token mutant in either direction:
 /// <list type="bullet">
-/// <item><b>Liveness</b> (<see cref="Accept_AnEqualToken_SameTenure"/>, <see cref="Accept_ZeroToken_OnAFreshGuard"/>):
-/// an equal (same-tenure) token, and an initial token of zero, must be ACCEPTED. Flip the guard's
+/// <item><b>Liveness</b> (<see cref="Accept_AnEqualToken_SameTenure"/>, <see cref="StillAdmitTheFirstPositiveTokenAndAdvanceTheMark"/>):
+/// an equal (same-tenure) token, and the first POSITIVE token, must be ACCEPTED. Flip the guard's
 /// <c>&lt;</c> to <c>&lt;=</c> and an equal token is wrongly rejected — these go RED. Without this arm the
 /// guard could satisfy "reject stale" by rejecting everything (an inert guard that never lets the real
 /// leader through).</item>
@@ -29,6 +29,55 @@ namespace Excalibur.Dispatch.LeaderElection.Abstractions.Tests.Fencing;
 [Trait("Component", "Core")]
 public sealed class MonotonicFencedResourceGuardShould : UnitTestBase
 {
+	/// <summary>
+	/// SAFETY: a non-positive token is refused, including against a fresh guard whose mark is zero.
+	/// </summary>
+	/// <remarks>
+	/// The fresh-guard case is the one that could not be expressed by the comparison. The high-water
+	/// field starts at zero, so <c>0 &lt; 0</c> is false and a fabricated zero was ACCEPTED, leaving the
+	/// mark at zero — never-guarded and guarded-at-zero became the same state, which a long cannot
+	/// distinguish. The sibling contract says zero is UNSET rather than a value and binds every
+	/// implementation; this type advertised admitting it as a feature.
+	/// </remarks>
+	[Theory]
+	[InlineData(0L)]
+	[InlineData(-1L)]
+	[InlineData(long.MinValue)]
+	public async Task RefuseANonPositiveTokenEvenOnAFreshGuard(long presented)
+	{
+		var guard = new MonotonicFencedResourceGuard();
+
+		_ = await Should.ThrowAsync<ArgumentOutOfRangeException>(
+			async () => await guard.GuardAsync(presented, CancellationToken.None),
+			"zero is the contract's representation of no-token-ever-issued, so presenting one is a caller "
+			+ "error rather than a superseded tenure -- and on a fresh guard the comparison cannot refuse "
+			+ "it, because the mark it would be compared against is also zero.");
+	}
+
+	/// <summary>
+	/// LIVENESS: the first real token is still admitted, and the mark still advances.
+	/// </summary>
+	/// <remarks>
+	/// Without this arm the one above is satisfied by a guard that refuses everything, which would fence
+	/// out the live leader as readily as a stale one. Admitting the first positive token is correct and
+	/// intended; only a non-positive one is being removed.
+	/// </remarks>
+	[Fact]
+	public async Task StillAdmitTheFirstPositiveTokenAndAdvanceTheMark()
+	{
+		var guard = new MonotonicFencedResourceGuard();
+
+		await guard.GuardAsync(2, CancellationToken.None);
+
+		// The mark is private, so it is observed the only way a consumer can: a strictly lower token is
+		// now refused, which is true only if the first call advanced it. The probe must be POSITIVE --
+		// zero is refused as an argument regardless of the mark, so it would pass whether the mark
+		// advanced or not, which is the vacuity this arm exists to avoid.
+		_ = await Should.ThrowAsync<StaleFencingTokenException>(
+			async () => await guard.GuardAsync(1, CancellationToken.None).ConfigureAwait(false))
+			.ConfigureAwait(false);
+	}
+
 	[Fact]
 	public async Task Accept_TheFirstToken()
 	{
@@ -67,25 +116,34 @@ public sealed class MonotonicFencedResourceGuardShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task Accept_ZeroToken_OnAFreshGuard()
+	public async Task RefuseAZeroTokenOnAFreshGuard()
 	{
-		// BOUNDARY / liveness: a fresh guard starts at high-water 0; an initial token of 0 is >= 0 and must
-		// be accepted (0 >= 0). A `<=` mutant would reject the very first zero-token tenure — RED.
+		// FLIPPED, not weakened. This arm asserted the OPPOSITE: that a fresh guard ACCEPTS a token of
+		// zero, on the reasoning that 0 >= 0. The reasoning was sound and the requirement was wrong --
+		// the sibling contract states that zero is UNSET rather than a value and binds every
+		// implementation, so a fresh guard admitting zero left the mark at zero and made never-guarded
+		// and guarded-at-zero the same state. A test encoding the wrong behaviour as the requirement is
+		// the most reliable signal that a defect is real rather than cosmetic: somebody had to look at
+		// this and write it down.
 		var guard = new MonotonicFencedResourceGuard();
 
-		await Should.NotThrowAsync(
-			async () => await guard.GuardAsync(0, CancellationToken.None));
+		_ = await Should.ThrowAsync<ArgumentOutOfRangeException>(
+			async () => await guard.GuardAsync(0, CancellationToken.None),
+			"a fresh guard is exactly where the comparison cannot refuse zero, because the mark it would "
+			+ "be compared against is also zero -- which is why the refusal is before the comparison.");
 	}
 
 	[Fact]
 	public async Task Reject_ZeroToken_AfterHighWaterAdvanced()
 	{
-		// SAFETY boundary: once the high-water has advanced past 0, a stale leader presenting token 0 is
-		// strictly-lower and must be rejected.
+		// SAFETY boundary: a presented zero is refused after the mark advances too -- but now for the
+		// EARLIER reason, and the arm says which. Zero is not a stale tenure, it is not a token at all,
+		// so it is refused as an argument before the staleness comparison is reached. Asserting
+		// StaleFencingTokenException here would be asserting the wrong diagnosis of the right refusal.
 		var guard = new MonotonicFencedResourceGuard();
 		await guard.GuardAsync(3, CancellationToken.None);
 
-		_ = await Should.ThrowAsync<StaleFencingTokenException>(
+		_ = await Should.ThrowAsync<ArgumentOutOfRangeException>(
 			async () => await guard.GuardAsync(0, CancellationToken.None));
 	}
 

@@ -67,7 +67,7 @@ public sealed class ConsulFencingTokenExhaustionShould
 			Value = Encoding.UTF8.GetBytes(value.ToString(CultureInfo.InvariantCulture)),
 			ModifyIndex = modifyIndex,
 		};
-		A.CallTo(() => _kv.Get(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _kv.Get(A<string>._, A<QueryOptions>._, A<CancellationToken>._))
 			.Returns(new QueryResult<KVPair> { Response = pair });
 	}
 
@@ -86,7 +86,7 @@ public sealed class ConsulFencingTokenExhaustionShould
 			"the fail-closed exhaustion error must identify the resource whose token domain is exhausted");
 
 		// The overflowing value must NEVER be written back — no CAS attempt on the exhausted path.
-		A.CallTo(() => _kv.CAS(A<KVPair>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => _kv.CAS(A<KVPair>._, A<WriteOptions>._, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -94,7 +94,7 @@ public sealed class ConsulFencingTokenExhaustionShould
 	{
 		// LIVENESS: a normal stored counter must still mint (guard is exhaustion-specific, not a blanket throw).
 		StoredCounterIs(5L, modifyIndex: 42UL);
-		A.CallTo(() => _kv.CAS(A<KVPair>._, A<CancellationToken>._))
+		A.CallTo(() => _kv.CAS(A<KVPair>._, A<WriteOptions>._, A<CancellationToken>._))
 			.Returns(new WriteResult<bool> { Response = true });
 		var sut = CreateSut();
 
@@ -106,7 +106,7 @@ public sealed class ConsulFencingTokenExhaustionShould
 
 /// <summary>
 /// Exhaustion regression lock for <see cref="KubernetesFencingTokenProvider"/>: the 32-bit
-/// <c>Lease.spec.leaseTransitions</c> counter at <see cref="int.MaxValue"/> must fail closed.
+/// <c>Lease.spec.leaseTransitions</c> reader reports the final mark without advertising mint capability.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -141,18 +141,14 @@ public sealed class KubernetesFencingTokenExhaustionShould
 	}
 
 	[Fact]
-	public async Task ThrowFencingTokenExhausted_WhenLeaseTransitionsAtInt32Max()
+	public async Task ReportTheFinalNativeMarkWithoutAdvertisingAMint_WhenLeaseTransitionsAtInt32Max()
 	{
-		// SAFETY: leaseTransitions == int.MaxValue => the next transition would overflow the 32-bit counter.
 		LeaseTransitionsIs(int.MaxValue);
-		var sut = CreateSut();
+		IFencingTokenProvider sut = CreateSut();
 
-		var ex = await Should.ThrowAsync<FencingTokenExhaustedException>(
-			async () => await sut.IssueTokenAsync(ResourceId, CancellationToken.None).ConfigureAwait(false))
-			.ConfigureAwait(false);
-
-		ex.ResourceId.ShouldBe(ResourceId,
-			"the fail-closed exhaustion error must identify the resource whose token domain is exhausted");
+		(sut is IFencingTokenIssuer).ShouldBeFalse();
+		(await sut.GetTokenAsync(ResourceId, CancellationToken.None).ConfigureAwait(false)).ShouldBe((long)int.MaxValue);
+		(await sut.ValidateTokenAsync(ResourceId, int.MaxValue, CancellationToken.None).ConfigureAwait(false)).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -162,9 +158,9 @@ public sealed class KubernetesFencingTokenExhaustionShould
 		LeaseTransitionsIs(7);
 		var sut = CreateSut();
 
-		var token = await sut.IssueTokenAsync(ResourceId, CancellationToken.None).ConfigureAwait(false);
+		var token = await sut.GetTokenAsync(ResourceId, CancellationToken.None).ConfigureAwait(false);
 
-		token.ShouldBe(7L, "a normal leaseTransitions count is the fencing token; only int.MaxValue fails closed");
+		token.ShouldBe(7L, "a normal leaseTransitions count is the fencing token; the reader reports the authoritative positive mark");
 	}
 }
 

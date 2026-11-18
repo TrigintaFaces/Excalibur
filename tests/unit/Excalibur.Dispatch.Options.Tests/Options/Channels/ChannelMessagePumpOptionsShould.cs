@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Threading.Channels;
 
 using Excalibur.Dispatch.Options.Channels;
 
@@ -25,16 +24,6 @@ public sealed class ChannelMessagePumpOptionsShould
 
 		// Assert
 		options.Capacity.ShouldBe(100);
-	}
-
-	[Fact]
-	public void Default_FullMode_IsWait()
-	{
-		// Arrange & Act
-		var options = new ChannelMessagePumpOptions();
-
-		// Assert
-		options.FullMode.ShouldBe(BoundedChannelFullMode.Wait);
 	}
 
 	[Fact]
@@ -132,19 +121,6 @@ public sealed class ChannelMessagePumpOptionsShould
 
 		// Assert
 		options.Capacity.ShouldBe(500);
-	}
-
-	[Fact]
-	public void FullMode_CanBeSet()
-	{
-		// Arrange
-		var options = new ChannelMessagePumpOptions();
-
-		// Act
-		options.FullMode = BoundedChannelFullMode.DropOldest;
-
-		// Assert
-		options.FullMode.ShouldBe(BoundedChannelFullMode.DropOldest);
 	}
 
 	[Fact]
@@ -262,7 +238,6 @@ public sealed class ChannelMessagePumpOptionsShould
 		var options = new ChannelMessagePumpOptions
 		{
 			Capacity = 200,
-			FullMode = BoundedChannelFullMode.DropNewest,
 			AllowSynchronousContinuations = true,
 			ConcurrentConsumers = 8,
 			SingleReader = true,
@@ -275,7 +250,6 @@ public sealed class ChannelMessagePumpOptionsShould
 
 		// Assert
 		options.Capacity.ShouldBe(200);
-		options.FullMode.ShouldBe(BoundedChannelFullMode.DropNewest);
 		options.AllowSynchronousContinuations.ShouldBeTrue();
 		options.ConcurrentConsumers.ShouldBe(8);
 		options.SingleReader.ShouldBeTrue();

@@ -458,7 +458,14 @@ public static class KafkaTransportServiceCollectionExtensions
 		{
 			var consumer = sp.GetRequiredService<IConsumer<string, byte[]>>();
 			var logger = sp.GetRequiredService<ILogger<KafkaTransportReceiver>>();
-			var maxPayloadBytes = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(name).Consumer.MaxPayloadBytes;
+			var consumerOptions = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(name).Consumer;
+			var maxPayloadBytes = consumerOptions.MaxPayloadBytes;
+
+			// READ, not defaulted. KafkaOptions.Consumer.MaxBatchSize is a documented, Range-validated
+			// option with a fluent builder behind it, and the receiver used a private const instead --
+			// so a host calling MaxBatchSize(500) had the value carried through three types and then
+			// ignored. Advertised and unwired.
+			var maxBatchSize = consumerOptions.MaxBatchSize;
 			var progress = sp.GetRequiredService<KafkaPartitionProgress>();
 
 			// A record that cannot become a message goes to the dead-letter queue AddKafkaDeadLetterQueue registered
@@ -466,7 +473,8 @@ public static class KafkaTransportServiceCollectionExtensions
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));
 			var poison = new KafkaPoisonRecordRouter(sp.GetKeyedService<IDeadLetterQueueManager>(name), meter, source, logger);
-			return new KafkaTransportReceiver(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming, progress, poison)
+			return new KafkaTransportReceiver(
+					consumer, source, logger, maxPayloadBytes, decodeConfluentFraming, progress, poison, maxBatchSize)
 				.WithCloudEventDecoding(CloudEventBinding.Kafka);
 		});
 	}

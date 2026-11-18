@@ -127,10 +127,34 @@ internal sealed partial class SagaCleanupBackgroundService : BackgroundService
 				}
 				catch (NotSupportedException ex)
 				{
-					// The configured store cannot purge by age: retrying every interval is futile, so
-					// fail visible and stop the loop rather than spin.
-					LogCleanupCycleFailed(ex);
-					break;
+					// THE STORE CANNOT PURGE ESTATE-WIDE, AND THAT IS NOT THE SAME AS HAVING NOTHING TO DO.
+					// This branch used to log once and break, which left the host running for its entire
+					// lifetime with automatic cleanup ENABLED, a retention period CONFIGURED, and nothing
+					// on earth enforcing it. One Error line at startup is the only thing that ever said so,
+					// and after it the subsystem was indistinguishable from one quietly keeping up.
+					//
+					// The reachable case is shard-per-tenant routing: the tenant-routing saga store refuses
+					// this method deliberately, because its resolver maps a KNOWN tenant to a shard and
+					// cannot enumerate the shards that exist, so no estate-wide sweep is expressible. Its
+					// refusal is correct. Reading that refusal as "retention is handled" is the defect.
+					//
+					// So it propagates. An unenforceable retention policy is a configuration fault, and the
+					// hosted-service default stops the host on an unhandled ExecuteAsync exception, which is
+					// the loud outcome this deserves: retention that silently never runs is how a deletion
+					// obligation is missed for months.
+					//
+					// NOTE the deliberate asymmetry with the no-store case above, which still logs and breaks
+					// without throwing. No store registered means sagas are not in use in this host and there
+					// is genuinely nothing to retain. This branch means sagas ARE in use and retention cannot
+					// be delivered; the two must not share an outcome.
+					throw new InvalidOperationException(
+						"Saga automatic cleanup is enabled, but the configured ISagaStore cannot purge "
+						+ "completed sagas across all tenants, so the retention period would never be "
+						+ "enforced. This is the expected store under shard-per-tenant routing, which cannot "
+						+ "enumerate shards and therefore cannot sweep the estate. Either drive retention "
+						+ "per shard from the host, which knows its tenants, or set "
+						+ "SagaOptions.EnableAutomaticCleanup to false so nothing claims to be enforcing it.",
+						ex);
 				}
 #pragma warning disable CA1031 // A cleanup cycle must not tear down the host; log and retry next tick.
 				catch (Exception ex)

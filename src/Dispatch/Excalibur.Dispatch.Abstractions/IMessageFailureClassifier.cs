@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch;
 /// <para>
 /// Implementations MUST be deterministic, free of side effects, and safe to call concurrently. They
 /// MUST NOT throw on the hot path: classification returns a value for every input (an unrecognised
-/// failure resolves to <see cref="MessageFailureKind.Transient"/> so a bounded retry — never an
-/// infinite loop or a silent drop — is the safe default).
+/// failure resolves to <see cref="MessageFailureKind.Unknown"/>). Unknown does not authorize automatic
+/// retry or loss of durable work; consumers retain it for explicit classification and recovery.
 /// </para>
 /// </remarks>
 public interface IMessageFailureClassifier
@@ -32,7 +32,8 @@ public interface IMessageFailureClassifier
     /// The failure classification: <see cref="MessageFailureKind.Transient"/> for a retryable
     /// failure, <see cref="MessageFailureKind.Permanent"/> for a non-retryable operation failure, or
     /// <see cref="MessageFailureKind.Poison"/> for a defective message that must be dead-lettered
-    /// immediately.
+    /// immediately; <see cref="MessageFailureKind.Uncertain"/> for ambiguous delivery acceptance; or
+    /// <see cref="MessageFailureKind.Unknown"/> when recovery behavior is not established.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="exception"/> is null.</exception>
     MessageFailureKind Classify(Exception exception);

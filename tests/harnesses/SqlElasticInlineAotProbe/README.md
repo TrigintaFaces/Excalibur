@@ -2,20 +2,22 @@
 
 This probe runs the real SQL Server event store, global reader and durable checkpoint store,
 the pooled Elasticsearch projection client, the repository and the Inline processor. It refuses
-JIT execution. It uses SQL password authentication on Windows x64 / .NET 10.
+dynamic-code-enabled execution. That runtime check alone does not distinguish a managed invocation
+from a successfully published Native AOT executable. It uses SQL password authentication on Windows x64 / .NET 10.
 
-## Release status: accepted upstream limitation for this alpha
+## Current release status: strict publication required for alpha22
 
-Strict publishing is intentionally the default and currently fails on dependency AOT/trimming
-diagnostics. Runtime success does **not** certify the release. Do not suppress these diagnostics to
+The alpha22 prerequisite is successful strict publication of this same SQL Server-to-Elasticsearch
+durable workload. It currently **fails**; neither managed execution nor earlier diagnostic native
+runtime success satisfies that prerequisite. Do not suppress diagnostics or weaken the workload to
 make the gate green. The upstream repair remains tracked in `Excalibur_Dispatch-481e8z`.
-The release owner accepted this dependency limitation for the alpha on 2026-10-24. It no longer
-blocks the alpha by itself; the complete SQL Server-to-Elasticsearch Native AOT path remains uncertified.
-Use JIT deployment for this path until an official dependency passes strict publication and runtime recovery.
-CI retains the failed strict publication and accepts only its reviewed, complete diagnostic multiset
-with pinned dependencies/toolchain. A changed or missing diagnostic, framework regression, unrelated
-failure, or missing reflection-disabled regression fails the required policy check. Its structured
-`accepted-upstream-limitation` verdict explicitly records `publishStatus: failed` and `aotCertified: false`.
+
+The dependency limitation accepted on 2026-10-24 is historical. The explicit alpha22 strict-success
+requirement supersedes that release disposition. The current admission gate returns failure for
+the known upstream diagnostic multiset as well as for new or missing diagnostics; matching the
+historical baseline no longer admits a failed publication. See the
+[strict publication admission decision](../../../management/architecture/inline-native-publication-admission.md).
+Native runtime certification remains a separate requirement.
 
 ```powershell
 dotnet publish tests/harnesses/SqlElasticInlineAotProbe/SqlElasticInlineAotProbe.csproj -c Release -r win-x64 -p:BuildExamplesAndTests=true
@@ -38,15 +40,23 @@ The 2026-10-23 strict run in `artifacts/native-inline/ab1458d2b9544f3abee952dfcc
 has zero projection API diagnostics and 57 dependency diagnostics: 54 trimming and three dynamic-code
 diagnostics. They include configuration/authentication discovery, UDT reflection, diagnostic payloads,
 SqlVector JSON and enclave JSON. SQL password authentication does not remove these reachable paths.
-The [official NuGet feed](https://api.nuget.org/v3-flatcontainer/microsoft.data.sqlclient/index.json)
-still ends at 7.1.1; no 8.0 preview is published there. The upstream issue's 8.0.0-preview1 milestone
-is not a released fix. The installed 7.1.1 driver's linker substitutions do not contain the upstream
-`EnableAppConfig` feature switch. Adding that switch to this application cannot remove its code paths.
+That 7.1.1 evidence predates the official 8.0.0-preview1.26313.4 package. In the retained
+2026-11-17 qualification, the byte-unchanged probe with that preview and default features still failed
+strict publication with 27 unique IL diagnostics plus the failing MSBuild diagnostic. A separate
+diagnostic-only variant disabling application-configuration loading and Azure extension discovery
+still failed with ten UDT-related IL2057/IL2072/IL2075 diagnostics plus MSBuild. Those switches change
+real capabilities and have not been approved as the release configuration. The source dependency
+pins remain 7.1.1; qualification is not adoption of the preview.
 
-The official-package route is an upstream release that actually fixes these paths, followed by this
-strict gate and the three native host scenarios. No warning-free official replacement preserving this
-provider's async, transaction and cancellation contract has been verified. Keep the upstream repair
-open; diagnostic runtime success is not a substitute for strict publication.
+Valid source-generated metadata and preservation annotations are permitted when they truthfully
+describe known reflected types and members. The remaining warnings do not establish that the
+fixed non-UDT probe requires runtime code generation or that Native AOT is impossible. Application
+type preservation has not, however, been shown to resolve the current driver-internal dynamic type
+and member flows. No capability-preserving strict-success solution is verified yet.
+
+Keep the upstream repair open. A successful strict publication and the required native host scenarios
+must be evidenced separately; a managed run, diagnostic-policy match or annotated build alone is
+not proof that the published native executable ran this durable workload.
 
 ## Verification after the five Inline review fixes (2026-10-23)
 

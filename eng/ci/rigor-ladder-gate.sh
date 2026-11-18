@@ -157,11 +157,37 @@ for s in seams:
             # Generator references are checked by RepositoryChecks --release-policies
             # against compiled test entry points. This script owns artifact existence only.
         if r >= 4:
-            models = (glob.glob(os.path.join(root, "spec", "tla", "%s.tla" % name))
-                      + glob.glob(os.path.join(root, "spec", "alloy", "%s.als" % name)))
-            if not models:
-                FAIL.append("%s: claims R%d but neither spec/tla/%s.tla nor spec/alloy/%s.als exists."
-                            % (name, r, name, name))
+            # AN EXPLICIT LIST, for the same reason implemented_by is explicit: a seam's models
+            # CANNOT be derived from its name. compliance-erasure is carried by four models, each
+            # covering a different obligation, and no filename convention expresses that -- nor can
+            # one, since several of them live in subdirectories of their own.
+            #
+            # MEASURED 2026-11-10, with only the name glob in place: 0 of 14 declared seams resolved
+            # to a model file and 0 of 9 committed models carried the SCOPE: token, so this whole
+            # branch was UNSATISFIABLE -- a seam claiming R4 failed on "no artifact exists" however
+            # good its model was, and would then have failed the scope check. Nothing noticed,
+            # because no seam claims R4 and this branch is reached only when one does. The gate's own
+            # header promises every claimed rung has a RESOLVABLE artifact; for R4 it could not keep
+            # that promise. The self-test fixtures passed throughout: they name their seam `demo` and
+            # ship spec/tla/demo.tla, so they satisfied the convention the real tree never adopted.
+            declared_models = [str(x).strip() for x in (s.get("models") or []) if str(x).strip()]
+            if declared_models:
+                models = []
+                for rel in declared_models:
+                    p = os.path.join(root, rel.replace("/", os.sep))
+                    if os.path.isfile(p):
+                        models.append(p)
+                    else:
+                        FAIL.append("%s: claims R%d and declares model '%s', which does not exist. A "
+                                    "renamed or deleted model must not read as a discharged rung."
+                                    % (name, r, rel))
+            else:
+                models = (glob.glob(os.path.join(root, "spec", "tla", "%s.tla" % name))
+                          + glob.glob(os.path.join(root, "spec", "alloy", "%s.als" % name)))
+                if not models:
+                    FAIL.append("%s: claims R%d, declares no 'models:' list, and neither "
+                                "spec/tla/%s.tla nor spec/alloy/%s.als exists."
+                                % (name, r, name, name))
             for m in models:
                 txt = open(m, encoding="utf-8", errors="replace").read()
                 rel = os.path.relpath(m, root).replace(os.sep, "/")
@@ -225,20 +251,52 @@ except Exception as e:
     sys.exit(0)
 
 seams = doc.get("seams") or []
-# A seam owns the DIRECTORY its ARCHITECTURE.md sits in, and everything beneath it.
+# A seam owns the DIRECTORY its ARCHITECTURE.md sits in, and everything beneath it -- PLUS whatever
+# its `implemented_by` globs name.
+#
+# The glob list is not a convenience. Measured 2026-11-09: every provider package was invisible here,
+# because a provider is a SIBLING of the package holding the guarantee doc, never a child --
+# `Excalibur.Outbox.SqlServer/` does not start with `Excalibur.Outbox/`. So this reported "none of the
+# paths sit on a laddered seam" for the SqlServer dead-letter store on the day a shipped
+# duplicate-delivery defect was fixed in it, on a seam declared catastrophic with R3 and R4 unmet. A
+# reassuring wrong answer, in the one instrument an agent is told to run before changing a seam.
+#
+# It cannot be derived from the NAME. `Excalibur.Outbox.SqlServer` implements the outbox seam, while
+# `Excalibur.Dispatch.Transport.Kafka` does NOT implement the dispatch-pipeline seam -- and a
+# dot-prefix rule cannot tell them apart: it would hand 42 packages, every transport and every
+# serializer among them, to the pipeline seam. Hence an explicit, reviewable glob per seam.
 owners = []
 for s in seams:
     amd = (s.get("architecture_md") or "").strip()
     if amd:
-        owners.append((os.path.dirname(amd) + "/", s))
+        owners.append((os.path.dirname(amd) + "/", s, True))
+    for g in (s.get("implemented_by") or []):
+        g = (g or "").strip()
+        if g:
+            owners.append((g, s, False))
+
+def _owns(prefix, exact, path):
+    if exact:
+        return path.startswith(prefix)
+    import fnmatch
+    return fnmatch.fnmatch(path, prefix.rstrip("/") + "/*")
 
 hits, clean = {}, []
 for p in paths:
     matched = None
-    for prefix, s in owners:
-        if p.startswith(prefix):
+    for prefix, s, exact in owners:
+        if _owns(prefix, exact, p):
+            # The LONGEST pattern wins, which is what keeps a provider that has a seam of its own --
+            # Excalibur.Outbox.Redis -- resolving to that seam instead of being absorbed by its
+            # parent's glob: its own directory is the longer pattern.
+            #
+            # An earlier revision also ranked an exact directory above a glob. That branch was
+            # UNREACHABLE: for every input in this tree the exact directory is already the longer
+            # pattern, so the extra rule changed no answer. It was removed rather than kept as
+            # defence in depth, and the arm that was written to lock it is now pointed at the length
+            # comparison, which is the rule that actually decides.
             if matched is None or len(prefix) > len(matched[0]):
-                matched = (prefix, s)
+                matched = (prefix, s, exact)
     if matched:
         hits.setdefault(matched[1]["name"], (matched[1], []))[1].append(p)
     else:
@@ -383,6 +441,36 @@ self_test() {
 		> "$tmp/full/spec/tla/demo.tla"
 	arm "a fully discharged R4 seam PASSES" 0 "$tmp/full"
 
+	# LIVENESS 11b — R4 discharged by an EXPLICITLY LISTED model whose path does NOT match the seam
+	# name. Without this arm the models: branch could be deleted and every arm would stay green,
+	# because the fixtures above all happen to satisfy the name glob.
+	mk "$tmp/listed" catastrophic "[R1, R2, R3, R4]" "[]"
+	pbt "$tmp/listed"
+	mkdir -p "$tmp/listed/spec/tla/nested"
+	printf -- '---- MODULE Whatever ----\nSCOPE: two instances; deploy sequences abstracted away.\nINVARIANT NoRetainedDestroyed\n====\n' \
+		> "$tmp/listed/spec/tla/nested/Whatever.tla"
+	python3 - "$tmp/listed/eng/governance/rigor-ladder.yaml" <<'PYARM'
+import sys
+p = sys.argv[1]
+t = open(p, encoding="utf-8").read()
+open(p, "w", encoding="utf-8").write(
+    t.replace("    blast_radius:", "    models: [\"spec/tla/nested/Whatever.tla\"]\n    blast_radius:", 1))
+PYARM
+	arm "R4 discharged by an explicitly listed model PASSES" 0 "$tmp/listed"
+
+	# FAIL 11c — the listed model is GONE. A renamed or deleted model must not read as discharged,
+	# which is the whole reason the list is checked rather than trusted.
+	mk "$tmp/listedgone" catastrophic "[R1, R2, R3, R4]" "[]"
+	pbt "$tmp/listedgone"
+	python3 - "$tmp/listedgone/eng/governance/rigor-ladder.yaml" <<'PYARM2'
+import sys
+p = sys.argv[1]
+t = open(p, encoding="utf-8").read()
+open(p, "w", encoding="utf-8").write(
+    t.replace("    blast_radius:", "    models: [\"spec/tla/nested/Vanished.tla\"]\n    blast_radius:", 1))
+PYARM2
+	arm "R4 claimed against a listed model that does not exist FAILS" 1 "$tmp/listedgone"
+
 	# FAIL 13 — cumulative violation: R4 met while R3 is not.
 	mk "$tmp/gap" catastrophic "[R1, R2, R4]" "[R3]"
 	arm "claiming R4 while R3 is unmet FAILS (rungs are cumulative)" 1 "$tmp/gap"
@@ -407,6 +495,58 @@ self_test() {
 	rm -rf "$tmp/noarch/src"
 	arm "a tree with no ARCHITECTURE.md REFUSES" 2 "$tmp/noarch"
 
+	# ---- the file->seam MAP, against the REAL manifest -------------------------------------
+	# These four run against the live manifest on purpose: the defect they lock is a wrong model of
+	# this repository's layout, so a synthetic fixture would assert the model rather than the tree.
+	# Measured 2026-11-09, before the implemented_by globs existed: a provider package resolved to
+	# NOTHING, because a provider is a SIBLING of the package holding the guarantee doc. The gate
+	# told anyone touching the SqlServer dead-letter store that it sat on no laddered seam, on the
+	# day a shipped duplicate-delivery defect was fixed in it.
+	map_arm() { # map_arm <name> <path> <want|!unwanted>
+		local name="$1" path="$2" want="$3" out
+		out="$(for_files "$path" 2>&1)"
+		if [[ "$want" == '!'* ]]; then
+			if [[ "$out" != *"${want:1}"* ]]; then
+				echo "  self-test ok:   $name"
+				pass=$((pass + 1))
+			else
+				echo "  self-test FAIL: $name -- output unexpectedly contains '${want:1}'" >&2
+				fail=$((fail + 1))
+			fi
+		elif [[ "$out" == *"$want"* ]]; then
+			echo "  self-test ok:   $name"
+			pass=$((pass + 1))
+		else
+			echo "  self-test FAIL: $name -- output lacks '$want'" >&2
+			fail=$((fail + 1))
+		fi
+	}
+
+	# LIVENESS. A provider resolves to the seam whose guarantee it implements.
+	# RED by deleting the outbox seam's implemented_by glob.
+	map_arm "a PROVIDER package resolves to its parent seam" \
+		"src/Excalibur/Excalibur.Outbox.SqlServer/X.cs" "SEAM outbox "
+
+	# LIVENESS. The same for a transport, whose abstraction package name is NOT a prefix of its own,
+	# which is why the mapping cannot be a name heuristic. RED by deleting that seam's glob.
+	map_arm "a TRANSPORT resolves to the settlement seam" \
+		"src/Dispatch/Excalibur.Dispatch.Transport.Kafka/X.cs" "SEAM transport-settlement"
+
+	# SPECIFICITY. A provider carrying a seam of its OWN keeps it instead of being absorbed by its
+	# parent's glob, because its own directory is the LONGER pattern. RED by inverting the length
+	# comparison in the matcher (> to <), which is the rule that decides this; an earlier version of
+	# this comment named an exact-beats-glob rule, and that mutation left the arm GREEN because the
+	# branch was unreachable.
+	map_arm "a provider with its OWN seam is not absorbed by the parent glob" \
+		"src/Excalibur/Excalibur.Outbox.Redis/X.cs" "!SEAM outbox "
+
+	# SAFETY, and the arm that matters most: the globs must NOT swallow the tree. A dot-prefix rule
+	# would hand 42 packages -- every transport and serializer -- to the dispatch-pipeline seam, and
+	# reporting the WRONG seam is worse than reporting none. RED by broadening a glob to
+	# src/Dispatch/Excalibur.Dispatch.*/.
+	map_arm "an unrelated package on no seam still resolves to NOTHING" \
+		"src/Dispatch/Excalibur.Dispatch.Serialization.Avro/X.cs" "none of the 1 path(s)"
+
 	echo
 	echo "self-test: $pass passed, $fail failed"
 	if ((fail > 0)); then return 1; fi
@@ -416,6 +556,10 @@ self_test() {
 	echo "                        model with no invariant or no"
 	echo "                        scope, and a cumulative gap; and REFUSES rather"
 	echo "                        than passing when it cannot see the manifest or the tree."
+	echo "                        The last four arms lock the file->seam MAP against the real tree:"
+	echo "                        a provider resolves to its parent seam, a transport to the"
+	echo "                        settlement seam, a provider with its own seam keeps it, and an"
+	echo "                        unrelated package still resolves to nothing."
 	return 0
 }
 

@@ -237,7 +237,7 @@ logger.LogInformation("  - Node.js: protobufjs or google-protobuf");
 logger.LogInformation("");
 logger.LogInformation("=== Performance Notes ===");
 logger.LogInformation("");
-logger.LogInformation("Typical serialization performance comparison:");
+logger.LogInformation("Legacy illustrative constants only: these are not measured results from this sample.");
 logger.LogInformation("");
 logger.LogInformation("  | Serializer   | Serialize (us) | Deserialize (us) | Size (bytes) |");
 logger.LogInformation("  |--------------|----------------|------------------|--------------|");
@@ -245,6 +245,7 @@ logger.LogInformation("  | JSON         | 15.2           | 18.7             | 24
 logger.LogInformation("  | Protobuf     | 5.1            | 4.8              | 98           |");
 logger.LogInformation("  | MessagePack  | 3.8            | 3.2              | 112          |");
 logger.LogInformation("  | MemoryPack   | 1.2            | 0.8              | 86           |");
+logger.LogInformation("Do not use these constants for rankings or capacity planning. Measure your actual payload and API.");
 logger.LogInformation("");
 logger.LogInformation("Protobuf excels when:");
 logger.LogInformation("  - Cross-language interop is required");

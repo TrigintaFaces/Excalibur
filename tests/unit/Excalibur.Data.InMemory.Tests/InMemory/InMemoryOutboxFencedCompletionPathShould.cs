@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Reflection;
+
 using Excalibur.Dispatch;
 using Excalibur.Outbox.InMemory;
 
@@ -88,12 +90,12 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 		{
 			await _store.MarkDeadLetteredAsync(row.Id, "counted", observed, CancellationToken.None);
 		}
-		row.Status.ShouldBe(OutboxStatus.DeadLettered);
-		row.RetryCount.ShouldBe(expected);
+		ReadStoredState(row.Id).Status.ShouldBe(OutboxStatus.DeadLettered);
+		ReadStoredState(row.Id).RetryCount.ShouldBe(expected);
 		await _store.MarkDeadLetteredAsync(row.Id, "late", expected + 10, CancellationToken.None);
 		(await _store.MarkDeadLetteredAsync(row.Id, "late-fenced", expected + 10, LiveTenure, CancellationToken.None))
 			.ShouldBe(OutboxCompletionOutcome.AlreadyTerminal);
-		row.RetryCount.ShouldBe(expected, "a repeated terminal report must not change the recorded count");
+		ReadStoredState(row.Id).RetryCount.ShouldBe(expected, "a repeated terminal report must not change the recorded count");
 	}
 
 	[Theory]
@@ -114,10 +116,21 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 				await _store.MarkDeadLetteredAsync(row.Id, "invalid", -1, CancellationToken.None);
 			}
 		});
-		row.Status.ShouldBe(OutboxStatus.Staged);
-		row.RetryCount.ShouldBe(1);
+		ReadStoredState(row.Id).Status.ShouldBe(OutboxStatus.Staged);
+		ReadStoredState(row.Id).RetryCount.ShouldBe(1);
 		(await _store.MarkDeadLetteredAsync(row.Id, "valid-lower-tenure", 2, SupersededTenure, CancellationToken.None))
 			.ShouldBe(OutboxCompletionOutcome.Applied, "invalid input must not have advanced the fence");
+	}
+
+	// Inspect persisted business state without restoring the producer alias removed by snapshot ownership.
+	// This test-only probe never returns or mutates the stored envelope; every assertion reads fresh state.
+	private (OutboxStatus Status, int RetryCount) ReadStoredState(string messageId)
+	{
+		var field = typeof(InMemoryOutboxStore).GetField("_messages", BindingFlags.Instance | BindingFlags.NonPublic);
+		field.ShouldNotBeNull();
+		var messages = (IReadOnlyDictionary<string, OutboundMessage>)field.GetValue(_store)!;
+		var stored = messages[messageId];
+		return (stored.Status, stored.RetryCount);
 	}
 
 	private async Task<string> StageAsync()
@@ -128,11 +141,13 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 	}
 
 	/// <summary>Claims under a tenure and returns the claim identity the store stamped on the message.</summary>
-	private async Task<string> ClaimUnderAsync(long fencingToken)
+	private async Task<string> ClaimUnderAsync(long fencingToken, string messageId)
 	{
 		var claimed = (await _store.GetUnsentMessagesAsync(100, fencingToken, CancellationToken.None)).ToList();
 		claimed.ShouldNotBeEmpty("the claim must yield the staged message, or the arm proves nothing");
-		return claimed[0].DispatcherId!;
+		var message = claimed.Single(m => string.Equals(m.Id, messageId, StringComparison.Ordinal));
+		message.DispatcherId.ShouldNotBeNullOrWhiteSpace("the requested row must carry its own acquisition identity");
+		return message.DispatcherId!;
 	}
 
 	/// <summary>
@@ -191,7 +206,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 	{
 		var id = await StageAsync();
 		var handover = await StageAsync();
-		var claim = await ClaimUnderAsync(SupersededTenure);
+		var claim = await ClaimUnderAsync(SupersededTenure, id);
 
 		// A newer tenure takes over and advances the high-water, on a DIFFERENT message. The superseded
 		// tenure has not noticed and still believes it holds the drain.
@@ -224,7 +239,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 		// LIVENESS. A store that refused every completion would pass every refusal arm above and deliver
 		// nothing forever.
 		var id = await StageAsync();
-		var claim = await ClaimUnderAsync(LiveTenure);
+		var claim = await ClaimUnderAsync(LiveTenure, id);
 
 		var outcome = await _store.MarkFailedAsync(
 			id, "boom", retryCount: 1, nextAttemptAt: null,
@@ -242,7 +257,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 		// the SAME token, and the first cycle then reports against a claim that is gone. A fence cannot
 		// separate those two - the token is identical - so only the claim identity can.
 		var id = await StageAsync();
-		_ = await ClaimUnderAsync(LiveTenure);
+		_ = await ClaimUnderAsync(LiveTenure, id);
 
 		var outcome = await _store.MarkFailedAsync(
 			id, "boom", retryCount: 1, nextAttemptAt: null,
@@ -260,7 +275,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 		// Terminal exclusion. Without it a failure reported after a successful send returns the message to
 		// Failed - which IS in the claim predicate - so a delivered message is delivered again.
 		var id = await StageAsync();
-		var claim = await ClaimUnderAsync(LiveTenure);
+		var claim = await ClaimUnderAsync(LiveTenure, id);
 		await _store.MarkSentAsync(id, LiveTenure, CancellationToken.None);
 
 		var outcome = await _store.MarkFailedAsync(
@@ -298,7 +313,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 		await _store.StageMessageAsync(row, CancellationToken.None);
 		var id = row.Id;
 		var handover = await StageAsync();
-		_ = await ClaimUnderAsync(SupersededTenure);
+		_ = await ClaimUnderAsync(SupersededTenure, id);
 
 		// The handover: a newer tenure completes a different message and advances the high-water.
 		await _store.MarkSentAsync(handover, LiveTenure, CancellationToken.None);
@@ -307,7 +322,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 			id, "max retries exceeded", 99, SupersededTenure, CancellationToken.None);
 
 		outcome.ShouldBe(OutboxCompletionOutcome.FenceRefused);
-		row.RetryCount.ShouldBe(0, "a refused transition must not record the supplied count");
+		ReadStoredState(row.Id).RetryCount.ShouldBe(0, "a refused transition must not record the supplied count");
 
 		// The row survives, which is what lets the live tenure still deliver it. The unfenced transition
 		// destroys the row on a message-id match alone, so a superseded tenure reaching its attempt ceiling
@@ -324,7 +339,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 	{
 		// LIVENESS for the dead-letter half.
 		var id = await StageAsync();
-		_ = await ClaimUnderAsync(LiveTenure);
+		_ = await ClaimUnderAsync(LiveTenure, id);
 
 		var outcome = await _store.MarkDeadLetteredAsync(
 			id, "max retries exceeded", 0, LiveTenure, CancellationToken.None);
@@ -344,7 +359,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 		// answers with something other than Applied. Answering Applied for a SENT message would leave that
 		// message simultaneously delivered and sitting in the dead-letter queue for an operator to replay.
 		var id = await StageAsync();
-		_ = await ClaimUnderAsync(LiveTenure);
+		_ = await ClaimUnderAsync(LiveTenure, id);
 		await _store.MarkSentAsync(id, LiveTenure, CancellationToken.None);
 
 		var outcome = await _store.MarkDeadLetteredAsync(
@@ -364,7 +379,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 		// would refuse a live tenure's own second completion and stall the drain.
 		var first = await StageAsync();
 		var second = await StageAsync();
-		var claim = await ClaimUnderAsync(LiveTenure);
+		var claim = await ClaimUnderAsync(LiveTenure, first);
 
 		(await _store.MarkFailedAsync(
 			first, "boom", 1, null, new OutboxWriteAuthority(LiveTenure, claim), CancellationToken.None))

@@ -443,6 +443,94 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 	}
 
 	/// <summary>
+	/// A save carrying an OLDER version must never overwrite a newer stored snapshot. Every provider in
+	/// the family enforces this, and until now nothing asserted it deterministically.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>What this locks, precisely.</b> The monotone guard itself -- the version term each provider
+	/// carries in its upsert predicate (a <c>Version &lt;</c> term in the relational MERGE and the
+	/// document filter, a stale-ignore branch in the scripted providers, a refusal in the ones that
+	/// throw). Drop that term and this arm goes RED, because the older save then replaces the newer row.
+	/// </para>
+	/// <para>
+	/// <b>What it does NOT lock, stated so nobody reads it as wider than it is.</b> It does not cover a
+	/// newer save being discarded after LOSING a race to create the row, which is a separate defect of
+	/// the same seam. That one is reachable only when the row does not yet exist and the writers are
+	/// concurrent, so it is covered by <see cref="Should_Handle_Concurrent_Writes"/> -- and covered
+	/// PROBABILISTICALLY, because that arm detects it only when the highest-version writer is the one
+	/// that loses. This arm is green with or without that fix and must not be cited for it.
+	/// </para>
+	/// <para>
+	/// <b>A throw here is a FAILURE, and tolerating one was a mistake this arm briefly shipped.</b> The
+	/// first version caught <c>ConcurrencyException</c> on the stale save, reasoning that providers whose
+	/// substrate cannot converge under contention promise "refuse rather than corrupt". That reasoning
+	/// belongs to a different arm: this one is SEQUENTIAL and creates no contention whatsoever, so there
+	/// is no race to lose. The contract is explicit about the uncontended case -- a save carrying a
+	/// version lower than or equal to the stored one is a SUCCESSFUL NO-OP, and implementations MUST NOT
+	/// report it as a fault. Catching the exception therefore admitted exactly the violation the contract
+	/// forbids, and let a future provider break it while this arm stayed green. No provider in the family
+	/// reaches it: the ones that throw under genuine contention take an ordinary skip path here, having
+	/// first read a version at least as high as the one offered.
+	/// </para>
+	/// <para>
+	/// <b>The data assertion is REDUNDANT against today's providers, and is kept anyway.</b> It was first
+	/// written here as "load-bearing", which was wrong and is the kind of claim that gets planted,
+	/// disbelieved and then deleted: every provider in the family writes payload and version in a single
+	/// whole-document or whole-row write, so none of them CAN pass the version assertion and fail the data
+	/// one, and a reader who goes looking for that mutant will not find one to plant. What it actually
+	/// locks is the COUPLING, against a future split that would make it reachable -- a `$max` on the
+	/// version beside an unconditional `$set` of the payload, or a two-statement upsert, both of which are
+	/// a real temptation for exactly this problem. Keep the assertion; do not cite it as proof of
+	/// anything today.
+	/// </para>
+	/// <para>
+	/// <b>Liveness lives in <see cref="Should_Return_Latest_Snapshot_When_Multiple_Exist"/>.</b> A store
+	/// that refused or ignored every save would pass this arm and fail that one, which is why this is
+	/// stated as the safety half of a pair rather than on its own.
+	/// </para>
+	/// </remarks>
+	/// <returns>The arm.</returns>
+	[Fact]
+	public virtual async Task Should_Not_Let_An_Older_Save_Overwrite_A_Newer_Snapshot()
+	{
+		var aggregateId = Guid.NewGuid().ToString();
+		const string aggregateType = "MonotoneAggregate";
+
+		var newer = CreateTestSnapshot(aggregateId, aggregateType, 100, new byte[] { 9 });
+		var older = CreateTestSnapshot(aggregateId, aggregateType, 90, new byte[] { 1 });
+
+		await SnapshotStore.SaveSnapshotAsync(newer, CancellationToken.None).ConfigureAwait(false);
+
+		// NOT wrapped in a try. Nothing here is contended, so the contract's successful-no-op case is the
+		// only legal outcome and a thrown ConcurrencyException must fail this arm rather than be absorbed
+		// by it.
+		await SnapshotStore.SaveSnapshotAsync(older, CancellationToken.None).ConfigureAwait(false);
+
+		var retrieved = await SnapshotStore.GetLatestSnapshotAsync(
+			aggregateId,
+			aggregateType,
+			CancellationToken.None).ConfigureAwait(false);
+
+		_ = retrieved.ShouldNotBeNull(
+			"the newer snapshot was stored before the older save was attempted, so something must be "
+			+ "here. Nothing at all means the stale save deleted it, which is worse than overwriting.");
+
+		retrieved.Version.ShouldBe(
+			100,
+			"a save carrying version 90 must not displace a stored version 100. A store reporting 90 "
+			+ "here has accepted a snapshot it already superseded, and because the aggregate rebuilds "
+			+ "from the snapshot plus the events after it, every event between 90 and 100 is replayed a "
+			+ "second time -- silently, with nothing downstream able to tell.");
+
+		retrieved.Data.ToArray().ShouldBe(
+			new byte[] { 9 },
+			"the version column alone is not the snapshot. A provider that kept version 100 while "
+			+ "replacing the payload with the stale one has lost exactly the same data, and would pass "
+			+ "an assertion that only read the version.");
+	}
+
+	/// <summary>
 	/// R26.27: Return null for non-existent aggregate.
 	/// </summary>
 	[Fact]

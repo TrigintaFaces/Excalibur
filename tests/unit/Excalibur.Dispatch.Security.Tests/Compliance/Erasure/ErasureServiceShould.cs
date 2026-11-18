@@ -54,7 +54,14 @@ public sealed class ErasureServiceShould
 			_legalHoldService,
 			_dataInventoryService,
 			null,
-			TestRetentions.None);
+			TestRetentions.None, TestMintLedger.None);
+
+		// The completion returns an outcome now, where it used to return a bare Task with no value to
+		// arrange -- so a fake with no setup returns the default, the default is deliberately not Applied,
+		// and the service correctly stands down on anything else. Applied is what a bare Task meant.
+		A.CallTo(() => _store.RecordCompletionAsync(
+				A<Guid>._, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
+			.Returns(ErasureWriteOutcome.Applied);
 	}
 
 	#region Constructor Tests
@@ -72,7 +79,7 @@ public sealed class ErasureServiceShould
 			null,
 			null,
 			null,
-			TestRetentions.None));
+			TestRetentions.None, TestMintLedger.None));
 	}
 
 
@@ -89,7 +96,7 @@ public sealed class ErasureServiceShould
 			null,
 			null,
 			null,
-			TestRetentions.None));
+			TestRetentions.None, TestMintLedger.None));
 	}
 
 	[Fact]
@@ -105,7 +112,7 @@ public sealed class ErasureServiceShould
 			null,
 			null,
 			null,
-			TestRetentions.None));
+			TestRetentions.None, TestMintLedger.None));
 	}
 
 	[Fact]
@@ -122,7 +129,7 @@ public sealed class ErasureServiceShould
 			legalHoldService: null!,
 			dataInventoryService: null,
 			keyEscrowService: null,
-			retentions: TestRetentions.None));
+			retentions: TestRetentions.None, TestMintLedger.None));
 	}
 
 	[Fact]
@@ -138,7 +145,7 @@ public sealed class ErasureServiceShould
 			_legalHoldService,
 			dataInventoryService: null,
 			keyEscrowService: null,
-			retentions: TestRetentions.None);
+			retentions: TestRetentions.None, TestMintLedger.None);
 
 		_ = service.ShouldNotBeNull();
 	}
@@ -398,7 +405,7 @@ public sealed class ErasureServiceShould
 			_legalHoldService,
 			null,
 			null,
-			TestRetentions.None);
+			TestRetentions.None, TestMintLedger.None);
 
 		DateTimeOffset? capturedScheduledTime = null;
 		_ = A.CallTo(() => _store.SaveRequestAsync(
@@ -452,7 +459,7 @@ public sealed class ErasureServiceShould
 			_legalHoldService,
 			null,
 			null,
-			TestRetentions.None);
+			TestRetentions.None, TestMintLedger.None);
 
 		var request = CreateValidRequest() with { GracePeriodOverride = TimeSpan.FromMinutes(30) };
 
@@ -486,7 +493,7 @@ public sealed class ErasureServiceShould
 			_legalHoldService,
 			null,
 			null,
-			TestRetentions.None);
+			TestRetentions.None, TestMintLedger.None);
 
 		var request = CreateValidRequest() with { GracePeriodOverride = TimeSpan.FromDays(15) };
 
@@ -1038,12 +1045,16 @@ public sealed class ErasureServiceShould
 		_ = await _sut.ExecuteAsync(requestId, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _store.UpdateStatusAsync(
-			requestId,
-			ErasureRequestStatus.InProgress,
-			A<string?>._,
-			A<CancellationToken>._))
+		_ = A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+
+ // The completion returns an outcome now, where it used to return a bare Task with no value
+ // to arrange. A fake with no setup returns the default, the default is deliberately not
+ // Applied, and the service correctly stands down on anything else -- so without this every
+ // arm here reports a refusal. Applied is what a bare Task meant.
+ A.CallTo(() => _store.RecordCompletionAsync(
+ 		A<Guid>._, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
+ 	.Returns(ErasureWriteOutcome.Applied);
 	}
 
 	[Fact]
@@ -1069,12 +1080,8 @@ public sealed class ErasureServiceShould
 		_ = A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(status);
 
-		_ = A.CallTo(() => _store.UpdateStatusAsync(
-			requestId,
-			ErasureRequestStatus.InProgress,
-			A<string?>._,
-			A<CancellationToken>._))
-			.Returns(true);
+		_ = A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
 
 		// Act
 		var result = await CreateKeyShredOnlySut().ExecuteAsync(requestId, CancellationToken.None);
@@ -1085,7 +1092,7 @@ public sealed class ErasureServiceShould
 			requestId,
 			A<int>._,
 			A<int>._,
-			A<Guid>._,
+			A<Guid>._, A<string>._,
 			A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -1113,18 +1120,14 @@ public sealed class ErasureServiceShould
 		_ = A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(status);
 
-		_ = A.CallTo(() => _store.UpdateStatusAsync(
-			requestId,
-			ErasureRequestStatus.InProgress,
-			A<string?>._,
-			A<CancellationToken>._))
-			.Returns(true);
+		_ = A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
 
 		_ = A.CallTo(() => _store.RecordCompletionAsync(
 			A<Guid>._,
 			A<int>._,
 			A<int>._,
-			A<Guid>._,
+			A<Guid>._, A<string>._,
 			A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("Database error"));
 
@@ -1136,7 +1139,9 @@ public sealed class ErasureServiceShould
 		_ = A.CallTo(() => _store.UpdateStatusAsync(
 			requestId,
 			ErasureRequestStatus.Failed,
+			A<ErasureRequestStatus?>._,
 			A<string>.That.Contains("Database error"),
+			A<string?>._,
 			A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -1184,5 +1189,6 @@ public sealed class ErasureServiceShould
 			_legalHoldService,
 			_dataInventoryService,
 			null,
-			TestRetentions.None);
+			TestRetentions.None,
+			TestMintLedger.None);
 }

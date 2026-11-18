@@ -84,6 +84,9 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)))
+          // The processor requires an explicitly registered dead-letter queue for
+          // messages that exhaust their retries, or it throws on its first poll.
+          .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString)
           .EnableBackgroundProcessing();
 }));
 
@@ -180,6 +183,9 @@ services.AddDispatch(dispatch =>
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
+          // The processor requires an explicitly registered dead-letter queue for
+          // messages that exhaust their retries, or it throws on its first poll.
+          .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString)
           .EnableBackgroundProcessing();
 }));
 

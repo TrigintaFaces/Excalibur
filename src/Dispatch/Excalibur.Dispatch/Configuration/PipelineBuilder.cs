@@ -25,6 +25,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	private readonly List<MiddlewareRegistration> _middlewares = [];
 	private readonly IMiddlewareApplicabilityStrategy? _applicabilityStrategy;
 	private MessageKinds? _messageKinds;
+	private string? _diagnosticProfileName;
 	private IReadOnlyList<IDispatchMiddleware> _resolvedMiddleware = [];
 
 	/// <summary>
@@ -217,6 +218,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 
 		// Clear existing middleware and apply profile
 		_middlewares.Clear();
+		_diagnosticProfileName = profile.Name;
 
 		// The gap this comment used to describe is closed. Criticality is now carried on the
 		// profile's own entries, so a profile declares at authoring time whether an entry may
@@ -257,6 +259,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	public IPipelineBuilder Clear()
 	{
 		_middlewares.Clear();
+		_diagnosticProfileName = null;
 		return this;
 	}
 
@@ -481,7 +484,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 			details.ToString());
 	}
 
-	private static void LogSkippedMiddleware(IServiceProvider serviceProvider, Type? middlewareType,
+	private void LogSkippedMiddleware(IServiceProvider serviceProvider, Type? middlewareType,
 		string reason = "not registered in the service provider")
 	{
 		if (middlewareType is null)
@@ -492,7 +495,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 		var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger<PipelineBuilder>();
 		if (logger is not null)
 		{
-			LogPipelineMiddlewareSkipped(logger, middlewareType.FullName ?? middlewareType.Name, reason);
+			LogPipelineMiddlewareSkipped(logger, middlewareType.FullName ?? middlewareType.Name, _diagnosticProfileName ?? Name, reason);
 		}
 	}
 
@@ -538,7 +541,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	// production configuration, which makes it the level at which this particular fact is useless.
 	// A deliberate omission costs one suppressible warning; an accidental one is now visible.
 	[LoggerMessage(CoreEventId.InvokerMiddlewareSkipped, LogLevel.Warning,
-		"Skipping configured pipeline middleware {MiddlewareType}: {Reason}. "
+		"Skipping configured pipeline middleware {MiddlewareType} in profile {ProfileName}: {Reason}. "
 		+ "This stage will not run. Check service registration and scope support, or remove it from the profile.")]
-	private static partial void LogPipelineMiddlewareSkipped(ILogger logger, string middlewareType, string reason);
+	private static partial void LogPipelineMiddlewareSkipped(ILogger logger, string middlewareType, string profileName, string reason);
 }

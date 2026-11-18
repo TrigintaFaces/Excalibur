@@ -133,13 +133,13 @@ services.AddDispatch(dispatch =>
 
 ## Gotchas and Common Mistakes
 
-### Handlers run sequentially by default
+### Local event handlers can overlap
 
-Dispatch executes action handlers **one at a time** through the pipeline. If you register multiple event handlers for the same event, they also run in sequence. This is intentional -- it guarantees predictable ordering and avoids concurrency issues within a single dispatch call.
+For local event delivery through `LocalMessageBus`, Dispatch invokes each handler before awaiting the collected asynchronous operations. Asynchronous work can overlap; synchronous work runs during each invocation and can delay later handlers. Dispatch waits for all handler operations to finish. Do not rely on handler completion order or assume handlers run on separate threads.
 
-**The mistake:** Assuming handlers run in parallel and designing for concurrent execution.
+Handlers can share the event, message context and scoped dependencies. A shared scope manages lifetime; it does not synchronize access. Coordinate shared mutable state and do not depend on another handler completing first. Remote and custom message buses can have different delivery behavior.
 
-**Why it matters:** If Handler A takes 500ms and Handler B takes 300ms, the total dispatch time is ~800ms, not ~500ms. If you need true parallelism, dispatch separate messages or use background processing.
+An action has one selected handler, but separate action dispatch calls are not thereby serialized.
 
 ### Context is per-request scoped
 

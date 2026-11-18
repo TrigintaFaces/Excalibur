@@ -42,7 +42,13 @@ internal static class ConformanceDataSubjectHasher
 
 			var digest = SHA256.HashData(Encoding.UTF8.GetBytes(dataSubjectId));
 
-			return Convert.ToHexStringLower(digest);
+			// UPPERCASE, and the case is part of the contract rather than a formatting choice. This fixture
+			// returned lower case while its own remarks claimed to "supply a hasher whose output satisfies
+			// the shape the contract requires" -- and the contract has always asked for uppercase. Nothing
+			// caught it because the kit arm that checks the shape checks the LENGTH only. A per-subject key
+			// handle is derived from this token and key-vault object names are case-insensitive, so two
+			// tokens differing only in case name one key.
+			return Convert.ToHexString(digest);
 		}
 	}
 }

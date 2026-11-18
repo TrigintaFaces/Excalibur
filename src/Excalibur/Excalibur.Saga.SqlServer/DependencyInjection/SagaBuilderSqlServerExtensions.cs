@@ -61,10 +61,12 @@ public static class SagaBuilderSqlServerExtensions
 		configure(sqlBuilder);
 
 		var connectionFactory = ResolveConnectionFactory(sqlBuilder);
+		var usesAdvancedFactory = sqlBuilder.ConnectionFactoryFunc is not null;
+		var connectionStringName = sqlBuilder.ConnectionStringNameValue;
 		var hasBuilderConnection = sqlBuilder.ConnectionFactoryFunc is not null
 			|| sqlBuilder.ConnectionStringNameValue is not null;
 
-		RegisterOptionsAndServices(builder, sqlBuilder, options, connectionFactory, hasBuilderConnection);
+		RegisterOptionsAndServices(builder, sqlBuilder, options, connectionFactory, hasBuilderConnection, usesAdvancedFactory, connectionStringName);
 
 		return builder;
 	}
@@ -105,14 +107,19 @@ public static class SagaBuilderSqlServerExtensions
 		SqlServerSagaBuilder sqlBuilder,
 		SqlServerSagaStoreOptions options,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactory,
-		bool hasBuilderConnection)
+		bool hasBuilderConnection,
+		bool usesAdvancedFactory,
+		string? connectionStringName)
 	{
+		var configuredConnectionString = options.ConnectionString;
+		var configuredSchemaName = options.SchemaName;
+		var configuredTableName = options.TableName;
 		// Register saga store options
 		_ = builder.Services.Configure<SqlServerSagaStoreOptions>(opt =>
 		{
-			opt.ConnectionString = options.ConnectionString;
-			opt.SchemaName = options.SchemaName;
-			opt.TableName = options.TableName;
+			opt.ConnectionString = configuredConnectionString;
+			opt.SchemaName = configuredSchemaName;
+			opt.TableName = configuredTableName;
 		});
 
 		if (sqlBuilder.BindConfigurationPath is not null)
@@ -145,11 +152,26 @@ public static class SagaBuilderSqlServerExtensions
 		// store through THIS path, while the sibling entry point in the same package looks done.
 		_ = builder.Services.AddTenantAwareStore<ISagaStore, SqlServerSagaStore>(sp =>
 		{
-			var factory = connectionFactory(sp);
 			var storeOptions = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
 			var serializer = sp.GetRequiredService<Excalibur.Dispatch.Serialization.DispatchJsonSerializer>();
-			return new SqlServerSagaStore(factory, storeOptions, logger, serializer, sp.GetRequiredService<ITenantContext>());
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
+			if (!usesAdvancedFactory)
+			{
+				// Preserve known connection-string ownership; never clone a factory connection's credentials.
+				var ownedConnectionString = connectionStringName is { } name
+					? sp.GetRequiredService<IConfiguration>().GetConnectionString(name)
+					: storeOptions.Value.ConnectionString;
+				if (string.IsNullOrWhiteSpace(ownedConnectionString))
+				{
+					throw new InvalidOperationException("An owned SQL connection string is required.");
+				}
+
+				return new SqlServerSagaStore(ownedConnectionString, storeOptions, logger, serializer, tenantContext);
+			}
+
+			var factory = connectionFactory(sp);
+			return new SqlServerSagaStore(factory, storeOptions, logger, serializer, tenantContext);
 		});
 		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.AddKeyedSingleton<ISagaStore>(
@@ -160,7 +182,7 @@ public static class SagaBuilderSqlServerExtensions
 		// Register timeout store sharing the same connection
 		_ = builder.Services.Configure<SqlServerSagaTimeoutStoreOptions>(opt =>
 		{
-			opt.ConnectionString = options.ConnectionString;
+			opt.ConnectionString = configuredConnectionString;
 		});
 		// The timeout store takes a required ITenantContext and is registered here by type, so it must
 		// resolve. This registers the single-tenant default only when no context exists yet, so a

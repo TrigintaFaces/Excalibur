@@ -21,6 +21,8 @@ namespace Excalibur.Dispatch.Benchmarks.Diagnostics;
 /// </summary>
 [MemoryDiagnoser]
 [Config(typeof(DiagnosticsBenchmarkConfig))]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
+	Justification = "BenchmarkDotNet owns the fixture lifecycle and invokes GlobalCleanup, which independently disposes all owned resources.")]
 public class TransportAdapterPhaseBenchmarks
 {
 	private ServiceProvider? _provider;
@@ -82,13 +84,50 @@ public class TransportAdapterPhaseBenchmarks
 	[GlobalCleanup]
 	public void GlobalCleanup()
 	{
-		if (_adapter is not null)
+		var failures = new List<Exception>();
+		try
 		{
-			_adapter.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
-			_adapter.DisposeAsync().AsTask().GetAwaiter().GetResult();
+			_adapter?.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
+		}
+		catch (Exception exception)
+		{
+			failures.Add(exception);
 		}
 
-		_provider?.Dispose();
+		try
+		{
+			if (_adapter is not null)
+			{
+				_adapter.DisposeAsync().AsTask().GetAwaiter().GetResult();
+			}
+		}
+		catch (Exception exception)
+		{
+			failures.Add(exception);
+		}
+
+		try
+		{
+			_serializer?.Dispose();
+		}
+		catch (Exception exception)
+		{
+			failures.Add(exception);
+		}
+
+		try
+		{
+			_provider?.Dispose();
+		}
+		catch (Exception exception)
+		{
+			failures.Add(exception);
+		}
+
+		if (failures.Count > 0)
+		{
+			throw new AggregateException("Transport benchmark cleanup failed.", failures);
+		}
 	}
 
 	[Benchmark(Baseline = true, Description = "Map transport context")]

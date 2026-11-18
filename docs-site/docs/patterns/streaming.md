@@ -146,9 +146,7 @@ public async Task WriteJsonArrayAsync(
 
 ### Performance Characteristics
 
-- **Stack-allocated**: As a `readonly record struct`, `Chunk<T>` avoids heap allocations
-- **Minimal overhead**: Only one-item lookahead to determine `IsLast`
-- **Memory efficient**: Only two elements held in memory at any time
+`Chunk<T>` is a `readonly record struct`. Chunking uses one-item lookahead to determine `IsLast`; this does not establish allocation-free execution or bound memory retained by the source, payloads, asynchronous machinery or consumers.
 
 ## StreamingDocument
 

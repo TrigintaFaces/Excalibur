@@ -1,7 +1,6 @@
 # WarmPath epoch 2026-09-05 (post dispatch-correctness work)
 
-Supersedes `dispatch-comparative-20260903-2230/` for every current claim. That epoch is not
-wrong -- it measured different code, and it is kept for that reason.
+This September 5 snapshot followed `dispatch-comparative-20260903-2230/`. Both retain their original source epochs. Competitive conclusions below are interpretations recorded at that epoch, not current-source claims or independently refreshed comparisons.
 
 ```
 BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9168/25H2)

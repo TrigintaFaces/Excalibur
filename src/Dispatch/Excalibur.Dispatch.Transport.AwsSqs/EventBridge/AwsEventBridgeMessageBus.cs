@@ -13,6 +13,7 @@ using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.AwsSqs;
 
@@ -53,12 +54,23 @@ internal sealed partial class AwsEventBridgeMessageBus(
 {
 	private readonly string _busName = options.EventBusName;
 	private readonly SemaphoreSlim _archiveLock = new(1, 1);
+	private readonly bool _ownsClient = true;
 	private int _archiveState;
+	private int _disposed;
+
+	internal AwsEventBridgeMessageBus(IAmazonEventBridge client, IPayloadSerializer serializer,
+		AwsEventBridgeOptions options, ILogger<AwsEventBridgeMessageBus> logger, bool ownsClient,
+		IEnvelopeCloudEventBridge? cloudEventBridge = null, ICloudEventEncoder<PutEventsRequestEntry>? cloudEventEncoder = null)
+		: this(client, serializer, options, logger, cloudEventBridge, cloudEventEncoder)
+	{
+		_ownsClient = ownsClient;
+	}
 
 	public async Task PublishAsync(IDispatchAction action, IMessageContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(action);
 		ArgumentNullException.ThrowIfNull(context);
+		ValidateRetryOwnership(action, context, cancellationToken);
 
 		await EnsureArchiveAsync(cancellationToken).ConfigureAwait(false);
 
@@ -90,6 +102,7 @@ internal sealed partial class AwsEventBridgeMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(context);
+		ValidateRetryOwnership(evt, context, cancellationToken);
 
 		await EnsureArchiveAsync(cancellationToken).ConfigureAwait(false);
 
@@ -121,6 +134,7 @@ internal sealed partial class AwsEventBridgeMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(doc);
 		ArgumentNullException.ThrowIfNull(context);
+		ValidateRetryOwnership(doc, context, cancellationToken);
 
 		await EnsureArchiveAsync(cancellationToken).ConfigureAwait(false);
 
@@ -150,9 +164,37 @@ internal sealed partial class AwsEventBridgeMessageBus(
 
 	public ValueTask DisposeAsync()
 	{
-		_archiveLock.Dispose();
-		client.Dispose();
+		if (Interlocked.Exchange(ref _disposed, 1) == 0)
+		{
+			_archiveLock.Dispose();
+			if (_ownsClient) { client.Dispose(); }
+		}
 		return ValueTask.CompletedTask;
+	}
+
+	private void ValidateRetryOwnership(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		if (!RetryOwnershipScope.Owns(message, context)) { return; }
+		try
+		{
+			var config = client.Config;
+			cancellationToken.ThrowIfCancellationRequested();
+			if (config is null || config.MaxErrorRetry != 0 || config.MaxStaleConnectionRetries != 0)
+			{
+				throw new ConfigurationException("Owned EventBridge sends require readable SDK configuration with MaxErrorRetry=0 and MaxStaleConnectionRetries=0. Configure the caller-supplied send client before registration.");
+			}
+		}
+		catch (ConfigurationException)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			throw;
+		}
+		catch (Exception error)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			throw new ConfigurationException("Owned EventBridge sends require readable SDK retry configuration.", error);
+		}
 	}
 
 	private static MessageEnvelope CreateEnvelope(IDispatchMessage message, IMessageContext context)
@@ -178,7 +220,9 @@ internal sealed partial class AwsEventBridgeMessageBus(
 			SentTimestampUtc = context.GetSentTimestampUtc(),
 		};
 
-		foreach (var item in context.Items)
+		// Only the values the application marked for propagation. Items is request-local: this envelope
+		// becomes a CloudEvent on a broker, often read by a system we did not write.
+		foreach (var item in context.GetPropagatedItems())
 		{
 			envelope.SetItem(item.Key, item.Value);
 		}
@@ -253,6 +297,11 @@ internal sealed partial class AwsEventBridgeMessageBus(
 		if (response.FailedEntryCount != 1 || !string.IsNullOrEmpty(result.EventId) || string.IsNullOrWhiteSpace(result.ErrorCode))
 		{
 			throw new DispatchDeliveryUncertainException("EventBridge ingestion acceptance is unestablished: the acknowledgement is inconsistent.", error);
+		}
+
+		if (result.ErrorCode is "InternalFailure" or "ThrottlingException")
+		{
+			KnownTransientFailureEvidence.Record(error);
 		}
 
 		throw result.ErrorCode switch

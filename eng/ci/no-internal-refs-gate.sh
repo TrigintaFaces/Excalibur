@@ -13,8 +13,8 @@
 #
 # This gate greps the PUBLIC-SURFACE globs for those tokens and fails if any are
 # found. INTERNAL sinks (commit msgs, tracker exports, unpublished dot-directories, management/**,
-# ADR files, tests/**, PublicAPI*.txt, and internal-visibility `///` comments under
-# an Internal/ folder) are EXEMPT — ids are expected there.
+# ADR files, tests/** and PublicAPI*.txt) are EXEMPT — ids are expected there.
+# Internal/ source paths use the same comment/string-literal surface rules as other source.
 #
 # Exit codes:
 #   0  no public-surface internal-ref leaks (clean)
@@ -311,7 +311,6 @@ nir_is_exempt() {
         management/*) return 0 ;;
         docs/*) return 0 ;;                 # contributor-internal docs (not the published site)
         tests/*|*/tests/*) return 0 ;;
-        */Internal/*) return 0 ;;           # internal-visibility seam XML docs
         */bin/*|*/obj/*|*/node_modules/*|*/.docusaurus/*) return 0 ;;
         *PublicAPI*.txt) return 0 ;;        # API signature baselines, not prose
         *) return 1 ;;
@@ -875,7 +874,6 @@ EOF
         "tests/Unit/FooShould.cs" \
         ".beads/issues.jsonl" \
         ".internal/rules/x.md" \
-        "src/Foo/Internal/Helper.cs" \
         "src/Foo/PublicAPI.Shipped.txt" \
         "docs-site/node_modules/pkg/readme.md" \
     ; do
@@ -891,6 +889,7 @@ EOF
         "CONTRIBUTING.md" \
         "SUPPORT.md" \
         "src/Foo/Widget.cs" \
+        "src/Foo/Internal/Helper.cs" \
     ; do
         if nir_is_exempt "$p"; then
             echo "self-test FAIL: public path '$p' was wrongly EXEMPT" >&2; pass=0
@@ -1091,6 +1090,53 @@ EOF
         fi
     else
         echo "  staged-mode: SKIPPED (could not create a throwaway repo)"
+    fi
+
+    # --- Internal XML docs: exercise the assembled STAGED path, not just a filter ---
+    # Commit only an owned scratch fixture so an untouched tracked leak detects a whole-tree scan.
+    local ir="$tmp/internal-staged-repo" internal_out internal_rc
+    mkdir -p "$ir/src/Foo/Internal"
+    if git -C "$ir" init -q \
+        && git -C "$ir" config user.email fixture@example.invalid \
+        && git -C "$ir" config user.name fixture \
+        && git -C "$ir" config commit.gpgsign false; then
+        printf 'public sealed class Untouched { }\n' > "$ir/src/Foo/Untouched.cs"
+        if ! git -C "$ir" add -- src/Foo/Untouched.cs \
+            || ! git -C "$ir" -c core.hooksPath=/dev/null commit -qm 'fixture baseline'; then
+            echo "self-test FAIL: could not prepare owned Internal staged fixture" >&2; pass=0
+        else
+            printf '/// <summary>Unstaged bd-a9f6c2 must stay outside the scan.</summary>\npublic sealed class Untouched { }\n' > "$ir/src/Foo/Untouched.cs"
+            printf '/// <summary>Staged bd-f6a9c2 is shipped XML documentation.</summary>\ninternal sealed class Probe { }\n' > "$ir/src/Foo/Internal/Probe.cs"
+            if ! git -C "$ir" add -- src/Foo/Internal/Probe.cs; then
+                echo "self-test FAIL: could not stage Internal XML fixture" >&2; pass=0
+            else
+                internal_out="$(cd "$ir" && bash "$SELF_PATH" --staged 2>&1)"; internal_rc=$?
+                if [ "$internal_rc" -eq 1 ] \
+                    && printf '%s\n' "$internal_out" | grep -qF 'src/Foo/Internal/Probe.cs:1:' \
+                    && printf '%s\n' "$internal_out" | grep -qF 'bd-f6a9c2' \
+                    && ! printf '%s\n' "$internal_out" | grep -qF 'src/Foo/Untouched.cs'; then
+                    echo "  internal-staged: XML documentation leak is CAUGHT"
+                else
+                    echo "self-test FAIL: staged Internal XML leak was not caught precisely (exit $internal_rc)" >&2
+                    printf '%s\n' "$internal_out" >&2; pass=0
+                fi
+                printf '/// <summary>Explains the supported behavior.</summary>\ninternal sealed class Probe { }\n' > "$ir/src/Foo/Internal/Probe.cs"
+                if ! git -C "$ir" add -- src/Foo/Internal/Probe.cs; then
+                    echo "self-test FAIL: could not stage legitimate Internal content" >&2; pass=0
+                else
+                    internal_out="$(cd "$ir" && bash "$SELF_PATH" --staged 2>&1)"; internal_rc=$?
+                    if [ "$internal_rc" -eq 0 ] \
+                        && ! printf '%s\n' "$internal_out" | grep -qF 'src/Foo/Untouched.cs'; then
+                        echo "  internal-staged: legitimate content PASSES and untouched file stays outside"
+                    else
+                        echo "self-test FAIL: legitimate Internal content failed or untouched file was scanned (exit $internal_rc)" >&2
+                        printf '%s\n' "$internal_out" >&2; pass=0
+                    fi
+                fi
+            fi
+        fi
+    else
+        echo "self-test FAIL: could not initialize owned Internal staged fixture" >&2; pass=0
     fi
 
     if [ "$pass" -eq 1 ]; then

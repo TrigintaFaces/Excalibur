@@ -17,11 +17,18 @@ namespace Excalibur.Dispatch.LeaderElection;
 /// </remarks>
 /// <param name="FencingToken">
 /// The monotonic fencing token minted for this leadership tenure, or <see langword="null"/> when this
-/// tenure carries no fence (no fencing-token provider is configured). A real token is always
-/// <c>&gt;= 1</c>; <see langword="null"/> is the explicit "no fence" signal and is never conflated with a
-/// numeric sentinel such as <c>0</c>. Downstream resources reject any operation presenting a token less
-/// than or equal to the highest token they have already observed, preventing a stale leader from acting
-/// after it has lost leadership (see <see cref="Fencing.IFencedResource"/>).
+/// tenure carries no fence. A real token is always <c>&gt;= 1</c>; <see langword="null"/> is the explicit
+/// "no fence" signal and is never conflated with a numeric sentinel such as <c>0</c>. Downstream
+/// resources reject any operation presenting a token less than or equal to the highest token they have
+/// already observed, preventing a stale leader from acting after it has lost leadership (see
+/// <see cref="Fencing.IFencedResource"/>).
+/// <para>
+/// <b>Null means exactly one thing: the deployment configured no fencing.</b> It does NOT mean a fence
+/// was configured and no token could be obtained — see the invariant on
+/// <see cref="ILeaderElection.CurrentLeadership"/>. A consumer may therefore treat a null token as a
+/// deliberate opt-out of fencing and admit the operation, which is what makes the two states safe to
+/// distinguish by nullability alone.
+/// </para>
 /// </param>
 /// <param name="AcquiredAt">The instant at which this leadership tenure began.</param>
 public readonly record struct Leadership(long? FencingToken, DateTimeOffset AcquiredAt);

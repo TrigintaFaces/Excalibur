@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Options.ErrorHandling;
 
 using Microsoft.Extensions.Logging;
@@ -211,10 +212,18 @@ public sealed partial class PoisonMessageMiddleware : IDispatchMiddleware, IDisp
 
 		context.Items["ProcessingAttempts"] = attemptCount;
 
-		// Set first attempt time if not already set
+		// Internal evidence lives in the typed feature. Producer metadata may use the same
+		// spelling, but must not prevent initialization or reset age on a later attempt.
+		var processing = context.GetOrCreateProcessingFeature();
+		processing.FirstAttemptTime ??=
+			context.Items.TryGetValue("FirstAttemptTime", out var legacy) && legacy is DateTimeOffset first
+				? first
+				: DateTimeOffset.UtcNow;
+
+		// Preserve the existing observer key when absent; keep producer metadata intact.
 		if (!context.Items.ContainsKey("FirstAttemptTime"))
 		{
-			context.Items["FirstAttemptTime"] = DateTimeOffset.UtcNow;
+			context.Items["FirstAttemptTime"] = processing.FirstAttemptTime.Value;
 		}
 
 		context.Items["CurrentAttemptTime"] = DateTimeOffset.UtcNow;
@@ -274,9 +283,13 @@ public sealed partial class PoisonMessageMiddleware : IDispatchMiddleware, IDisp
 			info.AttemptCount = count;
 		}
 
-		if (context.Items.TryGetValue("FirstAttemptTime", out var firstTime) && firstTime is DateTimeOffset first)
+		if (context.GetProcessingFeature()?.FirstAttemptTime is { } first)
 		{
 			info.FirstAttemptTime = first;
+		}
+		else if (context.Items.TryGetValue("FirstAttemptTime", out var firstTime) && firstTime is DateTimeOffset legacyFirst)
+		{
+			info.FirstAttemptTime = legacyFirst;
 		}
 
 		if (context.Items.TryGetValue("CurrentAttemptTime", out var currentTime) && currentTime is DateTimeOffset current)

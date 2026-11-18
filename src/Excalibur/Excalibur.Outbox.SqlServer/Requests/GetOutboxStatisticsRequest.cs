@@ -25,6 +25,11 @@ public sealed class GetOutboxStatisticsRequest : DataRequestBase<IDbConnection, 
 	/// <param name="tableName">The qualified outbox table name.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public GetOutboxStatisticsRequest(
 		string tableName,
 		int commandTimeout,
@@ -54,7 +59,10 @@ public sealed class GetOutboxStatisticsRequest : DataRequestBase<IDbConnection, 
 
 		ResolveAsync = async connection =>
 		{
-			var result = await connection.QuerySingleOrDefaultAsync<StatisticsRow>(Command).ConfigureAwait(false);
+			var result = await StaticDbCommand.SingleOrDefaultAsync(connection, Command, command =>
+			{
+
+			}, static reader => new StatisticsRow { StagedCount = StaticDbValue.Int32(reader, 0), SendingCount = StaticDbValue.Int32(reader, 1), SentCount = StaticDbValue.Int32(reader, 2), FailedCount = StaticDbValue.Int32(reader, 3), PartiallyFailedCount = StaticDbValue.Int32(reader, 4), ScheduledCount = StaticDbValue.Int32(reader, 5), OldestUnsentCreatedAt = StaticDbValue.DateTimeOffset(reader, 6) }).ConfigureAwait(false);
 
 			return new OutboxStatistics
 			{

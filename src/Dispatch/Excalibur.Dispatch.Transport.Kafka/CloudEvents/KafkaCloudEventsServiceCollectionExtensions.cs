@@ -46,6 +46,7 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 		_ = services.AddOptions<CloudEventOptions>()
 			.ValidateOnStart();
 		_ = services.AddCloudEventOptionsValidation();
+		_ = services.AddCloudEventSerializerGuard();
 		if (configureOptions is not null)
 		{
 			_ = services.Configure(configureOptions);
@@ -68,14 +69,14 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	/// <remarks>
 	/// <para>
-	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
-	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
-	/// ahead of time warns at this call. Register your own <see cref="ICloudEventEncoder{TOutbound}"/>
-	/// backed by a source-generated serializer to compose without the requirement.
+	/// Payload serialization is selected separately by the core <c>AddCloudEvents</c> registration.
+	/// For trimming and ahead-of-time compilation, use its resolver overload with a source-generated
+	/// context covering the published payload types. The bundled encoder uses the configured
+	/// <see cref="CloudEventSerializer"/>; a custom encoder is not required to select metadata serialization.
+	/// The parameterless core overload remains the annotated reflection-based choice.
+	/// This does not remove the Confluent SDK/schema-registry limitations for Native AOT.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
-	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
 	public static IServiceCollection AddCloudEventsForKafka(
 		this IServiceCollection services,
 		Action<KafkaCloudEventOptions>? configureKafka = null,

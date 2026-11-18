@@ -32,6 +32,7 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 	private readonly ILogger<OracleSagaTimeoutStore> _logger;
 	private readonly ITenantContext _tenantContext;
 	private readonly OracleSagaTimeoutStoreOptions _options;
+	private readonly OracleSagaTimerRecovery _timerRecovery;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="OracleSagaTimeoutStore"/> class.
@@ -126,6 +127,8 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 		_options.Validate();
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+		_timerRecovery = new OracleSagaTimerRecovery(_connectionFactory, _options, _tenantContext);
+        _timeoutFailures = new OracleTimeoutFailureStore(_timerRecovery, () => CurrentPartition().TenantId);
 	}
 
 	/// <summary>
@@ -167,30 +170,8 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 		// on that type and is deliberately ignored here.
 		var partition = CurrentPartition();
 
-		var sql = $"""
-			INSERT INTO {_options.QualifiedTableName}
-				(TimeoutId, SagaId, SagaType, TimeoutType, TimeoutData, DueAt, ScheduledAt, TenantId)
-			VALUES
-				(:TimeoutId, :SagaId, :SagaType, :TimeoutType, :TimeoutData, :DueAt, :ScheduledAt, :TenantId)
-			""";
-
-		// ODP.NET binds by position unless BindByName is set; the add order below mirrors the placeholder order
-		// in the SQL above, so TenantId is added last to match.
-		var dp = new DynamicParameters();
-		dp.Add("TimeoutId", timeout.TimeoutId);
-		dp.Add("SagaId", timeout.SagaId);
-		dp.Add("SagaType", timeout.SagaType);
-		dp.Add("TimeoutType", timeout.TimeoutType);
-		dp.Add("TimeoutData", timeout.TimeoutData);
-		dp.Add("DueAt", timeout.DueAt);
-		dp.Add("ScheduledAt", timeout.ScheduledAt);
-		dp.Add("TenantId", partition.TenantId);
-
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		_ = await connection.ExecuteAsync(new CommandDefinition(
-			sql, new OracleDynamicParameters(dp), cancellationToken: cancellationToken)).ConfigureAwait(false);
+        var target = _timerRecovery.CaptureRecoveryTarget();
+        _ = await _timerRecovery.ScheduleWithRecoveryOrLegacyAsync(timeout, partition.TenantId, target, cancellationToken).ConfigureAwait(false);
 
 		if (_logger.IsEnabled(LogLevel.Debug))
 		{
@@ -211,18 +192,8 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 		// Addressed by the full ruled saga identity (TenantId, SagaId), not by SagaId alone: two tenants' sagas
 		// can share a SagaId, so a tenant-less predicate deletes another tenant's pending timeout.
 		var partition = CurrentPartition();
-		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = :TenantId AND SagaId = :SagaId AND TimeoutId = :TimeoutId";
-
-		var dp = new DynamicParameters();
-		dp.Add("TenantId", partition.TenantId);
-		dp.Add("SagaId", sagaId);
-		dp.Add("TimeoutId", timeoutId);
-
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		_ = await connection.ExecuteAsync(new CommandDefinition(
-			sql, new OracleDynamicParameters(dp), cancellationToken: cancellationToken)).ConfigureAwait(false);
+        var target = _timerRecovery.CaptureRecoveryTarget();
+        _ = await _timerRecovery.CancelWithRecoveryOrLegacyAsync(sagaId, timeoutId, partition.TenantId, target, cancellationToken).ConfigureAwait(false);
 
 		if (_logger.IsEnabled(LogLevel.Debug))
 		{
@@ -241,17 +212,8 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 		// Cancel-all is the most dangerous of the tenant-less predicates: keyed on SagaId alone it deletes EVERY
 		// tenant's timeouts for a shared SagaId, not just the caller's.
 		var partition = CurrentPartition();
-		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = :TenantId AND SagaId = :SagaId";
-
-		var dp = new DynamicParameters();
-		dp.Add("TenantId", partition.TenantId);
-		dp.Add("SagaId", sagaId);
-
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		var rowsAffected = await connection.ExecuteAsync(new CommandDefinition(
-			sql, new OracleDynamicParameters(dp), cancellationToken: cancellationToken)).ConfigureAwait(false);
+        var target = _timerRecovery.CaptureRecoveryTarget();
+        var rowsAffected = await _timerRecovery.CancelWithRecoveryOrLegacyAsync(sagaId, null, partition.TenantId, target, cancellationToken).ConfigureAwait(false);
 
 		_ = (activity?.SetTag("timeout.count", rowsAffected));
 
@@ -265,6 +227,9 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 	public async Task<IReadOnlyList<ClaimedSagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        var preserving = await _timeoutFailures.TryClaimAsync(asOf, batchSize, _options.ProcessorId, _options.LeaseTimeoutSeconds, cancellationToken).ConfigureAwait(false);
+        if (preserving is not null) { return preserving; }
+        var target = _timerRecovery.CaptureRecoveryTarget();
 
 		using var activity = ActivitySource.StartActivity("ClaimDueTimeouts");
 		_ = (activity?.SetTag("timeout.as_of", asOf.ToString("O")));
@@ -293,19 +258,19 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 			DECLARE
 			    CURSOR eligible IS
 			        SELECT TimeoutId
-			        FROM {_options.QualifiedTableName}
+			        FROM {target.Payload}
 			        WHERE DueAt <= :AsOf
 			          AND (ClaimedAt IS NULL OR ClaimedAt < SYSTIMESTAMP - NUMTODSINTERVAL(:LeaseTimeoutSeconds, 'SECOND'))
 			        ORDER BY DueAt
 			        FOR UPDATE SKIP LOCKED;
-			    TYPE id_table IS TABLE OF {_options.QualifiedTableName}.TimeoutId%TYPE;
+			    TYPE id_table IS TABLE OF {target.Payload}.TimeoutId%TYPE;
 			    claimed_ids id_table;
 			BEGIN
 			    OPEN eligible;
 			    FETCH eligible BULK COLLECT INTO claimed_ids LIMIT :BatchSize;
 			    CLOSE eligible;
 			    FORALL i IN 1 .. claimed_ids.COUNT
-			        UPDATE {_options.QualifiedTableName}
+			        UPDATE {target.Payload}
 			        SET ClaimedAt = SYSTIMESTAMP, ClaimedBy = :ClaimToken
 			        WHERE TimeoutId = claimed_ids(i);
 			END;
@@ -326,13 +291,6 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 		//
 		// FETCH FIRST is legal here (no FOR UPDATE in this statement, so ORA-02014 does not apply) and caps
 		// the read even if a caller's token were ever reused.
-		var selectSql = $"""
-			SELECT TimeoutId, SagaId, SagaType, TimeoutType, TimeoutData, DueAt, ScheduledAt, TenantId
-			FROM {_options.QualifiedTableName}
-			WHERE ClaimedBy = :ClaimToken
-			ORDER BY DueAt ASC
-			FETCH FIRST :BatchSize ROWS ONLY
-			""";
 
 		// Per-statement DynamicParameters. Both statements are wrapped in OracleDynamicParameters, which sets
 		// OracleCommand.BindByName = true, so parameters bind by name. Do not "correct" that: under ODP.NET's
@@ -358,6 +316,16 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var hasRecoveryColumns = await OracleSagaTimerRecoveryRequests.RecoveryMetadataAvailableAsync(connection, null, target, cancellationToken).ConfigureAwait(false);
+        var ownedProjection = hasRecoveryColumns ? ", OwnedIncarnationId, OwnedGeneration, OwnedStateType" : string.Empty;
+		var selectSql = $"""
+			SELECT TimeoutId, SagaId, SagaType, TimeoutType, TimeoutData, DueAt, ScheduledAt, TenantId{ownedProjection}
+			FROM {target.Payload}
+			WHERE ClaimedBy = :ClaimToken
+			ORDER BY DueAt ASC
+			FETCH FIRST :BatchSize ROWS ONLY
+			""";
+
 
 		_ = await connection.ExecuteAsync(new CommandDefinition(
 			claimSql, new OracleDynamicParameters(claimParameters), cancellationToken: cancellationToken)).ConfigureAwait(false);
@@ -367,22 +335,7 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 
 		// The token minted above is CARRIED OUT with each row. It was already sound -- unique per claim
 		// call -- and was then discarded inside this method, so the fence it represented fenced nothing.
-		var timeouts = results
-			.Select(r => new ClaimedSagaTimeout(new SagaTimeout(
-				r.TimeoutId,
-				r.SagaId,
-				r.SagaType,
-				r.TimeoutType,
-				r.TimeoutData,
-				r.DueAt,
-				r.ScheduledAt)
-			{
-				// Carried out so the delivery service can re-establish this timeout's own tenant before dispatch.
-				// Read through the store-read factory, which maps a legacy NULL or the sentinel onto the
-				// untenanted partition without rejecting either.
-				TenantId = KeyedTenantPartition.FromStoredValue(r.TenantId).TenantId,
-			}, claimToken))
-			.ToList();
+        var timeouts = results.Select(row => CreateRecoveryClaim(row, claimToken)).ToList();
 
 		_ = (activity?.SetTag("timeout.count", timeouts.Count));
 
@@ -443,6 +396,8 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 	public async Task<SagaTimeoutRetirementOutcome> MarkDeliveredAsync(ClaimedSagaTimeout claim, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(claim);
+        var preserving = await _timeoutFailures.TryRetireAsync(claim, cancellationToken).ConfigureAwait(false);
+        if (preserving is { } outcome) { return outcome; }
 
 		var timeoutId = claim.Timeout.TimeoutId;
 
@@ -527,5 +482,9 @@ public sealed partial class OracleSagaTimeoutStore : ISagaTimeoutStore
 		/// treated as untenanted instead of aborting the whole claimed batch on the first one.
 		/// </remarks>
 		public string? TenantId { get; set; }
+        public byte[]? OwnedIncarnationId { get; set; }
+        public decimal? OwnedGeneration { get; set; }
+        public string? OwnedStateType { get; set; }
+
 	}
 }

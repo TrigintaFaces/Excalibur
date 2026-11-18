@@ -287,6 +287,15 @@ internal static class DeliveryEventId
 	/// <summary>Poison message replay - not a dispatch message.</summary>
 	public const int PoisonReplayNotDispatchMessage = 40482;
 
+	/// <summary>Poison message replay refused because the message was already replayed.</summary>
+	public const int PoisonReplayAlreadyReplayed = 40491;
+
+	/// <summary>Poison message replay refused because the replay claim was not won.</summary>
+	public const int PoisonReplayClaimRefused = 40492;
+
+	/// <summary>A replay claim could not be released after a replay that did not succeed.</summary>
+	public const int PoisonReplayClaimNotReleased = 40493;
+
 	/// <summary>Poison message replay succeeded.</summary>
 	public const int PoisonReplaySuccess = 40483;
 
@@ -380,6 +389,12 @@ internal static class DeliveryEventId
 
 	/// <summary>A schedule row that failed was disabled because its next execution could not be advanced.</summary>
 	public const int ScheduledDisabledAfterFailure = 40521;
+
+	/// <summary>A due occurrence could not be admitted, so this poll does nothing for it.</summary>
+	public const int ScheduledAdmissionUnavailable = 40522;
+
+	/// <summary>One occurrence exceeded its admission bound without a committed settlement, so the schedule was retired.</summary>
+	public const int ScheduleRetiredAfterUnsettledAdmissions = 40523;
 
 	// ========================================
 	// 40600-40699: Cron Scheduling

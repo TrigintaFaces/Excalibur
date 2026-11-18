@@ -62,6 +62,7 @@ public sealed class OutboxBatchDeadLetterTenantShould
 
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 		_ = await processor.DispatchPendingMessagesAsync(cts.Token).ConfigureAwait(false);
+		store.ClaimsVerified.ShouldBeGreaterThan(0, "a claimed-row transition must actually execute");
 
 		// Liveness first: an arm that never reached the queue would satisfy any assertion about what the
 		// queue saw, so prove the dead letter was actually filed before judging the tenant it was filed under.
@@ -108,9 +109,43 @@ public sealed class OutboxBatchDeadLetterTenantShould
 	}
 
 	/// <summary>Hands out one tenanted message, then nothing, so the drain terminates.</summary>
-	private sealed class SingleMessageStore(string tenantId) : IOutboxStore, IDeadLetterableOutboxStore
+	private sealed class SingleMessageStore(string tenantId) : IOutboxStore, IDeadLetterableOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore
 	{
 		private int _served;
+
+        private readonly Dictionary<string, string> _claimed = new(StringComparer.Ordinal);
+        public int ClaimsVerified { get; private set; }
+
+        private void VerifyClaim(string messageId, string claimIdentity)
+        {
+            _claimed.TryGetValue(messageId, out var expected).ShouldBeTrue("completion must name a row actually acquired by this fixture");
+            claimIdentity.ShouldBe(expected, "the worker must present this row's exact captured acquisition");
+            ClaimsVerified++;
+        }
+
+        public async ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            await MarkSentAsync(messageId, cancellationToken);
+            return OutboxCompletionOutcome.Applied;
+        }
+
+        public async ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string messageId, string errorMessage, int retryCount, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            await MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken);
+            return OutboxCompletionOutcome.Applied;
+        }
+
+        public ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffAsync(string messageId, string errorMessage, int retryCount, DateTimeOffset nextAttemptAt, string claimIdentity, CancellationToken cancellationToken)
+            => MarkFailedAsync(messageId, errorMessage, retryCount, claimIdentity, cancellationToken);
+
+        public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            return MarkDeadLetteredAsync(messageId, reason, attemptCount, cancellationToken);
+        }
+
 
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 		{
@@ -133,6 +168,8 @@ public sealed class OutboxBatchDeadLetterTenantShould
 				TenantId = tenantId,
 			};
 
+			message.DispatcherId = "claim-" + message.Id;
+			_claimed.Add(message.Id, message.DispatcherId);
 			return new ValueTask<IEnumerable<OutboundMessage>>([message]);
 		}
 

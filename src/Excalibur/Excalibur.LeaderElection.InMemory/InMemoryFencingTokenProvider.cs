@@ -26,7 +26,7 @@ namespace Excalibur.LeaderElection.InMemory;
 /// rather than wrapping, matching every other provider's exhaustion behavior.
 /// </para>
 /// </remarks>
-internal sealed class InMemoryFencingTokenProvider : IFencingTokenProvider
+internal sealed class InMemoryFencingTokenProvider : IFencingTokenIssuer
 {
 	private readonly ConcurrentDictionary<string, long> _tokens;
 
@@ -80,6 +80,7 @@ internal sealed class InMemoryFencingTokenProvider : IFencingTokenProvider
 	public ValueTask<long?> GetTokenAsync(string resourceId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(resourceId);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		// No counter entry -> no token ever issued -> no active leader (idiomatic "no value" signal).
 		long? current = _tokens.TryGetValue(resourceId, out var value) ? value : null;
@@ -90,6 +91,7 @@ internal sealed class InMemoryFencingTokenProvider : IFencingTokenProvider
 	public ValueTask<bool> ValidateTokenAsync(string resourceId, long token, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(resourceId);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		// Fail-closed high-water-mark check: with no issued token nothing is valid; otherwise accept only
 		// tokens at or above the current value, rejecting a stale leader's lower token.

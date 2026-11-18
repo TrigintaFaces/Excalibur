@@ -24,6 +24,7 @@ internal sealed class ElasticsearchOutboxDocument
 	// silent consumer-data loss).
 	public string? PartitionKey { get; set; }
 	public string? GroupKey { get; set; }
+	public long SequenceNumber { get; set; }
 	public string? TargetTransports { get; set; }
 	public bool IsMultiTransport { get; set; }
 

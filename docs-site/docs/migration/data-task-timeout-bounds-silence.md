@@ -25,8 +25,9 @@ services.AddDataProcessing(options =>
 never reset. It could not distinguish a wedged task from a healthy one with a lot to do, so it cancelled
 both — and the one it cancelled wrongly was the one doing its job.
 
-The consequence is arithmetic rather than opinion. Under a total deadline there is always a record count
-above which the task fails, no matter how fast each record is:
+Assuming sequential processing at a fixed positive per-record cost, enough records will exceed a total
+processing budget. These illustrative counts omit other processing costs and indicate when cancellation
+would be requested, not guaranteed task completion or failure:
 
 | per-record cost | records before a 60s total deadline |
 | --- | --- |
@@ -34,17 +35,22 @@ above which the task fails, no matter how fast each record is:
 | 20 ms | ~3,000 |
 | 2 ms | ~30,000 |
 
-Making the work faster moves the wall. It never removes it. A batch pipeline whose input size the
-framework does not control cannot be bounded by total duration without failing on size alone.
+Making each record faster increases the number that fits within the budget. A sufficiently large input
+can still exhaust that budget while processing continues to make progress.
 
-The stall clock measures the thing that actually distinguishes the two cases. It is restarted every time
-the task durably accounts for a record, so:
+The stall clock measures the gap between durable progress updates. It restarts after a successful
+checkpoint, including a page-boundary checkpoint for an empty page, so:
 
-- a task that keeps completing records is **never** cancelled by it, whatever the batch size;
-- a task that goes quiet is cancelled **sooner** than the old deadline usually managed, because the budget
-  starts from the last sign of life rather than from the beginning of the task.
+- batch size alone does not exhaust the stall budget when durable progress occurs within each interval;
+- the entire gap between durable progress updates must fit the interval, including startup and fetching,
+  record handling, handler-scope disposal, checkpoint time, and record cleanup; any of these operations,
+  or their combined duration, can trigger cancellation;
+- after progress, the budget starts again. With the same configured duration, this moves the deadline
+  later than an absolute deadline armed at task start; it does not generally cancel sooner.
 
-Work already checkpointed is kept, and the task resumes from it on the next attempt.
+Checkpoints persist counts per record and cursors at page boundaries. Restart can replay the unfinished
+page, including already applied records. Use stable record identities for idempotent effects;
+checkpointing does not make external handler effects exactly once.
 
 ## What breaks
 
@@ -80,34 +86,43 @@ new default without a word and discover it as a production timeout.
 
 ## What to set
 
-**If you left the old option at its default**, do nothing. The stall budget defaults to the same 60
-seconds, and it is now 60 seconds of silence rather than 60 seconds of work.
+Remove the obsolete key and choose `ProcessingStallTimeout` with operating margin above the longest
+expected gap between durable progress updates. Include startup, fetching, record handling, scope disposal,
+checkpoint latency, and cleanup when sizing that margin. The default is 60 seconds; verify that it fits
+your workload and its expected latency variation.
 
-**If you raised the old option to accommodate large batches** — the common case — you no longer need to.
-Delete it and take the default. The reason you raised it was that the task had a lot to do, and that is
-exactly what no longer causes a failure.
+**If you raised the old option to accommodate large batches**, total record count alone no longer requires
+a larger stall budget. That does not establish that the default is sufficient: a slow record, fetch, or
+checkpoint can still exceed it.
 
-**If you lowered it to fail fast on a wedged task**, set `ProcessingStallTimeout` to roughly that value. It
-will now fire only on a genuine stall, so a smaller value is safe where it previously was not.
+**If you lowered it to detect stalls quickly**, balance detection latency against the longest legitimate
+gap between checkpoints. A smaller budget can cancel healthy work; timeout alone does not prove a deadlock.
+
+Both timeouts request cooperative cancellation. They are not exact completion deadlines: handlers,
+database operations, or asynchronous disposal can delay completion after cancellation is requested.
+A checkpoint that completes later cannot undo a cancellation already requested.
 
 ## Do you actually want a cap?
 
-`ProcessingTotalTimeout` is `null` by default, and leaving it there is the right answer for almost every
-host. Setting it re-introduces, deliberately, the failure mode this change removed: a task with more work
-than the cap fails regardless of how healthy it is.
-
-It exists for the one case the stall clock cannot catch — work that genuinely never ends while reporting
-progress throughout, such as a cursor that never reaches its end. If you set it, it must not be below
-`ProcessingStallTimeout`; a cap under the stall budget can never be satisfied, and that composition is
-rejected by options validation rather than failing every task at runtime.
+`ProcessingTotalTimeout` is `null` by default. Set it when your operational policy requires a total
+processing budget, including for finite work. It can also detect work that never ends while reporting
+progress, such as a cursor that never reaches its end. A task can exhaust this budget while still making
+healthy progress; cancellation remains cooperative as described above. If you set it, it must not be below
+`ProcessingStallTimeout`. Options validation enforces this relationship so the total cap does not cut
+short the configured stall allowance. This is a configuration constraint, not a claim that a short task
+could never finish under a smaller total cap.
 
 ## Reading the failure
 
 The two clocks are reported separately, because they call for different fixes:
 
-- **"made no progress for `<budget>`"** — the task stalled. Work already checkpointed is kept and the task
-  resumes from it. Look at what the record handler was waiting on, not at how much work the task had.
+- **"made no progress for `<budget>`"** — no durable progress was observed within the stall budget.
+  Investigate the full gap between checkpoints, including fetching, handling, disposal, checkpointing,
+  and cleanup. Durable counts and page-boundary cursors are retained; restart can replay the unfinished
+  page as described above.
 - **"exceeded its total processing budget of `<cap>`"** — the absolute cap fired, and the task may well
-  have been progressing when it did. Raise or clear `ProcessingTotalTimeout`.
+  have been progressing when it did. Check whether the limit is intentional and whether processing is
+  behaving correctly, including whether the input or cursor unexpectedly prevents completion. Raise or
+  clear `ProcessingTotalTimeout` only if that change fits your operational policy.
 
 A cancellation coming from the host shutting down is neither, and is not reported as a timeout.

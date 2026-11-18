@@ -39,13 +39,17 @@ internal sealed class QuerySagaSummariesRequest : DataRequestBase<IDbConnection,
 		// completion state, tenant id) whenever the ambient scope happened to be unset. Emitting the term
 		// always means an unscoped caller reads the untenanted partition instead of the estate.
 		var partition = KeyedTenantPartition.FromScope(scope);
-		const string tenantPredicate = " AND TenantId = @TenantId";
+		const string tenantPredicate = " AND TenantId = @TenantId"
+			+ " AND DATALENGTH(TenantId) = DATALENGTH(@TenantId)"
+			+ " AND CONVERT(VARBINARY(128), TenantId) = CONVERT(VARBINARY(128), @TenantId)";
 
 		var sql = $"""
 			SELECT SagaId, SagaType, IsCompleted, CompletedAt, TenantId, Version
 			FROM {qualifiedTableName}
 			WHERE (@IsCompleted IS NULL OR IsCompleted = @IsCompleted)
-			  AND (@FilterTenantId IS NULL OR TenantId = @FilterTenantId){tenantPredicate}
+			  AND (@FilterTenantId IS NULL OR (TenantId = @FilterTenantId
+			    AND DATALENGTH(TenantId) = DATALENGTH(@FilterTenantId)
+			    AND CONVERT(VARBINARY(128), TenantId) = CONVERT(VARBINARY(128), @FilterTenantId))){tenantPredicate}
 			ORDER BY SagaId
 			OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
 			""";
@@ -95,7 +99,9 @@ internal sealed class GetSagaSummaryRequest : DataRequestBase<IDbConnection, Sag
 		var sql = $"""
 			SELECT SagaId, SagaType, IsCompleted, CompletedAt, TenantId, Version
 			FROM {qualifiedTableName}
-			WHERE SagaId = @SagaId AND TenantId = @TenantId;
+			WHERE SagaId = @SagaId AND TenantId = @TenantId
+			  AND DATALENGTH(TenantId) = DATALENGTH(@TenantId)
+			  AND CONVERT(VARBINARY(128), TenantId) = CONVERT(VARBINARY(128), @TenantId);
 			""";
 
 		Parameters.Add("SagaId", sagaId);
@@ -171,7 +177,9 @@ internal sealed class GetSagaStatisticsRequest : DataRequestBase<IDbConnection, 
 		// predicate as a real tenant (the column is NOT NULL and an untenanted row carries the reserved
 		// sentinel), so routing through KeyedTenantPartition makes one predicate serve both.
 		var partition = KeyedTenantPartition.FromScope(scope);
-		var tenantPredicate = allTenants ? string.Empty : " WHERE TenantId = @TenantId";
+		var tenantPredicate = allTenants ? string.Empty : " WHERE TenantId = @TenantId"
+			+ " AND DATALENGTH(TenantId) = DATALENGTH(@TenantId)"
+			+ " AND CONVERT(VARBINARY(128), TenantId) = CONVERT(VARBINARY(128), @TenantId)";
 
 		var sql = $"""
 			SELECT COUNT(*) AS Total,

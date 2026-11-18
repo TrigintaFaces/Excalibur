@@ -114,6 +114,8 @@ internal sealed partial class CryptoShreddingLedgerWiringValidator : IHostedServ
 					+ "not.");
 			}
 
+			ValidateMintLedger(isService);
+
 			return;
 		}
 
@@ -123,6 +125,116 @@ internal sealed partial class CryptoShreddingLedgerWiringValidator : IHostedServ
 			"Crypto-shredding is configured but no key-destruction ledger (IKeyDestructionLedger) is "
 			+ "registered, so IFieldEncryptor cannot be constructed and every read of an encrypted personal "
 			+ "field would fail. "
+			+ RemedyGuidance);
+	}
+
+	/// <summary>
+	/// The same two arms, for the MINT ledger — and the failure it prevents is the inverse one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The destruction ledger decides whether a field reports as erased; a missing one makes every
+	/// crypto-shredded READ fail, which is loud. The mint ledger decides which handles an erasure can
+	/// ENUMERATE, and its failure is silent in the other direction: an erasure that enumerates nothing
+	/// destroys only the handles it can derive from the declared retentions and the data inventory, and then
+	/// signs a completion certificate over whatever it missed. Nothing downstream ever learns otherwise.
+	/// </para>
+	/// <para>
+	/// That is why the no-erasure mint ledger THROWS on enumeration rather than answering with an empty
+	/// list — and why the contradiction arm below matters more here than it does above. Ledger registrations
+	/// are <c>TryAdd</c>, so a composition carrying both resolves by registration order; in one of the two
+	/// orders a real erasure's enumeration is answered by a type holding no rows. The throw makes that loud
+	/// at the first erasure, and this guard makes it loud at start-up instead.
+	/// </para>
+	/// </remarks>
+	/// <param name="isService">The registration probe.</param>
+	private void ValidateMintLedger(IServiceProviderIsService isService)
+	{
+		if (isService.IsService(typeof(IKeyMintLedger)))
+		{
+			if (isService.IsService(typeof(NoErasureKeyMintLedger))
+				&& isService.IsService(typeof(IErasureStore)))
+			{
+				LogMintLedgerContradictsErasureWiring();
+
+				throw new InvalidOperationException(
+					"This composition registers BOTH the no-erasure key-mint ledger "
+					+ "(AddCryptoShreddingWithoutErasure) and an erasure store, which answer the same "
+					+ "question differently. Ledger registrations are TryAdd, so which one wins depends on "
+					+ "the order the two calls were made in -- and if the no-erasure one won, an erasure "
+					+ "would be unable to enumerate the handles holding this subject's personal fields. It "
+					+ "refuses rather than returning an empty list, so the erasure fails loudly instead of "
+					+ "destroying only what it can derive and certifying; this check moves that discovery to "
+					+ "start-up. Remove one: keep the erasure store and call AddCryptoShredding() if this "
+					+ "deployment erases, or drop the erasure store if it does not.");
+			}
+
+			// A VOLATILE MINT LEDGER IS REFUSED WHEN THIS DEPLOYMENT ERASES, because its empty enumeration
+			// is a CONFORMING answer and therefore undetectable downstream. The contract documents two
+			// meanings for an empty list -- no fields were ever written, and the fields predate this
+			// ledger -- and "the rows were discarded" is indistinguishable from both. So an erasure run
+			// after a restart enumerates nothing, destroys only the handles it can derive from declared
+			// retentions, and signs a completion certificate over everything else.
+			//
+			// RESOLVED RATHER THAN PROBED, which is the one place this guard departs from registration-only
+			// inspection, and it is safe for a stated reason: every mint-ledger registration this framework
+			// makes is a singleton, so resolving it from the root provider captures nothing and throws
+			// nothing under scope validation. The property cannot be read any other way -- that is the
+			// point of it being on the implementation rather than a separately registrable token.
+			var mintLedger = _services.GetService<IKeyMintLedger>();
+
+			if (mintLedger is not null && !mintLedger.IsDurable && isService.IsService(typeof(IErasureStore)))
+			{
+				// LOGGED EVEN WHEN ACKNOWLEDGED, AND AT Critical, which is the half that does the work.
+				//
+				// The refusal below cannot fire for the in-memory store, because registering a call named
+				// AddInMemoryErasureStore() IS the consumer stating the choice by name -- that is the shape
+				// Microsoft uses for the same situation (UseInMemoryDatabase,
+				// AddDeveloperSigningCredential): name it unmistakably rather than try to detect
+				// production, which a framework cannot do. So for THAT composition the remaining protection
+				// is this line, and it must not be conditional on the acknowledgement: a host running
+				// erasures against a ledger that forgets them emits a Critical record naming the
+				// consequence at every single startup. That removes the SILENCE, which is the whole
+				// discriminator -- a loud recoverable condition instead of a signed false completion
+				// nothing reports.
+				LogMintLedgerNotDurable(mintLedger.GetType().Name);
+			}
+
+			if (mintLedger is not null
+				&& !mintLedger.IsDurable
+				&& isService.IsService(typeof(IErasureStore))
+				&& !isService.IsService(typeof(NonDurableErasureLedgerAcknowledged)))
+			{
+				// REFUSED only when the volatility was NOT announced. This is the case the log above cannot
+				// reach: a consumer's own IKeyMintLedger, or a third-party store, whose registration name
+				// says nothing about losing its rows. There the consumer has no way to know, so startup
+				// stops rather than emitting a record they were never told to look for.
+				throw new InvalidOperationException(
+					$"The registered key-mint ledger ({mintLedger.GetType().Name}) does not survive a "
+					+ "process restart, and this composition registers an erasure store, so its erasures "
+					+ "are relied upon. After a restart an erasure would enumerate NO handles for a data "
+					+ "subject, destroy only the handles it can derive from declared retentions, and sign "
+					+ "a completion certificate over every personal field still readable under the rest -- "
+					+ "and nothing downstream could tell, because an empty enumeration is also what a "
+					+ "subject with no personal fields looks like. Register a durable erasure store "
+					+ "instead: AddPostgresErasureStore() or AddSqlServerErasureStore(). If this is a "
+					+ "development or test host and you accept that erasures here attest nothing, say so "
+					+ "by name with AcknowledgeNonDurableErasureLedger() -- it is deliberately a separate "
+					+ "call, because a deployment that silently accepted this would be the failure itself.");
+			}
+
+			return;
+		}
+
+		LogMintLedgerNotRegistered();
+
+		throw new InvalidOperationException(
+			"Crypto-shredding is configured but no key-mint ledger (IKeyMintLedger) is registered. The write "
+			+ "path records every key handle it is about to mint, BEFORE minting it, so that an erasure can "
+			+ "enumerate the handles holding a data subject's personal fields -- the declared retentions and "
+			+ "the data inventory can only answer which handles SHOULD exist, and a handle neither of them "
+			+ "implies is a key no erasure destroys. Without this registration ISubjectKeyManager cannot be "
+			+ "constructed and no personal field can be written at all. "
 			+ RemedyGuidance);
 	}
 
@@ -175,4 +287,49 @@ internal sealed partial class CryptoShreddingLedgerWiringValidator : IHostedServ
  "Crypto-shredding could not determine whether an IKeyDestructionLedger is registered, because this "
  + "container supplies no IServiceProviderIsService. Startup is refused rather than assuming it is wired")]
 	private partial void LogLedgerWiringUnverifiable();
+
+	[LoggerMessage(
+ ComplianceEventId.CryptoShreddingMintLedgerNotRegistered,
+ LogLevel.Critical,
+ "Crypto-shredding is configured but no IKeyMintLedger is registered. ISubjectKeyManager cannot be "
+ + "constructed, so no personal field can be written -- and an erasure would have no enumeration of the "
+ + "handles holding a subject's data. Register an erasure store (AddInMemoryErasureStore, "
+ + "AddPostgresErasureStore or AddSqlServerErasureStore) -- it supplies the ledger")]
+	private partial void LogMintLedgerNotRegistered();
+
+	[LoggerMessage(
+ ComplianceEventId.CryptoShreddingMintLedgerContradictsErasureWiring,
+ LogLevel.Critical,
+ "Crypto-shredding registers both the no-erasure key-mint ledger and an erasure store. Which one answers "
+ + "an enumeration depends on registration order, and if the no-erasure one wins no erasure in this "
+ + "deployment can enumerate the handles holding a subject's personal fields. Startup is refused")]
+	private partial void LogMintLedgerContradictsErasureWiring();
+
+	[LoggerMessage(
+ ComplianceEventId.CryptoShreddingMintLedgerNotDurable,
+ LogLevel.Critical,
+ "The registered key-mint ledger {LedgerType} does not survive a process restart, and this composition "
+ + "registers an erasure store. After a restart an erasure would enumerate no handles for a data subject "
+ + "and certify a completion over whatever it could not derive. Startup is refused; register a durable "
+ + "erasure store, or state the choice with AcknowledgeNonDurableErasureLedger()")]
+	private partial void LogMintLedgerNotDurable(string ledgerType);
 }
+
+/// <summary>
+/// A consumer's explicit statement that this host's erasures are not relied upon, so a mint ledger that
+/// loses its rows on restart is acceptable here.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>A marker type, and it attests the CONSUMER'S intent rather than an implementation's property —
+/// which is why a standalone registrable token is the right shape here and the wrong shape for
+/// durability itself.</b> Durability is a fact about an implementation, so a token that could be
+/// registered apart from it could lie; it lives on <see cref="IKeyMintLedger.IsDurable"/> for that
+/// reason. Whether a deployment relies on its erasures is a fact about the deployment, which nothing but
+/// the consumer can state.
+/// </para>
+/// <para>
+/// It carries no members. Its registration IS the statement.
+/// </para>
+/// </remarks>
+internal sealed class NonDurableErasureLedgerAcknowledged;

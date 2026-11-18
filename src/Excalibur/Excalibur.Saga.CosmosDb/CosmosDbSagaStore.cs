@@ -213,6 +213,10 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				// version embedded in StateJson (serialized before the store-owns-increment write-back, so it
 				// carries the stale pre-save version). Apply it so load-modify-save gates against the real value.
 				result.Version = document.Version;
+                result.TimerRecoveryIncarnationId = document.TimerRecoveryIncarnation is { } incarnation ? Guid.ParseExact(incarnation, "N") : Guid.Empty;
+                if (result.PendingTimerRecovery?.BatchId.ToString("N") != document.TimerRecoveryPendingBatch
+                    || (result.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null) != document.TimerRecoveryPendingDigest)
+                { throw new InvalidOperationException("The selected saga serializer cannot restore the persisted ordinary timer journal."); }
 			}
 
 			LogSagaLoaded(sagaType, sagaId);
@@ -240,7 +244,31 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var stateJson = _serializer.Serialize(sagaState);
+		if (sagaState.TimerRecoveryIncarnationId == Guid.Empty)
+        {
+            if (sagaState.Version < 1) { throw new InvalidOperationException("A new saga must have a nonempty timer recovery incarnation."); }
+            // The conditional write below, not this observation, decides whether legacy initialization is still current.
+            sagaState.TimerRecoveryIncarnationId = Guid.NewGuid();
+        }
+        var stateJson = _serializer.Serialize(sagaState);
+        var recoveryIncarnation = sagaState.TimerRecoveryIncarnationId.ToString("N");
+        var recoveryBatch = sagaState.PendingTimerRecovery?.BatchId.ToString("N");
+        var recoveryDigest = sagaState.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null;
+        var recoveryTracked = recoveryBatch is not null || sagaState.LastTimerRecoveryBatchId != Guid.Empty;
+        if (sagaState.PendingTimerRecovery is { } owned
+            && (owned.Scope.SagaId != sagaState.SagaId || owned.Scope.StateType != typeof(TSagaState).Name
+                || !string.Equals(owned.Scope.TenantId, KeyedTenantPartition.FromScope(CurrentTenantScope).TenantId, StringComparison.Ordinal)
+                || owned.IncarnationId != sagaState.TimerRecoveryIncarnationId || owned.Sequence != sagaState.TimerRecoverySequence))
+        { throw new InvalidOperationException("Timer journal differs from the state store's exact authority."); }
+
+        if (recoveryTracked)
+        {
+            var restored = _serializer.Deserialize<TSagaState>(stateJson);
+            if (restored is null || restored.TimerRecoveryIncarnationId != sagaState.TimerRecoveryIncarnationId
+                || restored.TimerRecoverySequence != sagaState.TimerRecoverySequence || restored.LastTimerRecoveryBatchId != sagaState.LastTimerRecoveryBatchId
+                || (restored.PendingTimerRecovery is { } copy ? Convert.ToHexString(copy.GetAuthorityDigest()) : null) != recoveryDigest)
+            { throw new InvalidOperationException("The selected saga serializer does not preserve ordinary timer recovery authority."); }
+        }
 		var now = DateTimeOffset.UtcNow;
 		var sagaType = typeof(TSagaState).Name;
 		var documentId = CosmosDbSagaDocument.CreateId(CurrentTenantScope.TenantId, sagaState.SagaId);
@@ -276,7 +304,11 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				throw new TenantIsolationViolationException(nameof(SagaState), sagaState.SagaId.ToString());
 			}
 
-			if (existing.Version != expectedVersion)
+			if (existing.Version != expectedVersion
+                || (existing.TimerRecoveryIncarnation is { } incarnation && incarnation != recoveryIncarnation)
+                || (existing.TimerRecoveryPendingBatch is { } owed
+                    && !((owed == recoveryBatch && existing.TimerRecoveryPendingDigest == recoveryDigest)
+                        || (recoveryBatch is null && owed == sagaState.LastTimerRecoveryBatchId.ToString("N")))))
 			{
 				throw new ConcurrencyException(
 					nameof(SagaState),
@@ -298,6 +330,11 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				SagaId = sagaState.SagaId,
 				SagaType = sagaType,
 				StateJson = stateJson,
+                TimerRecoveryIncarnation = recoveryIncarnation,
+                TimerRecoveryTracked = existing.TimerRecoveryTracked || recoveryTracked,
+                TimerRecoveryPendingBatch = recoveryBatch,
+                TimerRecoveryPendingDigest = recoveryDigest,
+                TimeToLive = recoveryBatch is not null ? -1 : null,
 				IsCompleted = sagaState.Completed,
 				CompletedAt = sagaState.CompletedAt?.UtcDateTime,
 				Version = expectedVersion + 1,
@@ -307,9 +344,11 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 			try
 			{
-				_ = await _container!.UpsertItemAsync(
-					document,
-					partitionKey,
+				if (string.IsNullOrEmpty(readResponse.ETag)) { throw new InvalidOperationException("Conditional saga update requires the provider ETag."); }
+                _ = await _container!.ReplaceItemAsync(
+                    document,
+                    documentId,
+                    partitionKey,
 					new ItemRequestOptions
 					{
 						EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite,
@@ -317,7 +356,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 					},
 					cancellationToken).ConfigureAwait(false);
 			}
-			catch (CosmosException upsertEx) when (upsertEx.StatusCode == HttpStatusCode.PreconditionFailed)
+			catch (CosmosException upsertEx) when (upsertEx.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.NotFound)
 			{
 				// A concurrent writer modified the document between our read and our write (etag mismatch).
 				// Re-read the current version so the exception carries the real actual version (diagnostic
@@ -363,6 +402,11 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				SagaId = sagaState.SagaId,
 				SagaType = sagaType,
 				StateJson = stateJson,
+                TimerRecoveryIncarnation = recoveryIncarnation,
+                TimerRecoveryTracked = recoveryTracked,
+                TimerRecoveryPendingBatch = recoveryBatch,
+                TimerRecoveryPendingDigest = recoveryDigest,
+                TimeToLive = recoveryBatch is not null ? -1 : null,
 				IsCompleted = sagaState.Completed,
 				CompletedAt = sagaState.CompletedAt?.UtcDateTime,
 				Version = expectedVersion + 1,
@@ -470,13 +514,18 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 				try
 				{
-					_ = await _container!.DeleteItemAsync<CosmosDbSagaDocument>(
-						document.Id,
-						new PartitionKey(document.SagaType),
-						cancellationToken: cancellationToken).ConfigureAwait(false);
+					var current = await _container!.ReadItemAsync<CosmosDbSagaDocument>(document.Id,
+                            new PartitionKey(document.SagaType), cancellationToken: cancellationToken).ConfigureAwait(false);
+                        var candidate = current.Resource;
+                        if (candidate.TimerRecoveryPendingBatch is not null || candidate.CompletedAt is null || candidate.CompletedAt >= cutoff
+                            || (tenantId is not null && !string.Equals(candidate.TenantId, tenantId, StringComparison.Ordinal))) { continue; }
+                        if (string.IsNullOrEmpty(current.ETag)) { throw new InvalidOperationException("Conditional saga purge requires the provider ETag."); }
+                        _ = await _container!.DeleteItemAsync<CosmosDbSagaDocument>(document.Id,
+                            new PartitionKey(document.SagaType), new ItemRequestOptions { IfMatchEtag = current.ETag },
+                            cancellationToken).ConfigureAwait(false);
 					purged++;
 				}
-				catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+				catch (CosmosException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.PreconditionFailed)
 				{
 					// Already removed by a concurrent sweep/completion — not an error for a retention purge.
 				}

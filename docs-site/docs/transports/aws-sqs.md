@@ -250,7 +250,7 @@ services.AddAwsSqsTransport(sqs =>
     // Standard queues provide:
     // - At-least-once delivery
     // - Best-effort ordering
-    // - Nearly unlimited throughput
+    // - Throughput depends on AWS service quotas, configuration and workload
 });
 ```
 
@@ -355,8 +355,52 @@ Configure a readable dead-letter queue for recoverable retention. When that queu
 the polling outbox records the observed attempt count and pending disposition before reclaiming
 the row. Recovery retries disposition without sending the exhausted message again. A failed or
 ambiguous bookkeeping write can still permit redelivery; this is an at-least-once contract.
-SDK connection retries remain the client's responsibility; these entry-result checks do not
-certify its physical request budget.
+The owned-send SDK guard below is separate from these entry-result checks; actual
+physical attempt counts depend on the selected SDK retry owner.
+
+### EventBridge custom SDK clients and retry ownership
+
+When Dispatch or the persisted outbox owns retry for the same message and context,
+EventBridge requires a readable SDK configuration with both `MaxErrorRetry` and
+`MaxStaleConnectionRetries` set to zero. A custom client with another budget is
+refused before archive creation, encoding or HTTP publication. Default framework
+clients already use zero. Outside that retry owner, a caller's SDK retry settings
+remain active; the bus does not add another retry loop or change the client's settings.
+
+DI-created buses borrow their SDK client. An externally supplied instance remains
+caller-owned. To inject one safely before or after transport registration, explicitly
+select its named and default SDK registrations together:
+
+```csharp
+using Amazon.EventBridge;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class EventBridgeClientRegistration374
+{
+    public static void Configure(IServiceCollection services, IAmazonEventBridge eventBridgeClient)
+    {
+        services.AddDefaultAwsEventBridgeSdkClientInstance("events", eventBridgeClient);
+    }
+}
+```
+
+This replaces the selected keyed SDK and all unkeyed SDK registrations with the same
+instance, without invoking replaced factories. The last explicit helper call selects
+the default SDK client only. The default bus still belongs to the first configured
+named transport, and each named bus uses its own keyed SDK client. Resolve the bus by
+its transport name when choosing another bus. Other named SDK registrations are retained.
+
+Ordinary named registration preserves an unrelated explicit default SDK client. If a
+keyed external instance was registered before the transport and the default slot is
+free, that instance is mirrored safely. A raw keyed-only replacement after transport
+registration leaves an owning unkeyed factory alias; use the helper for a safe late
+override instead. Construct the service provider after registration is complete.
+
+Clients supplied through DI factories are container-owned. Raw keyed/default factory
+aliases may cause repeated `Dispose` calls, so their cleanup must be idempotent.
+Externally supplied instances are disposed by their caller. These lifetime rules do not
+change EventBridge's at-least-once delivery or the need for idempotent consumers.
+
 
 Native action, event and document detail is a JSON object containing the serialized
 bytes, including their format marker:
@@ -406,6 +450,11 @@ backed by a source-generated serializer.
 :::
 
 ```csharp
+// Choose how CloudEvent payloads are serialized. This is required once, and the transport
+// registration below reports it at startup if you leave it out.
+//   - with a source-generated context: reflection-free, and safe to trim or publish ahead-of-time
+//   - AddCloudEvents() with no argument: the reflective path, annotated so your build warns you
+services.AddDispatch(dispatch => dispatch.AddCloudEvents(MyPayloadContext.Default));
 services.AddCloudEventsForSqs(options =>
 {
     options.UseFifoFeatures = true;
@@ -548,7 +597,7 @@ public class OrderFunction
 
 | Feature | Standard | FIFO |
 |---------|----------|------|
-| Throughput | Very high; service quotas and configuration apply | Without high-throughput mode: 300 transactions/sec per partition per API action, or 3,000 messages/sec with batches of 10; high-throughput quotas vary by Region |
+| Throughput | Depends on service quotas, configuration and workload | Without high-throughput mode: 300 transactions/sec per partition per API action, or 3,000 messages/sec with batches of 10; high-throughput quotas vary by Region |
 | Ordering | Best-effort | Guaranteed |
 | Delivery | At-least-once | Exactly-once |
 | Deduplication | Manual | Built-in (5-minute window) |

@@ -402,6 +402,10 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	{
 		if (valueTask.IsCompletedSuccessfully)
 		{
+			// A source-backed ValueTask may release its resources in GetResult, even on success.
+#pragma warning disable RS0030, CA1849 // Successfully completed above: consume the result without blocking.
+			valueTask.GetAwaiter().GetResult();
+#pragma warning restore RS0030, CA1849
 			return NullResultValueTask;
 		}
 

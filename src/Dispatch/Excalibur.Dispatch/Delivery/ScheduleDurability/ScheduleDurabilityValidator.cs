@@ -37,15 +37,17 @@ internal sealed class ScheduleDurabilityValidator : IValidateOptions<ScheduleDur
 			return ValidateOptionsResult.Success;
 		}
 
-		if (_services.GetService<IDurableScheduleStoreCapability>() is not null)
+		// Resolve the selected singleton first so only its own attesting factory can authorize it.
+		// The witness holds references without owning or separately registering disposable stores.
+		var store = _services.GetService<IScheduleStore>();
+		if (store is not null && _services.GetService<IDurableScheduleStoreCapability>()?.IsFor(store) == true)
 		{
 			return ValidateOptionsResult.Success;
 		}
 
 		return ValidateOptionsResult.Fail(
-			"Scheduled delivery is configured with a volatile in-memory schedule store. Everything scheduled " +
-			"but not yet due would be silently lost when the process exits, after the schedule had already " +
-			"been accepted. Register a durable store via " +
+			"Scheduled delivery has no durability attestation for its selected schedule store. Pending schedules could be " +
+			"lost when the process exits if that store is volatile, after they had already been accepted. Register a durable store via " +
 			$"{nameof(DurableScheduleStoreRegistration)}.{nameof(DurableScheduleStoreRegistration.AddDurableScheduleStore)}, " +
 			"or, for development and test hosts only, accept the volatile store explicitly by setting " +
 			$"{nameof(ScheduleDurabilityOptions)}.{nameof(ScheduleDurabilityOptions.AllowVolatileScheduleStore)} to true.");

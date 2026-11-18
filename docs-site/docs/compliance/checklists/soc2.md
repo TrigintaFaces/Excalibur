@@ -779,6 +779,10 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
         .PollingInterval(TimeSpan.FromSeconds(5))
         .MaxRetryCount(3)
         .BatchSize(100))
+    // The processor requires an explicitly registered dead-letter queue for messages
+    // that exhaust their retries, or it throws on its first poll. Retaining exhausted
+    // messages is also what makes processing-completeness evidence auditable.
+    .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString)
     .EnableBackgroundProcessing()));
 
 // Idempotency

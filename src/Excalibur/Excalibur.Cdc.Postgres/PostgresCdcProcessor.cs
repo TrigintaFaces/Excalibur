@@ -785,8 +785,13 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		FullUpdateMessage update,
 		CancellationToken cancellationToken)
 	{
-		var newColumns = await ReadColumnsAsync(update.NewRow, update.Relation, cancellationToken).ConfigureAwait(false);
+		// WIRE ORDER, AND IT IS LOAD-BEARING. A pgoutput update carries the old tuple before the new one,
+		// and Npgsql exposes them over a FORWARD-ONLY stream: NewRow is a SecondRowTupleEnumerable
+		// constructed over the old-row tuple, which it drains in order to reach its own. Reading NewRow
+		// first therefore consumes OldRow, and the OldRow read that follows has nothing left to enumerate.
+		// Old first, then new, is the only order a forward-only stream can serve.
 		var oldColumns = await ReadColumnsAsync(update.OldRow, update.Relation, cancellationToken).ConfigureAwait(false);
+		var newColumns = await ReadColumnsAsync(update.NewRow, update.Relation, cancellationToken).ConfigureAwait(false);
 
 		// Build changes with old and new values
 		var changes = BuildUpdateChanges(oldColumns, newColumns);
@@ -806,8 +811,11 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		IndexUpdateMessage update,
 		CancellationToken cancellationToken)
 	{
-		var newColumns = await ReadColumnsAsync(update.NewRow, update.Relation, cancellationToken).ConfigureAwait(false);
+		// Key first, then the new row: same forward-only constraint as the full-update path above. Npgsql
+		// builds IndexUpdateMessage.NewRow as a SecondRowTupleEnumerable over the key tuple, so reading
+		// the new row first consumes the key and leaves the key read with nothing.
 		var keyColumns = await ReadColumnsAsync(update.Key, update.Relation, cancellationToken).ConfigureAwait(false);
+		var newColumns = await ReadColumnsAsync(update.NewRow, update.Relation, cancellationToken).ConfigureAwait(false);
 
 		return PostgresDataChangeEvent.CreateUpdate(
 			new PostgresCdcPosition(update.WalEnd),

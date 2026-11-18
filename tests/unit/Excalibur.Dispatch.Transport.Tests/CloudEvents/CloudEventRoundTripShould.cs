@@ -55,6 +55,7 @@ public sealed class CloudEventRoundTripShould
     {
         var adapter = new AwsSqsCloudEventAdapter(
             Microsoft.Extensions.Options.Options.Create(EventOptions()),
+            TestCloudEventSerializers.Reflection,
             NullLogger<AwsSqsCloudEventAdapter>.Instance);
 
         var emitted = await adapter.ToTransportMessageAsync(

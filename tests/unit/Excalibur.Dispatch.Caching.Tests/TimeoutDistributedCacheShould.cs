@@ -629,24 +629,67 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 		// after sixteen seconds. The breaker now completes a signal when it records, so this wait finishes
 		// the instant the event happens, however loaded the machine.
 		//
-		// The timeout is a LIVENESS GUARD, not synchronisation: it exists so a signal that never arrives
-		// fails the arm instead of hanging the suite, and it is deliberately far larger than any plausible
-		// scheduling delay because its value can no longer affect a passing run.
-		var recorded = await Task.WhenAny(
-			breaker.FailureRecorded,
-			Task.Delay(TestTimeouts.Scale(TimeSpan.FromSeconds(30)))).ConfigureAwait(false); // delay-ok: the LIVENESS GUARD of the WhenAny race above, not synchronisation -- see the note
-
-		(recorded == breaker.FailureRecorded).ShouldBeTrue(
-			"a backend that missed its deadline is unhealthy, and this decorator is the only component that "
-			+ "can observe it -- above here the timeout looks like a cache miss");
-
-		breaker.Failures.ShouldBe(
-			1,
-			"exactly one failure, so a decorator that reported the same timeout twice is caught as well");
+		// SAFETY FIRST, AND IT NEEDS NO BOUND. This assertion is decidable at any sampling instant, so it is
+		// read before anything that can time out: Successes is incremented only when the backend operation
+		// RETURNS a value, and a backend whose Task.Delay has been cancelled cannot return one. This is the
+		// arm that catches the defect that matters -- a decorator reporting a timed-out operation as healthy,
+		// which holds the breaker closed against a backend failing every request.
 		breaker.Successes.ShouldBe(
 			0,
 			"a timed-out operation must never be reported as healthy; doing so holds the breaker closed "
 			+ "against a backend that is failing every request");
+
+		// LIVENESS, and this half is irreducibly eventual. WaitAsync ABANDONS the inner execution rather than
+		// cancelling it, so the caller's resumption and the abandoned continuation's recording are two
+		// independent continuations off one token with no happens-before edge between them. No clock -- fake
+		// or real -- creates that edge, which is why the five fake-clock arms above this one cannot be the
+		// pattern here: their only nondeterminism was the clock, and this arm's is the scheduler.
+		//
+		// So the bound is a hang guard and nothing else: it converts "the signal never arrives" into a named
+		// failure instead of a stalled suite. It must never decide a safety property -- that is the assertion
+		// above, which has already run.
+		var pendingAtEntry = ThreadPool.PendingWorkItemCount;
+		var completedAtEntry = ThreadPool.CompletedWorkItemCount;
+		var waited = Stopwatch.StartNew();
+
+		try
+		{
+			await breaker.FailureRecorded.WaitAsync(TestTimeouts.LivenessGuard).ConfigureAwait(false); // liveness-ok: a hang guard, never read as a safety property -- see TestTimeouts.LivenessGuard
+		}
+		catch (TimeoutException)
+		{
+			// NON-DESTRUCTIVE EXPIRY. A bound that cannot distinguish STARVED from BROKEN converts a defect
+			// into a non-finding, and that is exactly how this arm wasted a release verification: it failed
+			// at 36s against a 30s bound and read as a flake. So expiry re-reads the invariants that are
+			// still decidable and prints the thread-pool census that discriminates the two causes.
+			var pendingNow = ThreadPool.PendingWorkItemCount;
+			var completedDelta = ThreadPool.CompletedWorkItemCount - completedAtEntry;
+
+			breaker.Successes.ShouldBe(
+				0,
+				"the signal did not arrive in time, but safety must still hold: no timed-out operation may "
+				+ "have been reported as healthy");
+
+			breaker.FailureRecorded.IsCompleted.ShouldBeTrue(
+				$"a backend that missed its deadline is unhealthy, and this decorator is the only component "
+				+ $"that can observe it -- above here the timeout looks like a cache miss. No report arrived "
+				+ $"in {waited.Elapsed.TotalSeconds:F1}s (guard {TestTimeouts.LivenessGuard.TotalSeconds:F0}s, "
+				+ $"flat and unscaled). Thread pool: pending {pendingAtEntry} -> {pendingNow}, completed "
+				+ $"+{completedDelta}, threads {ThreadPool.ThreadCount}, failures recorded {breaker.Failures}. "
+				+ $"READ IT LIKE THIS -- a large pending count with a rising completed count means this host "
+				+ $"was STARVED and the bound is the problem; pending near zero with a static completed count "
+				+ $"means nothing is queued, so nothing is coming, and the decorator's reporting path is "
+				+ $"genuinely broken.");
+		}
+
+		// SAMPLING LIMIT, stated rather than left to be discovered: "exactly one" is not decidable here. A
+		// decorator that reported the same timeout twice would do so on a second, later continuation, which
+		// is unordered with respect to this instant by the very abandonment described above. What this
+		// assertion establishes is that one report had arrived by the time the signal completed; closing the
+		// gap needs quiescence (a controlled scheduler pumped to idle), not a longer wait.
+		breaker.Failures.ShouldBe(
+			1,
+			"exactly one failure, so a decorator that reported the same timeout twice is caught as well");
 	}
 
 	[Fact]

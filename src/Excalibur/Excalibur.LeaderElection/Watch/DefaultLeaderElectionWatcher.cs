@@ -42,10 +42,11 @@ public sealed partial class DefaultLeaderElectionWatcher : ILeaderElectionWatche
 	/// <param name="options">The watcher configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="timeProvider">
-	/// Optional time source for the <c>ChangedAt</c> stamp on emitted change events. Defaults to
-	/// <see cref="TimeProvider.System"/>. Supplying the same provider the election was given keeps the
-	/// watcher's stamps on the same clock as the election's own, which is what makes a watch loop
-	/// deterministic under test.
+	/// Optional time source for both the <c>ChangedAt</c> stamp on emitted change events and the wait
+	/// between polls. Defaults to <see cref="TimeProvider.System"/>. Supplying the same provider the
+	/// election was given puts the watcher's stamps and its polling cadence on the same clock as the
+	/// election's own, which is what makes a watch loop deterministic under test: advancing that clock
+	/// drives the next poll instead of the test waiting out a real interval.
 	/// </param>
 	public DefaultLeaderElectionWatcher(
 		ILeaderElection leaderElection,
@@ -145,7 +146,7 @@ public sealed partial class DefaultLeaderElectionWatcher : ILeaderElectionWatche
 
 				try
 				{
-					await Task.Delay(_options.PollInterval, cancellationToken).ConfigureAwait(false);
+					await Task.Delay(_options.PollInterval, _timeProvider, cancellationToken).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{

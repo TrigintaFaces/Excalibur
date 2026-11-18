@@ -65,9 +65,8 @@ public sealed class PostgresSagaWriteVictimTenantIsolationShould(PostgresSagaSto
 
 		// Both tenants save TWICE. The first save inserts (version 0 takes the INSERT branch, whose
 		// ON CONFLICT target is the composite primary key and therefore cannot address another tenant's
-		// row at all). The second save takes the version-gated UPDATE branch, whose predicate keys on
-		// saga_id + version rather than on the key — that is the only branch where a missing tenant term
-		// can reach another tenant's row, so it is the branch this lock has to exercise.
+		// row at all). The second save takes the version-gated UPDATE branch with its loaded incarnation.
+		// This exercises an actual update while retaining all current authority guards.
 		ambient.TenantId = VictimTenant;
 		var victimState = await SaveTwiceAsync(store, sagaId, "victim-state").ConfigureAwait(false);
 
@@ -86,12 +85,17 @@ public sealed class PostgresSagaWriteVictimTenantIsolationShould(PostgresSagaSto
 			"the victim must be at a non-zero version, or the writer's next save takes the INSERT branch "
 			+ "and never reaches the predicate under test");
 
-		// The overwrite attempt: an UPDATE naming saga_id and a version the victim's row also carries.
+		// The overwrite attempt names a version both rows carry, using only the writer's loaded authority.
 		ambient.TenantId = WriterTenant;
-		await SaveAsync(store, sagaId, "writer-state", beforeOverwrite.Version).ConfigureAwait(false);
+		var writerUpdate = await store.LoadAsync<WriteVictimSagaState>(sagaId, CancellationToken.None)
+			.ConfigureAwait(false);
+		writerUpdate.ShouldNotBeNull("the writer must update its own loaded saga authority");
+		writerUpdate.Version.ShouldBe(beforeOverwrite.Version, "both tenant rows must name the same UPDATE version");
+		writerUpdate.Payload = "writer-state";
+		await store.SaveAsync(writerUpdate, CancellationToken.None).ConfigureAwait(false);
 
-		// SAFETY — the victim still reads its own state. A save whose predicate omits the tenant term
-		// updated this row in place, and this reads "writer-state".
+		// SAFETY — the victim remains unchanged after the writer-authorized save. This does not isolate
+		// the tenant predicate from the other authority guards.
 		ambient.TenantId = VictimTenant;
 		var victim = await store.LoadAsync<WriteVictimSagaState>(sagaId, CancellationToken.None)
 			.ConfigureAwait(false);
@@ -128,9 +132,9 @@ public sealed class PostgresSagaWriteVictimTenantIsolationShould(PostgresSagaSto
 			new DispatchJsonSerializer(),
 			ambientTenant);
 
-	private static Task SaveAsync(PostgresSagaStore store, Guid sagaId, string payload, long version = 0) =>
+	private static Task SaveAsync(PostgresSagaStore store, Guid sagaId, string payload) =>
 		store.SaveAsync(
-			new WriteVictimSagaState { SagaId = sagaId, Payload = payload, Version = version },
+			new WriteVictimSagaState { SagaId = sagaId, Payload = payload },
 			CancellationToken.None);
 
 	/// <summary>
@@ -147,7 +151,8 @@ public sealed class PostgresSagaWriteVictimTenantIsolationShould(PostgresSagaSto
 			.ConfigureAwait(false);
 		inserted.ShouldNotBeNull("the first save must insert the row");
 
-		await SaveAsync(store, sagaId, payload, inserted.Version).ConfigureAwait(false);
+		// Preserve the loaded incarnation as well as its version; a fresh object is a different saga lifetime.
+		await store.SaveAsync(inserted, CancellationToken.None).ConfigureAwait(false);
 
 		var updated = await store.LoadAsync<WriteVictimSagaState>(sagaId, CancellationToken.None)
 			.ConfigureAwait(false);

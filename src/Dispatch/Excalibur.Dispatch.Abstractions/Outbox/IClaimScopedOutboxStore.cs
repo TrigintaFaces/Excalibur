@@ -4,7 +4,7 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// An optional capability for outbox stores that can scope a failure report to the CLAIM the caller holds,
+/// An optional capability for outbox stores that can scope a completion report to the CLAIM the caller holds,
 /// rather than to the process it runs in.
 /// </summary>
 /// <remarks>
@@ -27,6 +27,22 @@ namespace Excalibur.Dispatch;
 /// </remarks>
 public interface IClaimScopedOutboxStore
 {
+	/// <summary>Marks a message sent only while the caller holds the current claim.</summary>
+	/// <param name="messageId">The persisted message identifier captured at acquisition.</param>
+	/// <param name="claimIdentity">The immutable acquisition evidence captured before delivery.</param>
+	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+	/// <returns>The outcome decided atomically with the guarded terminal transition.</returns>
+	/// <remarks>
+	/// Missing or released leases return <see cref="OutboxCompletionOutcome.ClaimLost"/>.
+	/// Validate nonblank identifiers before mutation. A fenced authority additionally requires a positive
+	/// tenure; evaluate its fence before row-level outcomes. Retained terminal rows return
+	/// <see cref="OutboxCompletionOutcome.AlreadyTerminal"/>. Never infer the outcome from a later read.
+	/// </remarks>
+	ValueTask<OutboxCompletionOutcome> MarkSentAsync(
+		string messageId,
+		string claimIdentity,
+		CancellationToken cancellationToken);
+
 	/// <summary>
 	/// Records a delivery failure reported by the claim identified by <paramref name="claimIdentity"/>.
 	/// </summary>

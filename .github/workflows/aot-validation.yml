@@ -7,6 +7,7 @@ on:
       - '.github/workflows/aot-validation.yml'
       - 'src/**'
       - 'samples/10-aot/**'
+      - 'tests/harnesses/ElasticsearchOutboxAotProbe/**'
       - 'eng/ci/Invoke-AotPublishValidation.ps1'
       - 'eng/ci/Invoke-AotCoverageGate.ps1'
       - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
@@ -20,6 +21,7 @@ on:
       - '.github/workflows/aot-validation.yml'
       - 'src/**'
       - 'samples/10-aot/**'
+      - 'tests/harnesses/ElasticsearchOutboxAotProbe/**'
       - 'eng/ci/Invoke-AotPublishValidation.ps1'
       - 'eng/ci/Invoke-AotCoverageGate.ps1'
       - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
@@ -235,6 +237,8 @@ jobs:
             validation-results/aot-validation-report.json
             validation-results/*.log
 
+  # The analysis job and this runtime job publish the SAME main sample project/workload.
+  # They are complementary publish/run checks, not independent package-coverage proofs.
   aot-smoke-test:
     name: AOT Binary Smoke Test
     runs-on: ubuntu-latest
@@ -303,7 +307,21 @@ jobs:
             echo "::error::AOT smoke test failed with exit code $EXIT_CODE"
             exit $EXIT_CODE
           fi
-          echo "AOT smoke test PASSED (exit 0)"
+          # Required demos must report one ordered, successful outcome each.
+          # Missing, duplicated, skipped or failed demos are not a healthy process.
+          mapfile -t DEMO_OUTCOMES < <(grep -E '^AOT_DEMO_(PASS|FAIL|SKIP):' aot-smoke-test.log || true)
+          if [ "${#DEMO_OUTCOMES[@]}" -ne 12 ]; then
+            echo "::error::Expected exactly 12 required demo outcomes, got ${#DEMO_OUTCOMES[@]}"
+            exit 1
+          fi
+          for i in "${!DEMO_OUTCOMES[@]}"; do
+            printf -v EXPECTED 'AOT_DEMO_PASS:%02d' "$((i + 1))"
+            if [ "${DEMO_OUTCOMES[$i]}" != "$EXPECTED" ]; then
+              echo "::error::Required outcome $EXPECTED was ${DEMO_OUTCOMES[$i]}"
+              exit 1
+            fi
+          done
+          echo "AOT smoke test PASSED (12 verified demo outcomes, exit 0)"
           echo "## AOT Smoke Test: PASS" >> $GITHUB_STEP_SUMMARY
 
       - name: Publish scheduled delivery AOT binary
@@ -476,3 +494,40 @@ jobs:
       # be rejected at startup rather than trading a build warning for a runtime failure.
       - name: Run the acceptance arms
         run: bash eng/ci/aot-acceptance-arms.sh both
+
+  elasticsearch-outbox-native:
+    name: Public Elasticsearch Outbox Native AOT (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Install NativeAOT toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y clang zlib1g-dev
+
+      - name: Strict publish and run public owned outbox against isolated Elasticsearch
+        shell: pwsh
+        run: |
+          ./tests/harnesses/ElasticsearchOutboxAotProbe/Run-Local.ps1 -Runtime linux-x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload public outbox native evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: elasticsearch-outbox-native-linux
+          path: artifacts/elasticsearch-outbox-aot/**
+          if-no-files-found: error
+          retention-days: 7

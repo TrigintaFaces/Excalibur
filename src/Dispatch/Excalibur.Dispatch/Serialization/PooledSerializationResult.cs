@@ -7,7 +7,7 @@ using System.Buffers;
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
-/// Represents the result of a zero-allocation serialization operation.
+/// Represents a serialization result backed by a pooled buffer with shared disposal ownership.
 /// </summary>
 /// <remarks>
 /// <para>

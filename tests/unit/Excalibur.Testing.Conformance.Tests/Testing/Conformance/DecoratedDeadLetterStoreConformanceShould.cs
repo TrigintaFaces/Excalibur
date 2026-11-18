@@ -36,8 +36,12 @@ internal sealed class AdminOpaqueDeadLetterStore(InMemoryDeadLetterStore inner) 
 		inner.GetMessagesAsync(filter, cancellationToken);
 
 	/// <inheritdoc />
-	public Task MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken) =>
+	public Task<DeadLetterReplayOutcome> MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken) =>
 		inner.MarkAsReplayedAsync(messageId, cancellationToken);
+
+	/// <inheritdoc />
+	public Task ReleaseReplayClaimAsync(string messageId, CancellationToken cancellationToken) =>
+		inner.ReleaseReplayClaimAsync(messageId, cancellationToken);
 
 	/// <inheritdoc />
 	public Task<bool> DeleteAsync(string messageId, CancellationToken cancellationToken) =>
@@ -82,8 +86,12 @@ internal sealed class ForwardingDeadLetterStoreDecorator(IDeadLetterStore inner)
 		inner.GetMessagesAsync(filter, cancellationToken);
 
 	/// <inheritdoc />
-	public Task MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken) =>
+	public Task<DeadLetterReplayOutcome> MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken) =>
 		inner.MarkAsReplayedAsync(messageId, cancellationToken);
+
+	/// <inheritdoc />
+	public Task ReleaseReplayClaimAsync(string messageId, CancellationToken cancellationToken) =>
+		inner.ReleaseReplayClaimAsync(messageId, cancellationToken);
 
 	/// <inheritdoc />
 	public Task<bool> DeleteAsync(string messageId, CancellationToken cancellationToken) =>

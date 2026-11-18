@@ -31,10 +31,12 @@
 [CmdletBinding()]
 param(
     [string]$TrxDir,
+    [string]$MinimumExecutedTests = '1',
     [switch]$SelfTest
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ($MinimumExecutedTests -cnotmatch '\A[1-9][0-9]*\z' -or $MinimumExecutedTests.Length -gt 10 -or [long]$MinimumExecutedTests -gt 2147483647) { throw 'Invalid declared-skip lane minimum.' }
 
 $MARKER = '[capability-not-applicable]'
 $REFUSE = 3
@@ -107,6 +109,7 @@ function Invoke-Assertion {
         Write-Host "ACCEPTED -- every skip declared itself a capability exemption:"
         $declared | ForEach-Object { Write-Host "  $_" }
     }
+    if ($passed -lt [int]$MinimumExecutedTests) { Write-Host "REFUSE: executed=$passed below minimumExecutedTests=$MinimumExecutedTests"; return $REFUSE }
     Write-Host "PASS: $passed executed and passed; $($declared.Count) declared capability exemption(s); 0 undeclared."
     Write-Host 'NOT PROVEN by this gate: that the right tests ran, or that a declared exemption is truthful.'
     return 0
@@ -173,6 +176,15 @@ $($rows -join "`n")
 
         Assert-Arm 'an all-passing run with no skips is ACCEPTED' @(
             @{ Name = 'A'; Outcome = 'Passed'; Reason = $null }) $true
+
+        $script:MinimumExecutedTests = '2'
+        Assert-Arm 'declared exemptions cannot fill the executed minimum' @(
+            @{ Name = 'A'; Outcome = 'Passed'; Reason = $null },
+            @{ Name = 'B'; Outcome = 'NotExecuted'; Reason = "$MARKER not applicable" }) $false
+        Assert-Arm 'two actual passes meet minimum2' @(
+            @{ Name = 'A'; Outcome = 'Passed'; Reason = $null },
+            @{ Name = 'B'; Outcome = 'Passed'; Reason = $null }) $true
+        $script:MinimumExecutedTests = '1'
 
         # A results directory with no TRX must refuse rather than read as a clean empty run.
         $empty = Join-Path $root 'no-trx'

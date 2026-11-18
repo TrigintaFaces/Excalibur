@@ -36,7 +36,7 @@ const announcementId = process.env.DOCS_ANNOUNCEMENT_ID?.trim() || 'docs-site-an
 
 const config: Config = {
   title: 'Excalibur + Dispatch',
-  tagline: 'Low-allocation messaging, domain modeling, and event sourcing for .NET. Start minimal, scale up.',
+  tagline: 'Configurable messaging, domain modeling, and event sourcing for .NET.',
   favicon: 'Dispatch/favicon.svg',
 
   // Exposed so pages outside the docs plugin (the landing page) can build links that
@@ -145,7 +145,7 @@ const config: Config = {
         '@context': 'https://schema.org',
         '@type': 'SoftwareSourceCode',
         name: 'Excalibur',
-        description: 'Low-allocation .NET messaging with domain modeling and event sourcing.',
+        description: 'Modular .NET messaging with domain modeling and event sourcing.',
         programmingLanguage: 'C#',
         runtimePlatform: '.NET',
         codeRepository: 'https://github.com/TrigintaFaces/Excalibur',

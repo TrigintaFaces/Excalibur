@@ -1,6 +1,6 @@
 # Excalibur.EventSourcing.Postgres
 
-Postgres implementations for Excalibur event sourcing, including event store, snapshot store, and outbox store. Uses Npgsql and Dapper for high-performance data access.
+Postgres implementations for Excalibur event sourcing, including event store, snapshot store, and outbox store. Uses Npgsql and Dapper for data access.
 
 ## Part Of
 

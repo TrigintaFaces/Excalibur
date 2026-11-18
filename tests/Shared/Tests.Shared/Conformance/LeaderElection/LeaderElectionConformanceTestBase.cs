@@ -50,9 +50,23 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	/// <inheritdoc/>
 	public async ValueTask DisposeAsync()
 	{
-		await CleanupAsync().ConfigureAwait(false);
-
-		await Election.DisposeAsync().ConfigureAwait(false);
+		Exception? disposalFailure = null;
+		try
+		{
+			// Election work borrows the clients and stores released by CleanupAsync.
+			// Join it before disposing those resources, including after a failed test.
+			if (Election is not null) { await Election.DisposeAsync().ConfigureAwait(false); }
+		}
+		catch (Exception error) { disposalFailure = error; }
+		try { await CleanupAsync().ConfigureAwait(false); }
+		catch (Exception cleanupFailure) when (disposalFailure is not null)
+		{
+			throw new AggregateException("Election disposal and fixture cleanup failed.", disposalFailure, cleanupFailure);
+		}
+		if (disposalFailure is not null)
+		{
+			System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(disposalFailure).Throw();
+		}
 	}
 
 	/// <summary>

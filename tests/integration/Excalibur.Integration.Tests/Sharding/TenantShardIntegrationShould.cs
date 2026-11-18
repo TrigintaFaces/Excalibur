@@ -298,6 +298,8 @@ internal sealed class TestShardEvent : IDomainEvent
 				? info
 				: throw new TenantShardNotFoundException(tenantId);
 
+		public ShardInfo GetShardById(string shardId) => _map.Values.FirstOrDefault(info => string.Equals(info.ShardId, shardId, StringComparison.Ordinal)) ?? throw new KeyNotFoundException(shardId);
+
 		public IReadOnlyCollection<string> GetRegisteredShardIds() =>
 			_map.Values.Select(s => s.ShardId).Distinct().ToList();
 	}

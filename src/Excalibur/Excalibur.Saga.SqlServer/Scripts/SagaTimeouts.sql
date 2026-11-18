@@ -19,7 +19,7 @@ SET QUOTED_IDENTIFIER ON;
 -- DATETIME2 has no offset: the client writes the local wall-clock of the supplied instant and the
 -- offset is discarded. A timeout scheduled from a host at UTC+1 is then compared against UTC and
 -- fires an hour early. The column must hold what the contract carries.
-CREATE TABLE SagaTimeouts (
+CREATE TABLE dbo.SagaTimeouts (
     TimeoutId NVARCHAR(450) NOT NULL,
     SagaId NVARCHAR(450) NOT NULL,
     SagaType NVARCHAR(512) NOT NULL,
@@ -39,14 +39,39 @@ CREATE TABLE SagaTimeouts (
     -- processor operating for another.
     TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
 
+    -- Selected timeout failure-hold source lifetime and delivery cycle. Latest receipts end with this row.
+    FailureSourceEpoch UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+    FailureDeliveryEpoch UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+    FailureHeld BIT NOT NULL DEFAULT 0,
+    FailureVersion BIGINT NOT NULL DEFAULT 0,
+    FailureToken UNIQUEIDENTIFIER NULL,
+    FailureOperation UNIQUEIDENTIFIER NULL,
+    FailureOriginalClaim NVARCHAR(200) NULL,
+    FailureCurrentClaim NVARCHAR(200) NULL,
+    FailureObservedDeliveryEpoch UNIQUEIDENTIFIER NULL,
+    FailureKind INT NULL,
+    FailureReason NVARCHAR(1024) NULL,
+    FailureResumeCommand UNIQUEIDENTIFIER NULL,
+    CHECK (FailureSourceEpoch<>'00000000-0000-0000-0000-000000000000' AND FailureDeliveryEpoch<>'00000000-0000-0000-0000-000000000000'),
+    CHECK (FailureVersion>=0),
+    CHECK (FailureHeld=0 OR (FailureVersion>0 AND FailureToken IS NOT NULL AND FailureOperation IS NOT NULL
+      AND FailureOriginalClaim IS NOT NULL AND FailureCurrentClaim IS NOT NULL AND FailureObservedDeliveryEpoch IS NOT NULL
+      AND FailureKind IS NOT NULL AND FailureKind IN(1,2,4) AND FailureReason IS NOT NULL)),
+
     CONSTRAINT PK_SagaTimeouts PRIMARY KEY (TimeoutId)
 );
+
+-- Physical-table lifetime binding for source observations; no global receipt ledger.
+DECLARE @FailureTargetEpoch UNIQUEIDENTIFIER=NEWID();
+EXEC sys.sp_addextendedproperty @name=N'Excalibur.TimeoutFailureTarget',@value=@FailureTargetEpoch,
+ @level0type=N'SCHEMA',@level0name=N'dbo',@level1type=N'TABLE',@level1name=N'SagaTimeouts';
+CREATE INDEX IX_TimeoutFailureHeld ON dbo.SagaTimeouts(TenantId,FailureHeld,TimeoutId);
 
 -- Critical index for polling performance
 -- This index is essential for ClaimDueTimeoutsAsync to efficiently find claimable due timeouts
 -- (due, and either never claimed or whose lease has gone stale).
 CREATE INDEX IX_SagaTimeouts_DueAt_ClaimedAt
-    ON SagaTimeouts (DueAt, ClaimedAt)
+    ON dbo.SagaTimeouts (DueAt, ClaimedAt)
     WHERE DueAt IS NOT NULL;
 
 -- Index for saga-level operations (CancelAllTimeoutsAsync)
@@ -54,8 +79,8 @@ CREATE INDEX IX_SagaTimeouts_DueAt_ClaimedAt
 -- saga-level predicates are now (TenantId, SagaId) — the ruled saga identity — so a tenant's timeouts
 -- are contiguous and a scoped cancel is a range seek rather than a scan with a residual filter.
 CREATE INDEX IX_SagaTimeouts_TenantId_SagaId
-    ON SagaTimeouts (TenantId, SagaId);
+    ON dbo.SagaTimeouts (TenantId, SagaId);
 
 -- Composite index for timeout identification within a saga, keyed by the full saga identity.
 CREATE INDEX IX_SagaTimeouts_TenantId_SagaId_TimeoutId
-    ON SagaTimeouts (TenantId, SagaId, TimeoutId);
+    ON dbo.SagaTimeouts (TenantId, SagaId) INCLUDE (TimeoutId);

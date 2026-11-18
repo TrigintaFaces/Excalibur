@@ -24,8 +24,8 @@ namespace Excalibur.Dispatch;
 /// </list>
 /// </para>
 /// <para>
-/// <b>Performance:</b> This approach provides ~20x improvement over DynamicInvoke
-/// (15ns vs 300ns per migration) with zero allocations in the hot path.
+/// <b>Performance:</b> Measure conversion latency and allocation with the actual upcaster,
+/// message types and runtime. This contract does not guarantee a particular timing or allocation count.
 /// </para>
 /// </remarks>
 public interface IMessageUpcaster<in TOld, out TNew>

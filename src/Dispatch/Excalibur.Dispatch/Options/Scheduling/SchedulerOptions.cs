@@ -48,4 +48,24 @@ public sealed class SchedulerOptions
 	/// </summary>
 	/// <value>The current <see cref="PastScheduleBehavior"/> value.</value>
 	public PastScheduleBehavior PastScheduleBehavior { get; set; } = PastScheduleBehavior.ExecuteImmediately;
+
+	/// <summary>
+	/// Gets or sets how many times one occurrence may be admitted without its settlement being committed
+	/// before the schedule is retired instead of dispatched again.
+	/// </summary>
+	/// <value>The admission bound per occurrence. Defaults to 5. Must be at least 1.</value>
+	/// <remarks>
+	/// <para>
+	/// An occurrence whose settlement write is refused — because the host paused, migrated or was collected
+	/// past its execution lease — is admitted again on the next poll, by design: a lapsed lease must produce
+	/// a successor rather than a stop. Nothing in that loop retires the occurrence, so without a bound the
+	/// same handler is invoked once per poll interval indefinitely while the schedule never advances.
+	/// </para>
+	/// <para>
+	/// On the admission that exceeds this bound the handler is NOT invoked. The schedule is disabled and the
+	/// occurrence settled under the still-live lease, which stops the loop and leaves an operator a durable
+	/// row to inspect. Raise it for handlers that legitimately outrun their lease; prefer renewing the lease.
+	/// </para>
+	/// </remarks>
+	public int MaxAdmissionAttemptsPerOccurrence { get; set; } = 5;
 }

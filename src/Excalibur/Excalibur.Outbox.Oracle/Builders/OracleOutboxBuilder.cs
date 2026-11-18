@@ -33,6 +33,11 @@ internal sealed class OracleOutboxBuilder : IOracleOutboxBuilder
 	/// </summary>
 	internal Func<IServiceProvider, IDb>? ConfiguredDbFactory { get; private set; }
 
+	internal Func<IServiceProvider, CancellationToken, ValueTask<OracleConnection>>? ConfiguredWorkerFactory { get; private set; }
+	internal List<Action<OracleOutboxStoreOptions>> ConfigurationOverrides { get; } = [];
+
+	internal void SetWorkerFactory(Func<IServiceProvider, CancellationToken, ValueTask<OracleConnection>> factory) => ConfiguredWorkerFactory = factory;
+
 	internal string? ConnectionStringNameValue { get; private set; }
 	internal string? BindConfigurationPath { get; private set; }
 
@@ -63,6 +68,7 @@ internal sealed class OracleOutboxBuilder : IOracleOutboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(schema);
 		_options.SchemaName = schema;
+		ConfigurationOverrides.Add(options => options.SchemaName = schema);
 		return this;
 	}
 
@@ -71,6 +77,7 @@ internal sealed class OracleOutboxBuilder : IOracleOutboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 		_options.OutboxTableName = tableName;
+		ConfigurationOverrides.Add(options => options.OutboxTableName = tableName);
 		return this;
 	}
 
@@ -79,6 +86,7 @@ internal sealed class OracleOutboxBuilder : IOracleOutboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 		_options.DeadLetterTableName = tableName;
+		ConfigurationOverrides.Add(options => options.DeadLetterTableName = tableName);
 		return this;
 	}
 
@@ -92,6 +100,7 @@ internal sealed class OracleOutboxBuilder : IOracleOutboxBuilder
 
 		// OracleOutboxStoreOptions inherits from OutboxOptions which has BatchProcessing sub-options
 		_options.BatchProcessing.BatchProcessingTimeout = timeout;
+		ConfigurationOverrides.Add(options => options.BatchProcessing.BatchProcessingTimeout = timeout);
 		return this;
 	}
 
@@ -104,6 +113,7 @@ internal sealed class OracleOutboxBuilder : IOracleOutboxBuilder
 		}
 
 		_options.ReservationTimeout = (int)timeout.TotalSeconds;
+		ConfigurationOverrides.Add(options => options.ReservationTimeout = (int)timeout.TotalSeconds);
 		return this;
 	}
 
@@ -112,6 +122,7 @@ internal sealed class OracleOutboxBuilder : IOracleOutboxBuilder
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maxAttempts, 0);
 		_options.MaxAttempts = maxAttempts;
+		ConfigurationOverrides.Add(options => options.MaxAttempts = maxAttempts);
 		return this;
 	}
 
@@ -131,6 +142,7 @@ internal sealed class OracleOutboxBuilder : IOracleOutboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 		BindConfigurationPath = sectionPath;
+		ConfigurationOverrides.Clear();
 		ConfiguredConnectionString = null;
 		ConfiguredDbFactory = null;
 		ConnectionStringNameValue = null;

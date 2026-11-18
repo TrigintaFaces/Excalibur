@@ -36,7 +36,7 @@ public sealed class OutboxPayloadSizeGuardShould
 	private static (MessageBusOutboxPublisher Publisher, ITransportAdapter Adapter)
 		CreatePublisher(byte[] payload, int? maxPayloadBytes)
 	{
-		var store = A.Fake<IOutboxStore>(o =>
+		var store = WorkerClaimFixture.CreateStore(o =>
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();

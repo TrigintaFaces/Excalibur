@@ -4,8 +4,8 @@ Opt-in MessagePack serialization support for Excalibur framework.
 
 ## Purpose
 
-Provides high-performance MessagePack binary serialization for:
-- Ultra-low latency scenarios
+Provides MessagePack binary serialization. Evaluate the selected resolver, compression and payload against your requirements, including:
+- Serialization latency and allocations
 - Bandwidth-constrained environments
 - Cross-language interoperability (C++, Python, Rust, etc.)
 
@@ -70,7 +70,7 @@ MessagePack is **not** included in `Excalibur.Dispatch` to avoid transitive bloa
 ## When to Use
 
 **Use MessagePack when:**
-- You need maximum throughput and minimum latency
+- Representative measurements show the selected configuration meets your throughput and latency requirements
 - You're sending binary data across services
 - You need cross-language serialization (non-.NET clients)
 - You want bandwidth-efficient wire formats

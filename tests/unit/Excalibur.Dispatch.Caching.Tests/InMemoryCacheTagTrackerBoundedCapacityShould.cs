@@ -33,9 +33,8 @@ namespace Excalibur.Dispatch.Caching.Tests;
 /// "fixes" the instability by memoizing past the bound has to argue with a test rather than slip past.
 /// </para>
 /// <para>
-/// Capacity is observed only through the public contract — the stamp map is private, so these arms
-/// infer admission from stamp stability (a tag admitted to the map resolves to the same stamp twice;
-/// one rejected at the bound does not) rather than reaching into internals.
+	/// Capacity is checked through the internal tracked count and public stamp behavior. Concurrency
+	/// controls exercise admission; stamp controls distinguish rejected admission from dropped invalidation.
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -57,6 +56,173 @@ public sealed class InMemoryCacheTagTrackerBoundedCapacityShould
 		{
 			_ = await tracker.GetOrCreateStampAsync($"fill-{i}", Ct);
 		}
+	}
+
+	[Theory]
+	[InlineData(false, false)]
+	[InlineData(true, false)]
+	[InlineData(false, true)]
+	[Trait("Pattern", "Concurrency")]
+	public async Task ConcurrentAdmissions_ShouldRespectCapacity(bool sameTag, bool mixedBumps)
+	{
+		using var meterFactory = new TestMeterFactory();
+		for (var trial = 0; trial < 32; trial++)
+		{
+			var tracker = CreateTracker(capacity: 1, meterFactory);
+			using var ready = new CountdownEvent(16);
+			using var start = new ManualResetEventSlim(false);
+			var callers = Enumerable.Range(0, 16).Select(index => Task.Factory.StartNew(
+				async () =>
+				{
+					ready.Signal();
+					start.Wait(TimeSpan.FromSeconds(10), Ct).ShouldBeTrue();
+					if (mixedBumps && index % 2 == 0)
+					{
+						await tracker.BumpStampAsync($"bump-{index}", Ct);
+					}
+
+					tracker.TrackedTagCount.ShouldBeLessThanOrEqualTo(1);
+					return await tracker.GetOrCreateStampAsync(sameTag ? "shared" : $"tag-{index}", Ct);
+				}, Ct, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap()).ToArray();
+			try
+			{
+				ready.Wait(TimeSpan.FromSeconds(10), Ct).ShouldBeTrue();
+			}
+			finally
+			{
+				start.Set();
+				await Task.WhenAll(callers).WaitAsync(TimeSpan.FromSeconds(10));
+			}
+
+			var stamps = await Task.WhenAll(callers).WaitAsync(TimeSpan.FromSeconds(10), Ct);
+			tracker.TrackedTagCount.ShouldBe(1);
+			stamps.ShouldAllBe(stamp => !string.IsNullOrEmpty(stamp));
+			if (sameTag)
+			{
+				stamps.Distinct(StringComparer.Ordinal).Count().ShouldBe(1);
+			}
+		}
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	[Trait("Pattern", "Concurrency")]
+	public async Task CapacityWarning_ShouldAllowAnotherThreadToMutateTracker(bool collapse)
+	{
+		using var meterFactory = new TestMeterFactory();
+		var logger = new CapturingLogger<InMemoryCacheTagTracker>();
+		var tracker = CreateTracker(capacity: 1, meterFactory, logger);
+		var original = await tracker.GetOrCreateStampAsync("tracked", Ct);
+		using var completed = new ManualResetEventSlim(false);
+		Task? reentrant = null;
+		logger.OnWarning = () =>
+		{
+			reentrant = Task.Run(async () =>
+			{
+				try
+				{
+					await tracker.BumpStampAsync("tracked", Ct);
+				}
+				finally
+				{
+					completed.Set();
+				}
+			}, Ct);
+			completed.Wait(TimeSpan.FromSeconds(10), Ct).ShouldBeTrue();
+		};
+
+		try
+		{
+			if (collapse)
+			{
+				await tracker.BumpStampAsync("untracked", Ct);
+			}
+			else
+			{
+				_ = await tracker.GetOrCreateStampAsync("untracked", Ct);
+			}
+		}
+		finally
+		{
+			if (reentrant is not null)
+			{
+				await reentrant.WaitAsync(TimeSpan.FromSeconds(10));
+			}
+		}
+
+		_ = reentrant.ShouldNotBeNull();
+
+		logger.Warnings.Count.ShouldBe(1);
+		(await tracker.GetOrCreateStampAsync("tracked", Ct)).ShouldNotBe(original);
+		tracker.TrackedTagCount.ShouldBe(1);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	[Trait("Pattern", "Concurrency")]
+	public async Task ResolveRacingInvalidation_ShouldRejectTheOldStampAfterCompletion(bool collapse)
+	{
+		using var meterFactory = new TestMeterFactory();
+		var tracker = CreateTracker(capacity: 1, meterFactory);
+		var original = await tracker.GetOrCreateStampAsync("tracked", Ct);
+		await Task.WhenAll(
+			Task.Run(() => tracker.GetOrCreateStampAsync("tracked", Ct), Ct),
+			Task.Run(() => tracker.BumpStampAsync(collapse ? "unknown" : "tracked", Ct), Ct));
+
+		(await tracker.GetOrCreateStampAsync("tracked", Ct)).ShouldNotBe(original);
+		tracker.TrackedTagCount.ShouldBe(1);
+	}
+
+	[Fact]
+	[Trait("Pattern", "Concurrency")]
+	public async Task CreationMeasurement_ShouldAllowAnotherThreadToMutateTracker()
+	{
+		using var meterFactory = new TestMeterFactory();
+		var tracker = CreateTracker(capacity: 1, meterFactory);
+		using var completed = new ManualResetEventSlim(false);
+		using var listener = new MeterListener();
+		Task? reentrant = null;
+		listener.InstrumentPublished = (instrument, observer) =>
+		{
+			if (meterFactory.Owns(instrument.Meter) && instrument.Name == "dispatch.cache.tag_tracker.stamps_created")
+			{
+				observer.EnableMeasurementEvents(instrument);
+			}
+		};
+		listener.SetMeasurementEventCallback<long>((_, _, _, _) =>
+		{
+			reentrant = Task.Run(async () =>
+			{
+				try
+				{
+					await tracker.BumpStampAsync("tracked", Ct);
+				}
+				finally
+				{
+					completed.Set();
+				}
+			}, Ct);
+			completed.Wait(TimeSpan.FromSeconds(10), Ct).ShouldBeTrue();
+		});
+		listener.Start();
+		string? original = null;
+		try
+		{
+			original = await tracker.GetOrCreateStampAsync("tracked", Ct);
+		}
+		finally
+		{
+			if (reentrant is not null)
+			{
+				await reentrant.WaitAsync(TimeSpan.FromSeconds(10));
+			}
+		}
+
+		_ = reentrant.ShouldNotBeNull();
+		(await tracker.GetOrCreateStampAsync("tracked", Ct)).ShouldNotBe(original);
+		tracker.TrackedTagCount.ShouldBe(1);
 	}
 
 	// ---- Under the bound: normal memoized behaviour. ----
@@ -260,6 +426,8 @@ public sealed class InMemoryCacheTagTrackerBoundedCapacityShould
 
 		public IReadOnlyList<string> Warnings => _warnings;
 
+		public Action? OnWarning { get; set; }
+
 		public IDisposable? BeginScope<TState>(TState state)
 			where TState : notnull => null;
 
@@ -275,6 +443,7 @@ public sealed class InMemoryCacheTagTrackerBoundedCapacityShould
 			if (logLevel == LogLevel.Warning)
 			{
 				_warnings.Add(formatter(state, exception));
+				OnWarning?.Invoke();
 			}
 		}
 	}

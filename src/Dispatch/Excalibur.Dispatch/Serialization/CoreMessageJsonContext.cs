@@ -25,7 +25,8 @@ namespace Excalibur.Dispatch.Serialization;
 	DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
 	GenerationMode = JsonSourceGenerationMode.Metadata | JsonSourceGenerationMode.Serialization,
 	PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-	UseStringEnumConverter = true)]
+	UseStringEnumConverter = true,
+	MaxDepth = 32)]
 
 // Core message types - Note: MessageEnvelope<T> is generic and requires specific type registration
 [JsonSerializable(typeof(Dictionary<string, object>))]
@@ -43,30 +44,24 @@ namespace Excalibur.Dispatch.Serialization;
 [JsonSerializable(typeof(Guid))]
 internal partial class CoreMessageJsonContext : JsonSerializerContext
 {
-	/// <summary>
-	/// Gets the singleton instance for core message serialization.
-	/// </summary>
-	/// <value>
-	/// The singleton instance for core message serialization.
-	/// </value>
-	public static CoreMessageJsonContext Instance { get; } = new(GetDefaultOptions());
-
-	/// <summary>
-	/// Creates default JSON serializer options for core messages.
-	/// </summary>
-	private static JsonSerializerOptions GetDefaultOptions()
-	{
-		var options = new JsonSerializerOptions
-		{
-			PropertyNameCaseInsensitive = true,
-			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-			WriteIndented = false,
-			DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-			ReferenceHandler = ReferenceHandler.IgnoreCycles,
-			NumberHandling = JsonNumberHandling.AllowReadingFromString,
-			MaxDepth = 32, // Messages can have nested structures
-		};
-
-		return options;
-	}
+	// ONE context, ONE option set. This type used to carry a second instance built from a private
+	// options object that set three things the attribute above did not, and the two were reachable by
+	// different routes to the same public serializer -- so whether a message was accepted depended on
+	// which constructor overload the caller used. The three settings were ruled on rather than dropped
+	// silently:
+	//
+	//   MaxDepth = 32                       KEPT, and moved onto the attribute above. It is a
+	//                                       deliberately stricter nesting bound than the framework's
+	//                                       64, so convergence must not cost it. Verified in the
+	//                                       generated context that an attribute-level MaxDepth lands
+	//                                       in the shared options rather than in a per-type converter.
+	//   ReferenceHandler = IgnoreCycles     DROPPED, and this tightens behaviour on purpose. It wrote
+	//                                       a null in place of a cycle, so a message serialized with a
+	//                                       cycle lost a field and nothing downstream learned. Without
+	//                                       it a cycle throws, which is loud and recoverable.
+	//   NumberHandling.AllowReadingFromString
+	//                                       DROPPED. It accepted a JSON string where the type declares
+	//                                       a number -- a wire shape our own writer never emits -- so
+	//                                       it only ever widened what one route would deserialize.
+	//                                       Strict is the framework default and the honest contract.
 }

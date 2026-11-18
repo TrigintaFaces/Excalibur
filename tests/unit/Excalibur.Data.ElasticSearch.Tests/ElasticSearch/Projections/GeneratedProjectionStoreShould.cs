@@ -193,6 +193,55 @@ public sealed class GeneratedProjectionStoreShould
         }
     }
 
+    [Fact]
+    [Trait("Pattern", "Regression")]
+    public async Task ReportExistingIndexReadinessAtDebugWithoutRecreatingItAcrossStoreInstances()
+    {
+        const string indexName = "scoped-log-index";
+        const string response = """
+            {"scoped-log-index":{"mappings":{"properties":{"count":{"type":"long"},"status":{"type":"keyword"},"wire_name":{"type":"keyword"},"missing":{"type":"keyword"},"excaliburProjectionPosition":{"type":"long"}}}}}
+            """;
+        var requests = new List<string>();
+        var settings = new ElasticsearchClientSettings(new SingleNodePool(new Uri("http://localhost:19200")),
+            new InMemoryRequestInvoker(Encoding.UTF8.GetBytes(response), 200, exception: null,
+                contentType: "application/json", headers: new Dictionary<string, IEnumerable<string>>
+                { ["x-elastic-product"] = ["Elasticsearch"] }))
+            .OnRequestCompleted(details => requests.Add($"{details.HttpMethod} {details.Uri?.AbsolutePath}"));
+        var client = new ElasticsearchClient(settings);
+        var options = Options();
+        var configured = options.Get(ElasticSearchProjectionIndexConvention.GetOptionsName<GeneratedWireModel>());
+        configured.Index.IndexPrefix = string.Empty;
+        configured.Index.IndexName = indexName;
+        var logger = A.Fake<ILogger<ElasticSearchProjectionStore<GeneratedWireModel>>>();
+        A.CallTo(() => logger.IsEnabled(A<LogLevel>._)).Returns(true);
+        var initialize = typeof(ElasticSearchProjectionStore<GeneratedWireModel>)
+            .GetMethod("EnsureInitializedAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        for (var instance = 0; instance < 2; instance++)
+        {
+            await using var store = new ElasticSearchProjectionStore<GeneratedWireModel>(client, options, logger);
+            await ((Task)initialize.Invoke(store, [CancellationToken.None])!).ConfigureAwait(false);
+            await ((Task)initialize.Invoke(store, [CancellationToken.None])!).ConfigureAwait(false);
+        }
+
+        var expectedRequests = new[]
+        {
+            $"HEAD /{indexName}", $"GET /{indexName}/_mapping",
+            $"HEAD /{indexName}", $"GET /{indexName}/_mapping",
+        };
+        requests.ShouldBe(expectedRequests);
+        var readiness = Fake.GetCalls(logger)
+            .Where(call => call.Method.Name == "Log" && call.GetArgument<EventId>(1).Id == 106910)
+            .ToArray();
+        readiness.Length.ShouldBe(2);
+        foreach (var entry in readiness)
+        {
+            entry.GetArgument<LogLevel>(0).ShouldBe(LogLevel.Debug);
+            entry.GetArgument<object>(2).ToString().ShouldBe(
+                $"Scoped ElasticSearch projection store instance ready for index '{indexName}' and type '{nameof(GeneratedWireModel)}'");
+        }
+    }
+
     private static IOptionsMonitor<ElasticSearchProjectionStoreOptions> Options()
     {
         var monitor = A.Fake<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();

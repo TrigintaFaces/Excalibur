@@ -7,10 +7,13 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.StateMachine;
 using Excalibur.Saga.Handlers;
+using Excalibur.Saga.Diagnostics;
 using Excalibur.Saga.Orchestration;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+
+using Tests.Shared.Helpers;
 
 using Polly.Timeout;
 
@@ -206,6 +209,48 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => _sagaStore.SaveAsync(existingState, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+	}
+
+	/// <summary>
+	/// A stable log identifier is an operator-facing contract: it is what an alert rule binds to. This
+	/// occurrence carried the compensation identifier, so an operator alerting on compensation received
+	/// not-found events, and one alerting on not-found never saw the coordinator's own fallback. Nothing
+	/// asserted it, which is why a wrong constant survived in a source-generated log method.
+	/// </summary>
+	[Fact]
+	public async Task ReportANotFoundSagaUnderTheNotFoundIdentifierAndNotTheCompensationOne()
+	{
+		var logger = new CapturingLogger<SagaCoordinator>();
+		var store = A.Fake<ISagaStore>();
+		var services = new ServiceCollection();
+		services.AddSingleton(store);
+		services.AddSingleton(A.Fake<IDispatcher>());
+		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
+		using var provider = services.BuildServiceProvider();
+
+		// No ISagaNotFoundHandler is registered, so the coordinator falls through to its own log -- which
+		// is the path under test. With a handler registered this would never be reached.
+		using var coordinator = new SagaCoordinator(
+			provider, store, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), logger);
+
+		var sagaId = Guid.NewGuid();
+		var evt = new TestContinuationEvent { SagaId = sagaId.ToString(), StepId = "step-1" };
+		var sagaInfo = new SagaInfo(typeof(TestSaga), typeof(TestSagaState));
+		sagaInfo.StartsWith<TestStartEvent>();
+		sagaInfo.Handles<TestContinuationEvent>();
+		A.CallTo(() => store.LoadAsync<TestSagaState>(sagaId, A<CancellationToken>._))
+			.Returns((TestSagaState?)null);
+
+		await coordinator.HandleEventInternalAsync<TestSaga, TestSagaState>(
+			A.Fake<IMessageContext>(), evt, sagaInfo, CancellationToken.None);
+
+		var ids = logger.Entries.Select(entry => entry.EventId.Id).ToList();
+
+		ids.ShouldContain(SagaEventId.SagaStateNotFound,
+			"a not-found saga must be reported under the identifier an operator binds a not-found alert to");
+		ids.ShouldNotContain(SagaEventId.SagaStepFailedStartingCompensation,
+			"nothing compensated, and this framework starts no compensation at all, so emitting that "
+			+ "identifier reports an event that did not happen");
 	}
 
 	[Fact]
@@ -715,6 +760,13 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 	// would obscure what these arms actually test). Locks the three behaviors the Polly migration
 	// (Excalibur_Dispatch-9b1v2h) must preserve: transient retry, per-attempt-timeout retry, and
 	// ambient-shutdown propagating unretried.
+	private sealed class SyntheticTransientClassifier : IMessageFailureClassifier
+	{
+		public MessageFailureKind Classify(Exception exception) =>
+			exception is InvalidOperationException && exception.Message == "transient"
+				? MessageFailureKind.Transient : MessageFailureKind.Unknown;
+	}
+
 	#region RunWithTimeoutAndRetryAsync Characterization Tests
 
 	private static Task InvokeRunWithTimeoutAndRetryAsync(
@@ -726,13 +778,14 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		return (Task)method!.Invoke(coordinator, [action, "TestEvent", cancellationToken])!;
 	}
 
-	private static SagaCoordinator CreateCoordinator(SagaOptions options)
+	private static SagaCoordinator CreateCoordinator(SagaOptions options, IMessageFailureClassifier? classifier = null)
 	{
 		var sagaStore = A.Fake<ISagaStore>();
 		var services = new ServiceCollection();
 		services.AddSingleton(sagaStore);
 		services.AddSingleton(A.Fake<IDispatcher>());
 		services.AddSingleton(typeof(ILogger<>), typeof(FakeLogger<>));
+		if (classifier is not null) { services.AddSingleton(classifier); }
 		var serviceProvider = services.BuildServiceProvider();
 		return new SagaCoordinator(serviceProvider, sagaStore, Microsoft.Extensions.Options.Options.Create(options), new FakeLogger<SagaCoordinator>());
 	}
@@ -745,7 +798,7 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 			MaxAttempts = 3,
 			RetryDelay = TimeSpan.Zero,
 			DefaultTimeout = TimeSpan.FromSeconds(30),
-		});
+		}, new SyntheticTransientClassifier());
 
 		var attempts = 0;
 		await InvokeRunWithTimeoutAndRetryAsync(

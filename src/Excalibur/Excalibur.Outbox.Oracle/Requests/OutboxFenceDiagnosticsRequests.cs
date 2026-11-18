@@ -19,6 +19,11 @@ namespace Excalibur.Outbox.Oracle;
 	"the fence is keyed on the outbox table, not on a tenant: a fencing token orders competing processors of one table and has no tenant dimension to scope to")]
 internal sealed class GetOutboxFenceHighWaterRequest : DataRequest<long?>
 {
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public GetOutboxFenceHighWaterRequest(
 		string fenceTableName,
 		string scope,
@@ -31,7 +36,11 @@ internal sealed class GetOutboxFenceHighWaterRequest : DataRequest<long?>
 
 		Command = new CommandDefinition(sql, new OracleDynamicParameters(parameters),
 			commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QuerySingleOrDefaultAsync<long?>(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.SingleOrDefaultAsync(conn, Command, command =>
+			{
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "ScopeKey", StaticDbCommand.Input<string>(parameters, "ScopeKey"), DbType.String);
+			}, static reader => reader.IsDBNull(0) ? (long?)null : StaticDbValue.Int64(reader, 0)).ConfigureAwait(false);
 	}
 }
 
@@ -51,6 +60,11 @@ internal sealed class GetOutboxFenceHighWaterRequest : DataRequest<long?>
 	"the fence is keyed on the outbox table, not on a tenant: a fencing token orders competing processors of one table and has no tenant dimension to scope to")]
 internal sealed class ResetOutboxFenceHighWaterRequest : DataRequest<bool>
 {
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public ResetOutboxFenceHighWaterRequest(
 		string fenceTableName,
 		string scope,
@@ -83,8 +97,16 @@ internal sealed class ResetOutboxFenceHighWaterRequest : DataRequest<bool>
 			commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
 		ResolveAsync = async conn =>
 		{
-			_ = await conn.ExecuteAsync(Command).ConfigureAwait(false);
-			return parameters.Get<long>("OutUpdated") > 0;
+			return await StaticDbCommand.ExecuteOutputsAsync(conn, Command, command =>
+			{
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "ScopeKey", StaticDbCommand.Input<string>(parameters, "ScopeKey"), DbType.String);
+				StaticDbCommand.AddParameter(command, "NewHighWater", StaticDbCommand.Input<long>(parameters, "NewHighWater"), DbType.Int64);
+				StaticDbCommand.AddOutputParameter(command, "OutUpdated", DbType.Int64);
+			}, command =>
+			{
+				return StaticDbCommand.Output<long>(command, parameters, "OutUpdated", DbType.Int64) > 0;
+			}).ConfigureAwait(false);
 		};
 	}
 }

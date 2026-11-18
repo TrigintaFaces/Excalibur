@@ -62,12 +62,14 @@ public sealed class DisabledMissedScheduleShould
                 dispatched.Enqueue(((MissedScheduleAction)action).Marker))
             .Returns(Task.FromResult(MessageResult.Success()));
         using var scopeProvider = new ServiceCollection().BuildServiceProvider();
-		using var service = new ScheduledMessageService(store, dispatcher, serializer, A.Fake<ICronScheduler>(),
+		var clock = new FakeTimeProvider(now);
+		using var authority = new ScheduleFixtureFailureAuthority(store, clock);
+		using var service = new ScheduledMessageService(authority.RuntimeStore, dispatcher, serializer, A.Fake<ICronScheduler>(),
             Microsoft.Extensions.Options.Options.Create(new SchedulerOptions
             {
                 PollInterval = TimeSpan.FromSeconds(1), EnableAdaptivePolling = false
             }), Microsoft.Extensions.Options.Options.Create(new CronScheduleOptions()),
-            NullLogger<ScheduledMessageService>.Instance, scopeProvider.GetRequiredService<IServiceScopeFactory>(), timeProvider: new FakeTimeProvider(now));
+            NullLogger<ScheduledMessageService>.Instance, scopeProvider.GetRequiredService<IServiceScopeFactory>(), timeProvider: clock);
         try
         {
             await service.StartAsync(CancellationToken.None);

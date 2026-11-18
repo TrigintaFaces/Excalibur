@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// </para>
 /// <para>
 /// For CI regression gates, use <see cref="ComparativeBenchmarkConfig"/> instead
-/// (cold single-dispatch with InvocationCount:1, UnrollFactor:1).
+/// (single-invocation comparative job with InvocationCount:1, UnrollFactor:1).
 /// </para>
 /// </remarks>
 internal sealed class WarmPathBenchmarkConfig : ManualConfig

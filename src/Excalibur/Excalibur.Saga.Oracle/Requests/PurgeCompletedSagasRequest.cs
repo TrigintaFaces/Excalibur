@@ -81,7 +81,7 @@ internal sealed class PurgeCompletedSagasRequest : DataRequestBase<IDbConnection
 
 		// Keys on the indexed CompletedAt column (not IsCompleted + UpdatedUtc): retention correctness must not be
 		// coupled to the "completed sagas never re-save" invariant via a proxy column.
-		var sql = $"DELETE FROM {qualifiedTableName} WHERE CompletedAt IS NOT NULL AND CompletedAt < :Threshold{tenantPredicate}";
+		var sql = $"DELETE FROM {qualifiedTableName} WHERE CompletedAt IS NOT NULL AND CompletedAt < :Threshold AND TimerRecoveryPendingBatch IS NULL{tenantPredicate}";
 
 		// ODP.NET binds by POSITION, not by name. The add order below must match the order the placeholders
 		// appear in the SQL above -- :Threshold then :TenantId -- and a parameter added but not referenced would

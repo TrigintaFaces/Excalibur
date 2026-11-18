@@ -85,6 +85,14 @@ internal sealed class FencingTokenPrerequisiteValidator : IHostedService, IStart
 				"host startup — for example services.AddRedisFencingTokenProvider() " +
 				"(Excalibur.LeaderElection.Redis), or services.AddFencingTokenSupport<TProvider>().");
 		}
+
+		if (_services.GetService<FencingIssuerRequiredMarker>() is not null &&
+			_services.GetService<IFencingTokenIssuer>() is null)
+		{
+			throw new InvalidOperationException(
+				"This leader election requires IFencingTokenIssuer from the selected fencing-token provider. " +
+				"Register a mint-capable provider or explicitly call WithoutFencingTokens().");
+		}
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

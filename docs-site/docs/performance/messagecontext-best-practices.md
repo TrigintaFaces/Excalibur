@@ -19,15 +19,15 @@ This guide covers performance optimization patterns for `IMessageContext` usage 
 
 | Access Method | Measured | Use Case |
 |---------------|----------|----------|
-| Core property (e.g., `CorrelationId`) | ~0.2 ns | 8 core properties on the interface |
+| Core property (e.g., `CorrelationId`) | ~0.2 ns historically reported; unresolved | 8 core properties on the interface |
 | Feature extension (e.g., `GetTenantId()`) | 5.7-7.7 ns | Cross-cutting concerns via typed features |
 | Items dictionary (`GetItem<T>()`) | 4.3-4.9 ns | Transport-specific and user-defined data |
 
 Measured 2026-09-04, `MessageContextBenchmarks`, BenchmarkDotNet 0.15.8 in-process on .NET 10.0.11.
 These figures are a historical snapshot of that September code and runtime epoch;
 they have not been refreshed by the October benchmark campaign. In that measured
-workload, all three allocated nothing. The core-property figure is under one CPU cycle and should be read as
-effectively free rather than as a precise number.
+workload, all three reported 0 B per operation. The core-property figure is under one CPU cycle and should be read as
+below what this benchmark can reliably resolve, rather than as evidence of a free operation.
 
 In that historical workload, a raw `Items["key"]` read measured 5.7-6.9 ns and typed
 `GetItem<T>()` measured 4.3-4.9 ns, placing them in the same band as feature extensions.
@@ -52,6 +52,10 @@ context.Features            // IDictionary<Type, object>
 ### Feature Extensions (Cross-Cutting Concerns)
 
 Cross-cutting concerns are accessed via typed feature interfaces. Cache the feature reference when accessing multiple properties:
+
+Retain a feature reference only while that feature is not replaced. Caching the reference can still
+observe changes to its properties; caching a property value instead takes a snapshot. Hoist a tenant
+value out of a loop only when it must remain unchanged for that operation.
 
 ```csharp
 using Excalibur.Dispatch.Features;
@@ -89,7 +93,7 @@ Use Items for transport-specific and user-defined data only:
 context.Items["rabbitmq.exchange"] = exchange;
 context.Items["rabbitmq.deliveryTag"] = deliveryTag;
 
-// Internal framework (prefix with "Dispatch:")
+// Framework-internal illustration; applications must not write reserved Dispatch: keys
 context.Items["Dispatch:OriginalResult"] = result;
 
 // CloudEvents (prefix with "ce.")
@@ -104,6 +108,9 @@ context.Items["MyApp.CustomData"] = data;
 ### Short-Circuit Early
 
 Check conditions before expensive operations:
+
+Reuse `ValidationPassed` only for the same unchanged message and applicable validation rules.
+If either changes, perform the required validation again.
 
 ```csharp
 public async ValueTask<IMessageResult> InvokeAsync(
@@ -171,20 +178,22 @@ This is intentional -- each message tracks its own processing state.
 
 Items dictionary values are stored by reference, but large object graphs:
 - Increase memory pressure
-- Slow down context pooling (clearing takes longer)
+- Extend the lifetime of referenced objects until the entry or context releases them
 - May prevent objects from being collected
 
 ```csharp
 // Bad - storing large objects
 context.Items["FullResponse"] = largeResponseObject;
 
-// Better - store reference/ID and fetch when needed
+// Alternative - store an ID; account for lookup/I/O costs when fetching later
 context.Items["ResponseId"] = responseId;
 ```
 
 ### Clear Temporary Data
 
-If you add temporary Items, consider removing them:
+If you add temporary Items, consider removing them. This example requires an exclusively owned,
+previously absent key. If a caller already owns the key, preserve and restore its prior value instead;
+unconditional removal would destroy caller state.
 
 ```csharp
 try
@@ -201,20 +210,19 @@ finally
 ## Benchmarks
 
 Extrapolated from the September 2026 historical measurements above to 100K messages/second. These are arithmetic, not a
-throughput benchmark -- no throughput measurement exists for this path:
+throughput benchmark; this extrapolation supplies no throughput measurement:
 
-| Pattern | CPU cost per second at 100K msg/s |
+| Pattern | Illustrative sum of elapsed costs at 100K msg/s |
 |---------|-----------------------------------|
-| 1 core property read | under 0.03 ms |
+| 1 core property read | Not reliably resolved |
 | 1 feature extension read | ~0.7 ms |
 | 1 Items dictionary read | ~0.6 ms |
-| 10 core property reads | ~0.2 ms |
+| 10 core property reads | Not reliably resolved |
 | 10 feature extension reads | ~7 ms |
 | 10 Items dictionary reads | ~6 ms |
 
 For those September inputs, at 100K messages/second, ten feature reads per message would cost single-digit
-milliseconds of CPU per second; this is not a current-release cost guarantee. Caching a feature reference when you take several properties off
-the same feature is still worth doing, but the saving is smaller than this page used to imply.
+milliseconds of summed elapsed time per second; this is not measured CPU consumption or a current-release cost guarantee. Consider retaining a feature reference for repeated access; measure any performance benefit in the application.
 
 ## Summary
 

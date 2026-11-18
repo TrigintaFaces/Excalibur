@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using Excalibur.Dispatch.Transport.RabbitMQ;
-
 namespace Excalibur.Dispatch.Transport.Tests.CrossTransport;
 
 /// <summary>
@@ -24,13 +22,17 @@ public sealed class MultiProviderKeyedDiShould
 		services.AddLogging();
 
 		// Act
-		services.AddRabbitMQTransport("orders", rmq => rmq.ConnectionString("amqp://orders-host"));
+		services.AddRabbitMQTransport("orders", rmq => rmq.ConnectionString("amqps://app-user:app-password@orders-host:5671/"));
 
 		using var provider = services.BuildServiceProvider();
 
-		// Assert -- options should be configured with connection string
-		var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<RabbitMqOptions>>();
-		options.Value.Connection.ConnectionString.ShouldBe("amqp://orders-host");
+		// Assert against the factory the transport actually uses, without dialing a broker.
+		var factory = provider.GetRequiredService<global::RabbitMQ.Client.IConnectionFactory>()
+			.ShouldBeOfType<global::RabbitMQ.Client.ConnectionFactory>();
+		factory.HostName.ShouldBe("orders-host");
+		factory.Port.ShouldBe(5671);
+		factory.UserName.ShouldBe("app-user");
+		factory.Ssl.Enabled.ShouldBeTrue();
 	}
 
 	[Fact]

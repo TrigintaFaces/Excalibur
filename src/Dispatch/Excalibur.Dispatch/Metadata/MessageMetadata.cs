@@ -440,10 +440,10 @@ public sealed record MessageMetadata : IMessageMetadata
 				_ = builder.WithSentTimestampUtc(sentTimestamp.Value);
 			}
 
-			// Copy items collection
-			if (context.Items.Count > 0)
+			// Only the marked values: metadata is serialized and persisted, Items is request-local.
+			foreach (var item in context.GetPropagatedItems())
 			{
-				_ = builder.AddItems(context.Items);
+				_ = builder.AddItem(item.Key, item.Value);
 			}
 		}
 		else

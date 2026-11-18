@@ -328,7 +328,8 @@ public sealed class OracleOutboxBackoffFloorClampShould
 		});
 
 		return new OracleOutboxStore(
-			db, options, NullLogger<OracleOutboxStore>.Instance, metrics: null, timeProvider: dispatcherClock);
+			db, options, NullLogger<OracleOutboxStore>.Instance, metrics: null, timeProvider: dispatcherClock,
+			workerConnections: OracleWorkerConnectionSource.FromConnectionString(_fixture.ConnectionString));
 	}
 
 	/// <summary>

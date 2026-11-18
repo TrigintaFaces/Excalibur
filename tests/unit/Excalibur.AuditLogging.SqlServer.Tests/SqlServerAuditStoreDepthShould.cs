@@ -148,9 +148,21 @@ public sealed class SqlServerAuditStoreDepthShould
 	[InlineData("emoji_\U0001F600", false)]
 	public void Sql_identifier_regex_matches_expected_patterns(string value, bool expected)
 	{
+		// BOUND BY PARAMETER TYPES, NOT BY NAME ALONE. Invoke(null, null) passes no arguments, so if this
+		// private factory ever gains a parameter the call compiles, binds, and throws
+		// TargetParameterCountException at run time -- an opaque failure naming nothing. Binding on the
+		// empty type list makes the drift fail HERE, with the member named, at the moment it happens.
 		var regexFactory = typeof(SqlServerAuditStore).GetMethod(
 			"SqlIdentifierRegex",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
+			binder: null,
+			types: Type.EmptyTypes,
+			modifiers: null);
+
+		regexFactory.ShouldNotBeNull(
+			"SqlServerAuditStore.SqlIdentifierRegex() was not found as a parameterless static. The private "
+			+ "signature changed; this reflection-bound test must be updated in lockstep.");
+
 		var regex = (System.Text.RegularExpressions.Regex)regexFactory.Invoke(null, null)!;
 
 		regex.IsMatch(value).ShouldBe(expected);

@@ -132,46 +132,64 @@ public class MassTransitComparisonBenchmarks
 	[GlobalCleanup]
 	public async Task GlobalCleanup()
 	{
+		var failures = new List<Exception>();
 		try
 		{
-			if (_dispatchServiceProvider is IDisposable dispatchDisposable)
+			try
 			{
-				dispatchDisposable.Dispose();
+				(_dispatchServiceProvider as IDisposable)?.Dispose();
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
 			}
 
-			if (_dispatchDirectServiceProvider is IDisposable directDisposable)
+			try
 			{
-				directDisposable.Dispose();
+				(_dispatchDirectServiceProvider as IDisposable)?.Dispose();
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
+			}
+
+			try
+			{
+				if (_busControl is not null)
+				{
+					await _busControl.StopAsync(CancellationToken.None).ConfigureAwait(false);
+				}
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
+			}
+
+			try
+			{
+				if (_massTransitServiceProvider is IAsyncDisposable massTransitAsyncDisposable)
+				{
+					await massTransitAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+				}
+				else if (_massTransitServiceProvider is IDisposable massTransitDisposable)
+				{
+					massTransitDisposable.Dispose();
+				}
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
 			}
 		}
-		catch
+		finally
 		{
-			// Suppress disposal exceptions
+			MassTransitBenchmarkCompletionTracker.Reset();
 		}
 
-		try
+		if (failures.Count > 0)
 		{
-			if (_busControl is not null)
-			{
-				await _busControl.StopAsync(CancellationToken.None).ConfigureAwait(false);
-			}
-
-			// MassTransit uses IAsyncDisposable for its UsageTracker
-			if (_massTransitServiceProvider is IAsyncDisposable massTransitAsyncDisposable)
-			{
-				await massTransitAsyncDisposable.DisposeAsync().ConfigureAwait(false);
-			}
-			else if (_massTransitServiceProvider is IDisposable massTransitDisposable)
-			{
-				massTransitDisposable.Dispose();
-			}
+			throw new AggregateException("Benchmark resource cleanup failed.", failures);
 		}
-		catch
-		{
-			// Suppress disposal exceptions - MassTransit's UsageTracker async disposal can throw
-		}
-
-		MassTransitBenchmarkCompletionTracker.Reset();
 	}
 
 	// ============================================================================

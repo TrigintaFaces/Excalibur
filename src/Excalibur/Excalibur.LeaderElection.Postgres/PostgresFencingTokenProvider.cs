@@ -38,7 +38,7 @@ namespace Excalibur.LeaderElection.Postgres;
 /// connection).
 /// </para>
 /// </remarks>
-internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
+internal sealed class PostgresFencingTokenProvider : IFencingTokenIssuer
 {
 	private readonly string _connectionString;
 
@@ -49,7 +49,9 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 	public PostgresFencingTokenProvider(string connectionString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		_connectionString = connectionString;
+		// Fencing is infrastructure state, independent of a caller business transaction.
+		// Rolling back the first CREATE SEQUENCE must never reset an issued counter.
+		_connectionString = new NpgsqlConnectionStringBuilder(connectionString) { Enlist = false }.ConnectionString;
 	}
 
 	/// <inheritdoc />
@@ -152,17 +154,34 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 		// pg_sequences.last_value is NULL until the first nextval (and the row is absent if the sequence was
 		// never created) -> null = no token ever issued = no active leader (the idiomatic "no value" signal,
 		// Decision 2). Parameterized, so no inline identifier here.
-		const string sql =
-			"SELECT last_value FROM pg_sequences WHERE schemaname = current_schema() AND sequencename = @name;";
+		const string sql = @"
+SELECT pg_is_in_recovery(), current_setting('transaction_read_only'), current_schema(),
+       s.sequencename IS NOT NULL,
+       CASE WHEN s.sequencename IS NULL THEN NULL
+            ELSE has_sequence_privilege(format('%I.%I', s.schemaname, s.sequencename), 'USAGE, SELECT') END,
+       s.last_value
+FROM (SELECT 1) AS seed
+LEFT JOIN pg_sequences AS s ON s.schemaname = current_schema() AND s.sequencename = @name;";
 
 		await using var connection = new NpgsqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
 		await using var command = new NpgsqlCommand(sql, connection);
 		command.Parameters.AddWithValue("name", sequenceName);
-
-		var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-		return result is null or DBNull ? null : Convert.ToInt64(result, CultureInfo.InvariantCulture);
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+		if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false) || reader.GetBoolean(0) ||
+			!string.Equals(reader.GetString(1), "off", StringComparison.Ordinal) || await reader.IsDBNullAsync(2, cancellationToken).ConfigureAwait(false))
+		{
+			throw new InvalidOperationException("Fencing marks require the selected writable PostgreSQL authority and visible schema.");
+		}
+		if (!reader.GetBoolean(3))
+		{
+			return null;
+		}
+		if (await reader.IsDBNullAsync(4, cancellationToken).ConfigureAwait(false) || !reader.GetBoolean(4))
+		{
+			throw new InvalidOperationException("Fencing sequence metadata is unreadable. Grant USAGE or SELECT on the selected sequence; mint privileges are not required for observation.");
+		}
+		return await reader.IsDBNullAsync(5, cancellationToken).ConfigureAwait(false) ? null : reader.GetInt64(5);
 	}
 
 	/// <inheritdoc />

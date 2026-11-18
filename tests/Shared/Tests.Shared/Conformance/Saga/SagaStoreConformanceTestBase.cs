@@ -652,6 +652,68 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 		removed.ShouldBe(0, "purging an empty store must remove nothing");
 	}
 
+    [Fact]
+    public async Task RejectSameVersionOldLifetimeOnFirstTimerJournalAfterPurgeRecreation()
+    {
+        var original = new TestSagaState { SagaId = Guid.NewGuid(), Data = "old-lifetime",
+            Completed = true, CompletedAt = DateTimeOffset.UtcNow.AddDays(-2) };
+        await Store.SaveAsync(original, CancellationToken.None).ConfigureAwait(false);
+        var stale = (await Store.LoadAsync<TestSagaState>(original.SagaId, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        stale.TimerRecoveryIncarnationId.ShouldBe(original.TimerRecoveryIncarnationId);
+        (await Store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow.AddDays(-1), CancellationToken.None).ConfigureAwait(false)).ShouldBe(1);
+        var recreated = new TestSagaState { SagaId = original.SagaId, Data = "new-lifetime" };
+        await Store.SaveAsync(recreated, CancellationToken.None).ConfigureAwait(false);
+        recreated.Version.ShouldBe(stale.Version);
+        recreated.TimerRecoveryIncarnationId.ShouldNotBe(stale.TimerRecoveryIncarnationId);
+        stale.TimerRecoverySequence = 1;
+        stale.PendingTimerRecovery = CreateTimerJournal(stale, Guid.NewGuid(), [1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0]);
+        await Should.ThrowAsync<ConcurrencyException>(() => Store.SaveAsync(stale, CancellationToken.None)).ConfigureAwait(false);
+        var retained = (await Store.LoadAsync<TestSagaState>(original.SagaId, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        retained.Data.ShouldBe("new-lifetime");
+        retained.TimerRecoveryIncarnationId.ShouldBe(recreated.TimerRecoveryIncarnationId);
+        retained.PendingTimerRecovery.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RetainExactPendingJournalThroughPurgeAndRejectReplacementOrWrongAcknowledgement()
+    {
+        var state = new TestSagaState { SagaId = Guid.NewGuid(), Data = "retained-original",
+            Completed = true, CompletedAt = DateTimeOffset.UtcNow.AddDays(-2), TimerRecoverySequence = 1 };
+        await Store.SaveAsync(state, CancellationToken.None).ConfigureAwait(false);
+        state = (await Store.LoadAsync<TestSagaState>(state.SagaId, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        var batch = Guid.NewGuid();
+        state.PendingTimerRecovery = CreateTimerJournal(state, batch, [1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0]);
+        await Store.SaveAsync(state, CancellationToken.None).ConfigureAwait(false);
+        var original = (await Store.LoadAsync<TestSagaState>(state.SagaId, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        var owed = original.PendingTimerRecovery.ShouldNotBeNull();
+        owed.GetAuthorityDigest().ShouldBe(state.PendingTimerRecovery.ShouldNotBeNull().GetAuthorityDigest());
+        (await Store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow.AddDays(-1), CancellationToken.None).ConfigureAwait(false)).ShouldBe(0);
+
+        original.PendingTimerRecovery = new SagaTimerRecoveryJournal(owed.Scope, owed.IncarnationId, owed.Sequence,
+            owed.BatchId, owed.ExpectedFence, owed.ObservedRevision, owed.EncodingVersion, [1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 120, 0]);
+        var replacement = await Should.ThrowAsync<Exception>(() => Store.SaveAsync(original, CancellationToken.None)).ConfigureAwait(false);
+        (replacement is ConcurrencyException or InvalidOperationException).ShouldBeTrue();
+        var afterReplacement = (await Store.LoadAsync<TestSagaState>(state.SagaId, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        afterReplacement.PendingTimerRecovery.ShouldNotBeNull().GetAuthorityDigest().ShouldBe(owed.GetAuthorityDigest());
+        afterReplacement.Version.ShouldBe(state.Version);
+
+        afterReplacement.PendingTimerRecovery = null;
+        afterReplacement.LastTimerRecoveryBatchId = Guid.NewGuid();
+        var wrongAck = await Should.ThrowAsync<Exception>(() => Store.SaveAsync(afterReplacement, CancellationToken.None)).ConfigureAwait(false);
+        (wrongAck is ConcurrencyException or InvalidOperationException).ShouldBeTrue();
+        var exactAck = (await Store.LoadAsync<TestSagaState>(state.SagaId, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        exactAck.PendingTimerRecovery = null;
+        exactAck.LastTimerRecoveryBatchId = batch; // State-CAS assertion only; receiver execution is a separate contract.
+        await Store.SaveAsync(exactAck, CancellationToken.None).ConfigureAwait(false);
+        (await Store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow.AddDays(-1), CancellationToken.None).ConfigureAwait(false)).ShouldBe(1);
+        (await Store.LoadAsync<TestSagaState>(state.SagaId, CancellationToken.None).ConfigureAwait(false)).ShouldBeNull();
+    }
+
+    private static SagaTimerRecoveryJournal CreateTimerJournal(TestSagaState state, Guid batch, byte[] payload) =>
+        new(new SagaScopeIdentity(Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
+                nameof(TestSagaState), state.SagaId), state.TimerRecoveryIncarnationId, state.TimerRecoverySequence,
+            batch, Guid.NewGuid(), 0, 1, payload);
+
 	#endregion Purge Tests (d0wpug — ISagaStore.PurgeCompletedBeforeAsync)
 }
 

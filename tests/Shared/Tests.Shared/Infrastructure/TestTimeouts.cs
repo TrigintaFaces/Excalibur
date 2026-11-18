@@ -64,6 +64,48 @@ public static class TestTimeouts
 	public static TimeSpan ContainerInitBudget { get; } = TimeSpan.FromSeconds(240);
 
 	/// <summary>
+	/// Bound for a <b>liveness</b> arm that awaits an event it can only observe through the thread pool.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>A wall-clock bound may appear only in a liveness arm, and only to turn a stall into a named
+	/// failure. It must never be the thing a safety property is read through.</b> A safety property has to be
+	/// decidable in a quiescent state -- by an injected clock, a joined signal, or pumping a controlled
+	/// scheduler to idle. Corollary, and it is the test for whether this value is being misused: if widening
+	/// this bound could change whether an arm passes, that arm is asserting a property of the machine rather
+	/// than of the code, and the bound is not the defect -- the arm is.
+	/// </para>
+	/// <para>
+	/// <b>Deliberately flat, and deliberately NOT multiplier-scaled</b>, for the same reason as
+	/// <see cref="ContainerInitBudget"/>: it is bounded from above by something outside the process. The
+	/// invariant is <c>LivenessGuard &lt; shortest --blame-hang-timeout</c>. The shortest in use is 5m, so
+	/// 120s leaves 180s of margin. Losing that race is the worst outcome available: the blame collector names
+	/// the hung test and writes a dump, while a session timeout kills the host and reports the tests that
+	/// finished as passed. <b>If a blame timeout is ever lowered below this, lower this with it.</b>
+	/// </para>
+	/// <para>
+	/// <b>Why not a formula.</b> <c>Math.Clamp(4 * Environment.ProcessorCount, 60, 240)</c> was proposed and
+	/// refuted on review, 2026-11-05. Starvation latency is governed by runnable items across all concurrent
+	/// test hosts divided by cores -- and both sides grow with the core count, so the ratio is roughly
+	/// scale-invariant and the latency is not monotone in <c>ProcessorCount</c>. The formula therefore scaled
+	/// <i>against</i> need: a 4-core agent running the same 31 assemblies carries eight times the
+	/// oversubscription and would have received 60s, while the 32-core box that produced the 36s failure would
+	/// have received 128s. It is also inert outside 16-59 cores (floor below, ceiling above), blind to the
+	/// sibling-host count that actually drives the latency, and overstates supply under a cgroup quota, where
+	/// <c>ProcessorCount</c> can report the host's cores rather than the container's entitlement.
+	/// </para>
+	/// <para>
+	/// <b>Prefer removing the race to widening the bound.</b> This value exists for the residual case only --
+	/// an event starved by <i>other test processes</i>, which xUnit cannot schedule around. Starvation caused
+	/// by an assembly's own concurrent tests is fixed by serializing the class
+	/// (<c>[CollectionDefinition(..., DisableParallelization = true)]</c>), which removes the contention
+	/// instead of tolerating it. Scaling a bound has already been tried here and the scaled bound was blown
+	/// in turn, which is the signal that scaling treats the symptom.
+	/// </para>
+	/// </remarks>
+	public static TimeSpan LivenessGuard { get; } = TimeSpan.FromSeconds(120);
+
+	/// <summary>
 	/// Default timeout for container health checks (10 seconds * multiplier).
 	/// </summary>
 	public static TimeSpan HealthCheck => TimeSpan.FromSeconds(10 * Multiplier);

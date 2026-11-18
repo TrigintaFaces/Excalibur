@@ -8,35 +8,31 @@ namespace Excalibur.Dispatch;
 /// terminal dead-letter transition.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>This carries the fencing token and NOT a claim identity, and the asymmetry with the failure-report
-/// contract is deliberate.</b> The harm this closes is CROSS-TENURE: a superseded leader that reaches its
-/// attempt ceiling moves a message to the dead-letter table and destroys the outbox row, while a live
-/// successor still holds that message and has not delivered it. A fencing token is exactly what refuses
-/// that. A claim identity would additionally refuse a stale cycle of the SAME process — a real but
-/// different failure, and not the one that makes dead-lettering lossy.
-/// </para>
-/// <para>
-/// <b>Requiring both terms would have narrowed the fix from six candidate stores to one.</b> Every store
-/// that participates in fencing can honour this member; only one also records a per-claim identity. Since
-/// the loss is cross-tenure, demanding the claim term would have bought a residual and cost five stores
-/// the primary protection. The claim-bearing refinement stays available as a later addition where a store
-/// supports it, without breaking this contract.
-/// </para>
-/// <para>
-/// <b>Declares no base interfaces, and that is a confidentiality requirement.</b> Deriving from the
-/// fencing contract would pull in the payload-bearing store surface transitively, which a decorator
-/// enforcing a confidentiality boundary cannot forward unmediated — and a denied capability is silently
-/// absent for exactly the consumers who enabled encryption. Nothing here moves a payload: an identifier, a
-/// reason string and an opaque token.
-/// </para>
-/// <para>
-/// Discovered through <see cref="IServiceProvider.GetService(System.Type)"/>, never by casting the store,
-/// because a cast sees only the outermost type and is lossy through any decorator.
-/// </para>
+/// The authority overload compares both tenure and acquisition in the same atomic action as the terminal
+/// transition. The legacy token-only overload protects tenure only and cannot establish same-tenure claim
+/// ownership. Framework workers use the authority overload; no default implementation may discard it.
 /// </remarks>
 public interface IFencedDeadLetterableOutboxStore
 {
+	/// <summary>Dead-letters a message only while the caller holds both accepted tenure and current claim.</summary>
+	/// <param name="messageId">The persisted message identifier captured at acquisition.</param>
+	/// <param name="reason">The reason for the terminal disposition.</param>
+	/// <param name="attemptCount">Nonnegative observed logical attempt count; applied writes retain its maximum.</param>
+	/// <param name="authority">The positive tenure and nonblank acquisition identity captured by the worker.</param>
+	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+	/// <returns>The outcome decided atomically with the guarded terminal mutation.</returns>
+	/// <remarks>
+	/// Validate arguments before mutation. For valid authority evaluate the fence before row outcomes;
+	/// absent/different/released claims return ClaimLost, retained terminal rows AlreadyTerminal and
+	/// absent rows MessageNotFound. Do not reconstruct outcomes from a later unguarded read.
+	/// </remarks>
+	ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
+		string messageId,
+		string reason,
+		int attemptCount,
+		OutboxWriteAuthority authority,
+		CancellationToken cancellationToken);
+
 	/// <summary>
 	/// Moves a message to the dead-letter destination, applying it only if the caller's tenure is still
 	/// current.

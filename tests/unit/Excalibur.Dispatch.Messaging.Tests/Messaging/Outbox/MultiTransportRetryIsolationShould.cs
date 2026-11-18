@@ -53,7 +53,7 @@ public sealed class MultiTransportRetryIsolationShould
 	private readonly ILogger<MessageBusOutboxPublisher> _logger = A.Fake<ILogger<MessageBusOutboxPublisher>>();
 
 	private static IOutboxStore CreateMultiTransportStore() =>
-		A.Fake<IOutboxStore>(o =>
+		WorkerClaimFixture.CreateStore(o =>
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
@@ -109,7 +109,7 @@ public sealed class MultiTransportRetryIsolationShould
 		});
 
 		_ = A.CallTo(() => storeBase.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(storeBase, new List<OutboundMessage> { message })));
 
 		// Act
 		_ = await publisher.PublishPendingMessagesAsync(CancellationToken.None);
@@ -129,6 +129,7 @@ public sealed class MultiTransportRetryIsolationShould
 		A.CallTo(() => store.MarkTransportFailedAsync(
 				message.Id, HealthyTransport, A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
+		WorkerClaimFixture.AssertNoWeakWrites(storeBase);
 	}
 
 	/// <summary>
@@ -164,7 +165,7 @@ public sealed class MultiTransportRetryIsolationShould
 
 		// The retry pass drains through the atomic claim, so the message reaches the transport under a lease.
 		_ = A.CallTo(() => storeBase.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(storeBase, new List<OutboundMessage> { message })));
 		_ = A.CallTo(() => multiAdmin.GetAllTenantsTransportDeliveriesAsync(message.Id, A<CancellationToken>._))
 			.Returns(deliveries);
 
@@ -181,6 +182,7 @@ public sealed class MultiTransportRetryIsolationShould
 		_ = A.CallTo(() => store.MarkTransportFailedAsync(
 				message.Id, SickTransport, A<string>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+		WorkerClaimFixture.AssertNoWeakWrites(storeBase);
 	}
 
 	/// <summary>
@@ -216,7 +218,7 @@ public sealed class MultiTransportRetryIsolationShould
 		});
 
 		_ = A.CallTo(() => storeBase.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(storeBase, new List<OutboundMessage> { message })));
 
 		// Act
 		_ = await publisher.PublishPendingMessagesAsync(CancellationToken.None);
@@ -235,5 +237,6 @@ public sealed class MultiTransportRetryIsolationShould
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => store.MarkTransportSentAsync(message.Id, SickTransport, A<CancellationToken>._))
 			.MustNotHaveHappened();
+		WorkerClaimFixture.AssertNoWeakWrites(storeBase);
 	}
 }

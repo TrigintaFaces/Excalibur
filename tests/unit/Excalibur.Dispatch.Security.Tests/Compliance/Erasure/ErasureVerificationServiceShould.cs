@@ -393,7 +393,12 @@ public sealed class ErasureVerificationServiceShould
 		var result = await _sut.VerifyErasureAsync(requestId, CancellationToken.None);
 
 		// Assert
-		result.Verified.ShouldBeTrue();
+		// A request with no certificate carries no deleted-key IDs, so key-deletion
+		// verification establishes nothing and the verdict must not claim otherwise.
+		// This arm asserted Verified == true ALONGSIDE an empty DeletedKeyIds -- it wrote
+		// verified-by-nothing down as the requirement. The lookup assertion below is the
+		// arm's real subject and is unchanged.
+		result.Verified.ShouldBeFalse();
 		result.DeletedKeyIds.ShouldBeEmpty();
 		A.CallTo(() => _fakeCertStore.GetCertificateByIdAsync(A<Guid>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -436,7 +441,7 @@ public sealed class ErasureVerificationServiceShould
 	}
 
 	[Fact]
-	public async Task VerifyErasureAsync_StillPassesVerification_WhenNoKeysDeleted()
+	public async Task VerifyErasureAsync_RefusesVerification_WhenNoKeysDeleted()
 	{
 		// Arrange
 		var requestId = Guid.NewGuid();
@@ -454,9 +459,15 @@ public sealed class ErasureVerificationServiceShould
 		var result = await _sut.VerifyErasureAsync(requestId, CancellationToken.None);
 
 		// Assert
-		// Verification can still pass when no keys were deleted (e.g., data was deleted directly)
-		// The audit log verification passes internally but warnings are only added on failure path
-		result.Verified.ShouldBeTrue();
+		// An erasure discharged entirely by record deletion establishes no key destruction, so
+		// the verdict is NOT ESTABLISHED rather than verified. That is the ordinary outcome for
+		// such an erasure, not a report that it failed -- the recorded failure says exactly
+		// that destruction could not be verified.
+		//
+		// This arm previously asserted the opposite, and its own comment -- "warnings are only
+		// added on failure path" -- described the defect as the explanation.
+		result.Verified.ShouldBeFalse();
+		result.Failures.ShouldNotBeEmpty();
 	}
 
 	#endregion VerifyErasureAsync Tests

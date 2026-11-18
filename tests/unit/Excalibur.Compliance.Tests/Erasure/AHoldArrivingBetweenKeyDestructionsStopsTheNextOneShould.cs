@@ -67,7 +67,7 @@ public sealed class AHoldArrivingBetweenKeyDestructionsStopsTheNextOneShould
 	public async Task Destroy_no_further_key_once_a_hold_becomes_active_mid_pass()
 	{
 		var store = new InMemoryErasureStore(
-			TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()));
+			TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()), TimeProvider.System);
 		var requestId = await ScheduleAsync(store).ConfigureAwait(false);
 
 		var destroyed = new List<string>();
@@ -166,7 +166,7 @@ public sealed class AHoldArrivingBetweenKeyDestructionsStopsTheNextOneShould
 			holdStore, TestDataSubjectHasher.Instance, NullLogger<LegalHoldService>.Instance);
 
 		var store = new InMemoryErasureStore(
-			TestDataSubjectHasher.Instance, UntenantedContext.Instance, tenantOptions);
+			TestDataSubjectHasher.Instance, UntenantedContext.Instance, tenantOptions, TimeProvider.System);
 
 		const string subject = "user-hold-placed-after-the-request";
 		var request = new ErasureRequest
@@ -231,6 +231,183 @@ public sealed class AHoldArrivingBetweenKeyDestructionsStopsTheNextOneShould
 			+ "different remedies and only one of them is a bug.");
 	}
 
+	/// <summary>
+	/// SAFETY — THE TENANT TERM IN THE HOLD LOOKUP. A hold placed in a tenant must refuse that tenant's
+	/// erasure, and the erasure must look for it under the tenant its own request recorded.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Why the untenanted arm above cannot establish this.</b> It runs with the reserved untenanted
+	/// sentinel on both sides, so the hold's tenant and the erasure's tenant agree no matter which value the
+	/// service passes. An erasure that looked the hold up under the AMBIENT tenant, or under no tenant at
+	/// all, instead of under the tenant its request recorded, is therefore invisible to it — and that
+	/// substitution finds no row for a hold that genuinely exists. A gate that is still present and simply
+	/// finds no row is not a gate, and the destruction it fails to stop cannot be undone.
+	/// </para>
+	/// <para>
+	/// <b>The hold is placed through the real service into the real store</b>, and read back through the
+	/// production query path, for the same reason as the arm above: the property is an agreement about the
+	/// persisted identity, and a fake asserts the agreement instead of testing it.
+	/// </para>
+	/// <para>
+	/// <b>RED input:</b> pass a tenant other than the request's own recorded one to the execute-time
+	/// <c>CheckHoldsByHashAsync</c> and this arm destroys the key under a live hold. Measured.
+	/// </para>
+	/// <para>
+	/// <b>Passing NO tenant reddens NEITHER arm, and that is worth recording because it is the mutant a
+	/// reader reaches for first.</b> Measured: with the term replaced by <see langword="null"/> at both
+	/// execute-time call sites, all four arms in this suite stay GREEN. The hold query applies the AMBIENT
+	/// tenant term unconditionally and treats the caller's argument as a further narrowing, so dropping the
+	/// argument removes a narrowing rather than the scoping — it cannot widen the result past the ambient
+	/// tenant. A substituted WRONG tenant is what defeats the lookup, which is why that is the mutant above.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task Refuse_the_destruction_when_a_hold_exists_in_the_tenant_that_requested_the_erasure()
+	{
+		var (holds, store, tenant) = BuildTenantedStores();
+		const string subject = "user-held-in-one-tenant";
+
+		tenant.TenantId = HoldingTenant;
+		var request = await SaveRequestAsync(store, subject).ConfigureAwait(false);
+		await PlaceHoldAsync(holds, subject).ConfigureAwait(false);
+
+		var destroyed = ArrangeOneDiscoverableKey(subject);
+
+		_ = await BuildServiceWith(store, holds).ExecuteAsync(request, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		destroyed.ShouldBeEmpty(
+			customMessage: "a legal hold placed in the tenant that requested this erasure must stop it before "
+			+ "ANY key is destroyed. A key destroyed here is data a court order said to keep, and the "
+			+ "destruction is irreversible. Destroyed: " + string.Join(", ", destroyed));
+
+		var status = await store.GetStatusAsync(request, CancellationToken.None).ConfigureAwait(false);
+		status.ShouldNotBeNull().Status.ShouldBe(ErasureRequestStatus.BlockedByLegalHold);
+	}
+
+	/// <summary>
+	/// LIVENESS — and the converse harm. One tenant's legal hold must not freeze a DIFFERENT tenant's
+	/// erasure of a subject identifier the two happen to share.
+	/// </summary>
+	/// <remarks>
+	/// Without this arm the safety arm above is satisfied by a lookup that ignores its tenant argument and
+	/// blocks on any hold anywhere — which converts an irreversible over-destruction into an indefinite
+	/// refusal to discharge another tenant's erasure obligation. Consumer-supplied subject identifiers repeat
+	/// across tenants, so that collision is ordinary rather than exotic.
+	/// <para>
+	/// <b>RED input:</b> remove both tenant terms from the subject-hold query in
+	/// <c>InMemoryLegalHoldStore.GetActiveHoldsForDataSubjectAsync</c> — the unconditional ambient term and
+	/// the caller's narrowing term — and this arm fails with the erasure blocked by a hold belonging to a
+	/// tenant that never requested it. Measured. The safety arm above stays GREEN under that mutant.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task Still_erase_for_a_tenant_whose_subject_is_held_only_in_another_tenant()
+	{
+		var (holds, store, tenant) = BuildTenantedStores();
+		const string subject = "user-held-in-one-tenant";
+
+		tenant.TenantId = HoldingTenant;
+		await PlaceHoldAsync(holds, subject).ConfigureAwait(false);
+
+		tenant.TenantId = ErasingTenant;
+		var request = await SaveRequestAsync(store, subject).ConfigureAwait(false);
+
+		var destroyed = ArrangeOneDiscoverableKey(subject);
+
+		_ = await BuildServiceWith(store, holds).ExecuteAsync(request, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		destroyed.ShouldNotBeEmpty(
+			customMessage: "the hold belongs to a different tenant, so it must not block this one. An empty "
+			+ "set here means a hold lookup that ignores its tenant argument, which leaves every tenant "
+			+ "unable to discharge an erasure for any subject identifier another tenant has ever held");
+
+		var status = await store.GetStatusAsync(request, CancellationToken.None).ConfigureAwait(false);
+		status.ShouldNotBeNull().Status.ShouldNotBe(ErasureRequestStatus.BlockedByLegalHold);
+	}
+
+	private const string HoldingTenant = "tenant-with-the-hold";
+	private const string ErasingTenant = "tenant-requesting-the-erasure";
+
+	private static (LegalHoldService Holds, InMemoryErasureStore Store, MovableTenantContext Tenant)
+		BuildTenantedStores()
+	{
+		var tenant = new MovableTenantContext();
+		var tenantOptions = Options.Create(new TenantContextOptions { RequireTenant = true });
+
+		return (
+			new LegalHoldService(
+				new InMemoryLegalHoldStore(tenant, tenantOptions),
+				TestDataSubjectHasher.Instance,
+				NullLogger<LegalHoldService>.Instance),
+			new InMemoryErasureStore(TestDataSubjectHasher.Instance, tenant, tenantOptions, TimeProvider.System),
+			tenant);
+	}
+
+	private static async Task<Guid> SaveRequestAsync(IErasureStore store, string subject)
+	{
+		var request = new ErasureRequest
+		{
+			DataSubjectId = subject,
+			IdType = DataSubjectIdType.UserId,
+			LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+			RequestedBy = "compliance-admin",
+		};
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddSeconds(-1), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		return request.RequestId;
+	}
+
+	private static Task PlaceHoldAsync(LegalHoldService holds, string subject) =>
+		holds.CreateHoldAsync(
+			new LegalHoldRequest
+			{
+				DataSubjectId = subject,
+				IdType = DataSubjectIdType.UserId,
+				Basis = LegalHoldBasis.LegalObligation,
+				CaseReference = "CASE-TENANT-SCOPED-HOLD",
+				Description = "placed in one tenant only",
+				CreatedBy = "legal-counsel",
+			},
+			CancellationToken.None);
+
+	private List<string> ArrangeOneDiscoverableKey(string subject)
+	{
+		var destroyed = new List<string>();
+
+		A.CallTo(() => _dataInventory.DiscoverAsync(
+				A<string>._, A<DataSubjectIdType>._, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new DataInventory
+			{
+				DataSubjectId = subject,
+				AssociatedKeys =
+				[
+					new KeyReference { KeyId = "held-subject-key", KeyScope = EncryptionKeyScope.User },
+				],
+			}));
+
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily((string keyId, int _, CancellationToken _) =>
+			{
+				destroyed.Add(keyId);
+				return Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow));
+			});
+
+		return destroyed;
+	}
+
+	/// <summary>An ambient tenant the arms move between placing a hold and filing a request.</summary>
+	private sealed class MovableTenantContext : ITenantContext
+	{
+		public string? TenantId { get; set; }
+
+		public bool HasTenant => !string.IsNullOrWhiteSpace(TenantId);
+	}
+
 	private static async Task<Guid> ScheduleAsync(IErasureStore store)
 	{
 		var request = new ErasureRequest
@@ -271,5 +448,6 @@ public sealed class AHoldArrivingBetweenKeyDestructionsStopsTheNextOneShould
 			null,
 			TestAnnotationSource.None,
 			TestRetentions.None,
-			null);
+			TestMintLedger.None,
+			contributors: null);
 }

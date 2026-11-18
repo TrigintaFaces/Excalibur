@@ -21,6 +21,7 @@ Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.IsLeader.get -> boo
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.KubernetesLeaderElection(k8s.IKubernetes! kubernetesClient, string! resourceName, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions!>? options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection!>? logger, System.TimeProvider? timeProvider = null) -> void
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
+Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.NotificationsCompleted.get -> System.Threading.Tasks.Task!
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.UpdateHealthAsync(bool isHealthy, System.Collections.Generic.IDictionary<string!, string!>? metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -29,8 +30,6 @@ Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionFactory.CreateElecti
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionFactory.KubernetesLeaderElectionFactory(k8s.IKubernetes! kubernetesClient, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions!>! options, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) -> void
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.CandidateId.get -> string?
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.CandidateId.set -> void
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.KubernetesLeaderElectionOptions() -> void
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.LeaseName.get -> string?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.LeaseName.set -> void

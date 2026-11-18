@@ -70,7 +70,7 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		var partition = KeyedTenantPartition.FromScope(scope);
 		const string tenantPredicate = " AND tenant_id = @TenantId";
 		var sql = $"""
-			SELECT state_json, is_completed, version
+			SELECT state_json, is_completed, version, timer_recovery_incarnation, timer_recovery_pending_batch, timer_recovery_pending_digest
 			FROM {options.QualifiedTableName}
 			WHERE saga_id = @SagaId AND saga_type = @SagaType{tenantPredicate};
 			""";
@@ -96,6 +96,10 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 			{
 				// The column is authoritative for concurrency, independent of any Version embedded in the JSON blob.
 				state.Version = record.version;
+                state.TimerRecoveryIncarnationId = record.timer_recovery_incarnation is { } incarnation ? Guid.ParseExact(incarnation.TrimEnd(), "N") : Guid.Empty;
+                if (state.PendingTimerRecovery?.BatchId.ToString("N") != record.timer_recovery_pending_batch?.TrimEnd()
+                    || (state.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null) != record.timer_recovery_pending_digest?.TrimEnd())
+                { throw new InvalidOperationException("The selected saga serializer cannot restore the persisted ordinary timer journal."); }
 			}
 
 			return state;
@@ -106,6 +110,6 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	/// Internal record for mapping Postgres snake_case columns.
 	/// </summary>
 	// ReSharper disable InconsistentNaming - Column names use snake_case
-	private sealed record SagaRecord(string state_json, bool is_completed, long version);
+	private sealed record SagaRecord(string state_json, bool is_completed, long version, string? timer_recovery_incarnation, string? timer_recovery_pending_batch, string? timer_recovery_pending_digest);
 	// ReSharper restore InconsistentNaming
 }

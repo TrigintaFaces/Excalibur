@@ -129,6 +129,8 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		var builder = new RabbitMQTransportBuilder(transportOptions);
 		configure(builder);
 
+		RabbitMqConnectionValidation.Validate(transportOptions.Connection, name);
+
 
 		// The adapter binds the UNNAMED RabbitMqCloudEventOptions, so this registers unnamed too.
 		// A transport that also copies values into these options registers that copy separately;
@@ -321,8 +323,6 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		void ConfigureRabbitMqOptions(RabbitMqOptions options)
 		{
 			{
-				options.Connection.ConnectionString = transportOptions.Connection.ConnectionString ?? string.Empty;
-
 				// Set exchange from first configured exchange if available
 				if (transportOptions.Topology.Exchanges.Count > 0)
 				{
@@ -350,11 +350,16 @@ public static class RabbitMQTransportServiceCollectionExtensions
 			}
 		}
 
-		_ = services.AddOptions<RabbitMqOptions>(transportName).Configure(ConfigureRabbitMqOptions).ValidateOnStart();
-		_ = services.AddOptions<RabbitMqOptions>().Configure(ConfigureRabbitMqOptions).ValidateOnStart();
-
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqOptions>, RabbitMqOptionsValidator>());
+		_ = services.AddOptions<RabbitMqOptions>(transportName)
+			.Configure(ConfigureRabbitMqOptions)
+			.Validate(static options => options.Consumption is { MaxPayloadBytes: null or > 0 },
+				"RabbitMQ Consumption.MaxPayloadBytes must be null or greater than zero.")
+			.ValidateOnStart();
+		_ = services.AddOptions<RabbitMqOptions>()
+			.Configure(ConfigureRabbitMqOptions)
+			.Validate(static options => options.Consumption is { MaxPayloadBytes: null or > 0 },
+				"RabbitMQ Consumption.MaxPayloadBytes must be null or greater than zero.")
+			.ValidateOnStart();
 
 		// Map to CloudEvent options
 		void ConfigureCloudEventOptions(RabbitMqCloudEventOptions options)
@@ -519,8 +524,10 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		});
 	}
 	/// <summary>Builds a connection factory with the existing transport security posture.</summary>
-	internal static IConnectionFactory CreateConnectionFactory(IServiceProvider sp, RabbitMQTransportOptions transportOptions)
+	internal static IConnectionFactory CreateConnectionFactory(RabbitMQTransportOptions transportOptions)
 	{
+		RabbitMqConnectionValidation.Validate(transportOptions.Connection, transportOptions.Name);
+
 		var factory = new ConnectionFactory();
 
 		var connection = transportOptions.Connection;
@@ -537,14 +544,16 @@ public static class RabbitMQTransportServiceCollectionExtensions
 			factory.UserName = connection.Username;
 			factory.Password = connection.Password;
 
-			// Warn about default guest credentials -- these should not be used in production
-			if (string.Equals(connection.Username, "guest", StringComparison.OrdinalIgnoreCase) &&
-				string.Equals(connection.Password, "guest", StringComparison.OrdinalIgnoreCase))
+			// REFUSED, not warned. This branch is the host-parts spelling, and it is the only place the
+			// separate Username/Password properties can be seen -- the options validator receives a
+			// connection STRING and so can only ever police credentials that arrived inside a URI. While
+			// this logged, the identical credentials were rejected as 'amqp://guest:guest@host' and
+			// accepted as Credentials("guest", "guest"), so which spelling the consumer picked decided
+			// whether the posture applied. A warning is also the wrong instrument for it: nothing
+			// downstream learns that the application authenticated as the broker's public account.
+			if (RabbitMqSecurityPosture.AreDefaultCredentials(connection.Username, connection.Password))
 			{
-				var logger = sp.GetService<ILoggerFactory>()?.CreateLogger("Excalibur.Dispatch.Transport.RabbitMQ");
-				logger?.LogWarning(
-					"RabbitMQ transport is configured with default 'guest' credentials. " +
-					"Use secure credentials for production environments.");
+				throw RabbitMqSecurityPosture.RefuseDefaultCredentials();
 			}
 		}
 

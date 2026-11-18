@@ -187,6 +187,9 @@ public sealed class MultiTransportOutboxStoreConformanceShould : OutboxStoreConf
 	public Task MarkFailedAsync_ShouldSetErrorMessage_Test() => MarkFailedAsync_ShouldSetErrorMessage();
 
 	[Fact]
+	public Task FailedMessagesAdminRead_MustCarryEachMessageOwnTenant_Test() => FailedMessagesAdminRead_MustCarryEachMessageOwnTenant();
+
+	[Fact]
 	public Task MarkFailedAsync_ShouldSetRetryCount_Test() => MarkFailedAsync_ShouldSetRetryCount();
 
 	[Fact]

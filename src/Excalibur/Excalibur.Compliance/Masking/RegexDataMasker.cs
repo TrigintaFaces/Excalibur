@@ -13,13 +13,11 @@ namespace Excalibur.Compliance.Masking;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This implementation uses compiled regex patterns for
-/// efficient, thread-safe masking of sensitive data patterns.
+/// This implementation reuses static standard regex instances with timeout guards.
 /// </para>
 /// <para>
-/// Performance target: PERF-004 requires less than 2% overhead on message processing.
-/// This is achieved through pre-compiled regex patterns and avoiding allocations
-/// where possible.
+/// PERF-004's less-than-2% message-processing overhead is a design target,
+/// not a verified measurement for this implementation.
 /// </para>
 /// </remarks>
 public sealed class RegexDataMasker : IDataMasker
@@ -29,7 +27,7 @@ public sealed class RegexDataMasker : IDataMasker
 
 	private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
 
-	// Pre-compiled regex patterns for performance
+	// Standard regex instances reused across calls.
 	private static readonly Regex EmailPattern = new(
 		@"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
 		SafeRegexOptions,

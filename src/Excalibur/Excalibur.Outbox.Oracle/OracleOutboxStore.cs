@@ -8,7 +8,6 @@ using Dapper;
 using Excalibur.Data;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
-using Excalibur.Dispatch.Metadata;
 using Excalibur.Outbox.Oracle.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -25,9 +24,11 @@ namespace Excalibur.Outbox.Oracle;
 /// </summary>
 [SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class coordinates the Dapper request set, outbox message mapping, and leadership-fencing control-table CAS by design (parity with SqlServerOutboxStore).")]
-public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable, ITenantPartitionedStore
+public sealed partial class OracleOutboxStore : IOutboxStore, IOutboxPayloadTransformStore, IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable, ITenantPartitionedStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore
 {
 	private readonly IDb _db;
+	private readonly OracleWorkerConnectionSource? _workerConnections;
+	private readonly bool _ownsStagingDb;
 
 	private readonly TimeProvider _timeProvider;
 
@@ -75,18 +76,23 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 	/// far from the database's and observe that the gate does not move.
 	/// </para>
 	/// </param>
+	/// <param name="workerConnections">Exclusive worker connection source; null permits borrowed staging/direct operations only.</param>
+	/// <param name="ownsStagingDb">Whether this store owns its private staging lifecycle.</param>
 	internal OracleOutboxStore(
 		IDb db,
 		IOptions<OracleOutboxStoreOptions> options,
 		ILogger<OracleOutboxStore> logger,
 		OracleOutboxStoreMetrics? metrics = null,
-		TimeProvider? timeProvider = null)
+		TimeProvider? timeProvider = null,
+		OracleWorkerConnectionSource? workerConnections = null, bool ownsStagingDb = false)
 	{
 		_db = db ?? throw new ArgumentNullException(nameof(db));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_metrics = metrics ?? new OracleOutboxStoreMetrics();
 		_timeProvider = timeProvider ?? TimeProvider.System;
+		_workerConnections = workerConnections;
+		_ownsStagingDb = ownsStagingDb;
 	}
 
 	/// <summary>
@@ -492,13 +498,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 				cancellationToken);
 
 			// Execute using the externally provided transaction's connection
-			_ = await connection.ExecuteAsync(
-				new Dapper.CommandDefinition(
-					req.Command.CommandText,
-					req.Command.Parameters,
-					transaction,
-					req.Command.CommandTimeout,
-					cancellationToken: cancellationToken)).ConfigureAwait(false);
+			_ = await req.ExecuteInTransactionAsync(connection, transaction).ConfigureAwait(false);
 
 			_logger.LogDebug("Staged outbox message {MessageId} within external transaction", message.Id);
 		}
@@ -531,15 +531,41 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		"JSON serialization of message payload and metadata may reference types not preserved during trimming. Ensure all serialized types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"JSON serialization of message payload and metadata requires dynamic code generation for reflection-based property access and value conversion.")]
-	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
+	public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, transformPayload: null, transformRequested: false, cancellationToken);
+
+	[RequiresUnreferencedCode(
+		"JSON serialization of message payload and metadata may reference types not preserved during trimming. Ensure all serialized types are annotated with DynamicallyAccessedMembers.")]
+	[RequiresDynamicCode(
+		"JSON serialization of message payload and metadata requires dynamic code generation for reflection-based property access and value conversion.")]
+	ValueTask IOutboxPayloadTransformStore.EnqueueWithPayloadTransformAsync(
+		IDispatchMessage message, IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transformPayload,
+		CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, transformPayload, transformRequested: true, cancellationToken);
+
+	[RequiresUnreferencedCode(
+		"JSON serialization of message payload and metadata may reference types not preserved during trimming. Ensure all serialized types are annotated with DynamicallyAccessedMembers.")]
+	[RequiresDynamicCode(
+		"JSON serialization of message payload and metadata requires dynamic code generation for reflection-based property access and value conversion.")]
+	private async ValueTask EnqueueCoreAsync(
+		IDispatchMessage message, IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>>? transformPayload,
+		bool transformRequested, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
+		if (transformRequested)
+		{
+			ArgumentNullException.ThrowIfNull(transformPayload);
+			cancellationToken.ThrowIfCancellationRequested();
+		}
 
 		// Reject an empty/whitespace MessageId on the stage path: Oracle folds an empty string to NULL, which
 		// defeats the message_id unique key and leaves the row unmarkable (the empty-string=NULL class the
 		// Inbox/Saga stores guard against). The message id is load-bearing identity, so fail fast here.
-		ArgumentException.ThrowIfNullOrWhiteSpace(context.MessageId);
+		var contextMessageId = context.MessageId;
+		ArgumentException.ThrowIfNullOrWhiteSpace(contextMessageId);
 
 		// Create OutboundMessage from IDispatchMessage and context. Serialize the RUNTIME type (not the
 		// IDispatchMessage compile-time type, which would drop every derived member) via the canonical event
@@ -549,7 +575,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		var headers = new Dictionary<string, object>
 			(StringComparer.Ordinal)
 		{
-			["MessageId"] = context.MessageId ?? string.Empty,
+			["MessageId"] = contextMessageId,
 			["CorrelationId"] = context.CorrelationId ?? string.Empty,
 			["CausationId"] = context.CausationId ?? string.Empty,
 			["MessageType"] = message.GetType().Name,
@@ -564,14 +590,23 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		// namespace-qualified type name (FullName, not the bare Name: two message types with the same
 		// short name in different namespaces must not collapse to one destination) rather than a
 		// hardcoded "default", so a consumer's configured destination is persisted and honored on dispatch.
-		var destination = context.ExtractMetadata().GetDestination() ?? message.GetType().FullName ?? message.GetType().Name;
+		var destination = context.GetDestination() ?? message.GetType().FullName ?? message.GetType().Name;
 		var outboundMessage = OutboundMessage.FromContext(
 			message.GetType().Name,
 			serializedPayload,
 			destination,
 			context,
 			headers);
-		outboundMessage.Id = context.MessageId ?? string.Empty;
+		// Reuse the pre-serialization validated identity even if a consumer getter changes context.
+		outboundMessage.Id = contextMessageId;
+		if (transformPayload is not null)
+		{
+			// Canonical serialization owns fresh input bytes; the callback borrows them during invocation.
+			var transformed = await transformPayload(outboundMessage.Payload, outboundMessage.TenantId, cancellationToken).ConfigureAwait(false)
+				?? throw new InvalidOperationException("transformPayload returned a null payload; the message was not enqueued.");
+			outboundMessage.Payload = (byte[])transformed.Clone();
+			cancellationToken.ThrowIfCancellationRequested();
+		}
 
 		await StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
 	}
@@ -582,21 +617,11 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 	/// <param name="batchSize"> Maximum number of messages to retrieve. </param>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> Collection of unsent outbound messages. </returns>
-	[RequiresUnreferencedCode(
-		"JSON deserialization of message payload and metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"JSON deserialization of message payload and metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
-
-		// Use a fixed dispatcher ID for this interface method - in practice this would need proper session management
-		var dispatcherId = ProcessDispatcherId;
-		var reservedMessages = await ReserveOutboxMessagesAsync(dispatcherId, batchSize, cancellationToken).ConfigureAwait(false);
-
-		return ConvertReservedToOutbound(reservedMessages);
+		return await ClaimOwnedAsync(batchSize, null, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -604,10 +629,6 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 	/// rehydrating the metadata header blob and the concrete routing fields. A row that fails conversion is
 	/// logged and skipped.
 	/// </summary>
-	[RequiresUnreferencedCode(
-		"JSON deserialization of message metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"JSON deserialization of message metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	private List<OutboundMessage> ConvertReservedToOutbound(IEnumerable<IOutboxMessage> reservedMessages)
 	{
 		// Convert IOutboxMessage to OutboundMessage
@@ -618,7 +639,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 			{
 				var headers = string.IsNullOrEmpty(msg.MessageMetadata)
 					? []
-					: System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(msg.MessageMetadata, EventSerializationDefaults.Canonical) ??
+					: Excalibur.Dispatch.Outbox.OutboxHeaderJson.Deserialize(msg.MessageMetadata) ??
 					  [];
 
 				// CorrelationId/CausationId plus the routing fields (PartitionKey/GroupKey/TargetTransports/
@@ -703,47 +724,29 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 	/// zero claimable rows — a set-based, non-throwing signal — while the high-water advances monotonically
 	/// to the maximum of its current value and the presented token.
 	/// </remarks>
-	[RequiresUnreferencedCode(
-		"JSON deserialization of message payload and metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"JSON deserialization of message payload and metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 		int batchSize,
 		long fencingToken,
 		CancellationToken cancellationToken)
 	{
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
-
-		// The fence-CAS and the claim run in ONE server-side PL/SQL block that advances the fence under its
-		// scope-row lock and stamps the reservation ONLY when the presented token is the high-water — so no
-		// fresher leader can advance the high-water between the fence check and the claim (the check-then-act
-		// window is closed by construction). A superseded (stale) token stamps nothing and yields a set-based
-		// empty claim — it MUST NOT throw here (IFencedOutboxStore claim contract).
-		var dispatcherId = ProcessDispatcherId;
-		var request = new FencedReserveOutboxMessages(
-			dispatcherId,
-			batchSize,
-			_options.ReservationTimeout,
-			fencingToken,
-			_options.QualifiedOutboxTableName,
-			_options.QualifiedFenceTableName,
-			DbTimeouts.RegularTimeoutSeconds,
-			cancellationToken);
-
-		var reservedMessages = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
-
-		return ConvertReservedToOutbound(reservedMessages);
+		return await ClaimOwnedAsync(batchSize, fencingToken, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
 	/// <remarks>
 	/// Enforces the fencing high-water and deletes the row in a SINGLE PL/SQL block (fence compare-and-swap
 	/// folded with the delete under the fence row lock), so no fresher leader can advance the high-water
-	/// between the fence check and the delete. A superseded (stale) token is rejected fail-closed with
-	/// <see cref="StaleOutboxFencingTokenException"/> and nothing is deleted.
+	/// between the fence check and the delete. A superseded (stale) token is refused fail-closed, nothing is
+	/// deleted, and the refusal is REPORTED in the return value.
 	/// </remarks>
-	public async ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
+	public async ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
 	{
+		if (_workerConnections is not null)
+		{
+			return await CompleteOwnedAsync(messageId, OracleClaimTransition.Sent, null, 0, null,
+				null, fencingToken, cancellationToken, requireClaim: false).ConfigureAwait(false);
+		}
+
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
 		var request = new FencedDeleteOutboxMessage(
@@ -756,28 +759,34 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 
 		var result = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
 
-		// GREATEST(existing, token) == token exactly when the token was >= the previous high-water (accepted).
-		// A strictly greater stored high-water means a successor already advanced past this token (stale leader):
-		// the folded block deleted nothing, and we reject fail-closed.
-		if (result.HighWaterToken != fencingToken)
-		{
-			throw new StaleOutboxFencingTokenException(
-				$"The presented outbox fencing token ({fencingToken}) is below the recorded high-water mark ({result.HighWaterToken}) for scope '{_options.QualifiedOutboxTableName}' (superseded leader).")
-			{
-				PresentedToken = fencingToken,
-				HighWaterToken = result.HighWaterToken,
-			};
-		}
-
-		if (result.DeletedCount == 0)
-		{
-			throw new InvalidOperationException($"Message {messageId} not found or already sent.");
-		}
+		// CLASSIFIED, NOT THROWN, by the same classifier the fenced failure and dead-letter paths on this
+		// store already use. It judges the fence FIRST, which is the load-bearing part: GREATEST(existing,
+		// token) == token exactly when the token was >= the previous high-water (accepted), and a strictly
+		// greater stored high-water means a successor already advanced past this token. Reading the deleted
+		// count first would report a not-found for a superseded tenure, telling the caller to carry on with
+		// the rest of its batch -- exactly the wrong instruction, because every remaining write it would
+		// make is unfenced.
+		//
+		// rowExists and isTerminal are both false BY CONSTRUCTION on this store, not as a shortcut. Mark-sent
+		// here DELETES the row, so a terminal message leaves nothing behind: the row genuinely is absent and
+		// MessageNotFound is the accurate report. Claiming AlreadyTerminal from a block that never observed a
+		// terminal row would describe a decision this store did not make, which is what the classifier's own
+		// contract forbids.
+		return FencedCompletionClassifier.Classify(
+			result.HighWaterToken,
+			fencingToken,
+			result.DeletedCount > 0 ? 1 : 0,
+			rowExists: false,
+			isTerminal: false);
 	}
 
 	/// <inheritdoc/>
 	public async Task<long?> GetFencingHighWaterAsync(CancellationToken cancellationToken)
 	{
+		if (_workerConnections is not null)
+		{
+			return await GetOwnedHighWaterAsync(cancellationToken).ConfigureAwait(false);
+		}
 		var request = new GetOutboxFenceHighWaterRequest(
 			_options.QualifiedFenceTableName,
 			_options.QualifiedOutboxTableName,
@@ -790,6 +799,11 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 	/// <inheritdoc/>
 	public async Task ResetFencingHighWaterAsync(long newHighWater, bool force, CancellationToken cancellationToken)
 	{
+		if (_workerConnections is not null)
+		{
+			await ResetOwnedHighWaterAsync(newHighWater, force, cancellationToken).ConfigureAwait(false);
+			return;
+		}
 		var request = new ResetOutboxFenceHighWaterRequest(
 			_options.QualifiedFenceTableName,
 			_options.QualifiedOutboxTableName,
@@ -908,33 +922,9 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		OutboxWriteAuthority authority,
 		CancellationToken cancellationToken)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
-		ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
-		ArgumentOutOfRangeException.ThrowIfNegative(retryCount);
-
-		// BOTH components validated. OutboxWriteAuthority is a struct, so its default cannot be intercepted
-		// by a constructor and arrives carrying a zero token -- which the fence ACCEPTS on a scope with no
-		// recorded mark, because the MERGE creates that mark from the presented value and GREATEST then
-		// returns it unchanged. Without this the only thing refusing a defaulted authority would be the
-		// claim term failing for an unrelated reason, which is one guard doing the other's job by accident.
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(authority.FencingToken);
-		ArgumentException.ThrowIfNullOrWhiteSpace(authority.ClaimIdentity);
-
-		var request = new Requests.FencedSetOutboxMessageFailed(
-			messageId,
-			errorMessage,
-			retryCount,
-			_options.FailureBackoffFloorSeconds,
-			authority.ClaimIdentity,
-			authority.FencingToken,
-			_options.QualifiedOutboxTableName,
-			_options.QualifiedFenceTableName,
-			DbTimeouts.RegularTimeoutSeconds,
-			cancellationToken);
-
-		var result = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
-
-		return ClassifyFenced(result, authority.FencingToken);
+		ValidateAuthority(authority);
+		return await CompleteOwnedAsync(messageId, OracleClaimTransition.Failed, errorMessage, retryCount, nextAttemptAt,
+			authority.ClaimIdentity, authority.FencingToken, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -945,6 +935,12 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		long fencingToken,
 		CancellationToken cancellationToken)
 	{
+		if (_workerConnections is not null)
+		{
+			return await CompleteOwnedAsync(messageId, OracleClaimTransition.DeadLetter, reason, attemptCount, null,
+				null, fencingToken, cancellationToken, requireClaim: false).ConfigureAwait(false);
+		}
+
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
 		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
@@ -981,27 +977,6 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 			: OutboxCompletionOutcome.MessageNotFound;
 	}
 
-	/// <summary>
-	/// Maps a fenced completion result onto the outcome the caller acts on.
-	/// </summary>
-	/// <remarks>
-	/// The order is load-bearing. A refused fence is checked FIRST because it is the only outcome meaning
-	/// "stop draining entirely" -- a newer tenure exists and every remaining claim this caller holds is
-	/// void. Reading the row count first would report ClaimLost for a superseded tenure, which tells the
-	/// caller to carry on with the rest of its batch: the wrong instruction, and indistinguishable from the
-	/// benign case in a log.
-	/// <para>
-	/// <b>This store's terminal transitions remove the row</b> -- a sent message is deleted and a
-	/// dead-lettered one is moved to the dead-letter table -- so a row that is present is never terminal,
-	/// and a terminal message is reported as <see cref="OutboxCompletionOutcome.MessageNotFound"/>, which is
-	/// the accurate answer for this idiom.
-	/// </para>
-	/// </remarks>
-	private static OutboxCompletionOutcome ClassifyFenced(
-		Requests.FencedClaimMutationResult result,
-		long presentedToken) =>
-		Excalibur.Outbox.FencedCompletionClassifier.Classify(
-			result.HighWaterToken, presentedToken, result.UpdatedCount, result.RowExists, isTerminal: false);
 
 	/// <summary>
 	/// Marks a message as failed and records an exponential-backoff schedule so it is not re-claimed for retry
@@ -1090,6 +1065,21 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 			var messages = records.Select(static r => new OutboundMessage
 			{
 				Id = r.MessageId,
+				// THE RECORD'S TENANT IS PART OF THE RECORD. This admin read spans tenants, so the row's own
+				// tenant is the only thing that says which partition each message belongs to. Dropping it
+				// here did two things: an encrypted message could not be decrypted, because the tenant is
+				// bound as additional authenticated data and the value it must be checked against was gone;
+				// and republishing a message obtained from this list re-emitted it with NO tenant, silently,
+				// which is an isolation defect independent of encryption.
+				//
+				// Normalised through the total store-read conversion rather than assigned raw: the contract
+				// on this property is that a drained message NEVER carries null, and that untenanted is the
+				// reserved sentinel VALUE rather than an absence. The row type defaults this column to an
+				// empty string, so a raw assignment would introduce a second spelling of "no tenant" -- and a
+				// second spelling is a fold, which is a place two paths can disagree about which partition a
+				// message belongs to.
+				TenantId = KeyedTenantPartition.FromStoredValue(r.TenantId).TenantId,
+
 				MessageType = r.MessageType,
 				Payload = r.MessageBody,
 				CreatedAt = r.OccurredOn,
@@ -1242,6 +1232,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 			return;
 		}
 
+		if (_ownsStagingDb && _db is IDisposable ownedDb) { ownedDb.Dispose(); }
 		_metrics?.Dispose();
 		_disposed = true;
 	}

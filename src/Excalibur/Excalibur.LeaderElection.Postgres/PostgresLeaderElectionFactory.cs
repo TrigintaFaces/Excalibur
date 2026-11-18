@@ -23,7 +23,8 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 	private readonly PostgresLeaderElectionOptions _pgOptions;
 	private readonly IOptions<LeaderElectionOptions> _electionOptions;
 	private readonly ILoggerFactory _loggerFactory;
-	private readonly IFencingTokenProvider? _fencingTokenProvider;
+	private readonly IFencingTokenIssuer? _fencingTokenProvider;
+    private readonly PostgresLeaderElectionContext? _context;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresLeaderElectionFactory"/> class.
@@ -35,7 +36,7 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 	/// </param>
 	/// <param name="loggerFactory">The logger factory.</param>
 	/// <param name="fencingTokenProvider">
-	/// An optional <see cref="IFencingTokenProvider"/> propagated to every election this
+	/// An optional <see cref="IFencingTokenIssuer"/> propagated to every election this
 	/// factory creates, enabling fail-closed fencing-token issuance on leadership acquisition. Defaults to
 	/// <see langword="null"/> (no fencing).
 	/// </param>
@@ -43,8 +44,19 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 		IOptions<PostgresLeaderElectionOptions> pgOptions,
 		IOptions<LeaderElectionOptions> electionOptions,
 		ILoggerFactory loggerFactory,
-		IFencingTokenProvider? fencingTokenProvider = null)
-	{
+        IFencingTokenIssuer? fencingTokenProvider = null)
+        : this(pgOptions, electionOptions, loggerFactory, fencingTokenProvider, null) { }
+
+    /// <summary>Initializes the factory with shared failure-classification context.</summary>
+    /// <param name="pgOptions">The database options.</param>
+    /// <param name="electionOptions">The timing and identity options.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="fencingTokenProvider">The optional fencing provider.</param>
+    /// <param name="context">The optional shared failure classification.</param>
+    public PostgresLeaderElectionFactory(IOptions<PostgresLeaderElectionOptions> pgOptions,
+        IOptions<LeaderElectionOptions> electionOptions, ILoggerFactory loggerFactory,
+        IFencingTokenIssuer? fencingTokenProvider, PostgresLeaderElectionContext? context)
+    {
 		ArgumentNullException.ThrowIfNull(pgOptions);
 		ArgumentNullException.ThrowIfNull(electionOptions);
 		ArgumentNullException.ThrowIfNull(loggerFactory);
@@ -53,6 +65,7 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 		_electionOptions = electionOptions;
 		_loggerFactory = loggerFactory;
 		_fencingTokenProvider = fencingTokenProvider;
+        _context = context;
 	}
 
 	/// <inheritdoc/>
@@ -72,7 +85,7 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 		var electionOptions = ResolveOptions(_electionOptions, candidateId);
 
 		var logger = _loggerFactory.CreateLogger<PostgresLeaderElection>();
-		return new PostgresLeaderElection(Options.Create(pgOptions), electionOptions, logger, _fencingTokenProvider);
+		return new PostgresLeaderElection(Options.Create(pgOptions), electionOptions, logger, _fencingTokenProvider, null, _context);
 	}
 
 	/// <inheritdoc/>
@@ -102,7 +115,7 @@ public sealed class PostgresLeaderElectionFactory : ILeaderElectionFactory
 			Options.Create(healthOptions),
 			logger,
 			innerLogger,
-			_fencingTokenProvider);
+            _fencingTokenProvider, _context);
 	}
 
 	/// <summary>

@@ -66,6 +66,15 @@ public static class ServiceDescriptorExtensions
 			: descriptor.ImplementationInstance;
 	}
 
+	/// <summary>Gets a keyed-safe factory that accepts the actual requested key, including wildcard resolution.</summary>
+	internal static Func<IServiceProvider, object?, object>? GetImplementationFactoryWithRequestedKey(this ServiceDescriptor descriptor)
+	{
+		ArgumentNullException.ThrowIfNull(descriptor);
+		if (descriptor.IsKeyedService) { return descriptor.KeyedImplementationFactory; }
+		var factory = descriptor.ImplementationFactory;
+		return factory is null ? null : (provider, _) => factory(provider);
+	}
+
 	/// <summary>
 	/// Gets the implementation factory of the descriptor as a uniform
 	/// <see cref="System.Func{IServiceProvider, Object}"/>, transparently handling keyed descriptors.

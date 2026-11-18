@@ -139,3 +139,31 @@ Build and test through the same entry point CI uses, rather than reconstructing 
 Individual gates under `eng/ci/` are runnable directly. Any gate that supports `--self-test` will
 demonstrate that it is capable of failing, which is the only way to know a green result from it
 means anything.
+
+### SBOM admission binding
+
+The official producer attests the exact raw `sbom/bom.json` together with the package set using
+its existing SLSA provenance action. Its separate CycloneDX attestation covers the complete
+package set and whole parsed BOM. Admission verifies both through `gh` with the official
+workflow, source commit, run and attempt identity; an untrusted checksum manifest is not an
+origin proof. The release-asset job independently repeats these checks after cross-job download.
+The verified raw BOM bytes are attached unchanged. Package provenance, version, completeness
+and signing checks remain in place.
+
+`eng/ci/verify-sbom-binding.py` targets the actual Linux release jobs and refuses other platforms
+before invoking `gh`. It uses bounded streaming capture and owned process-group cleanup; no
+verification JSON can be supplied as an offline production shortcut. Policy fixtures and fake-gh
+tamper controls prove parser/orchestration behavior only, not Sigstore cryptography. Actual
+package/BOM attestations still need real CLI verification. Historical builds without raw BOM
+provenance fail this contract; they are not admitted by weakening the checks.
+
+The supported producer output is exactly one regular `sbom/bom.json`: unsigned JSON/XML
+sidecars, nested directories, and symlink/reparse entries are refused at each admission.
+Reupload and release attachment also name only that verified file. Raw SHA256 and whole-JSON
+comparison derive from the same bounded immutable byte snapshot; the path is checked against
+that digest before each attestation handoff and again before returning to its consumer.
+
+Signer policy checks the exact official-workflow file prefix and requires SAN/buildSignerURI/
+buildConfigURI agreement with a nonempty ref suffix. It does not independently pin that suffix
+or a signer digest. Trusted selected run, attempt, repository, and source commit bind both
+verifications; actual hosted certificate-schema/cryptographic verification remains outstanding.

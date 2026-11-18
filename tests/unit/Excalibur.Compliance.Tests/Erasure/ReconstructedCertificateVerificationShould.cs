@@ -87,7 +87,7 @@ public sealed class ReconstructedCertificateVerificationShould
 			_dataInventoryService,
 			null,
 			TestAnnotationSource.None,
-			TestRetentions.None,
+			TestRetentions.None, TestMintLedger.None,
 			[]);
 	}
 

@@ -294,15 +294,15 @@ You do not need to author a health check yourself.
 
 #### FIFO Queue Considerations
 
-- FIFO queues have **300 TPS limit** per message group
-- Use multiple message groups for higher throughput
+- FIFO quotas depend on API action, partitioning, batching, region and throughput mode. See [AWS FIFO guidance](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/high-throughput-fifo.html).
+- Evaluate multiple message groups where ordering requirements permit; measure completed throughput
 - Consider standard queues if ordering is not critical
 
 ### Performance Tuning
 
 ```csharp
 services.AddAwsSqsTransport("orders", sqs => sqs
-    // High-throughput configuration
+    // Long polling and processing visibility settings
     .ConfigureQueue(queue => queue
         .ReceiveWaitTimeSeconds(20)                       // long polling (reduces API calls)
         .VisibilityTimeout(TimeSpan.FromMinutes(5))));    // 5 minutes for slow processing
@@ -368,6 +368,50 @@ services.AddAwsEventBridgeTransport("events", bus => bus
     .DefaultDetailType("dispatch.event")
     .EnableArchiving(retentionDays: 7, archiveName: "my-event-archive"));
 ```
+
+### EventBridge custom SDK clients and retry ownership
+
+When Dispatch or the persisted outbox owns retry for the same message and context,
+EventBridge requires a readable SDK configuration with both `MaxErrorRetry` and
+`MaxStaleConnectionRetries` set to zero. A custom client with another budget is
+refused before archive creation, encoding or HTTP publication. Default framework
+clients already use zero. Outside that retry owner, a caller's SDK retry settings
+remain active; the bus does not add another retry loop or change the client's settings.
+
+DI-created buses borrow their SDK client. An externally supplied instance remains
+caller-owned. To inject one safely before or after transport registration, explicitly
+select its named and default SDK registrations together:
+
+```csharp
+using Amazon.EventBridge;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class EventBridgeClientRegistration385
+{
+    public static void Configure(IServiceCollection services, IAmazonEventBridge eventBridgeClient)
+    {
+        services.AddDefaultAwsEventBridgeSdkClientInstance("events", eventBridgeClient);
+    }
+}
+```
+
+This replaces the selected keyed SDK and all unkeyed SDK registrations with the same
+instance, without invoking replaced factories. The last explicit helper call selects
+the default SDK client only. The default bus still belongs to the first configured
+named transport, and each named bus uses its own keyed SDK client. Resolve the bus by
+its transport name when choosing another bus. Other named SDK registrations are retained.
+
+Ordinary named registration preserves an unrelated explicit default SDK client. If a
+keyed external instance was registered before the transport and the default slot is
+free, that instance is mirrored safely. A raw keyed-only replacement after transport
+registration leaves an owning unkeyed factory alias; use the helper for a safe late
+override instead. Construct the service provider after registration is complete.
+
+Clients supplied through DI factories are container-owned. Raw keyed/default factory
+aliases may cause repeated `Dispose` calls, so their cleanup must be idempotent.
+Externally supplied instances are disposed by their caller. These lifetime rules do not
+change EventBridge's at-least-once delivery or the need for idempotent consumers.
+
 
 ## Troubleshooting
 
@@ -511,3 +555,12 @@ This project is multi-licensed under:
 - [SSPL-1.0](https://github.com/TrigintaFaces/Excalibur/blob/main/licenses/LICENSE-SSPL-1.0.txt)
 
 See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.
+
+### Established vendor transients and unknown failures
+
+SQS/SNS positively recognize their documented throttling/temporary service failures at the send
+boundary. That classification stays attached to the exact original SDK exception when it reaches
+the message or persisted-outbox retry owner; the original SDK type and instance are preserved.
+Unknown/unsupported vendor responses are not assumed transient. A consumer classifier can still
+veto a recognized transient. Cancellation and configured SDK/foreground/owned budgets remain in
+effect; this classification evidence does not establish delivery acceptance or exactly-once sends.

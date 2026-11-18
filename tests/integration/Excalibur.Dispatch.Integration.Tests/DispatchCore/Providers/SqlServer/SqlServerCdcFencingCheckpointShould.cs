@@ -245,7 +245,7 @@ public sealed class SqlServerCdcFencingCheckpointShould
 			    LastProcessedSequenceValue   VARBINARY(16) NULL,
 			    LastCommitTime               DATETIME2     NULL,
 			    FencingToken                 BIGINT        NULL,
-			    ProcessedAt                  DATETIME2     NOT NULL,
+			    ProcessedAt                  DATETIMEOFFSET NOT NULL,
 			    CONSTRAINT [PK_{_stateTable}] PRIMARY KEY
 			        (DatabaseConnectionIdentifier, DatabaseName, TableName)
 			);

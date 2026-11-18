@@ -181,6 +181,35 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 		_requireTenant ? $" AND {column} = @AmbientTenantId" : string.Empty;
 
 	/// <summary>
+	/// The NOT-LAPSED half of "in force", shared by the three in-force queries so they cannot drift apart.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>In force is the CONJUNCTION of two independent facts.</b> <c>IsActive</c> answers whether the
+	/// hold was RELEASED -- an act, with an actor, a time and a reason. <c>ExpiresAt</c> answers whether
+	/// the stated period has LAPSED -- the passage of time. Neither implies the other, and filtering on the
+	/// release flag alone reported a lapsed hold as in force forever, which refuses an erasure that should
+	/// proceed and leaves the obligation permanently undischarged with nothing recording why.
+	/// </para>
+	/// <para>
+	/// <b>A NULL expiry is in force</b>, which is the indefinite hold -- the commonest kind -- and the
+	/// reason the term is a disjunction rather than a bare comparison.
+	/// </para>
+	/// <para>
+	/// <b>The instant is a parameter read ONCE per call, never <c>SYSUTCDATETIME()</c> per row.</b> A
+	/// server-side clock evaluated per row can straddle an expiry boundary inside one statement, and the
+	/// erasure gate unions two of these reads, so one pinned instant is what makes that union
+	/// simultaneously true.
+	/// </para>
+	/// <para>
+	/// This does NOT belong on the expired-hold sweep, which asks the complementary question -- "what has
+	/// lapsed but is not yet released?" -- and composes the same two facts the other way. A uniform
+	/// "add an expiry term everywhere" edit would ask that query for holds both lapsed and not lapsed.
+	/// </para>
+	/// </remarks>
+	private const string NotLapsedClause = "(ExpiresAt IS NULL OR ExpiresAt > @AsOf)";
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerLegalHoldStore"/> class.
 	/// </summary>
 	/// <param name="options">The configuration options.</param>
@@ -400,6 +429,7 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 	public async Task<IReadOnlyList<LegalHold>> GetActiveHoldsForDataSubjectAsync(
 		string dataSubjectIdHash,
 		string? tenantId,
+		DateTimeOffset asOf,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(dataSubjectIdHash);
@@ -428,14 +458,15 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 				   ReleasedBy, ReleasedAt, ReleaseReason, Version
 			FROM {_options.FullTableName}
 			WHERE DataSubjectIdHash = @DataSubjectIdHash
-			  AND IsActive = 1{TenantPredicate("TenantId")}{callerPredicate}
+			  AND IsActive = 1
+			  AND {NotLapsedClause}{TenantPredicate("TenantId")}{callerPredicate}
 			ORDER BY CreatedAt DESC";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<LegalHoldRow>(
-			new CommandDefinition(sql, new { DataSubjectIdHash = dataSubjectIdHash, TenantId = tenantId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel },
+			new CommandDefinition(sql, new { DataSubjectIdHash = dataSubjectIdHash, TenantId = tenantId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel, AsOf = asOf },
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToLegalHold()).ToList();
@@ -444,6 +475,7 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<LegalHold>> GetActiveHoldsForTenantAsync(
 		string tenantId,
+		DateTimeOffset asOf,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
@@ -466,14 +498,15 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 				   ReleasedBy, ReleasedAt, ReleaseReason, Version
 			FROM {_options.FullTableName}
 			WHERE {TenantMatchClause("TenantId", "@TenantId")}
-			  AND IsActive = 1{TenantPredicate("TenantId")}
+			  AND IsActive = 1
+			  AND {NotLapsedClause}{TenantPredicate("TenantId")}
 			ORDER BY CreatedAt DESC";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<LegalHoldRow>(
-			new CommandDefinition(sql, new { TenantId = tenantId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel },
+			new CommandDefinition(sql, new { TenantId = tenantId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel, AsOf = asOf },
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToLegalHold()).ToList();
@@ -482,12 +515,14 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<LegalHold>> ListActiveHoldsAsync(
 		string? tenantId,
+		DateTimeOffset asOf,
 		CancellationToken cancellationToken)
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var whereClauses = new List<string> { "IsActive = 1" };
+		var whereClauses = new List<string> { "IsActive = 1", NotLapsedClause };
 		var parameters = new DynamicParameters();
+		parameters.Add("AsOf", asOf);
 
 		var tenant = AmbientScope;
 		if (_requireTenant)

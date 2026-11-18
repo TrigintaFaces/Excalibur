@@ -19,7 +19,7 @@ public sealed class FencingTokenMintingShould
 {
 	private const string Resource = "orders";
 
-	private sealed class Provider(params Func<long>[] behaviours) : IFencingTokenProvider
+	private sealed class Provider(params Func<long>[] behaviours) : IFencingTokenIssuer
 	{
 		public int Calls { get; private set; }
 

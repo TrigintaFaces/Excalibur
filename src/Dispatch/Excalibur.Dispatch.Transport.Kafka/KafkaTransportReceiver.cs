@@ -91,6 +91,15 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	/// Where a record that cannot become a message is sent before its offset is settled. When it is
 	/// <see langword="null"/> such a record is discarded with an Error log.
 	/// </param>
+	/// <param name="maxBatchSize">
+	/// The ceiling this receiver applies to a caller's requested batch size, independent of it: a
+	/// <see cref="ReceiveAsync"/> asking for more hands back at most this many. Defaults to 100.
+	/// </param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown when <paramref name="maxBatchSize"/> is less than 1. A ceiling of zero is not a smaller
+	/// batch, it is a receiver that returns nothing while reporting success, which no caller can tell
+	/// apart from an empty topic.
+	/// </exception>
 	public KafkaTransportReceiver(
 		IConsumer<string, byte[]> consumer,
 		string source,
@@ -98,14 +107,16 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 		int? maxPayloadBytes = PayloadSizeGuard.DefaultMaxPayloadBytes,
 		bool decodeConfluentFraming = false,
 		KafkaPartitionProgress? progress = null,
-		KafkaPoisonRecordRouter? poison = null)
+		KafkaPoisonRecordRouter? poison = null,
+		int maxBatchSize = DefaultMaxBatchSize)
 	{
+		ArgumentOutOfRangeException.ThrowIfLessThan(maxBatchSize, 1);
 		_consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_maxPayloadBytes = maxPayloadBytes;
 		_decodeConfluentFraming = decodeConfluentFraming;
-		_maxBatchSize = DefaultMaxBatchSize;
+		_maxBatchSize = maxBatchSize;
 		_progress = progress ?? new KafkaPartitionProgress();
 		_settler = new KafkaOffsetSettler(_consumer, _progress, Source, _logger);
 		_poison = poison ?? new KafkaPoisonRecordRouter(deadLetter: null, meter: null, Source, _logger);

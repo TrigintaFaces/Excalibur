@@ -211,6 +211,8 @@ Excalibur.Outbox.OutboxMessage.GroupKey.get -> string?
 Excalibur.Outbox.OutboxMessage.GroupKey.init -> void
 Excalibur.Outbox.OutboxMessage.IsMultiTransport.get -> bool
 Excalibur.Outbox.OutboxMessage.IsMultiTransport.init -> void
+Excalibur.Outbox.OutboxMessage.LastError.get -> string?
+Excalibur.Outbox.OutboxMessage.LastError.init -> void
 Excalibur.Outbox.OutboxMessage.MessageBody.get -> byte[]!
 Excalibur.Outbox.OutboxMessage.MessageBody.init -> void
 Excalibur.Outbox.OutboxMessage.MessageId.get -> string!
@@ -232,6 +234,9 @@ Excalibur.Outbox.OutboxMessage.TargetTransports.get -> string?
 Excalibur.Outbox.OutboxMessage.TargetTransports.init -> void
 Excalibur.Outbox.OutboxMessage.TenantId.get -> string?
 Excalibur.Outbox.OutboxMessage.TenantId.init -> void
+Excalibur.Outbox.OutboxMetadataSerialization
+Excalibur.Outbox.OutboxMetadataSerialization.OutboxMetadataSerialization(System.Func<System.Text.Json.JsonSerializerOptions!, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!>! resolverFactory) -> void
+Excalibur.Outbox.OutboxMetadataSerializationBuilderExtensions
 Excalibur.Outbox.OutboxOptions
 Excalibur.Outbox.OutboxOptions.BatchSize.get -> int
 Excalibur.Outbox.OutboxOptions.EnableBackgroundProcessing.get -> bool
@@ -272,6 +277,7 @@ Microsoft.Extensions.DependencyInjection.MultiTransportOutboxServiceCollectionEx
 Microsoft.Extensions.DependencyInjection.OutboxBuilderProcessingGateExtensions
 Microsoft.Extensions.DependencyInjection.OutboxBulkCleanupServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.OutboxExcaliburBuilderExtensions
+Microsoft.Extensions.DependencyInjection.OutboxMetadataSerializationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.OutboxStoreHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.PartitionedOutboxBuilderExtensions
@@ -303,6 +309,7 @@ static Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics.RecordProcessingCyc
 static Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics.RecordProcessingDuration(string! serviceType, double durationMs) -> void
 static Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics.RecordProcessingError(string! serviceType, string! errorType) -> void
 static Excalibur.Outbox.OutboxMessage.FromOutboundMessage(Excalibur.Dispatch.OutboundMessage! message) -> Excalibur.Outbox.OutboxMessage!
+static Excalibur.Outbox.OutboxMetadataSerializationBuilderExtensions.WithMetadataSerialization(this Excalibur.Outbox.IOutboxBuilder! builder, Excalibur.Outbox.OutboxMetadataSerialization! serialization) -> Excalibur.Outbox.IOutboxBuilder!
 static Microsoft.Extensions.DependencyInjection.BackgroundProcessorHealthChecksBuilderExtensions.AddInboxHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, System.Action<Excalibur.Outbox.Health.InboxHealthCheckOptions!>? configure = null, string! name = "inbox", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.BackgroundProcessorHealthChecksBuilderExtensions.AddOutboxHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, System.Action<Excalibur.Outbox.Health.OutboxHealthCheckOptions!>? configure = null, string! name = "outbox", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.MultiTransportOutboxServiceCollectionExtensions.AddMultiTransportOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -311,6 +318,7 @@ static Microsoft.Extensions.DependencyInjection.OutboxBuilderProcessingGateExten
 static Microsoft.Extensions.DependencyInjection.OutboxBuilderProcessingGateExtensions.WithLeaderElection(this Excalibur.Outbox.IOutboxBuilder! builder, System.Func<System.IServiceProvider!, bool>! isLeaderCheck) -> Excalibur.Outbox.IOutboxBuilder!
 static Microsoft.Extensions.DependencyInjection.OutboxBulkCleanupServiceCollectionExtensions.AddOutboxBulkCleanup(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OutboxExcaliburBuilderExtensions.AddOutbox(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Outbox.IOutboxBuilder!>! configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
+static Microsoft.Extensions.DependencyInjection.OutboxMetadataSerializationServiceCollectionExtensions.AddOutboxMetadataSerialization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Outbox.OutboxMetadataSerialization! serialization) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddInboxHostedService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddOutboxHostedService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.HasExcaliburOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
@@ -318,5 +326,3 @@ static Microsoft.Extensions.DependencyInjection.OutboxStoreHealthChecksBuilderEx
 static Microsoft.Extensions.DependencyInjection.PartitionedOutboxBuilderExtensions.UsePartitionedProcessing(this Excalibur.Outbox.IOutboxBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Outbox.IOutboxBuilder!
 static Microsoft.Extensions.DependencyInjection.PartitionedOutboxBuilderExtensions.UsePartitionedProcessing(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.Partitioning.OutboxPartitionOptions!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
 virtual Excalibur.Outbox.OutboxMessage.Equals(Excalibur.Outbox.OutboxMessage? other) -> bool
-Excalibur.Outbox.OutboxMessage.LastError.get -> string?
-Excalibur.Outbox.OutboxMessage.LastError.init -> void

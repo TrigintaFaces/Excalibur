@@ -67,7 +67,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          bash eng/ci/run-filtered-tests.sh \
+          bash eng/ci/run-filtered-tests.sh --minimum-executed-tests 1 \
             --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" -- \
             ${{ matrix.shard.filter }} \
             --configuration Release \
@@ -203,7 +203,7 @@ jobs:
           # cannot produce, and the liveness gate below reads it.
           COSMOS_EVIDENCE_FILE: ${{ github.workspace }}/TestResults/nightly-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard.name }}/cosmos-execution-evidence.tsv
         run: |
-          ./eng/ci/nightly-integration-evidence.ps1 -Mode Run `
+          ./eng/ci/nightly-integration-evidence.ps1 -MinimumExecutedTests 1 -Mode Run `
             -Source '${{ matrix.shard.filter }}' -Shard '${{ matrix.shard.name }}' `
             -ResultsDirectory './TestResults/nightly-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard.name }}'
 
@@ -235,7 +235,7 @@ jobs:
         env:
           INTEGRATION_RUN_OUTCOME: ${{ steps.integration-tests.outcome }}
         run: |
-          ./eng/ci/nightly-integration-evidence.ps1 -Mode Verify `
+          ./eng/ci/nightly-integration-evidence.ps1 -MinimumExecutedTests 1 -Mode Verify `
             -Source '${{ matrix.shard.filter }}' -Shard '${{ matrix.shard.name }}' `
             -ResultsDirectory './TestResults/nightly-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard.name }}' `
             -RunnerOutcome $env:INTEGRATION_RUN_OUTCOME

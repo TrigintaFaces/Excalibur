@@ -453,6 +453,6 @@ internal static class DataMongoDbEventId
 	/// <summary>A monotonic fencing token was issued on leadership acquisition.</summary>
 	public const int LeaderElectionFencingTokenIssued = 104996;
 
-	/// <summary>The fencing token domain was exhausted; leadership relinquished (fail-closed).</summary>
-	public const int LeaderElectionFencingTokenExhausted = 104997;
+	/// <summary>A fencing token could not be minted; the lock was released and leadership relinquished (fail-closed).</summary>
+	public const int LeaderElectionFencingTokenMintFailed = 104997;
 }

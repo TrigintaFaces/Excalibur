@@ -115,7 +115,16 @@ services.AddExcalibur(x => x.AddOutbox(outbox =>
     })
     .EnableBackgroundProcessing();
 }));
+
+// The processor requires an explicitly registered dead-letter queue for messages that
+// exhaust their retries, or it throws on its first poll.
+services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
 ```
+
+`NullDeadLetterQueue` **discards** exhausted messages: they are dropped, and nothing retains
+them for inspection or replay. Registering it is a deliberate choice to accept that loss, not
+boilerplate. No store-backed dead-letter queue ships for Oracle, so a deployment that must keep
+exhausted messages registers its own `IDeadLetterQueue` implementation instead.
 
 A connection can also be resolved from the container via `ConnectionFactory(sp => ...)`.
 

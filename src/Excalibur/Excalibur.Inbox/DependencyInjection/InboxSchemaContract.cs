@@ -110,17 +110,24 @@ internal static class InboxSchemaContract
 			return;
 		}
 
-		// The tenancy model draws a line this check has to respect: the STORED partition and the AMBIENT
-		// context are different states with different representations, and conflating them has already cost
-		// a bead filed against correct design. Stored "no tenant" is the reserved value. Ambient "no tenant"
-		// is an ABSENCE -- ITenantContext.TenantId is nullable, and that null is load-bearing, because the
-		// fail-closed conversion throws on it rather than proceeding. This member reads the AMBIENT state, so
-		// it asks the interface's own question first.
-		if (!tenantContext.HasTenant)
+		var hasTenant = tenantContext.HasTenant;
+		VerifyTenantAdmissible(tableName, hasTenantColumn, hasTenant, hasTenant ? tenantContext.TenantId : null);
+	}
+
+	/// <summary>Verifies one captured operation identity without reading ambient state.</summary>
+	internal static void VerifyTenantAdmissible(
+		string tableName, bool hasTenantColumn, bool hasTenant, string? tenantId)
+	{
+		if (hasTenantColumn)
 		{
-			// No tenant is resolved. That is not a foreign identity on an undiscriminating key -- it is the
-			// ordinary single-tenant composition, and treating it as a violation would reject the shape most
-			// single-tenant consumers have. An earlier revision of this check did exactly that.
+			if (string.IsNullOrWhiteSpace(tenantId))
+			{
+				throw new InvalidOperationException($"Multi-tenant inbox store: table {tableName} requires an explicit non-empty tenant identity.");
+			}
+			return;
+		}
+		if (!hasTenant)
+		{
 			return;
 		}
 
@@ -130,16 +137,16 @@ internal static class InboxSchemaContract
 		// single-tenant host can operate under -- it is configurable, so a host may run as a named single
 		// tenant. What this guard exists to catch is a REAL tenant identity on a key that cannot distinguish
 		// one, and a real identity is neither of these.
-		if (string.Equals(tenantContext.TenantId, TenantScope.UntenantedSentinel, StringComparison.Ordinal)
-			|| string.Equals(tenantContext.TenantId, TenantDefaults.DefaultTenantId, StringComparison.Ordinal))
+		if (string.Equals(tenantId, TenantScope.UntenantedSentinel, StringComparison.Ordinal)
+			|| string.Equals(tenantId, TenantDefaults.DefaultTenantId, StringComparison.Ordinal))
 		{
 			return;
 		}
 
 		throw new InvalidOperationException(
 			$"Single-tenant inbox store: table {tableName} has no tenant column, so every statement it "
-			+ "emits is keyed by (MessageId, HandlerType) alone, yet the ambient tenant context resolves "
-			+ $"'{tenantContext.TenantId}' rather than the single canonical identity. A second tenant "
+			+ "emits is keyed by (MessageId, HandlerType) alone, yet the operation tenant identity resolves "
+			+ $"'{tenantId}' rather than the single canonical identity. A second tenant "
 			+ "identity on a key that cannot distinguish it would silently deduplicate one tenant's message "
 			+ "against another's -- the second tenant's message would be discarded as an already-processed "
 			+ "duplicate and never handled. Enable multi-tenant mode and apply the multi-tenant inbox "

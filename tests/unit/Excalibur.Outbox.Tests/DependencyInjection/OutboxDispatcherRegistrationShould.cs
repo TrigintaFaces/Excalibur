@@ -110,11 +110,20 @@ public sealed class OutboxDispatcherRegistrationShould
 	/// Callers must <c>await using</c> the result: the resolved outbox pipeline is
 	/// <see cref="IAsyncDisposable"/>-only, and a synchronous container dispose throws.
 	/// </remarks>
+	private static IOutboxStore ConstructorStore()
+	{
+		var store = A.Fake<IOutboxStore>(b => b.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
+		A.CallTo(() => store.GetService(A<Type>._))
+			.ReturnsLazily((Type type) => type.IsInstanceOfType(store) ? store : null);
+		return store;
+	}
+
 	private static ServiceProvider BuildResolvableProvider(IServiceCollection services)
 	{
 		services.AddLogging();
         services.AddSingleton<Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>(Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
-		services.TryAddSingleton(A.Fake<IOutboxStore>());
+		services.TryAddSingleton(ConstructorStore());
 		return services.BuildServiceProvider();
 	}
 }

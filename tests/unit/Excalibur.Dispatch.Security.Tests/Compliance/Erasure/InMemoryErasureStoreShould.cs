@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 [Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class InMemoryErasureStoreShould
 {
-	private readonly InMemoryErasureStore _sut = new(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
+	private readonly InMemoryErasureStore _sut = new(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }), TimeProvider.System);
 
 	#region SaveRequestAsync Tests
 
@@ -97,8 +97,12 @@ public sealed class InMemoryErasureStoreShould
 	[Fact]
 	public async Task UpdateStatusAsync_ReturnsFalse_WhenNotFound()
 	{
-		var result = await _sut.UpdateStatusAsync(Guid.NewGuid(), ErasureRequestStatus.InProgress, null, CancellationToken.None).ConfigureAwait(false);
-		result.ShouldBeFalse();
+		var result = await _sut.ClaimForExecutionAsync(
+			Guid.NewGuid(), ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+		// A VALUE, never an exception, and named: a caller must be able to tell "no such request" from
+		// "this store cannot answer", and only one of those is worth reporting as a defect.
+		result.Outcome.ShouldBe(ErasureClaimOutcome.NotFound);
 	}
 
 	[Fact]
@@ -109,10 +113,14 @@ public sealed class InMemoryErasureStoreShould
 		await _sut.SaveRequestAsync(request, DateTimeOffset.UtcNow, cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		var result = await _sut.UpdateStatusAsync(request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None).ConfigureAwait(false);
+		var result = await _sut.ClaimForExecutionAsync(
+			request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
 
 		// Assert
-		result.ShouldBeTrue();
+		result.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+		result.ClaimIdentity.ShouldNotBeNullOrWhiteSpace(
+			"a granted claim must carry the identity its holder presents on every fenced write");
 		var status = await _sut.GetStatusAsync(request.RequestId, cancellationToken: CancellationToken.None).ConfigureAwait(false);
 		status.Status.ShouldBe(ErasureRequestStatus.InProgress);
 	}
@@ -125,7 +133,11 @@ public sealed class InMemoryErasureStoreShould
 		await _sut.SaveRequestAsync(request, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		await _sut.UpdateStatusAsync(request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None).ConfigureAwait(false);
+		// ExecutedAt is stamped by TAKING CUSTODY, which is the step that advances the status. Writing
+		// the claimed status through the general member is refused outright: custody has one door.
+		_ = await _sut.ClaimForExecutionAsync(
+				request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
 
 		// Assert
 		var status = await _sut.GetStatusAsync(request.RequestId, cancellationToken: CancellationToken.None).ConfigureAwait(false);
@@ -140,7 +152,7 @@ public sealed class InMemoryErasureStoreShould
 	public async Task RecordCompletionAsync_ThrowsKeyNotFoundException_WhenNotFound()
 	{
 		await Should.ThrowAsync<KeyNotFoundException>(
-			() => _sut.RecordCompletionAsync(Guid.NewGuid(), 5, 10, Guid.NewGuid(), CancellationToken.None)).ConfigureAwait(false);
+			() => _sut.RecordCompletionAsync(Guid.NewGuid(), 5, 10, Guid.NewGuid(), "test-claim-identity", CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -152,7 +164,13 @@ public sealed class InMemoryErasureStoreShould
 		var certId = Guid.NewGuid();
 
 		// Act
-		await _sut.RecordCompletionAsync(request.RequestId, 3, 100, certId, CancellationToken.None).ConfigureAwait(false);
+		var claim = await _sut.ClaimForExecutionAsync(
+				request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+		claim.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+		// Presents the identity the store granted, which is what makes this a fenced write
+		// rather than an unconditional one.
+		_ = await _sut.RecordCompletionAsync(request.RequestId, 3, 100, certId, claim.ClaimIdentity!, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		var status = await _sut.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
@@ -180,7 +198,13 @@ public sealed class InMemoryErasureStoreShould
 		// Arrange
 		var request = CreateRequest();
 		await _sut.SaveRequestAsync(request, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
-		await _sut.RecordCompletionAsync(request.RequestId, 0, 0, Guid.NewGuid(), CancellationToken.None).ConfigureAwait(false);
+		var claim = await _sut.ClaimForExecutionAsync(
+				request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+		claim.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+		// Presents the identity the store granted, which is what makes this a fenced write
+		// rather than an unconditional one.
+		_ = await _sut.RecordCompletionAsync(request.RequestId, 0, 0, Guid.NewGuid(), claim.ClaimIdentity!, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
 		var result = await _sut.RecordCancellationAsync(request.RequestId, "reason", "admin", CancellationToken.None).ConfigureAwait(false);
@@ -226,7 +250,13 @@ public sealed class InMemoryErasureStoreShould
 		var request2 = CreateRequest();
 		await _sut.SaveRequestAsync(request1, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 		await _sut.SaveRequestAsync(request2, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
-		await _sut.RecordCompletionAsync(request1.RequestId, 0, 0, Guid.NewGuid(), CancellationToken.None).ConfigureAwait(false);
+		var claim = await _sut.ClaimForExecutionAsync(
+				request1.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+		claim.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+		// Presents the identity the store granted, which is what makes this a fenced write
+		// rather than an unconditional one.
+		_ = await _sut.RecordCompletionAsync(request1.RequestId, 0, 0, Guid.NewGuid(), claim.ClaimIdentity!, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
 		var scheduled = await _sut.ListRequestsAsync(ErasureRequestStatus.Scheduled, null, null, null, 1, 100, CancellationToken.None).ConfigureAwait(false);
@@ -237,21 +267,63 @@ public sealed class InMemoryErasureStoreShould
 		completed.Count.ShouldBe(1);
 	}
 
+	/// <summary>
+	/// The tenant filter discriminates between two requests whose owners the HOST resolved.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This arm used to seed its two tenants by naming them on the requests, and that is the defect it
+	/// now guards against.</b> A request's owning tenant is resolved by the deployment, never taken from
+	/// the request, because the owner is composed into the per-subject key handle the erasure destroys: an
+	/// owner the write path never used names a key that was never minted, the provider reports it absent,
+	/// the erasure treats that as an idempotent no-op, and the request reaches a completed state with a
+	/// signed certificate over data that still decrypts. Seeding by request property asserted exactly the
+	/// behaviour that produces that outcome.
+	/// </para>
+	/// <para>
+	/// So the two owners come from the ambient context instead, which is how a multi-tenant host produces
+	/// them, and the filter is asserted against the owners the store actually recorded rather than against
+	/// the constants this arm asked for.
+	/// </para>
+	/// </remarks>
 	[Fact]
-	public async Task ListRequestsAsync_FiltersByTenantId()
+	public async Task ListRequestsAsync_FiltersByTheOwnerTheHostResolved()
 	{
-		// Arrange
-		var request1 = CreateRequest(tenantId: "tenant-a");
-		var request2 = CreateRequest(tenantId: "tenant-b");
-		await _sut.SaveRequestAsync(request1, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
-		await _sut.SaveRequestAsync(request2, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+		var store = new InMemoryErasureStore(
+			TestDataSubjectHasher.Instance,
+			TenantContextHolder.AmbientContext,
+			Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }),
+			TimeProvider.System);
 
-		// Act
-		var results = await _sut.ListRequestsAsync(null, "tenant-a", null, null, 1, 100, CancellationToken.None).ConfigureAwait(false);
+		var first = CreateRequest();
+		using (TenantContextHolder.BeginScope("tenant-a"))
+		{
+			await store.SaveRequestAsync(first, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+		}
 
-		// Assert
-		results.Count.ShouldBe(1);
-		results[0].TenantId.ShouldBe("tenant-a");
+		var second = CreateRequest();
+		using (TenantContextHolder.BeginScope("tenant-b"))
+		{
+			await store.SaveRequestAsync(second, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+		}
+
+		// The fixture's own precondition. If the ambient scope did not reach the owner the store recorded,
+		// both assertions below would compare one tenant against itself and pass.
+		var firstStatus = await store.GetStatusAsync(first.RequestId, CancellationToken.None).ConfigureAwait(false);
+		firstStatus.ShouldNotBeNull();
+		firstStatus.TenantId.ShouldBe("tenant-a", "the host's ambient term is the owner, not the request's");
+
+		var results = await store
+			.ListRequestsAsync(null, "tenant-a", null, null, 1, 100, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// LIVENESS: the owner's own request is returned. A store returning nothing satisfies the safety
+		// assertion below and serves no caller.
+		results.Select(r => r.RequestId).ShouldContain(first.RequestId);
+
+		// SAFETY: the other owner's request is not. Fails against a store that drops the argument, and
+		// against one that applies it as an inequality.
+		results.Select(r => r.RequestId).ShouldNotContain(second.RequestId);
 	}
 
 	#endregion

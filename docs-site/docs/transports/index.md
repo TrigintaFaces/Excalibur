@@ -29,7 +29,7 @@ Start with the **[Choosing a Transport](choosing-a-transport.md)** guide for a d
 |-----------|---------|----------|
 | [In-Memory](in-memory.md) | Built-in | Testing, development |
 | [Cron Timer](cron-timer.md) | Built-in | Scheduled jobs, background tasks |
-| [Kafka](kafka.md) | `Excalibur.Dispatch.Transport.Kafka` | High-throughput event streaming |
+| [Kafka](kafka.md) | `Excalibur.Dispatch.Transport.Kafka` | Partitioned event streaming and replay |
 | [RabbitMQ](rabbitmq.md) | `Excalibur.Dispatch.Transport.RabbitMQ` | Traditional messaging, routing patterns |
 | [Azure Service Bus](azure-service-bus.md) | `Excalibur.Dispatch.Transport.AzureServiceBus` | Azure-native messaging |
 | [AWS SQS](aws-sqs.md) | `Excalibur.Dispatch.Transport.AwsSqs` | AWS-native messaging |
@@ -407,19 +407,23 @@ Standard transport metric names follow `dispatch.transport.*` convention:
 By default, messages are serialized using JSON (System.Text.Json). You can configure different serializers:
 
 ```csharp
-// Use MemoryPack for .NET-only maximum performance
+// Use MemoryPack for a .NET-oriented binary format
 services.AddMemoryPackSerializer();
 
 // Or MessagePack for compact binary format
 services.AddMessagePackSerializer();
 ```
 
-| Serializer | Package | Best For |
+| Serializer | Package | Format characteristics |
 |------------|---------|----------|
 | System.Text.Json (default) | Built-in | General purpose, cross-language, debugging |
-| MemoryPack | `Excalibur.Dispatch.Serialization.MemoryPack` | .NET-only, maximum performance |
+| MemoryPack | `Excalibur.Dispatch.Serialization.MemoryPack` | .NET-oriented binary format |
 | MessagePack | `Excalibur.Dispatch.Serialization.MessagePack` | Cross-language, compact |
 | Protobuf | `Excalibur.Dispatch.Serialization.Protobuf` | Schema-based, cross-language |
+
+This table describes format choices, not a measured speed ranking. Compare serializers using the
+same payloads, wire-compatibility requirements, runtime and deployment configuration; include the
+complete transport path when reporting allocations or throughput.
 
 ## Dead Letter Queue Support
 

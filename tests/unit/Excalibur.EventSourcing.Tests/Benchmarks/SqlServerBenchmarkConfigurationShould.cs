@@ -51,13 +51,10 @@ public sealed class SqlServerBenchmarkConfigurationShould
             foreach (var report in reports)
             {
                 // BDN may retain named failure placeholders; none may carry a numeric mean.
-                var rows = File.ReadAllLines(report);
-                rows.Length.ShouldBeGreaterThan(1);
-                var meanIndex = Array.IndexOf(rows[0].Split(','), "Mean");
-                meanIndex.ShouldBeGreaterThanOrEqualTo(0);
-                foreach (var row in rows.Skip(1))
+                using var reader = File.OpenText(report);
+                foreach (var mean in BenchmarkCsvReports.ReadMeans(reader))
                 {
-                    row.Split(',')[meanIndex].ShouldBe("NA");
+                    mean.ShouldBe("NA");
                 }
             }
         }

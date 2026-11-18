@@ -25,6 +25,8 @@ public static class GoogleCloudFunctionsServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		_ = services.AddValidatedServerlessHostOptions();
+
 		// Register Google Cloud Functions specific services
 		services.TryAddSingleton<IServerlessHostProvider, GoogleCloudFunctionsHostProvider>();
 		services.TryAddSingleton<IColdStartOptimizer, GoogleCloudFunctionsColdStartOptimizer>();

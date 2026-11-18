@@ -11,6 +11,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="MassTransit" />
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="WolverineFx" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="coverlet.collector" />
@@ -20,10 +24,28 @@
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
+    <Using Include="Excalibur.Dispatch.Benchmarks.Support" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Comparative/MassTransitComparisonBenchmarks.cs" Link="Benchmarks/MassTransitComparisonBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Diagnostics/TransportAdapterPhaseBenchmarks.cs" Link="Benchmarks/TransportAdapterPhaseBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Diagnostics/DiagnosticsBenchmarkConfig.cs" Link="Benchmarks/DiagnosticsBenchmarkConfig.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Comparative/PipelineComparisonBenchmarks.cs" Link="Benchmarks/PipelineComparisonBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Comparative/ComparativeBenchmarkConfig.cs" Link="Benchmarks/ComparativeBenchmarkConfig.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Comparative/WarmPathBenchmarkConfig.cs" Link="Benchmarks/WarmPathBenchmarkConfig.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Optimization/CacheOptimizationBenchmarks.cs" Link="Benchmarks/CacheOptimizationBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Optimization/MemoryOptimizationBenchmarks.cs" Link="Benchmarks/MemoryOptimizationBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Core/DispatchThroughputBenchmarks.cs" Link="Benchmarks/DispatchThroughputBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Optimization/AllocationOptimizationBenchmarks.cs" Link="Benchmarks/AllocationOptimizationBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Optimization/ValueTaskMigrationBenchmarks.cs" Link="Benchmarks/ValueTaskMigrationBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Infrastructure/BenchmarkCompletionGuard.cs" Link="Benchmarks/BenchmarkCompletionGuard.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Core/HandlerInvocationBenchmarks.cs" Link="Benchmarks/HandlerInvocationBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Core/MiddlewareChainBenchmarks.cs" Link="Benchmarks/MiddlewareChainBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Support/BenchmarkDispatchServiceCollectionExtensions.cs" Link="Benchmarks/BenchmarkDispatchServiceCollectionExtensions.cs" />
     <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Infrastructure/RoutingBenchmarkDispatch.cs"
              Link="Benchmarks/RoutingBenchmarkDispatch.cs" />
     <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Infrastructure/FreshContextBenchmarkDispatch.cs"
              Link="Benchmarks/FreshContextBenchmarkDispatch.cs" />
+    <Compile Include="../../benchmarks/Excalibur.Dispatch.Performance.Benchmarks/BenchmarkInputIndex.cs"
+             Link="Benchmarks/BenchmarkInputIndex.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />

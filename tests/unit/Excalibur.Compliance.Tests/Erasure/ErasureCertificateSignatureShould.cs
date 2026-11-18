@@ -255,6 +255,7 @@ public sealed class ErasureCertificateSignatureShould
 			null,
 			TestAnnotationSource.None,
 			TestRetentions.None,
+			TestMintLedger.None,
 			[]);
 
 	private void GivenCompletedStatus(Guid requestId, int keysDeleted, int recordsAffected)

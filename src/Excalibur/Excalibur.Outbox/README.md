@@ -25,7 +25,19 @@ services.AddExcalibur(x => x.AddOutbox(outbox => outbox
         .BatchSize(100)
         .MaxRetryCount(3)
         .RetryDelay(TimeSpan.FromSeconds(10)))
+    // Where a message goes when it exhausts its retries. The processor requires this
+    // explicitly and will not start without it: a message that has run out of attempts
+    // has to go somewhere, and silently dropping it is the one outcome nothing
+    // downstream can detect afterwards.
+    .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString)
     .EnableBackgroundProcessing()));
+```
+
+To discard exhausted messages instead of storing them, say so by name — the choice is then
+recorded in your composition rather than inherited from a default:
+
+```csharp
+services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
 ```
 
 ## Transactional Outbox Pattern

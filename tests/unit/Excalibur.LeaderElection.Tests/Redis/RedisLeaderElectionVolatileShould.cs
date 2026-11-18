@@ -1,33 +1,20 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Reflection;
-
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.LeaderElection.Tests.Redis;
 
 /// <summary>
-/// Tests that <see cref="RedisLeaderElection"/> uses volatile for lock-free IsLeader reads (AD-540.3).
+/// Verifies authoritative leadership observations and safe concurrent lifecycle access (AD-540.3).
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 public sealed class RedisLeaderElectionVolatileShould : UnitTestBase
 {
 	[Fact]
-	public void DeclareIsLeaderFieldAsVolatile()
-	{
-		// Arrange
-		var fieldInfo = typeof(RedisLeaderElection)
-			.GetField("_isLeader", BindingFlags.NonPublic | BindingFlags.Instance);
-
-		// Assert — the field must exist and be volatile
-		fieldInfo.ShouldNotBeNull();
-		fieldInfo.FieldType.ShouldBe(typeof(bool));
-
-		var requiredModifiers = fieldInfo.GetRequiredCustomModifiers();
-		requiredModifiers.ShouldContain(typeof(System.Runtime.CompilerServices.IsVolatile));
-	}
+	public Task PublishLeadershipThatIsVisibleAcrossThreads() =>
+		RedisTenureProtocolShould.VerifyPublishedLeadershipVisibilityAcrossThreadsAsync();
 
 	[Fact]
 	public void ReturnFalseForIsLeaderByDefault()
@@ -45,15 +32,8 @@ public sealed class RedisLeaderElectionVolatileShould : UnitTestBase
 	}
 
 	[Fact]
-	public void StillRetainLockObject()
-	{
-		// Arrange — verify _lock field still exists (needed for CurrentLeaderId + state transitions)
-		var lockField = typeof(RedisLeaderElection)
-			.GetField("_lock", BindingFlags.NonPublic | BindingFlags.Instance);
-
-		// Assert
-		lockField.ShouldNotBeNull("_lock must be retained for CurrentLeaderId and state transitions");
-	}
+	public Task SerializeConcurrentStopsWhileLeadershipIsObserved() =>
+		RedisTenureProtocolShould.VerifyConcurrentStopAndLeadershipReadsAsync();
 
 	[Fact]
 	public void ReadIsLeaderWithoutContention()

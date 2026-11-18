@@ -35,7 +35,15 @@ public sealed class ErasureServiceShould
 			_dataInventoryService,
 			null,
 			TestAnnotationSource.None,
-			TestRetentions.None, []);
+			TestRetentions.None, TestMintLedger.None, []);
+
+		// The completion returns an outcome now, where it used to return a bare Task with no value to
+		// arrange -- so a fake with no setup returns the default, the default is deliberately not Applied,
+		// and the service correctly stands down on anything else. Arranged once here because a bare Task
+		// succeeded for every arm; an arm that wants a refusal overrides it.
+		A.CallTo(() => _store.RecordCompletionAsync(
+				A<Guid>._, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
+			.Returns(ErasureWriteOutcome.Applied);
 	}
 
 	[Fact]
@@ -288,8 +296,16 @@ public sealed class ErasureServiceShould
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
-		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, null, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+		A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
+
+		// The completion returns an outcome now, where it used to return a bare Task with no value
+		// to arrange. A fake with no setup returns the default, the default is deliberately not
+		// Applied, and the service correctly stands down on anything else -- so without this every
+		// arm here reports a refusal. Applied is what a bare Task meant.
+		A.CallTo(() => _store.RecordCompletionAsync(
+				A<Guid>._, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
+			.Returns(ErasureWriteOutcome.Applied);
 
 		var inventory = new DataInventory
 		{
@@ -325,7 +341,7 @@ public sealed class ErasureServiceShould
 		// Crypto-shred: erasure now also destroys the per-subject key (status.DataSubjectIdHash) in
 		// addition to the 2 inventory keys -> 3 keys deleted (ErasureService adds the subject-id hash).
 		result.KeysDeleted.ShouldBe(3);
-		A.CallTo(() => _store.RecordCompletionAsync(requestId, 3, 0, A<Guid>._, A<CancellationToken>._))
+		A.CallTo(() => _store.RecordCompletionAsync(requestId, 3, 0, A<Guid>._, A<string>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -373,8 +389,8 @@ public sealed class ErasureServiceShould
 			.Returns(Task.FromResult<ErasureStatus?>(status));
 
 		// T.6 TOCTOU fix: ExecuteAsync transitions to InProgress first, then re-checks legal holds
-		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, A<string?>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+		A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
 
 		A.CallTo(() => _legalHoldService.CheckHoldsAsync(
 				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
@@ -420,7 +436,7 @@ public sealed class ErasureServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.BlockedByLegalHold, A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.BlockedByLegalHold, A<ErasureRequestStatus?>._, A<string>._, A<string?>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -548,7 +564,8 @@ public sealed class ErasureServiceShould
 			new NoLegalHoldsService(), // declared: this deployment operates none
 			null, // no data inventory service
 			null, // no key escrow service
-			TestRetentions.None);
+			TestRetentions.None,
+			TestMintLedger.None);
 
 		var request = CreateValidRequest();
 
@@ -583,7 +600,7 @@ public sealed class ErasureServiceShould
 				null!,
 				null,
 				null,
-				TestRetentions.None));
+				TestRetentions.None, TestMintLedger.None));
 
 		ex.ParamName.ShouldBe("legalHoldService");
 	}
@@ -596,7 +613,7 @@ public sealed class ErasureServiceShould
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
-				null, null, null, TestRetentions.None));
+				null, null, null, TestRetentions.None, TestMintLedger.None));
 	}
 
 
@@ -608,7 +625,7 @@ public sealed class ErasureServiceShould
 				null!,
 				NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
-				null, null, null, TestRetentions.None));
+				null, null, null, TestRetentions.None, TestMintLedger.None));
 	}
 
 	[Fact]
@@ -619,7 +636,7 @@ public sealed class ErasureServiceShould
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				null!,
 				TestDataSubjectHasher.Instance,
-				null, null, null, TestRetentions.None));
+				null, null, null, TestRetentions.None, TestMintLedger.None));
 	}
 
 	[Fact]
@@ -631,8 +648,8 @@ public sealed class ErasureServiceShould
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
-		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, null, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+		A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
 
 		var inventory = new DataInventory
 		{
@@ -676,15 +693,15 @@ public sealed class ErasureServiceShould
 			_legalHoldService, _dataInventoryService,
 			keyEscrowService,
 			TestAnnotationSource.None,
-			TestRetentions.None, []);
+			TestRetentions.None, TestMintLedger.None, []);
 
 		var requestId = Guid.NewGuid();
 		var status = CreateStatus(requestId, ErasureRequestStatus.Scheduled);
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
-		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, null, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+		A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
 
 		var inventory = new DataInventory
 		{
@@ -733,15 +750,15 @@ public sealed class ErasureServiceShould
 			_legalHoldService, _dataInventoryService,
 			keyEscrowService,
 			TestAnnotationSource.None,
-			TestRetentions.None, []);
+			TestRetentions.None, TestMintLedger.None, []);
 
 		var requestId = Guid.NewGuid();
 		var status = CreateStatus(requestId, ErasureRequestStatus.Scheduled);
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
-		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, null, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+		A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
 
 		var inventory = new DataInventory
 		{
@@ -790,12 +807,12 @@ public sealed class ErasureServiceShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			_legalHoldService, _dataInventoryService, null,
-			TestAnnotationSource.None, TestRetentions.None, [contributor]);
+			TestAnnotationSource.None, TestRetentions.None, TestMintLedger.None, [contributor]);
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
-		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, null, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+		A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
 		SetupNoLegalHolds();
 
 		// A CONFIGURED host: the registry declares a location and the contributor NAMES it as discharged.
@@ -870,7 +887,7 @@ public sealed class ErasureServiceShould
 			NullLogger<ErasureService>.Instance,
 			TestDataSubjectHasher.Instance,
 			_legalHoldService, _dataInventoryService, null,
-			TestAnnotationSource.None, TestRetentions.None, []);
+			TestAnnotationSource.None, TestRetentions.None, TestMintLedger.None, []);
 	}
 
 	private void SetupNoLegalHolds()

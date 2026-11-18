@@ -42,6 +42,11 @@ internal sealed class SetOutboxMessageFailed : DataRequest<int>
 	/// <param name="outboxTableName">The name of the outbox table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public SetOutboxMessageFailed(
 		string messageId,
 		int retryCount,
@@ -77,7 +82,7 @@ internal sealed class SetOutboxMessageFailed : DataRequest<int>
 		// "dispatcher_id = :DispatcherId" matched ZERO rows and this whole update was a silent no-op on Oracle.
 		// Match the process-stable dispatcher prefix exactly via SUBSTR(dispatcher_id, 1, LEN) = "{dispatcherId}:".
 		// The prefix and its length are computed in C# (not SQL LENGTH()) so each parameter is referenced ONCE
-		// (ODP.NET positional bind + DynamicParameters cannot re-add a name) AND no LIKE wildcard is involved —
+		// (named Oracle bind + DynamicParameters cannot re-add a name) AND no LIKE wildcard is involved —
 		// MachineName may contain '_'/'%', which a LIKE prefix would treat as wildcards and widen the guard.
 		var sql = $"""
 		   UPDATE {outboxTableName}
@@ -90,11 +95,8 @@ internal sealed class SetOutboxMessageFailed : DataRequest<int>
 		             AND (dispatcher_id IS NULL OR SUBSTR(dispatcher_id, 1, :DispatcherPrefixLen) = :DispatcherPrefix)
 		   """;
 
-		// ODP.NET binds positionally (this store does not set BindByName), so parameters are added in the
-		// exact textual order their placeholders appear: :RetryCount, :ErrorMessage, :FailureBackoffFloorSeconds,
-		// :MessageId, :DispatcherPrefixLen, :DispatcherPrefix. Literal NULLs keep dispatcher_id/dispatcher_timeout
-		// out of the bind list. Adding a parameter out of this order would silently bind it to the wrong
-		// placeholder — the order below mirrors the statement above and must stay that way.
+		// Directly preserve Dapper's effective BindByName=true. Repeated named references do not
+		// depend on positional insertion order; the same values and constructor-defined numeric types remain.
 		var parameters = new DynamicParameters();
 		parameters.Add("RetryCount", retryCount, direction: ParameterDirection.Input);
 		parameters.Add("ErrorMessage", errorMessage, direction: ParameterDirection.Input);
@@ -104,6 +106,15 @@ internal sealed class SetOutboxMessageFailed : DataRequest<int>
 		parameters.Add("DispatcherPrefix", dispatcherId + ":", direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.ExecuteAsync(conn, Command, command =>
+			{
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "RetryCount", StaticDbCommand.Input<int>(Parameters, "RetryCount"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "ErrorMessage", StaticDbCommand.Input<string>(Parameters, "ErrorMessage"), DbType.String);
+				StaticDbCommand.AddParameter(command, "FailureBackoffFloorSeconds", StaticDbCommand.Input<int>(Parameters, "FailureBackoffFloorSeconds"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "DispatcherPrefixLen", StaticDbCommand.Input<int>(Parameters, "DispatcherPrefixLen"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "DispatcherPrefix", StaticDbCommand.Input<string>(Parameters, "DispatcherPrefix"), DbType.String);
+			}).ConfigureAwait(false);
 	}
 }

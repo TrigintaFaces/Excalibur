@@ -4,6 +4,7 @@
 #pragma warning disable IL2026 // RequiresUnreferencedCode
 #pragma warning disable IL3050 // RequiresDynamicCode
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using CloudNative.CloudEvents;
 
 using Excalibur.Dispatch.CloudEvents;
@@ -31,6 +32,7 @@ public sealed class RabbitMqCloudEventAdapterShould
 
 		_adapter = new RabbitMqCloudEventAdapter(
 			options,
+			TestCloudEventSerializers.Reflection,
 			Microsoft.Extensions.Options.Options.Create(new RabbitMqCloudEventOptions()),
 			NullLogger<RabbitMqCloudEventAdapter>.Instance);
 	}
@@ -41,6 +43,7 @@ public sealed class RabbitMqCloudEventAdapterShould
 		Should.Throw<ArgumentNullException>(() =>
 			new RabbitMqCloudEventAdapter(
 				null!,
+				TestCloudEventSerializers.Reflection,
 				Microsoft.Extensions.Options.Options.Create(new RabbitMqCloudEventOptions()),
 				NullLogger<RabbitMqCloudEventAdapter>.Instance));
 	}

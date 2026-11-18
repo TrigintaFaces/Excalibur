@@ -7,8 +7,10 @@ using System.Text.RegularExpressions;
 namespace Boundary.Tests;
 
 /// <summary>
-/// Holds the stored tenant partition to being a VALUE: every tenant column in shipped DDL is declared
+/// Holds canonical tenant partition columns to being VALUEs: each such column in shipped DDL is declared
 /// <c>NOT NULL</c>, or is tightened to <c>NOT NULL</c> by the same script that introduced it.
+/// The exact retained failure-envelope TenantId exception below preserves raw nullable metadata;
+/// it is not a canonical partition or an authorization boundary.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -173,7 +175,7 @@ public sealed class TenantColumnsAreNotNullableShould
     public void LeaveNoTenantColumnAbleToHoldANull()
     {
         var offenders = Declarations
-            .Where(d => !d.NotNull && !d.TightenedLater)
+            .Where(d => !d.NotNull && !d.TightenedLater && !d.RawEnvelopeMetadata)
             .Select(d =>
                 $"{d.RelativePath}:{d.Line}: '{d.Column}' is declared without NOT NULL and this file never "
                 + "tightens it. The untenanted partition is the reserved sentinel, never a null — a nullable "
@@ -191,7 +193,44 @@ public sealed class TenantColumnsAreNotNullableShould
 
     // ---- scanning --------------------------------------------------------------------------------------------
 
-    private sealed record Declared(string RelativePath, int Line, string Column, bool NotNull, bool TightenedLater);
+    private sealed record Declared(string RelativePath, int Line, string Column, bool NotNull, bool TightenedLater, bool RawEnvelopeMetadata);
+
+    private const string FailureEnvelopeSchemaPath =
+        "src/Excalibur/Excalibur.Data.SqlServer/Scripts/005_CreateScheduleFailureSchema.sql";
+
+    // This exact column retains the original envelope's nullable tenant metadata. It is not
+    // a canonical tenant partition or authorization boundary: null, sentinel and empty remain
+    // distinct values. All ordinary partition declarations, including in this file, stay strict.
+    private static bool IsRetainedFailureEnvelopeTenant(string path, string text, Match declaration)
+    {
+        if (!string.Equals(path, FailureEnvelopeSchemaPath, StringComparison.Ordinal)
+            || !string.Equals(declaration.Groups["col"].Value, "TenantId", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var tables = Regex.Matches(text[..declaration.Index],
+            @"\b(?:CREATE|ALTER)\s+TABLE\s+(?<table>[A-Za-z0-9_.]+)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+        if (tables.Count == 0) { return false; }
+        var table = tables[^1];
+        return string.Equals(table.Groups["table"].Value, "dispatch.ScheduleOccurrenceFailure", StringComparison.Ordinal)
+            && text.IndexOf(';', table.Index, declaration.Index - table.Index) < 0;
+    }
+
+    [Theory]
+    [InlineData(FailureEnvelopeSchemaPath, "dispatch.ScheduleOccurrenceFailure", "TenantId", true)]
+    [InlineData(FailureEnvelopeSchemaPath, "dispatch.ScheduledMessage", "TenantId", false)]
+    [InlineData(FailureEnvelopeSchemaPath, "dispatch.OtherFailure", "TenantId", false)]
+    [InlineData(FailureEnvelopeSchemaPath, "dispatch.ScheduleOccurrenceFailure", "tenant_id", false)]
+    [InlineData("src/Other/005_CreateScheduleFailureSchema.sql", "dispatch.ScheduleOccurrenceFailure", "TenantId", false)]
+    public void ScopeRawEnvelopeMetadataExceptionToItsExactColumnRole(string path, string table, string column, bool expected)
+    {
+        var text = $"CREATE TABLE {table} (\n{column} nvarchar(max) NULL\n);";
+        var declaration = Declaration.Match(text);
+        declaration.Success.ShouldBeTrue();
+        IsRetainedFailureEnvelopeTenant(path, text, declaration).ShouldBe(expected);
+    }
 
     private static IReadOnlyList<Declared> Scan()
     {
@@ -237,7 +276,8 @@ public sealed class TenantColumnsAreNotNullableShould
                     Line: LineOf(text, match.Index),
                     Column: column,
                     NotNull: DeclaresNotNull(text, match),
-                    TightenedLater: IsTightenedAfter(text, match.Index, column)));
+                    TightenedLater: IsTightenedAfter(text, match.Index, column),
+                    RawEnvelopeMetadata: IsRetainedFailureEnvelopeTenant(relativePath, text, match)));
             }
         }
 

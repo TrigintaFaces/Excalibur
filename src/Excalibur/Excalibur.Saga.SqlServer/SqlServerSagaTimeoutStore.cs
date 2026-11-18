@@ -12,6 +12,8 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Data;
+
 namespace Excalibur.Saga.SqlServer;
 
 /// <summary>
@@ -161,6 +163,9 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		_options.Validate();
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+		// Stable protocol component; ambient identity and configured table are resolved per operation.
+		_timerRecovery = new SqlSagaTimerRecoveryReceiver(_connectionFactory, () => CurrentPartition().TenantId, CaptureQualifiedTarget);
+        _failureStore = new SqlSagaTimeoutFailureStore(() => CurrentPartition().TenantId, CaptureQualifiedTarget, _timerRecovery);
 	}
 
 	/// <summary>
@@ -192,6 +197,8 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 	{
 		ArgumentNullException.ThrowIfNull(timeout);
 
+		var qualifiedTarget = CaptureQualifiedTarget();
+
 		using var activity = ActivitySource.StartActivity("ScheduleTimeout");
 		_ = (activity?.SetTag("saga.id", timeout.SagaId));
 		_ = (activity?.SetTag("timeout.id", timeout.TimeoutId));
@@ -203,14 +210,24 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		// output-of-read on this type and is deliberately ignored on the write.
 		var partition = CurrentPartition();
 
-		var sql = $@"
-            INSERT INTO {_options.QualifiedTableName}
-                (TimeoutId, SagaId, SagaType, TimeoutType, TimeoutData, DueAt, ScheduledAt, TenantId)
-            VALUES
-                (@TimeoutId, @SagaId, @SagaType, @TimeoutType, @TimeoutData, @DueAt, @ScheduledAt, @TenantId)";
-
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        if (await TryScheduleWithRecoveryAuthorityAsync(connection, qualifiedTarget, timeout, cancellationToken).ConfigureAwait(false))
+        {
+            if (_logger.IsEnabled(LogLevel.Debug)) { LogTimeoutScheduled(timeout.TimeoutId, timeout.SagaId); }
+            return;
+        }
+
+		var hasOwnedColumns = await HasOwnedClaimColumnsAsync(connection, qualifiedTarget, cancellationToken).ConfigureAwait(false);
+		var ordinaryColumns = hasOwnedColumns ? ", OwnedIncarnationId, OwnedGeneration, OwnedStateType" : string.Empty;
+		var ordinaryValues = hasOwnedColumns ? ", NULL, NULL, NULL" : string.Empty;
+
+		var sql = $@"
+            INSERT INTO {qualifiedTarget}
+                (TimeoutId, SagaId, SagaType, TimeoutType, TimeoutData, DueAt, ScheduledAt, TenantId{ordinaryColumns})
+            VALUES
+                (@TimeoutId, @SagaId, @SagaType, @TimeoutType, @TimeoutData, @DueAt, @ScheduledAt, @TenantId{ordinaryValues})";
+
 
 		_ = await connection.ExecuteAsync(new CommandDefinition(
 			sql,
@@ -243,18 +260,7 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		_ = (activity?.SetTag("saga.id", sagaId));
 		_ = (activity?.SetTag("timeout.id", timeoutId));
 
-		// Addressed by the full ruled saga identity (TenantId, SagaId), not by SagaId alone. Two tenants' sagas
-		// can share a SagaId, so a tenant-less predicate here deletes another tenant's pending timeout.
-		var partition = CurrentPartition();
-		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = @TenantId AND SagaId = @SagaId AND TimeoutId = @TimeoutId";
-
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		_ = await connection.ExecuteAsync(new CommandDefinition(
-			sql,
-			new { TenantId = partition.TenantId, SagaId = sagaId, TimeoutId = timeoutId },
-			cancellationToken: cancellationToken)).ConfigureAwait(false);
+		_ = await CancelWithRetainedAuthorityAsync(sagaId, timeoutId, cancellationToken).ConfigureAwait(false);
 
 		if (_logger.IsEnabled(LogLevel.Debug))
 		{
@@ -270,18 +276,7 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		using var activity = ActivitySource.StartActivity("CancelAllTimeouts");
 		_ = (activity?.SetTag("saga.id", sagaId));
 
-		// Cancel-all is the most dangerous of the tenant-less predicates: keyed on SagaId alone it deletes EVERY
-		// tenant's timeouts for a shared SagaId, not just the caller's. Scoped to the ruled (TenantId, SagaId).
-		var partition = CurrentPartition();
-		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = @TenantId AND SagaId = @SagaId";
-
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		var rowsAffected = await connection.ExecuteAsync(new CommandDefinition(
-			sql,
-			new { TenantId = partition.TenantId, SagaId = sagaId },
-			cancellationToken: cancellationToken)).ConfigureAwait(false);
+		var rowsAffected = await CancelWithRetainedAuthorityAsync(sagaId, null, cancellationToken).ConfigureAwait(false);
 
 		_ = (activity?.SetTag("timeout.count", rowsAffected));
 
@@ -295,6 +290,8 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 	public async Task<IReadOnlyList<ClaimedSagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+
+		var qualifiedTarget = CaptureQualifiedTarget();
 
 		using var activity = ActivitySource.StartActivity("ClaimDueTimeouts");
 		_ = (activity?.SetTag("timeout.as_of", asOf.ToString("O")));
@@ -319,20 +316,9 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		// This is an ownership identity, not a secret.
 		var claimToken = $"{_options.ProcessorId}:{Guid.NewGuid():N}";
 
-		var sql = $"""
-			WITH Claimable AS (
-				SELECT TOP (@BatchSize) *
-				FROM {_options.QualifiedTableName} WITH (READPAST, UPDLOCK, ROWLOCK)
-				WHERE DueAt <= @AsOf
-					AND (ClaimedAt IS NULL OR ClaimedAt < DATEADD(SECOND, -@LeaseTimeoutSeconds, SYSDATETIMEOFFSET()))
-				ORDER BY DueAt ASC
-			)
-			UPDATE Claimable
-			SET ClaimedAt = SYSDATETIMEOFFSET(), ClaimedBy = @ClaimToken
-			OUTPUT
-				INSERTED.TimeoutId, INSERTED.SagaId, INSERTED.SagaType, INSERTED.TimeoutType,
-				INSERTED.TimeoutData, INSERTED.DueAt, INSERTED.ScheduledAt, INSERTED.TenantId
-			""";
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+		var hasOwnedColumns = await HasOwnedClaimColumnsAsync(connection, qualifiedTarget, cancellationToken).ConfigureAwait(false);
 
 		// NOTE — this claim is deliberately ESTATE-WIDE and must stay that way. It is the background delivery
 		// loop's lease, mirroring the outbox drain: it leases due timeouts across every tenant in one batch.
@@ -341,36 +327,12 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		// that presents as silence, not as an error. Isolation is enforced instead by returning each row's own
 		// TenantId so the delivery service can re-establish that tenant before dispatching.
 
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var results = await connection.QueryAsync<TimeoutRecord>(new CommandDefinition(
-			sql,
-			new
-			{
-				BatchSize = batchSize,
-				AsOf = asOf,
-				_options.LeaseTimeoutSeconds,
-				ClaimToken = claimToken
-			},
-			cancellationToken: cancellationToken)).ConfigureAwait(false);
-
-		var timeouts = results
-			.Select(r => new ClaimedSagaTimeout(new SagaTimeout(
-				r.TimeoutId,
-				r.SagaId,
-				r.SagaType,
-				r.TimeoutType,
-				r.TimeoutData,
-				r.DueAt,
-				r.ScheduledAt)
-			{
-				// Carried out so the delivery service can re-establish this timeout's own tenant before dispatch.
-				// Read through the store-read factory, which maps a legacy NULL or the sentinel onto the
-				// untenanted partition without rejecting either.
-				TenantId = KeyedTenantPartition.FromStoredValue(r.TenantId).TenantId,
-			}, claimToken))
-			.ToList();
+        var preserving = await _failureStore.TryClaimAsync(connection, qualifiedTarget, asOf, batchSize,
+            _options.LeaseTimeoutSeconds, claimToken, cancellationToken).ConfigureAwait(false);
+        var timeouts = preserving ?? (await connection.ResolveAsync(new ClaimTimeoutRowsRequest(qualifiedTarget, hasOwnedColumns,
+            asOf, batchSize, _options.LeaseTimeoutSeconds, claimToken, cancellationToken)).ConfigureAwait(false))
+            .Select(row => CreateClaim(row, claimToken)).ToList();
 
 		_ = (activity?.SetTag("timeout.count", timeouts.Count));
 
@@ -382,27 +344,21 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		return timeouts;
 	}
 
+
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<SagaTimeout>> GetDueTimeoutsAsync(DateTimeOffset asOf, CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+
 		using var activity = ActivitySource.StartActivity("GetDueTimeouts");
 		_ = (activity?.SetTag("timeout.as_of", asOf.ToString("O")));
 
-		// Plain read: no locking hints, no OUTPUT, no claim/lease mutation - diagnostic only.
-		var sql = $"""
-			SELECT TimeoutId, SagaId, SagaType, TimeoutType, TimeoutData, DueAt, ScheduledAt, TenantId
-			FROM {_options.QualifiedTableName}
-			WHERE DueAt <= @AsOf
-			ORDER BY DueAt ASC
-			""";
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var results = await connection.QueryAsync<TimeoutRecord>(new CommandDefinition(
-			sql,
-			new { AsOf = asOf },
-			cancellationToken: cancellationToken)).ConfigureAwait(false);
+        var results = await connection.ResolveAsync(new GetDueTimeoutRowsRequest(
+            _options.QualifiedTableName, asOf, cancellationToken)).ConfigureAwait(false);
 
 		var timeouts = results
 			.Select(r => new SagaTimeout(
@@ -446,16 +402,29 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		// this call for exactly that reason. A caller that retires a timeout outside its tenant scope is the
 		// failure mode to watch for.
 		var partition = CurrentPartition();
+        var qualifiedTarget = CaptureQualifiedTarget();
 		// AND ClaimedBy = @ClaimToken is what makes this retirement OWNED rather than merely addressed. The
 		// tenant term stops a foreign tenant retiring by identifier; it does nothing about a processor whose
 		// lease has already been taken over by another. Without the claim term a stalled processor that
 		// resumes deletes the row out from under the live claimant, whose own delivery then has nothing left
 		// to retry -- zero deliveries and no row. One conditional DELETE is a single atomic step, so there is
 		// no window between testing ownership and acting on it.
-		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = @TenantId AND TimeoutId = @TimeoutId AND ClaimedBy = @ClaimToken";
+		var sql = $"""
+            DELETE FROM {qualifiedTarget}
+            WHERE TenantId = @TenantId
+              AND DATALENGTH(TenantId) = DATALENGTH(@TenantId)
+              AND CONVERT(VARBINARY(128), TenantId) = CONVERT(VARBINARY(128), @TenantId) AND TimeoutId = @TimeoutId AND ClaimedBy = @ClaimToken
+            """;
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var preserving = await _failureStore.TryRetireAsync(connection, qualifiedTarget, partition.TenantId, claim, cancellationToken).ConfigureAwait(false);
+        if (preserving is { } disposition)
+        {
+            if (disposition == SagaTimeoutRetirementOutcome.Retired && _logger.IsEnabled(LogLevel.Debug)) { LogTimeoutDelivered(timeoutId); }
+            return disposition;
+        }
+
 
 		var rowsAffected = await connection.ExecuteAsync(new CommandDefinition(
 			sql,
@@ -493,13 +462,29 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 	/// run. The projection maps that through the store-read factory rather than rejecting it, so a legacy row is
 	/// treated as untenanted instead of aborting the whole claimed batch on the first one.
 	/// </remarks>
-	private sealed record TimeoutRecord(
-		string TimeoutId,
-		string SagaId,
-		string SagaType,
-		string TimeoutType,
-		byte[]? TimeoutData,
-		DateTimeOffset DueAt,
-		DateTimeOffset ScheduledAt,
-		string? TenantId);
+	private sealed class TimeoutRecord
+	{
+		/// <summary>Gets or sets the exact timeout ID.</summary>
+		public string TimeoutId { get; set; } = string.Empty;
+		/// <summary>Gets or sets the saga ID.</summary>
+		public string SagaId { get; set; } = string.Empty;
+		/// <summary>Gets or sets the saga routing type.</summary>
+		public string SagaType { get; set; } = string.Empty;
+		/// <summary>Gets or sets the timeout routing type.</summary>
+		public string TimeoutType { get; set; } = string.Empty;
+		/// <summary>Gets or sets the encoded payload.</summary>
+		public byte[]? TimeoutData { get; set; }
+		/// <summary>Gets or sets the due instant.</summary>
+		public DateTimeOffset DueAt { get; set; }
+		/// <summary>Gets or sets the original scheduling instant.</summary>
+		public DateTimeOffset ScheduledAt { get; set; }
+		/// <summary>Gets or sets the stored tenant identity.</summary>
+		public string? TenantId { get; set; }
+		/// <summary>Gets or sets the original owned incarnation.</summary>
+		public Guid? OwnedIncarnationId { get; set; }
+		/// <summary>Gets or sets the original scheduling generation.</summary>
+		public long? OwnedGeneration { get; set; }
+		/// <summary>Gets or sets the original state storage type.</summary>
+		public string? OwnedStateType { get; set; }
+	}
 }

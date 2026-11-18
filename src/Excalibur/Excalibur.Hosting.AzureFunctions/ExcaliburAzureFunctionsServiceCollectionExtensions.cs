@@ -12,14 +12,27 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// Extension methods for configuring Excalibur Azure Functions serverless hosting services.
 /// Composes on top of the Dispatch Azure Functions bridge by calling
 /// <see cref="AzureFunctionsServiceCollectionExtensions.AddAzureFunctionsServerless(IServiceCollection)"/> first,
-/// then registering Excalibur-specific services (saga wiring, event sourcing integration, outbox hooks).
+/// and today adds NOTHING of its own on top.
 /// </summary>
+/// <remarks>
+/// This type exists as the seam where Excalibur-layer wiring would go, and that wiring does not exist
+/// yet. It is documented as absent rather than described in the present tense, because an IntelliSense
+/// summary claiming it registers saga, event sourcing and outbox services would tell a consumer their
+/// sagas and outbox were wired for this platform when nothing had registered them.
+/// <para>
+/// Those subsystems are not platform-specific and need nothing from here: register them the ordinary
+/// way, through <c>AddExcalibur</c> and its builder, alongside this call. Calling this method is
+/// equivalent to calling <c>AddAzureFunctionsServerless</c> directly, plus the serverless host options the
+/// configuring overloads bind.
+/// </para>
+/// </remarks>
 public static class ExcaliburAzureFunctionsServiceCollectionExtensions
 {
 	/// <summary>
 	/// Adds Excalibur Azure Functions serverless hosting services to the specified service collection.
-	/// This registers the Dispatch bridge (host provider, cold-start optimizer) and then layers
-	/// Excalibur-specific services on top.
+	/// Registers the Dispatch bridge (host provider, cold-start optimizer). Adds no Excalibur-layer
+	/// services: see the remarks on this class for why that is stated rather than implied, and where
+	/// saga, event sourcing and outbox registration actually belong.
 	/// </summary>
 	/// <param name="services"> The service collection to add services to. </param>
 	/// <returns> The service collection for chaining. </returns>
@@ -31,7 +44,10 @@ public static class ExcaliburAzureFunctionsServiceCollectionExtensions
 		// Dispatch bridge: registers IServerlessHostProvider, IColdStartOptimizer
 		_ = services.AddAzureFunctionsServerless();
 
-		// Excalibur-specific services (future: saga wiring, ES integration, outbox hooks)
+		// No Excalibur-layer registrations. This is deliberately empty rather than forgotten: saga, event
+		// sourcing and outbox wiring is not platform-specific, so it is composed through AddExcalibur by
+		// the host instead. If something genuinely platform-specific is ever needed, it goes here AND in
+		// this class's documentation, which currently states the absence.
 
 		return services;
 	}

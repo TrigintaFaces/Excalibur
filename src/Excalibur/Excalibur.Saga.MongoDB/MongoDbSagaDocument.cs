@@ -110,4 +110,20 @@ internal sealed class MongoDbSagaDocument
 	[BsonElement("updatedUtc")]
 	[BsonRepresentation(BsonType.DateTime)]
 	public DateTime UpdatedUtc { get; set; }
+    /// <summary>Gets or sets explicit ordinary timer recovery row metadata.</summary>
+    [BsonElement("timerRecoveryIncarnation")]
+    public string? TimerRecoveryIncarnation { get; set; }
+
+    /// <summary>Gets or sets explicit ordinary timer recovery row metadata.</summary>
+    [BsonElement("timerRecoveryTracked")]
+    public bool TimerRecoveryTracked { get; set; }
+
+    /// <summary>Gets or sets explicit ordinary timer recovery row metadata.</summary>
+    [BsonElement("timerRecoveryPendingBatch")]
+    public string? TimerRecoveryPendingBatch { get; set; }
+
+    /// <summary>Gets or sets explicit ordinary timer recovery row metadata.</summary>
+    [BsonElement("timerRecoveryPendingDigest")]
+    public string? TimerRecoveryPendingDigest { get; set; }
+
 }

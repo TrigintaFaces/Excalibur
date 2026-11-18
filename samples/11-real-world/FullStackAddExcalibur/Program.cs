@@ -118,6 +118,13 @@ builder.Services.AddExcalibur(excalibur =>
 		// via BindConfiguration("Outbox") if preferred.
 		outbox.UseSqlServer(sql =>
 		sql.ConnectionString(eventStoreConnectionString));
+
+		// REQUIRED, not optional. The default processor resolves IDeadLetterQueue and throws if
+		// none is registered, so an outbox armed without one compiles and then fails on the first
+		// poll. A message that exhausts its retries goes here instead of being dropped silently.
+		// If you would rather discard exhausted messages, register NullDeadLetterQueue.Instance
+		// explicitly -- discard is then a choice you made rather than an accident.
+		outbox.WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = eventStoreConnectionString);
 	});
 
 	// ---- CDC (Change Data Capture) from the legacy source DB --------------

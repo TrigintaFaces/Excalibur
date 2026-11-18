@@ -670,7 +670,9 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 				var tracked = _snapshotTracking.GetValueOrDefault(stringId);
 				var lastVersion = tracked.Version > 0 ? (long?)tracked.Version : null;
 				var lastTimestamp = tracked.Timestamp != default ? (DateTimeOffset?)tracked.Timestamp : null;
-				var eventsSinceSnapshot = (int)(aggregate.Version - (lastVersion ?? 0));
+				// Checked: a version wildly out of range would otherwise wrap to a NEGATIVE count, which
+				// reads as "fewer events than any threshold" and silently suppresses every snapshot.
+				var eventsSinceSnapshot = checked((int)(aggregate.Version - (lastVersion ?? 0)));
 				var decisionContext = new SnapshotDecisionContext(
 					stringId,
 					aggregate.AggregateType,

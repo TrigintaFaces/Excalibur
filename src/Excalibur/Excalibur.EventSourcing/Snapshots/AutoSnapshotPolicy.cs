@@ -21,6 +21,11 @@ internal static class AutoSnapshotPolicy
 	/// <param name="context">The snapshot decision context.</param>
 	/// <param name="timeProvider">The time provider for clock-based thresholds. Defaults to <see cref="TimeProvider.System"/>.</param>
 	/// <returns><see langword="true"/> if any configured threshold is met; otherwise, <see langword="false"/>.</returns>
+	/// <remarks>
+	/// An aggregate at version 1 or below never snapshots, and this overrides the configured thresholds:
+	/// a snapshot of a just-created aggregate replays no faster than its own single event, so it costs a
+	/// write and saves nothing. A threshold of 1 therefore takes effect from version 2 onward.
+	/// </remarks>
 	internal static bool ShouldSnapshot(AutoSnapshotOptions options, SnapshotDecisionContext context, TimeProvider? timeProvider = null)
 	{
 		// Never snapshot at version 1 (just created, no point snapshotting)

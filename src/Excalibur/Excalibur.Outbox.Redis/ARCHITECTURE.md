@@ -19,14 +19,36 @@ observe split delivery. Run exactly one active dispatcher, or put leader electio
   set.
 - **Claim.** A single Lua script performs the atomic read-decide-write: it reclaims any lease past its
   expiry back to the staged index, then atomically moves up to `batchSize` staged entries into a leased
-  index with a lease-expiry score, so two concurrent claimers can never receive overlapping batches. One
-  script, one round trip — there is no read-then-write window a second claimer could observe.
+  index with a lease-expiry score. Each successful claim returns its message hash in that same script,
+  including the stamped identity, `RetryCount` and `LastError`; decoding requires no post-claim hash read.
+  Competing claim steps cannot both acquire the same live lease. A lease that expires may be reclaimed
+  while an earlier caller is still working, so delivery remains at-least-once.
 - **Fail / retry.** `MarkFailedAsync` frees the lease and sets the next-attempt floor in one atomic write,
   matching the shared contract's requirement that this never split into two writes.
 - **Mark-sent + retention.** `MarkSentAsync` applies the retention TTL (`RedisOutboxOptions
   .SentMessageTtlSeconds`, default 604800 seconds / 7 days) inside the **same** atomic Lua script that
   transitions the message to sent — there is no separate `EXPIRE` call, so a crash between the status
   write and the TTL write cannot leave a sent message as an immortal key.
+
+
+## Acquisition evidence and cancellation
+
+The claim reply is a detached acquisition-time snapshot. Delaying its delivery while a successor
+reclaims and records a later failure cannot replace the original caller's retry count or error with
+that successor's evidence. Current ownership is still established by the claim-scoped completion Lua
+predicate, not by having a previously returned snapshot.
+
+The store validates and decodes the complete reply before returning rows. A malformed reply fails;
+it is not repaired from current hashes or compensated with an ID-only release. After successful
+validation, the existing cancellation policy selects an accumulated prefix, possibly empty. That
+selection does not undo Redis execution: claimed rows not returned recover through normal expiry.
+Existing binary field handling, optional legacy-field defaults, requested batch bound, tenant
+representation, retry/final-disposition behavior, scheduling, and sent TTL remain in force.
+
+Capturing hashes adds work proportional to the selected rows' fields and bytes inside the claim
+script. It establishes no measured latency or throughput improvement. Key layout is unchanged;
+this repair does not establish Redis Cluster compatibility, failover/persistence guarantees or a
+leadership fence. Use the existing deployment and durability constraints for this provider.
 
 ## Tenant scoping
 

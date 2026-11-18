@@ -261,8 +261,9 @@ public interface IProjectionBuilder<TProjection>
 	/// <returns>This builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// This is opt-in — projections without <c>WithSearchText</c> have zero overhead.
-	/// The dual-delegate approach avoids reflection and is fully AOT-safe.
+	/// This is opt-in — projections without <c>WithSearchText</c> do not invoke these search-text delegates.
+	/// The delegates provide explicit member access without requiring reflection-based member discovery.
+	/// Delegate implementations and their dependencies still require NativeAOT verification.
 	/// </para>
 	/// <code>
 	/// builder.AddProjection&lt;OrderSummary&gt;(p => p

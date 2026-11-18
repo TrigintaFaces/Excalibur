@@ -33,7 +33,7 @@ public sealed class KubernetesLeaderElectionFactory(
 		{
 			Namespace = _options.Value.Namespace,
 			LeaseName = _options.Value.LeaseName,
-			CandidateId = candidateId ?? _options.Value.CandidateId,
+			InstanceId = candidateId ?? _options.Value.InstanceId,
 			LeaseDuration = _options.Value.LeaseDuration,
 			RenewInterval = _options.Value.RenewInterval,
 			RetryInterval = _options.Value.RetryInterval,
@@ -65,7 +65,7 @@ public sealed class KubernetesLeaderElectionFactory(
 		{
 			Namespace = _options.Value.Namespace,
 			LeaseName = _options.Value.LeaseName,
-			CandidateId = candidateId ?? _options.Value.CandidateId,
+			InstanceId = candidateId ?? _options.Value.InstanceId,
 			LeaseDuration = _options.Value.LeaseDuration,
 			RenewInterval = _options.Value.RenewInterval,
 			RetryInterval = _options.Value.RetryInterval,

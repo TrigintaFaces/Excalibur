@@ -47,6 +47,11 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
     /// than merely unqueryable: an operator could no longer attribute the entry, and a redrive could no
     /// longer re-enter the partition the message came from.
     /// </para>
+    /// <para>
+    /// This framework request binds its fixed primitive input and output schema without runtime emit.
+    /// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+    /// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+    /// </para>
     /// </remarks>
     public MarkMessageDeadLetteredRequest(
         string messageId,
@@ -107,8 +112,17 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
 			commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 		ResolveAsync = async connection =>
 		{
-			_ = await connection.ExecuteAsync(Command).ConfigureAwait(false);
-			return parameters.Get<int>("MovedCount");
+			return await StaticDbCommand.ExecuteOutputsAsync(connection, Command, command =>
+			{
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "AttemptCount", StaticDbCommand.Input<int>(parameters, "AttemptCount"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "Reason", StaticDbCommand.Input<string>(parameters, "Reason"), DbType.String);
+				StaticDbCommand.AddOutputParameter(command, "MovedCount", DbType.Int32);
+			}, command =>
+			{
+				return StaticDbCommand.Output<int>(command, parameters, "MovedCount", DbType.Int32);
+			}).ConfigureAwait(false);
 		};
     }
 }

@@ -32,7 +32,7 @@ Key operations:
 | Criteria | Elasticsearch | SQL Server |
 |----------|--------------|------------|
 | **Search requirements** | Full-text search on message payloads | Simple key-based lookup |
-| **Scale** | Horizontal scaling, high throughput | Vertical scaling, ACID transactions |
+| **Scale** | Measure the selected topology and workload | Measure the selected topology and workload |
 | **Existing infrastructure** | Already using ES for logging/search | Already using SQL Server |
 | **Transactional guarantees** | Eventual consistency | Strong consistency with DB transactions |
 | **Retention & analytics** | Built-in ILM policies, time-based indices | Manual cleanup, archival strategies |

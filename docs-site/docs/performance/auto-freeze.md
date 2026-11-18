@@ -1,12 +1,12 @@
 ---
 sidebar_position: 3
 title: Auto-Freeze
-description: Automatic cache optimization for production performance
+description: Publishing frozen snapshots of selected internal caches
 ---
 
 # Auto-Freeze
 
-Dispatch automatically optimizes internal caches on application startup using `FrozenDictionary`. This provides lock-free, high-performance lookups in production without any configuration.
+Dispatch can publish frozen snapshots of selected internal caches at application startup using `FrozenDictionary`. Measure the effect on your workload.
 
 ## Before You Start
 
@@ -19,15 +19,17 @@ Dispatch automatically optimizes internal caches on application startup using `F
 
 ## How It Works
 
-When your application starts, Dispatch listens for `IHostApplicationLifetime.ApplicationStarted` and freezes all internal caches:
+When enabled and hot reload is not detected, Dispatch attempts to freeze selected caches when
+`IHostApplicationLifetime.ApplicationStarted` is signaled. Check status after the attempt; a lock
+timeout can leave caches unfrozen.
 
 ```csharp
 // Automatic - happens on startup (default behavior)
 var host = builder.Build();
 await host.RunAsync();
 
-// Caches freeze automatically when ApplicationStarted fires
-// Zero configuration required!
+// ApplicationStarted triggers the configured freeze attempt.
+// Verify the resulting cache status.
 ```
 
 ### What Gets Frozen
@@ -35,10 +37,9 @@ await host.RunAsync();
 | Cache | Purpose | Benefit |
 |-------|---------|---------|
 | Handler invocation | Compiled handler delegates | Lock-free lookups |
-| Handler registry | Manual handler registrations | No synchronization overhead |
-| Handler activation | Handler context setup | Faster activation |
-| Result factory | Message result creation | Optimized result creation |
-| Middleware evaluation | Middleware applicability metadata | Faster middleware filtering |
+| Handler registry | Manual handler registrations | Immutable lookup snapshot |
+| Handler activation | Handler context setup | Cached activation metadata |
+| Result factory | Message result creation | Cached result factory metadata |
 
 ### Performance Impact
 
@@ -52,7 +53,7 @@ measurements or a before/after-freeze comparison.
 | Handler registry lookup (cold miss) | 6.35-6.41 ns, 0 B | A miss costs more than a hit |
 | Resolve action handler (singleton) | 5.50 ns, 0 B | |
 | Resolve action handler (transient) | 7.05 ns | |
-| Resolve action handler (scoped) | 69.76 ns | Scope creation dominates; the registry is not the cost here |
+| Resolve action handler (scoped) | 69.76 ns | This observation does not isolate scope creation from other work |
 | Memory overhead | Not measured in this table | No GC-pressure reduction established by these lookup timings |
 | CPU scalability | Not measured in this table | Lookup latency does not establish throughput under contention |
 
@@ -95,7 +96,8 @@ builder.Services.Configure<DispatchOptions>(options =>
 
 :::warning Runtime Registration
 
-Disabling auto-freeze means caches remain mutable, using `ConcurrentDictionary` with synchronization overhead. Only disable if you have a specific need for runtime handler registration.
+Disabling automatic freezing preserves mutable paths; measure their effect on the workload.
+Choose this setting according to registration and lifecycle requirements.
 :::
 
 ### Hot Reload Detection
@@ -105,7 +107,7 @@ Auto-freeze is automatically disabled when hot reload is detected:
 - `dotnet watch` sets `DOTNET_WATCH=1`
 - Edit & Continue sets `DOTNET_MODIFIABLE_ASSEMBLIES=debug`
 
-This ensures handler discovery works correctly during development without any configuration.
+Hot-reload detection skips automatic freezing; it does not itself verify handler discovery.
 
 ## Manual Cache Control
 
@@ -159,8 +161,7 @@ public class DiagnosticsController : ControllerBase
             HandlerInvoker = status.HandlerInvokerFrozen,
             HandlerRegistry = status.HandlerRegistryFrozen,
             HandlerActivator = status.HandlerActivatorFrozen,
-            ResultFactory = status.ResultFactoryFrozen,
-            MiddlewareEvaluator = status.MiddlewareEvaluatorFrozen
+            ResultFactory = status.ResultFactoryFrozen
         });
     }
 }
@@ -176,11 +177,11 @@ public class DiagnosticsController : ControllerBase
 | `HandlerRegistryFrozen` | `bool` | Handler registry cache status |
 | `HandlerActivatorFrozen` | `bool` | Handler activation cache status |
 | `ResultFactoryFrozen` | `bool` | Result factory cache status |
-| `MiddlewareEvaluatorFrozen` | `bool` | Middleware evaluator cache status |
 
 ## Health Check Integration
 
-Add a health check to monitor cache status:
+This optional configuration-status check reports freeze state, not overall application health.
+Choose healthy/degraded policy according to the deployment's requirements:
 
 ```csharp
 public class CacheHealthCheck : IHealthCheck
@@ -204,9 +205,9 @@ public class CacheHealthCheck : IHealthCheck
                 $"All caches frozen at {status.FrozenAt}"));
         }
 
-        // Degraded is OK for development mode
+        // Example policy only; false does not identify the cause.
         return Task.FromResult(HealthCheckResult.Degraded(
-            "Caches not frozen (development mode or late registration)"));
+            "Selected caches are not all frozen; inspect configuration and startup logs"));
     }
 }
 
@@ -217,16 +218,11 @@ builder.Services.AddHealthChecks()
 
 ## Freeze Timing
 
-The freeze occurs at `ApplicationStarted`, not `ApplicationStarting`. This ensures:
-
-1. DI container is fully built
-2. All handlers have been registered
-3. Application is ready to serve requests
+The callback runs when `ApplicationStarted` is signaled. Complete intended registration and
+warmup before freezing; the signal itself does not verify registration completeness or readiness.
 
 ```
-Host.Build() -> ConfigureServices -> ApplicationStarting -> ApplicationStarted -> FreezeAll()
-                                                                              ^
-                                                                    Caches freeze here
+Configure services -> Build -> Start -> ApplicationStarted callback -> FreezeAll() attempt
 ```
 
 ## Troubleshooting
@@ -243,9 +239,9 @@ Host.Build() -> ConfigureServices -> ApplicationStarting -> ApplicationStarted -
 **Solution:**
 ```csharp
 // Verify configuration
-builder.Services.Configure<PerformanceOptions>(perf =>
+builder.Services.Configure<DispatchOptions>(options =>
 {
-    perf.AutoFreezeOnStart = true; // Explicit enable
+    options.CrossCutting.Performance.AutoFreezeOnStart = true;
 });
 
 // Or freeze manually after startup
@@ -256,11 +252,11 @@ app.Lifetime.ApplicationStarted.Register(() =>
 });
 ```
 
-### Performance Degradation
+### Investigating Lookup Performance
 
 **Symptom:** Handler lookups slower than expected
 
-**Diagnosis:**
+**Check freeze status:**
 ```csharp
 var status = cacheManager.GetStatus();
 if (!status.AllFrozen)
@@ -269,15 +265,15 @@ if (!status.AllFrozen)
 }
 ```
 
-**Solution:** Ensure caches are frozen before handling production traffic.
+Compare matched workloads before attributing a slowdown to freeze status. An unfrozen cache alone does not establish the cause of slower lookups.
 
 ## Best Practices
 
-1. **Let it happen automatically** - The default configuration is optimal for most applications
+1. **Let it happen automatically** - Start with the default configuration and verify it against your workload
 
 2. **Don't disable without reason** - Only disable auto-freeze if you have a specific need for runtime handler registration
 
-3. **Monitor in production** - Add a health check to verify caches are frozen
+3. **Monitor in production** - Observe freeze status separately from application health
 
 4. **Warmup before freeze** - If you have lazy-loaded handlers, ensure they're registered before `ApplicationStarted`
 

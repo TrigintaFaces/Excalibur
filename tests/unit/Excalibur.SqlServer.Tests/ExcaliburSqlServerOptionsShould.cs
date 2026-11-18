@@ -9,6 +9,8 @@ using Excalibur.Inbox.SqlServer;
 using Excalibur.LeaderElection.SqlServer;
 using Excalibur.Saga.SqlServer;
 using Excalibur.SqlServer;
+using Microsoft.Extensions.Options;
+using Excalibur.Dispatch;
 
 namespace Excalibur.SqlServer.Tests;
 
@@ -389,5 +391,54 @@ public sealed class ExcaliburSqlServerOptionsShould : UnitTestBase
         });
 
         invoked.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// LIVENESS: a capability the curated preset does not expose must be reachable THROUGH it, via the
+    /// framework's own composition seam, and must actually take effect in the built container.
+    /// </summary>
+    [Fact]
+    public void SeatACapabilityTheCuratedPresetDoesNotExpose_WhenConfiguredThroughTheFrameworkSeam()
+    {
+        var services = new ServiceCollection();
+
+        // Tenancy is one of seven builder capabilities this preset has no member for, and it is the one
+        // most likely to be wanted. Before ConfigureExcalibur existed the only route to it was a SECOND
+        // AddExcalibur call beside this one.
+        _ = services.AddExcaliburSqlServer(sql =>
+        {
+            sql.ConnectionString = "Server=localhost;Database=test";
+            _ = sql.ConfigureExcalibur(excalibur => excalibur.UseTenant("acme"));
+        });
+
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<IOptions<TenantContextOptions>>().Value.DefaultTenantId.ShouldBe(
+            "acme",
+            "the delegate must reach the framework's real composition seam and its registration must "
+            + "survive into the built container. Asserting the RESOLVED option rather than that the "
+            + "delegate ran is the difference between binding the composed path and binding a callback: "
+            + "a hatch that invoked the delegate against a throwaway builder would satisfy the weaker "
+            + "check and seat nothing.");
+    }
+
+    /// <summary>
+    /// The CONTROL that makes the arm above non-vacuous: without the seam delegate the same capability is
+    /// unreachable through this entry point, which is the defect it exists to close.
+    /// </summary>
+    [Fact]
+    public void NotSeatThatCapability_WhenTheFrameworkSeamIsNotConfigured()
+    {
+        var services = new ServiceCollection();
+
+        _ = services.AddExcaliburSqlServer(sql => sql.ConnectionString = "Server=localhost;Database=test");
+
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<IOptions<TenantContextOptions>>().Value.DefaultTenantId.ShouldNotBe(
+            "acme",
+            "nothing in the preset sets a tenant, so a passing arm above would otherwise prove only that "
+            + "the default happened to be the asserted value. This is what establishes that the seam "
+            + "delegate is the thing doing the work.");
     }
 }

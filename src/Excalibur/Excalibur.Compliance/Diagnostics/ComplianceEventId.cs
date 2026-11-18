@@ -511,6 +511,36 @@ internal static class ComplianceEventId
 	/// <summary>Erasure request scheduled for retry with backoff.</summary>
 	public const int ErasureSchedulerRetrying = 92763;
 
+	/// <summary>An erasure was deferred by a legal hold, which is lawful and not a fault.</summary>
+	public const int ErasureDeferredByLegalHold = 92764;
+
+	/// <summary>A deferred erasure was returned to the executable state because no hold blocks it.</summary>
+	public const int ErasureHoldReevaluationResumed = 92765;
+
+	/// <summary>Re-evaluating one deferred erasure failed; it stays deferred and is revisited.</summary>
+	public const int ErasureHoldReevaluationFailed = 92766;
+
+	/// <summary>The hold re-evaluation pass finished and reports what it examined and resumed.</summary>
+	public const int ErasureHoldReevaluationPassCompleted = 92767;
+
+	/// <summary>The hold re-evaluation pass itself failed, isolated from the other scheduler passes.</summary>
+	public const int ErasureSchedulerHoldReevaluationPassError = 92768;
+
+	/// <summary>An erasure was REFUSED rather than attempted, so it spends no fault budget.</summary>
+	public const int ErasureSchedulerRequestRefused = 92769;
+
+	/// <summary>This instance recorded its retention declarations in the deployment-wide record.</summary>
+	public const int ErasureRetentionDeclarationsRecorded = 92776;
+
+	/// <summary>This instance holds fewer retention declarations than the deployment has recorded.</summary>
+	public const int ErasureRetentionViewStale = 92777;
+
+	/// <summary>The deployment-wide retention record could not be read, so erasures are withheld.</summary>
+	public const int ErasureRetentionRecordUnreadable = 92778;
+
+	/// <summary>This instance could not record its retention declarations, so the record is incomplete.</summary>
+	public const int ErasureRetentionAdvanceFailed = 92779;
+
 	/// <summary>Data inventory discovery started.</summary>
 	public const int DataInventoryDiscoveryStarted = 92770;
 
@@ -661,6 +691,21 @@ internal static class ComplianceEventId
 
 	/// <summary>The registered key-destruction ledger contradicts the erasure wiring beside it.</summary>
 	public const int CryptoShreddingLedgerContradictsErasureWiring = 92837;
+
+	/// <summary>Crypto-shredding is configured but no key-mint ledger is registered.</summary>
+	public const int CryptoShreddingMintLedgerNotRegistered = 92838;
+
+	/// <summary>The registered key-mint ledger contradicts the erasure wiring beside it.</summary>
+	public const int CryptoShreddingMintLedgerContradictsErasureWiring = 92839;
+
+	/// <summary>The registered key-mint ledger does not survive a process restart.</summary>
+	public const int CryptoShreddingMintLedgerNotDurable = 92841;
+
+	/// <summary>A key was created but its mint confirmation could not be recorded.</summary>
+	public const int CryptoShreddingMintConfirmationNotRecorded = 92842;
+
+	/// <summary>An erasure stopped, and the terminal outcome could not be recorded against the request.</summary>
+	public const int ErasureOutcomeNotRecorded = 92843;
 
 	/// <summary>Compliance restored notification logged.</summary>
 	public const int ComplianceRestored = 92820;

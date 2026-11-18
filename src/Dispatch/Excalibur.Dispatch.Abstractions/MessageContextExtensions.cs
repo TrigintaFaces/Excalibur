@@ -50,7 +50,7 @@ public static class MessageContextExtensions
 	public static bool ContainsItem(this IMessageContext context, string key)
 	{
 		ArgumentNullException.ThrowIfNull(context);
-		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		if (context is MessageContext messageContext && messageContext.UsesDefaultItemsStorage)
 		{
 			return messageContext.TryGetItemWithoutMaterializing(key, out _);
 		}
@@ -68,7 +68,7 @@ public static class MessageContextExtensions
 	public static T? GetItem<T>(this IMessageContext context, string key)
 	{
 		ArgumentNullException.ThrowIfNull(context);
-		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		if (context is MessageContext messageContext && messageContext.UsesDefaultItemsStorage)
 		{
 			return messageContext.TryGetItemWithoutMaterializing(key, out var item) && item is T result ? result : default;
 		}
@@ -87,7 +87,7 @@ public static class MessageContextExtensions
 	public static T GetItem<T>(this IMessageContext context, string key, T defaultValue)
 	{
 		ArgumentNullException.ThrowIfNull(context);
-		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		if (context is MessageContext messageContext && messageContext.UsesDefaultItemsStorage)
 		{
 			return messageContext.TryGetItemWithoutMaterializing(key, out var item) && item is T result ? result : defaultValue;
 		}
@@ -103,7 +103,7 @@ public static class MessageContextExtensions
 	public static void RemoveItem(this IMessageContext context, string key)
 	{
 		ArgumentNullException.ThrowIfNull(context);
-		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		if (context is MessageContext messageContext && messageContext.UsesDefaultItemsStorage)
 		{
 			messageContext.RemoveItemWithoutMaterializing(key);
 			return;
@@ -223,11 +223,11 @@ public static class MessageContextExtensions
 	/// mirroring how correlation and causation are already special-cased for that type: every dispatch
 	/// reads and writes the message type, and routing it through the Items dictionary cost a hash lookup
 	/// per read and per write on the hot path. Once Items is materialized, the dictionary is authoritative,
-	/// including removal of an entry. Other <see cref="IMessageContext"/> implementations and derived
-	/// contexts use their own dictionary.
+	/// including removal of an entry. Custom derived contexts use their interface dictionary;
+	/// the sealed framework-owned pooled context explicitly uses inherited storage.
 	/// </remarks>
 	public static string? GetMessageType(this IMessageContext context) =>
-		context is MessageContext messageContext && context.GetType() == typeof(MessageContext)
+		context is MessageContext messageContext && messageContext.UsesDefaultItemsStorage
 			? messageContext.GetMessageTypeFast()
 			: context.GetProperty<string>(MessageTypeKey);
 
@@ -243,7 +243,7 @@ public static class MessageContextExtensions
 	/// </remarks>
 	public static void SetMessageType(this IMessageContext context, string? value)
 	{
-		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		if (context is MessageContext messageContext && messageContext.UsesDefaultItemsStorage)
 		{
 			messageContext.SetMessageTypeFast(value);
 			return;
@@ -276,7 +276,7 @@ public static class MessageContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		if (context is MessageContext messageContext && messageContext.UsesDefaultItemsStorage)
 		{
 			messageContext.MarkMessageTypeAsRoutingDefaultFast();
 			return;
@@ -300,7 +300,7 @@ public static class MessageContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		if (context is MessageContext messageContext && messageContext.UsesDefaultItemsStorage)
 		{
 			return messageContext.IsMessageTypeRoutingDefaultFast();
 		}

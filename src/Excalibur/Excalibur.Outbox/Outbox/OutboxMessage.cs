@@ -112,6 +112,16 @@ public record OutboxMessage : IOutboxMessage
 			Excalibur.Dispatch.EventSerializationDefaults.Canonical);
 #pragma warning restore IL2026, IL3050
 
+		return FromOutboundMessage(message, headersJson);
+	}
+
+	// Both generated and legacy metadata paths use one envelope mapping so tenant, timing and
+	// routing fields cannot diverge when a provider chooses generated serialization.
+	internal static OutboxMessage FromOutboundMessage(Excalibur.Dispatch.OutboundMessage message, string headersJson)
+	{
+		ArgumentNullException.ThrowIfNull(message);
+		ArgumentNullException.ThrowIfNull(headersJson);
+
 		return new OutboxMessage(
 			message.Id,
 			message.MessageType,

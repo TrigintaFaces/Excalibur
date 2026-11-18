@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 
 using CloudNative.CloudEvents;
@@ -120,8 +119,8 @@ internal sealed class TransportReceivedMessageCloudEventDecoder(CloudEventBindin
 	/// <see cref="ITransportReceiver"/>, so anything it requires is inherited by the core transport
 	/// contract. A reflection-based decode would force <c>RequiresUnreferencedCode</c> onto
 	/// <see cref="ITransportReceiver.ReceiveAsync"/> itself and AOT-annotate every receive call in the
-	/// framework, including the ones that never touch CloudEvents. The envelope is a flat set of string
-	/// attributes, so it needs no reflection; the payload is carried through as bytes and left for the
+	/// framework, including the ones that never touch CloudEvents. The envelope uses primitive attribute values,
+	/// so it needs no reflection; payload values retain their JSON or binary representation for the
 	/// consumer to interpret.
 	/// </remarks>
 	private static CloudEvent DecodeStructured(TransportReceivedMessage message)
@@ -170,7 +169,46 @@ internal sealed class TransportReceivedMessageCloudEventDecoder(CloudEventBindin
 			ReadString(root, "dataschema"),
 			ReadString(root, "time"));
 
+		ApplyStructuredExtensions(cloudEvent, root);
 		return cloudEvent;
+	}
+
+	private static void ApplyStructuredExtensions(CloudEvent cloudEvent, JsonElement root)
+	{
+		foreach (var property in root.EnumerateObject())
+		{
+			if (property.Name is "specversion" or "data" or "data_base64"
+				|| cloudEvent.GetAttribute(property.Name) is { IsExtension: false }
+				|| property.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False
+					or JsonValueKind.Number or JsonValueKind.String))
+			{
+				continue;
+			}
+
+			var attributeType = property.Value.ValueKind switch
+			{
+				JsonValueKind.True or JsonValueKind.False => CloudEventAttributeType.Boolean,
+				JsonValueKind.Number => CloudEventAttributeType.Integer,
+				JsonValueKind.String => CloudEventAttributeType.String,
+				_ => throw new InvalidOperationException("The structured CloudEvent extension has no supported primitive mapping."),
+			};
+			object value = property.Value.ValueKind switch
+			{
+				JsonValueKind.True or JsonValueKind.False => property.Value.GetBoolean(),
+				JsonValueKind.Number => property.Value.GetInt32(),
+				_ => property.Value.GetString()!,
+			};
+
+			try
+			{
+				var attribute = CloudEventAttribute.CreateExtension(property.Name, attributeType);
+				cloudEvent[attribute] = value;
+			}
+			catch (ArgumentException error)
+			{
+				throw new InvalidOperationException("The structured CloudEvent extension is invalid.", error);
+			}
+		}
 	}
 
 	private static string? ReadString(JsonElement root, string name) =>
@@ -193,11 +231,17 @@ internal sealed class TransportReceivedMessageCloudEventDecoder(CloudEventBindin
 			return null;
 		}
 
-		// Carried through as raw JSON bytes rather than a deserialized object: the decoder does not know
-		// the consumer's payload type, and guessing one is what would require reflection.
+		if (data.ValueKind != JsonValueKind.String && !IsJsonDataContentType(ReadString(root, "datacontenttype")))
+		{
+			throw new InvalidOperationException("A structured CloudEvent with a non-JSON data content type can only contain string data.");
+		}
+
+		// Retain non-string JSON as a value rather than binary so forwarding preserves its representation.
+		// Clone owns the value beyond the enclosing JsonDocument's lifetime; no consumer CLR type is inferred.
+		// An explicit JSON null remains distinct from an absent data member.
 		return data.ValueKind == JsonValueKind.String
 			? data.GetString()
-			: Encoding.UTF8.GetBytes(data.GetRawText());
+			: data.Clone();
 	}
 
 	private CloudEvent DecodeBinary(
@@ -309,5 +353,22 @@ internal sealed class TransportReceivedMessageCloudEventDecoder(CloudEventBindin
 			message.Properties.TryGetValue(key, out var value) && value is not null
 				? value as string ?? value.ToString()
 				: null;
+	}
+
+	private static bool IsJsonDataContentType(string? contentType)
+	{
+		if (contentType is null)
+		{
+			return true;
+		}
+
+		if (contentType.Length == 0)
+		{
+			return false;
+		}
+
+		var mediaType = new System.Net.Mime.ContentType(contentType).MediaType;
+		return mediaType.EndsWith("/json", StringComparison.Ordinal)
+			|| mediaType.EndsWith("+json", StringComparison.Ordinal);
 	}
 }

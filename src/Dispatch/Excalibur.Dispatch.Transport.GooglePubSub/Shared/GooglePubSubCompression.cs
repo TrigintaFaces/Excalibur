@@ -48,9 +48,25 @@ internal static class GooglePubSubCompression
 	/// </summary>
 	/// <param name="payload">The compressed payload to decompress.</param>
 	/// <param name="algorithm">The compression algorithm that was used.</param>
+	/// <param name="maxDecompressedBytes">
+	/// The maximum decompressed length, in bytes, or <see langword="null"/> to opt out.
+	/// </param>
 	/// <returns>The decompressed payload bytes.</returns>
 	/// <exception cref="NotSupportedException">Thrown when the algorithm is not supported.</exception>
-	public static byte[] Decompress(ReadOnlySpan<byte> payload, TransportCompressionAlgorithm algorithm)
+	/// <exception cref="PayloadTooLargeException">
+	/// Thrown once the decompressed length would exceed <paramref name="maxDecompressedBytes"/>.
+	/// </exception>
+	/// <remarks>
+	/// The limit is applied to the <em>output</em>, not the input. The inbound check the receiver already
+	/// performs bounds what the sender transmitted; the expansion ratio is the sender's to choose, so a
+	/// payload small enough to accept can still name an arbitrarily large allocation. For Snappy the bound
+	/// is checked against the length declared in the payload's own header, <strong>before</strong> a buffer
+	/// is sized from it — that header is the sender's claim, not a measurement.
+	/// </remarks>
+	public static byte[] Decompress(
+			ReadOnlySpan<byte> payload,
+			TransportCompressionAlgorithm algorithm,
+			int? maxDecompressedBytes)
 	{
 		if (payload.IsEmpty)
 		{
@@ -60,17 +76,12 @@ internal static class GooglePubSubCompression
 		// Snappy uses a different API (not Stream-based) for best performance
 		if (algorithm == TransportCompressionAlgorithm.Snappy)
 		{
-			return DecompressSnappy(payload);
+			return DecompressSnappy(payload, maxDecompressedBytes);
 		}
 
 		using var input = new MemoryStream(payload.ToArray());
-		using var output = new MemoryStream();
-		using (var decompressor = CreateDecompressor(input, algorithm))
-		{
-			decompressor.CopyTo(output);
-		}
-
-		return output.ToArray();
+		using var decompressor = CreateDecompressor(input, algorithm);
+		return PayloadSizeGuard.ReadAllWithinLimit(decompressor, maxDecompressedBytes);
 	}
 
 	/// <summary>
@@ -124,10 +135,13 @@ internal static class GooglePubSubCompression
 		return compressedBuffer.AsSpan(0, compressedLength).ToArray();
 	}
 
-	private static byte[] DecompressSnappy(ReadOnlySpan<byte> payload)
+	private static byte[] DecompressSnappy(ReadOnlySpan<byte> payload, int? maxDecompressedBytes)
 	{
-		// Get the uncompressed length from the Snappy header
+		// The Snappy header DECLARES the uncompressed length; it is the sender's claim and nothing has
+		// verified it. Sizing a buffer from it first and checking afterwards would have performed the
+		// allocation the limit exists to prevent, so the claim is refused before it is honoured.
 		var uncompressedLength = Snappy.GetUncompressedLength(payload);
+		PayloadSizeGuard.EnsureWithinLimit(uncompressedLength, maxDecompressedBytes);
 		var decompressedBuffer = new byte[uncompressedLength];
 		var actualLength = Snappy.Decompress(payload, decompressedBuffer);
 		return decompressedBuffer.AsSpan(0, actualLength).ToArray();

@@ -80,7 +80,7 @@ public sealed class RabbitMqTransportOptionWiringShould : UnitTestBase
 			// TLS: the transport refuses to build a plaintext connection factory under its shipping
 			// posture, so this arm runs under that posture rather than opting out of it. Its subject is
 			// recovery, not security.
-			_ = rmq.ConnectionString("amqps://guest:guest@localhost:5671/")
+			_ = rmq.ConnectionString("amqps://appuser:S3cretPw0rd@localhost:5671/")
 				.AutomaticRecovery(enabled: false, networkRecoveryInterval: TimeSpan.FromSeconds(42));
 		});
 

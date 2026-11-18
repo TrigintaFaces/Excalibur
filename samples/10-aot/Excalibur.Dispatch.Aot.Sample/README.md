@@ -17,7 +17,7 @@ This sample demonstrates **Native AOT compilation** with Dispatch source generat
 dotnet run
 
 # Publish as native AOT executable
-dotnet publish -c Release
+dotnet publish -c Release -p:NuGetLockFilePath=obj/aot-validation/packages.lock.json
 
 # Run the native executable (path varies by OS)
 # Windows:
@@ -30,7 +30,58 @@ dotnet publish -c Release
 
 > **Note:** You do NOT need to pass `-p:PublishAot=true` on the command line. `PublishAot` is already set in the `.csproj`. This is intentional -- passing it on the command line causes NETSDK1207 errors when source generator projects (targeting `netstandard2.0`) are in the dependency graph.
 
+The separate project-local lock path keeps native RID dependencies out of the repository's normal
+`packages.lock.json` files, so publishing this sample does not break a subsequent RID-neutral locked
+restore. The repository's `eng/ci/Invoke-AotPublishValidation.ps1` selects this context automatically;
+an explicitly configured `NuGetLockFilePath` is honored. Native lock files under `obj` are generated
+verification artifacts, not a replacement for release dependency provenance.
+
+## Native outbox authority control
+
+Run the published native executable with `--outbox-authority-smoke`:
+
+```powershell
+./bin/Release/net10.0/win-x64/publish/Excalibur.Dispatch.Aot.Sample.exe --outbox-authority-smoke
+```
+
+Use the matching executable path for Linux or macOS. This mode refuses managed execution and
+reflection-enabled JSON. It uses public `AddInMemoryOutboxStore()` registration, the framework payload
+serializer and System.Text.Json codec with `AppJsonSerializerContext` metadata, and explicitly serialized
+`StageMessageAsync` rows. There is no hand-written store, altered lease/retention policy, external broker,
+or reflection-based fallback. The recording adapter only observes actual decoded payloads and simulates
+an externally accepted send or an explicit send failure.
+
+A real higher-token store claim advances its in-process high-water while the original batch remains
+leased. The old completion then returns a real FenceRefused. Recreated scoped publishers and custom gate
+wrappers share one opaque `ILeaderProcessingAuthorityDomain.AuthorityDomain`: the refused token remains
+blocked across scopes, while a genuinely newer token publishes a newly staged row. Separate domains with
+the same numeric token remain independent. Additional completion/failure handovers change the live gate
+token before the original report, proving that old work still presents its captured token to the actual
+store. Counters retain accepted sends and distinguish operation refusal from a delivery failure.
+
+Staged producer objects are detached snapshots, not live views of storage. This control combines public
+`IOutboxStoreAdmin.GetAllTenantsStatisticsAsync` population counts with exact accepted message identities
+and fence assertions. It does not claim an individual terminal-row inspection API.
+
+This is an in-process native consumer/control, not proof of a durable database fence, process-crash
+recovery, external broker delivery or exactly-once messaging. Old leases are not shortened or reset; fresh
+work demonstrates resumed progress. A 30-second cancellation budget bounds the scenario's operations.
+The added project reference requires root's ordinary and native locked-restore evidence to be refreshed.
+The control is only verified once official publish validation and the resulting native executable pass;
+source inspection or a managed build is not a native pass.
+
 ## Expected Output
+
+Run the published native executable with `--mqtt-cloud-events-smoke` to verify both CloudEvents MQTT
+bindings through the production named sender and a real local MQTT 5 broker. Set `DISPATCH_MQTT_HOST`
+to `127.0.0.1` and `DISPATCH_MQTT_PORT` to that broker's port. The control subscribes an independent
+MQTT client on a unique topic, publishes a source-generated inventory payload in binary and structured
+mode, and checks the received attributes, payload, topic, QoS, retain flag and correlation data. It has a
+45-second cancellation bound and refuses managed execution or reflection-enabled JSON. The MQTT payload
+declares its wire names explicitly with `JsonPropertyName`, so they are independent of naming policies.
+The plaintext
+connection is restricted to loopback; this is a local verification mode, not production TLS guidance.
+Use a disposable broker because the control publishes retained messages on unique smoke topics.
 
 Run the published executable with `--crypto-shred-smoke` to exercise real AES-GCM field encryption
 for two tenants sharing a subject ID. The control requires native execution, checks explicit ownership
@@ -62,7 +113,7 @@ Order retrieved (source-generated serialization):
   {"id":"<guid>","customerId":"CUST-001","status":"Created",...}
 
 --- Demo 4: Query Non-Existent Order ---
-Order not found (as expected): System.InvalidOperationException: Order '<guid>' was not found.
+Order not found (as expected): Order '<guid>' was not found.
 
 --- Demo 5: Serialization Round-Trip ---
 Serialized:   {"customerId":"CUST-RT","items":[...]}
@@ -73,6 +124,8 @@ Round-trip match: True
 Transport registered: Name=demo, Type=InMemory
 Transport running: True
 
+Native CloudEvents: reflection-free payload serialization, structured-mode envelope round-trip, and a loud refusal for an uncovered payload type verified.
+
 ================================================
   AOT Verification Summary
 ================================================
@@ -80,7 +133,44 @@ Transport running: True
 
 All 12 default demos should complete without errors in both JIT and native AOT modes. The later demos cover event-sourced aggregates, event-store round trips, reconstruction, transport publish/subscribe, SOC 2 configuration binding and JSON report export.
 
+Each required demo now checks its observable result before printing `AOT_DEMO_PASS:01` through
+`AOT_DEMO_PASS:12`, in order. A failed check throws and reports `AOT_DEMO_FAIL`; missing, duplicate,
+skipped or failed outcomes fail the official smoke step even if a process returns zero. The publish
+analysis and runtime jobs cover the same main sample workload, not two independent package-coverage
+proofs. These checks do not certify optional providers that the sample does not exercise.
+
 The SOC 2 configuration demo checks the resolved system name, description, services, infrastructure and data types against the configured values before exporting a report. A mismatch throws and makes the process exit unsuccessfully, so a native smoke run cannot silently accept lost configuration values. This checks the sample's representative options; it does not certify every provider or optional configuration shape. The SQL-backed Quartz smoke below requires a separate invocation.
+
+## CloudEvents under Native AOT
+
+`CloudEventsSmoke.cs` encodes and decodes a real CloudEvent inside the published native executable,
+using only the reflection-free surface: `CloudEventPayloadSerialization.CreateOptions` over this
+application's source-generated `JsonSerializerContext`, then
+`CloudEventSerializer.CreateWithMetadata(options)` and its metadata-aware formatter.
+It asserts three things and fails the process on any of them — that the payload path actually emits the
+payload, that the envelope survives a structured-mode round trip, and that a payload type absent from
+the serialization context is **refused by name** rather than silently rendered.
+
+**Why the sample carries this at all.** CloudEvents interoperability and Native AOT are both goals of
+this framework, and a publish cannot report a warning about code it never analysed. Before this file
+existed, nothing in the AOT samples referenced CloudEvents, so the trimmer removed the CloudEvents
+assembly as unused and the publish reported zero warnings about a path it had not looked at. A zero
+from an unreachable path is not a result.
+
+**Formatter choice matters.** The current smoke uses `CreateWithMetadata`, which obtains payload
+metadata explicitly rather than calling the SDK formatter's options-only serializer overloads.
+Normal DI consumers select this path with `AddCloudEvents(AppJsonSerializerContext.Default)`.
+The legacy `new CloudEventSerializer(options)` constructor retains the SDK formatter;
+passing options containing a resolver to that constructor does not select the metadata-aware formatter.
+Neither path certifies arbitrary custom converters or transport SDKs for Native AOT.
+
+**Historical warning evidence remains historical.** Earlier smoke revisions used the SDK formatter
+and recorded four member-specific `IL2026`/`IL3050` diagnostics against
+`CloudNative.CloudEvents.SystemTextJson.JsonEventFormatter.EncodeStructuredModeData`.
+That count describes those exact publications, not a standing expectation for this revised smoke.
+Keep the original logs and baseline history; establish the current result by publishing and executing
+this sample with reflection-based JSON disabled. The payload round trip and uncovered-type refusal
+remain required controls, and the generated context must cover every payload type.
 
 ## AOT Configuration
 
@@ -223,6 +313,7 @@ Excalibur.Dispatch.Aot.Sample/
 │   └── OrderCreatedHandler.cs       # Event handlers (2)
 ├── Serialization/
 │   └── AppJsonSerializerContext.cs # Source-generated JSON
+├── CloudEventsSmoke.cs            # CloudEvents encode/decode, reflection-free
 └── README.md                      # This file
 ```
 
@@ -281,16 +372,15 @@ You may see AOT analysis warnings like:
 IL3050: Using member which has 'RequiresDynamicCodeAttribute'...
 ```
 
-These warnings come from the Dispatch library itself, not from your AOT sample code. The core library contains some dynamic code paths that are used as fallbacks when source generators aren't available. In practice:
-- Source generators handle the AOT-compatible paths
-- The dynamic fallbacks are only used in non-AOT scenarios
-- These warnings don't prevent successful AOT compilation
+Inspect the diagnostic's actual call site and dependency chain. A warning can originate in this sample, the framework or a dependency; generated alternatives do not establish that every dynamic path is unreachable. Successful compilation does not prove the published application can execute that path.
+
+Prefer a supported generated or statically registered path, preserve the metadata it requires, and exercise the published native executable. Keep unresolved warnings and failed publication/execution results with the evidence. This sample deliberately enables trim analysis and removes inherited IL2026/IL3050 suppression; do not weaken those checks to obtain a pass. See [Microsoft's AOT warning guidance](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/fixing-warnings).
 
 ### Trimming Warnings
 
-If you see warnings like `IL2026`, `IL2055`, etc., you have code that uses reflection incompatibly with trimming.
+Warnings such as `IL2026` and `IL2055` identify trimming requirements or analysis risks that need investigation for the selected path. They are not interchangeable diagnoses.
 
-**Solution**: Use source generation patterns or suppress with `[UnconditionalSuppressMessage]` if safe.
+**Investigation**: Check supported source-generated alternatives and required metadata. Any narrowly scoped suppression needs a recorded, path-specific justification and native execution coverage; re-review it when code or dependencies change. A suppression does not supply missing native code or metadata.
 
 ### Missing JSON Types
 
@@ -343,3 +433,32 @@ be used: this is a provisioning and execution example, not a schema-upgrade util
 A successful run reports `NATIVE QUARTZ SQL` only after the jobs complete. This path
 exercises SQL authentication; it does not establish support for every authentication
 provider or all CDC/outbox serialization paths.
+
+
+### Native Jobs configuration control
+
+Run the published native executable with `--jobs-binding-smoke`. This command refuses managed execution and requires reflection-based JSON to remain disabled. It exercises the public CDC and data-processing scheduling and health registration paths, nested CDC options, defaults, validation and reload isolation. Each unique RAM scheduler remains in Created status and is shut down without starting; no job, database connection or CDC processing is invoked. This verifies configuration paths rather than claiming every Jobs/Quartz deployment path is NativeAOT-compatible.
+
+### Native SQL execution control
+
+Run the published executable with `--native-sql-paths-smoke` against a fresh, locally owned disposable
+SQL Server container with SQL Server Agent enabled. Set `ARB_NATIVE_SQL` to its connection string and
+`ARB_NATIVE_DISPOSABLE=1`. The database must already exist and be named `ARBNative_<Guid:N>`;
+only localhost endpoints are accepted. The test account needs permission to enable CDC. Connection
+strings are not printed.
+
+The control creates a unique schema and enables CDC in that disposable database. It verifies actual
+capture, row/schema mapping and resume; checkpoint reads, fencing and generic adapters; and public
+task enqueue/discovery, a planned failure, durable Unicode cursor/count progress, scoped processor
+disposal, recovery and successful deletion. Missing prerequisites fail rather than skip. A two-minute
+token bounds the control. Remove the owned container afterward; the sample does not drop databases.
+
+The public manager uses ownership-safe claim writes and does not invoke the legacy internal
+`DeleteDataTask`, `UpdateDataTaskAttempts` or `UpdateDataTaskCompletedCount` request classes.
+This native control does not claim execution of those three classes; their direct lifecycle tests
+are separate. Native publishing and this smoke do not certify every authentication provider or
+all framework packages. Existing warning baselines remain visible in the publish report.
+
+## Native saga correlation smoke
+
+After an official native publish, run the exact native executable with `--saga-correlation-smoke`. This bounded, infrastructure-free control requires actual NativeAOT and reflection JSON disabled, checks framed UUIDv8 golden values, literal delimiter separation and stable typed generic/array scopes. Running the managed DLL is refused; this arm does not certify all saga persistence or compensation paths.

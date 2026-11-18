@@ -57,4 +57,11 @@
     <ProjectReference Include="../../../eng/tools/RepositoryChecks/RepositoryChecks.csproj" />
     <ProjectReference Include="../../../eng/tools/RepositoryAnalyzers/RepositoryAnalyzers.csproj" />
   </ItemGroup>
+  <!-- Bind the real SDK-selected JSON generator for the documentation rule control; no synthetic generator output. -->
+  <Target Name="BindDocumentationJsonGenerator" BeforeTargets="GetAssemblyAttributes" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <AssemblyMetadata Include="DocumentationGlobalUsingsPath" Value="$([System.IO.Path]::GetFullPath('$(GeneratedGlobalUsingsFile)', '$(MSBuildProjectDirectory)'))" />
+      <AssemblyMetadata Include="DocumentationJsonGeneratorPath" Value="@(Analyzer->WithMetadataValue('Filename', 'System.Text.Json.SourceGeneration')->'%(FullPath)')" />
+    </ItemGroup>
+  </Target>
 </Project>

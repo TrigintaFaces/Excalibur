@@ -135,7 +135,7 @@ internal sealed class Dispatcher(
 		ArgumentNullException.ThrowIfNull(context);
 
 		// PERF: Delegate to concrete MessageContext overload for JIT devirtualization.
-		// >99% of dispatches use MessageContext, so this fast path is almost always taken.
+		// This branch applies when the supplied context is a MessageContext.
 		if (context is MessageContext mc)
 		{
 			return DispatchAsync(message, mc, cancellationToken);
@@ -234,19 +234,18 @@ internal sealed class Dispatcher(
 	}
 
 	/// <summary>
-	/// Internal fast-path overload accepting concrete <see cref="MessageContext"/> to enable
-	/// JIT devirtualization of all property accesses during dispatch.
+	/// Internal overload accepting concrete <see cref="MessageContext"/> to permit
+	/// JIT specialization of context accesses during dispatch.
 	/// </summary>
 	/// <remarks>
 	/// <para>
 	/// When the JIT sees <c>MessageContext</c> instead of <c>IMessageContext</c>, it can
 	/// devirtualize property reads (MessageId, CorrelationId, CausationId, etc.) and
-	/// inline the property getters. This removes ~5-10ns per virtual call site in the hot path.
+	/// inline the property getters. The resulting code and performance depend on the runtime and workload.
 	/// </para>
 	/// <para>
 	/// The public <see cref="DispatchAsync{TMessage}(TMessage, IMessageContext, CancellationToken)"/>
-	/// checks <c>context is MessageContext mc</c> and delegates here. Since &gt;99% of dispatches
-	/// use the concrete type, this fast path is almost always taken.
+	/// checks <c>context is MessageContext mc</c> and delegates here when that check succeeds.
 	/// </para>
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -259,12 +258,12 @@ internal sealed class Dispatcher(
 		where TMessage : IDispatchMessage
 	{
 		// Same logic as public DispatchAsync but with concrete MessageContext type,
-		// enabling JIT devirtualization of all context property accesses.
+		// permitting JIT specialization of context property accesses.
 		ArgumentNullException.ThrowIfNull(message);
 
 		// Cancellation is honoured BEFORE the fast path: a consumer opted in via
 		// Dispatch:ReturnCancelledResult must not have its handler executed on an
-		// already-cancelled token, and this overload carries >99% of dispatches.
+		// already-cancelled token when this overload is used.
 		if (cancellationToken.IsCancellationRequested && ShouldReturnCancelledResult(context))
 		{
 			return CancelledResultTask;

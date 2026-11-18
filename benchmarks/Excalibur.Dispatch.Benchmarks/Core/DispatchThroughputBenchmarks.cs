@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Benchmarks.Core;
 /// </para>
 /// <list type="bullet">
 /// <item>Full dispatch with middleware pipeline</item>
-/// <item>Sequential and parallel throughput scenarios</item>
+/// <item>Sequential and submitted-task throughput scenarios</item>
 /// <item>Mixed workload patterns</item>
 /// </list>
 /// </remarks>
@@ -46,9 +46,9 @@ public class DispatchThroughputBenchmarks
 		_ = services.AddDispatch();
 
 		// Add representative middleware stack (3 layers)
-		_ = services.AddMiddleware<LoggingMiddleware>();
-		_ = services.AddMiddleware<ValidationMiddleware>();
-		_ = services.AddMiddleware<MetricsMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, LoggingMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, ValidationMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, MetricsMiddleware>();
 
 		_serviceProvider = services.BuildServiceProvider();
 		_dispatcher = _serviceProvider.GetRequiredService<IDispatcher>();
@@ -113,7 +113,7 @@ public class DispatchThroughputBenchmarks
 	}
 
 	/// <summary>
-	/// Concurrent throughput - 10 parallel dispatches.
+	/// Ten submitted dispatch tasks; completion does not establish overlap.
 	/// </summary>
 	[Benchmark]
 	public async Task<int> Throughput_10Parallel()
@@ -139,7 +139,7 @@ public class DispatchThroughputBenchmarks
 	}
 
 	/// <summary>
-	/// High concurrency - 100 parallel dispatches.
+	/// One hundred submitted dispatch tasks; completion does not establish overlap.
 	/// </summary>
 	[Benchmark]
 	public async Task<int> Throughput_100Parallel()
@@ -165,7 +165,7 @@ public class DispatchThroughputBenchmarks
 	}
 
 	/// <summary>
-	/// Mixed workload - alternating sync and async patterns.
+	/// Mixed task-result consumption patterns; asynchronous suspension is not forced.
 	/// </summary>
 	[Benchmark]
 	public async Task<int> MixedWorkload()

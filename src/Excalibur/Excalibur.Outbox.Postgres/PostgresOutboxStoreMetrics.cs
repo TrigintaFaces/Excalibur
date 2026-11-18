@@ -24,6 +24,7 @@ public sealed class PostgresOutboxStoreMetrics : IDisposable
 	private readonly Histogram<double> _batchMoveToDeadLetterTime;
 	private readonly Counter<long> _messagesProcessed;
 	private readonly Counter<long> _operationsCompleted;
+	private readonly Counter<long> _claimFenceRefusals;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -73,6 +74,9 @@ public sealed class PostgresOutboxStoreMetrics : IDisposable
 			"excalibur.outbox.batch_move_to_dead_letter_duration",
 			"ms",
 			"Time taken to move multiple messages to dead letter");
+
+		_claimFenceRefusals = _meter.CreateCounter<long>(
+			"excalibur.outbox.fence_refusals", "{refusals}", "Confirmed stale-token outbox claim refusals.");
 
 		// Counters for throughput tracking
 		_messagesProcessed = _meter.CreateCounter<long>(
@@ -217,6 +221,10 @@ public sealed class PostgresOutboxStoreMetrics : IDisposable
 			1,
 			new KeyValuePair<string, object?>("operation", "batch_move_to_dead_letter"));
 	}
+
+	internal void RecordClaimFenceRefusal() => _claimFenceRefusals.Add(1,
+		new KeyValuePair<string, object?>("backend", "postgres"),
+		new KeyValuePair<string, object?>("reason", "stale_claim"));
 
 	/// <summary>
 	/// Disposes the metrics resources.

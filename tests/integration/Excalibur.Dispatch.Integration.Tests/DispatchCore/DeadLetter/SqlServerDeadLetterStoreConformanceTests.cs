@@ -141,11 +141,14 @@ public sealed class SqlServerDeadLetterStoreConformanceTests : DeadLetterStoreCo
 
 	/// <summary>Replaying twice is idempotent.</summary>
 	[Fact]
-	public Task MarkAsReplayedAsync_AlreadyReplayed_ShouldBeIdempotent_Test() => MarkAsReplayedAsync_AlreadyReplayed_ShouldBeIdempotent();
+	public Task MarkAsReplayedAsync_AlreadyReplayed_ShouldBeRefused_Test() => MarkAsReplayedAsync_AlreadyReplayed_ShouldBeRefused();
+
+	[Fact]
+	public Task ReleaseReplayClaimAsync_WithoutAClaim_ShouldBeANoOp_Test() => ReleaseReplayClaimAsync_WithoutAClaim_ShouldBeANoOp();
 
 	/// <summary>Replaying an unknown message is idempotent.</summary>
 	[Fact]
-	public Task MarkAsReplayedAsync_NonExistent_ShouldBeIdempotent_Test() => MarkAsReplayedAsync_NonExistent_ShouldBeIdempotent();
+	public Task MarkAsReplayedAsync_NonExistent_ShouldReportMessageNotFound_Test() => MarkAsReplayedAsync_NonExistent_ShouldReportMessageNotFound();
 
 	#endregion Replay
 

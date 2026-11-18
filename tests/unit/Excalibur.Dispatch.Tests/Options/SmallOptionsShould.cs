@@ -1,4 +1,3 @@
-using System.Threading.Channels;
 
 using Excalibur.Dispatch.Channels;
 using Excalibur.Dispatch.Delivery;
@@ -52,7 +51,6 @@ public sealed class SmallOptionsShould
 		var opts = new ChannelMessagePumpOptions();
 
 		opts.Capacity.ShouldBe(100);
-		opts.FullMode.ShouldBe(BoundedChannelFullMode.Wait);
 	}
 
 	[Fact]

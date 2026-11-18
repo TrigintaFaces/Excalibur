@@ -93,7 +93,7 @@ public sealed class APartialLegalHoldIsNotSilentlyIgnoredShould
 	}
 
 	private static InMemoryErasureStore NewStore() =>
-		new(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()));
+		new(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()), TimeProvider.System);
 
 	private static async Task<Guid> ScheduleAsync(IErasureStore store)
 	{
@@ -160,7 +160,7 @@ public sealed class APartialLegalHoldIsNotSilentlyIgnoredShould
 			null,
 			null,
 			TestAnnotationSource.None,
-			TestRetentions.None,
+			TestRetentions.None, TestMintLedger.None,
 			null);
 	}
 }

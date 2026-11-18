@@ -44,19 +44,24 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 	private const string DispatchPrefixWithoutSeparator = "dispatch";
 	private const string TimeoutAttributeName = "timeout";
 
-	private readonly JsonEventFormatter _jsonFormatter = new();
+	private readonly CloudEventSerializer _serializer;
 	private readonly AzureEventHubsCloudEventOptions _eventHubsOptions;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AzureEventHubsCloudEventAdapter" /> class.
 	/// </summary>
 	/// <param name="options"> CloudEvent serialization options. </param>
+	/// <param name="serializer"> The decided CloudEvents serializer, carrying the resolver the consumer configured. </param>
 	/// <param name="eventHubsOptions"> Optional Event Hubs specific options. </param>
 	public AzureEventHubsCloudEventAdapter(
 		IOptions<CloudEventOptions> options,
+		CloudEventSerializer serializer,
 		IOptions<AzureEventHubsCloudEventOptions>? eventHubsOptions = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
+
+		_serializer = serializer;
 
 		Options = options.Value ?? throw new ArgumentNullException(nameof(options));
 		_eventHubsOptions = eventHubsOptions?.Value ?? new AzureEventHubsCloudEventOptions();
@@ -87,8 +92,6 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public Task<EventData> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -135,16 +138,14 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 		return cloudEvent;
 	}
 
-	[RequiresUnreferencedCode("Calls System.BinaryData.FromObjectAsJson<T>(T, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.BinaryData.FromObjectAsJson<T>(T, JsonSerializerOptions)")]
-	private static BinaryData ConvertToBinaryData(object? data) => data switch
+	private BinaryData ConvertToBinaryData(object? data) => data switch
 	{
 		null => BinaryData.FromBytes([]),
 		BinaryData binaryData => binaryData,
 		byte[] bytes => BinaryData.FromBytes(bytes),
 		string text => BinaryData.FromString(text),
 		JsonElement json => BinaryData.FromString(json.GetRawText()),
-		_ => BinaryData.FromObjectAsJson(data),
+		_ => new BinaryData(_serializer.SerializePayloadToUtf8Bytes(data)),
 	};
 
 	private static object? DeserializeMessageBody(BinaryData? body, string? contentType)
@@ -356,11 +357,7 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 		}
 	}
 
-	[RequiresUnreferencedCode(
-		"Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureEventHubsCloudEventAdapter.ConvertToBinaryData(Object)")]
-	[RequiresDynamicCode(
-		"Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureEventHubsCloudEventAdapter.ConvertToBinaryData(Object)")]
-	private static EventData CreateBinaryMessage(CloudEvent cloudEvent) => new(ConvertToBinaryData(cloudEvent.Data))
+	private EventData CreateBinaryMessage(CloudEvent cloudEvent) => new(ConvertToBinaryData(cloudEvent.Data))
 	{
 		ContentType = cloudEvent.DataContentType ?? "application/json",
 		MessageId = cloudEvent.Id ?? Guid.NewGuid().ToString(),
@@ -439,7 +436,7 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 
 	private EventData CreateStructuredMessage(CloudEvent cloudEvent)
 	{
-		var encoded = _jsonFormatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
+		var encoded = _serializer.Formatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
 		var payload = BinaryData.FromBytes(encoded.ToArray());
 
 		var eventData = new EventData(payload)
@@ -522,7 +519,7 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 		}
 
 		await using var stream = body.ToStream();
-		return await _jsonFormatter.DecodeStructuredModeMessageAsync(
+		return await _serializer.Formatter.DecodeStructuredModeMessageAsync(
 			stream,
 			new System.Net.Mime.ContentType(transportMessage.ContentType),
 			extensionAttributes: null).ConfigureAwait(false);

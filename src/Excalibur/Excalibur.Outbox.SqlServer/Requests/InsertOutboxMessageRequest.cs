@@ -3,6 +3,7 @@
 
 
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
@@ -24,23 +25,32 @@ public sealed class InsertOutboxMessageRequest : DataRequestBase<IDbConnection, 
 	/// <param name="transaction">Optional transaction to participate in.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
+	[RequiresUnreferencedCode("Legacy outbox metadata serialization uses reflection. Use an explicit OutboxMetadataSerialization registration overload.")]
+	[RequiresDynamicCode("Legacy outbox metadata serialization may require runtime code generation. Use an explicit OutboxMetadataSerialization registration overload.")]
 	public InsertOutboxMessageRequest(
 		string tableName,
 		OutboundMessage message,
 		IDbTransaction? transaction,
 		int commandTimeout,
 		CancellationToken cancellationToken)
+		: this(tableName, ConvertLegacyMessage(tableName, message), transaction, commandTimeout, cancellationToken)
+	{
+	}
+
+	internal InsertOutboxMessageRequest(
+		string tableName,
+		OutboxMessage outboxMessage,
+		IDbTransaction? transaction,
+		int commandTimeout,
+		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-		ArgumentNullException.ThrowIfNull(message);
-
-		// Route the OutboundMessage -> outbox-row field mapping (header serialization, tenant/context carry,
-		// and CreatedAt preservation) through the ONE canonical conversion so a new field lands in a single
-		// place instead of drifting across a parallel inline map. Status and RetryCount are staging lifecycle
-		// constants, not creation-mapping fields: a freshly staged row is always Staged with zero retries
-		// (matching the Postgres/Oracle stores' hardcoded initial attempts), and the creation seam is
-		// structurally incapable of carrying live lifecycle state because its OutboundMessage source has none.
-		var outboxMessage = OutboxMessage.FromOutboundMessage(message);
+		ArgumentNullException.ThrowIfNull(outboxMessage);
 
 		var sql = $"""
 			INSERT INTO {tableName}
@@ -60,7 +70,7 @@ public sealed class InsertOutboxMessageRequest : DataRequestBase<IDbConnection, 
 		parameters.Add("@Headers", outboxMessage.MessageMetadata);
 		parameters.Add("@Destination", outboxMessage.Destination);
 		parameters.Add("@CreatedAt", outboxMessage.CreatedAt);
-		parameters.Add("@ScheduledAt", outboxMessage.ScheduledAt);
+		parameters.Add("@ScheduledAt", outboxMessage.ScheduledAt, DbType.DateTimeOffset);
 		parameters.Add("@Status", (int)OutboxStatus.Staged);
 		parameters.Add("@RetryCount", 0);
 		parameters.Add("@CorrelationId", outboxMessage.CorrelationId);
@@ -91,6 +101,36 @@ public sealed class InsertOutboxMessageRequest : DataRequestBase<IDbConnection, 
 		Command = CreateCommand(sql, parameters, transaction, commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			await StaticDbCommand.ExecuteAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "Id", StaticDbCommand.Input<string>(Parameters, "Id"), DbType.String);
+				StaticDbCommand.AddParameter(command, "MessageType", StaticDbCommand.Input<string>(Parameters, "MessageType"), DbType.String);
+				StaticDbCommand.AddParameter(command, "Payload", StaticDbCommand.RequiredInput<byte[]>(Parameters, "Payload"), DbType.Binary);
+				StaticDbCommand.AddParameter(command, "Headers", StaticDbCommand.Input<string>(Parameters, "Headers"), DbType.String);
+				StaticDbCommand.AddNullableStringParameter(command, "Destination", StaticDbCommand.Input<string?>(Parameters, "Destination"));
+				StaticDbCommand.AddParameter(command, "CreatedAt", StaticDbCommand.Input<DateTimeOffset>(Parameters, "CreatedAt"), DbType.DateTimeOffset);
+				StaticDbCommand.AddParameter(command, "ScheduledAt", StaticDbCommand.Input<DateTimeOffset?>(Parameters, "ScheduledAt"), DbType.DateTimeOffset);
+				StaticDbCommand.AddParameter(command, "Status", StaticDbCommand.Input<int>(Parameters, "Status"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "RetryCount", StaticDbCommand.Input<int>(Parameters, "RetryCount"), DbType.Int32);
+				StaticDbCommand.AddNullableStringParameter(command, "CorrelationId", StaticDbCommand.Input<string?>(Parameters, "CorrelationId"));
+				StaticDbCommand.AddNullableStringParameter(command, "CausationId", StaticDbCommand.Input<string?>(Parameters, "CausationId"));
+				StaticDbCommand.AddParameter(command, "TenantId", StaticDbCommand.Input<string>(Parameters, "TenantId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "Priority", StaticDbCommand.Input<int>(Parameters, "Priority"), DbType.Int32);
+				StaticDbCommand.AddNullableStringParameter(command, "TargetTransports", StaticDbCommand.Input<string?>(Parameters, "TargetTransports"));
+				StaticDbCommand.AddParameter(command, "IsMultiTransport", StaticDbCommand.Input<bool>(Parameters, "IsMultiTransport"), DbType.Boolean);
+				StaticDbCommand.AddNullableStringParameter(command, "PartitionKey", StaticDbCommand.Input<string?>(Parameters, "PartitionKey"));
+				StaticDbCommand.AddNullableStringParameter(command, "GroupKey", StaticDbCommand.Input<string?>(Parameters, "GroupKey"));
+				StaticDbCommand.AddParameter(command, "SequenceNumber", StaticDbCommand.Input<long>(Parameters, "SequenceNumber"), DbType.Int64);
+			}).ConfigureAwait(false);
 	}
+
+	[RequiresUnreferencedCode("Legacy outbox metadata serialization discovers consumer types.")]
+	[RequiresDynamicCode("Legacy outbox metadata serialization may require runtime code generation.")]
+	private static OutboxMessage ConvertLegacyMessage(string tableName, OutboundMessage message)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+		ArgumentNullException.ThrowIfNull(message);
+		return OutboxMessage.FromOutboundMessage(message);
+	}
+
 }

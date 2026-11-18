@@ -290,7 +290,7 @@ Resources:
       AlarmName: dispatch-high-latency
       MetricName: dispatch.messages.duration
       Namespace: Dispatch
-      Statistic: p95
+      ExtendedStatistic: p95
       Period: 300
       EvaluationPeriods: 3
       Threshold: 5000

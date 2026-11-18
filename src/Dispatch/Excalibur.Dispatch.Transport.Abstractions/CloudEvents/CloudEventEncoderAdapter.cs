@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics.CodeAnalysis;
 
 using CloudNative.CloudEvents;
 
@@ -33,16 +32,6 @@ internal sealed class CloudEventEncoderAdapter<TOutbound>(ICloudEventEncoder<TOu
 	public Type TransportMessageType => typeof(TOutbound);
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed. See ICloudEventEncoder<TOutbound>.ToTransportMessageAsync.")]
-	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation. See ICloudEventEncoder<TOutbound>.ToTransportMessageAsync.")]
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2046:Members annotated with 'RequiresUnreferencedCodeAttribute' should be overridden or implement members that are also annotated",
-		Justification = "Mismatch-only, not a swallow: ICloudEventEncoderAdapter is an internal, non-extensible wiring shim over ICloudEventEncoder<TOutbound> (whose interface member already carries this requirement) — the consumer-facing signal already lives at each transport's opt-in registration (e.g. UseCloudEvents/AddCloudEventsForRabbitMq/AddCloudEventsForPubSub), which is annotated. Annotating this internal interface too would be redundant, not a new hole.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3051:Members annotated with 'RequiresDynamicCodeAttribute' should be overridden or implement members that are also annotated",
-		Justification = "Same as IL2046: the interface mismatch is against ICloudEventEncoderAdapter, an internal wiring shim with a single implementation, not a consumer-implementable contract. Same as IL2046.")]
 	public async Task<object> ToTransportAsync(CloudEvent cloudEvent, CloudEventMode mode, CancellationToken cancellationToken)
 	{
 		var result = await _inner.ToTransportMessageAsync(cloudEvent, mode, cancellationToken).ConfigureAwait(false);

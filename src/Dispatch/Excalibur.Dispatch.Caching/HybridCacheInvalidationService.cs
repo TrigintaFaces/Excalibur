@@ -11,7 +11,8 @@ namespace Excalibur.Dispatch.Caching;
 /// invalidation functionality.
 /// </summary>
 /// <param name="cache"> The hybrid cache instance for performing invalidation operations. </param>
-internal sealed class HybridCacheInvalidationService(HybridCache cache) : ICacheInvalidationService
+/// <param name="tagTracker"> Optional tracker used to propagate ordinary tag invalidations to other instances. </param>
+internal sealed class HybridCacheInvalidationService(HybridCache cache, ICacheTagTracker? tagTracker = null) : ICacheInvalidationService
 {
 	/// <inheritdoc />
 	public async Task InvalidateTagsAsync(IEnumerable<string> tags, CancellationToken cancellationToken)
@@ -20,10 +21,23 @@ internal sealed class HybridCacheInvalidationService(HybridCache cache) : ICache
 
 		// Materialize once: a deferred/lazy sequence would otherwise be enumerated twice (the emptiness
 		// check and the RemoveByTagAsync call), which can disagree or run its side effects twice.
-		var materialized = tags as IReadOnlyCollection<string> ?? tags.ToArray();
-		if (materialized.Count > 0)
+		// Snapshot distinct tags before awaiting: callers may mutate their collection during native removal.
+		var materialized = tags.Distinct(StringComparer.Ordinal).ToArray();
+		if (materialized.Length > 0)
 		{
 			await cache.RemoveByTagAsync(materialized, cancellationToken).ConfigureAwait(false);
+			if (tagTracker is not null)
+			{
+				foreach (var tag in materialized)
+				{
+					// Preserve native handling of empty tags and its wildcard. A literal tracker stamp
+					// named '*' cannot implement global invalidation of entries carrying other tags.
+					if (!string.IsNullOrWhiteSpace(tag) && !string.Equals(tag, "*", StringComparison.Ordinal))
+					{
+						await tagTracker.BumpStampAsync(tag, cancellationToken).ConfigureAwait(false);
+					}
+				}
+			}
 		}
 	}
 

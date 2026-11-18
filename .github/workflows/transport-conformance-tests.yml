@@ -125,7 +125,7 @@ jobs:
             --collect:"XPlat Code Coverage" \
             -- RunConfiguration.TestSessionTimeout=900000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           TEST_EXIT=$?
-          pwsh -File eng/ci/assert-declared-skips-only.ps1 -TrxDir ./conformance-results
+          pwsh -File eng/ci/assert-declared-skips-only.ps1 -MinimumExecutedTests 1 -TrxDir ./conformance-results
           GATE_EXIT=$?
           set -e
           # The runner's own exit still wins. A TRX that looks complete cannot see a runner that died

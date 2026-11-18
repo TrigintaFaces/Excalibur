@@ -47,6 +47,7 @@ public static class MqttCloudEventsServiceCollectionExtensions
 		_ = services.AddOptions<CloudEventOptions>()
 			.ValidateOnStart();
 		_ = services.AddCloudEventOptionsValidation();
+		_ = services.AddCloudEventSerializerGuard();
 		if (configureOptions is not null)
 		{
 			_ = services.Configure(configureOptions);
@@ -69,14 +70,18 @@ public static class MqttCloudEventsServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	/// <remarks>
 	/// <para>
-	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
-	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
-	/// ahead of time warns at this call. Register your own <see cref="ICloudEventEncoder{TOutbound}"/>
-	/// backed by a source-generated serializer to compose without the requirement.
+	/// The MQTT sender uses the registered <see cref="ICloudEventEncoder{TOutbound}"/> for messages
+	/// carrying a CloudEvent in their <c>cloudevent</c> property. The encoder honors
+	/// <see cref="CloudEventOptions.DefaultMode"/> and <see cref="MqttCloudEventOptions.Retain"/>;
+	/// messages without a CloudEvent retain their ordinary payload and properties.
+	/// </para>
+	/// <para>
+	/// Payload serialization is selected by the core <c>AddCloudEvents</c> registration. For trimming
+	/// and ahead-of-time compilation, use its resolver overload with a source-generated context covering
+	/// the types carried in <see cref="CloudNative.CloudEvents.CloudEvent.Data"/>. The bundled encoder
+	/// uses that configured <see cref="CloudEventSerializer"/> rather than selecting reflection itself.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
-	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventEncoder over a source-generated serializer instead.")]
 	public static IServiceCollection AddCloudEventsForMqtt(
 		this IServiceCollection services,
 		Action<MqttCloudEventOptions>? configureMqtt = null,

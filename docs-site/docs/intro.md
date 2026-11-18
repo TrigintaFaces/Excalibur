@@ -6,7 +6,7 @@ description: Excalibur is a modular .NET framework for messaging, event sourcing
 
 # Excalibur
 
-**Excalibur** is a modular, high-performance .NET framework for building message-driven applications.
+**Excalibur** is a modular .NET framework for building message-driven applications.
 Start with `Excalibur.Dispatch` as a type-safe message dispatcher, then add domain modeling, event
 sourcing, sagas, or compliance as your architecture requires — every package beyond the first is
 optional, and they all share one `Excalibur.*` namespace, so adding one never means rewriting what
@@ -87,15 +87,15 @@ entire provider in one line. For per-type and per-member detail, see the
   `.ToHttpResult()` maps it to 403 for an authorization failure, 400 for validation,
   `ProblemDetails` for structured errors and 500 for the rest. You write that mapping once, not in
   every endpoint.
-- **Low allocation on the hot path.** 96 B allocated per command and roughly 60 ns of dispatch
-  overhead, each measured on a dated, reproducible benchmark — see
-  [Performance](./performance/index.md) for the method.
+- **Measured local dispatch overhead.** Dated benchmarks record allocation and latency under
+  explicit conditions. See [Performance](./performance/index.md) for the measured workload,
+  runtime and limitations.
 - **Secure by default.** Authorization denies when a decision is missing rather than falling open,
   and audit trails are hash-chained so tampering is detectable rather than merely discouraged.
 - **Modular, not monolithic.** Install `Excalibur.Dispatch` alone and nothing else comes with it.
   Every further capability is a separate package you opt into.
-- **Built for AOT.** Handler discovery is source-generated, so trimming and Native AOT work without
-  runtime reflection.
+- **AOT-oriented registration.** Source-generated handler discovery supports ahead-of-time deployment.
+  Publish and test the actual application and dependencies; a managed benchmark does not verify NativeAOT.
 
 ## Quick start
 

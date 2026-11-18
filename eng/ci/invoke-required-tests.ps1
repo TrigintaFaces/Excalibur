@@ -23,7 +23,23 @@ $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $root = [IO.Path]::GetFullPath($EvidenceDirectory)
 if (Test-Path -LiteralPath $root) { throw 'Evidence directory must be new for this invocation.' }
 [void][IO.Directory]::CreateDirectory($root)
-$context = Get-Content -LiteralPath $ContextPath -Raw | ConvertFrom-Json -AsHashtable
+$contextText = Get-Content -LiteralPath $ContextPath -Raw
+# JSON numeric kind and duplicate keys must be checked BEFORE PowerShell string coercion.
+$document = [Text.Json.JsonDocument]::Parse($contextText)
+try {
+    $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($property in $document.RootElement.EnumerateObject()) {
+        if (-not $names.Add($property.Name)) { throw "Duplicate external context field: $($property.Name)" }
+    }
+    $element = $document.RootElement.GetProperty('minimumExecutedTests')
+    $minimum = 0
+    if ($element.ValueKind -ne [Text.Json.JsonValueKind]::Number -or
+        $element.GetRawText() -cnotmatch '\A[1-9][0-9]*\z' -or
+        -not $element.TryGetInt32([ref]$minimum) -or $minimum -lt 1) {
+        throw 'minimumExecutedTests must be a positive JSON integer <=2147483647.'
+    }
+} finally { $document.Dispose() }
+$context = $contextText | ConvertFrom-Json -AsHashtable
 foreach ($key in @('candidateSha','runId','runAttempt','job','shard','os','provider')) {
     if (-not $context.ContainsKey($key) -or [string]::IsNullOrWhiteSpace([string]$context[$key])) { throw "Missing external context '$key'." }
 }

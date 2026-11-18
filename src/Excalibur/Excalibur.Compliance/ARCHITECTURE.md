@@ -18,6 +18,34 @@ the ambient term rather than replacing it, so two equality terms can only inters
 another tenant gets the empty set, and a caller naming none still gets their own ambient scope. Widening
 would require changing an `AND` to an `OR`, which is a one-token change a reviewer can see.
 
+**The comparison is ordinal, and the argument is matched against the recorded OWNER.** It folds no case,
+trims no padding, and matches no prefix, because the owner term is composed into the per-subject key
+handle exactly as stored — so two identifiers differing only in case are two tenants, and a comparison
+that folded them would offer one tenant a request whose execution destroys the other's key. It is matched
+against `ErasureStatus.TenantId`, never `ErasureStatus.TenantPartition`; the two answer different
+questions and an implementation filtering on the partition appears correct wherever they coincide. The
+full contract is stated on `IErasureQueryStore.ListRequestsAsync`.
+
+**Evidence.** `Conformance/ErasureStoreConformanceTestKit.cs` holds three arms, and they are separable
+rather than redundant — each detects a defect the others pass:
+`ListRequestsAsync_WithTenantFilter_ShouldFilterByTenant` reads back the owner the store itself recorded
+and fails against a filter that is ignored or inverted; `ListRequestsAsync_AcrossOwners_ShouldNotReturnAnotherOwnersRequest` files two requests under two
+resolved owners, the first a strict prefix of the second, and is the only arm that fails against a prefix or "starts with" match; and
+`ListRequestsAsync_TenantFilterIsOrdinal_ShouldNotFoldCaseOrPadding` is the only arm that fails against a
+case-folding comparison — including one folded by a database collation rather than by code. Measured
+against the in-memory store: dropping the argument reddens all three, folding case reddens only the
+ordinal arm, and prefix-matching reddens only the cross-owner arm.
+
+**Known gaps in that evidence.** The two cross-owner arms need the suite to resolve a named tenant, which
+it declares by overriding `BeginOwnerScope`; a suite that does not reports an unverified arm rather than
+passing silently, so cross-owner isolation is **UNVERIFIED** for any store whose suite leaves it
+unoverridden. Nothing yet certifies that the page window is taken over the filtered set rather than over
+an unfiltered page that is then filtered — every list arm runs well inside one page, so a store that
+paged first and filtered second would lose rows silently above its page size and pass. And no arm
+exercises a tenant filter together with an ambient tenant term, because no shipped suite activates
+multi-tenancy; the interaction those stores' own comments are most confident about is the one with no
+test behind it.
+
 ### Legal holds block erasure, and a missing tenant does not lift them
 
 **An active legal hold covering a data subject blocks that subject's erasure, and a hold check made
@@ -150,6 +178,34 @@ The explicit default tenant and the untenanted storage partition remain distinct
 blank owners are rejected, not normalized or silently replaced. The write path supplies its captured
 owner; erasure supplies the owner persisted on its request. Both paths must therefore name the same
 owner deliberately, rather than relying on ambient context when background processing runs.
+
+**The owner a request records is resolved from the HOST, and a request naming a different one is
+refused.** This paragraph previously stated the sentence above as a requirement and nothing enforced it:
+each erasure store resolved the persisted owner from the value on the incoming request, so a request
+naming any other tenant was accepted and became the owner the destruction derived its handle from. The
+write path had encrypted under the host's resolved term, so the two disagreed and the erasure destroyed a
+handle nothing had minted -- no key found, no error recorded, request completed, certificate signed, data
+still readable. A requirement with no enforcement site is the shape this document exists to prevent, and
+it had one here.
+
+Resolution is now a single function, `Erasure/ErasureRequestOwner.cs`, called by all three erasure stores
+rather than computed inline in each -- the in-memory, PostgreSQL and SQL Server stores previously carried
+the same expression character for character, which is one contract implemented three times and an error in
+it replicated three times. Under multi-tenancy the resolved ambient scope is authoritative; otherwise the
+ambient context's own resolved identity is, because that is the term `CryptoShredding/FieldEncryptor.cs`
+encrypts under. **The ambient SCOPE and the ambient CONTEXT are not interchangeable here**: in
+single-tenant mode the scope is the reserved untenanted partition while the context resolves the
+deployment's default identity, so resolving from the scope would reintroduce the same divergence with the
+signs reversed. A request whose tenant is unset accepts the resolved owner; one naming a different tenant
+is rejected by name rather than silently corrected, because substituting the right term without a word
+would discard what the caller asked for and tell them nothing.
+
+**Evidence.** `tests/unit/Excalibur.Compliance.Tests/Erasure/AnErasureOwnerComesFromTheHostNotTheRequestShould.cs`
+RED-detects a violation: its safety arm fails against the previous resolution, and it is paired with two
+liveness arms so a resolver that refused every request -- which would satisfy the safety arm while making
+every erasure unfileable -- does not pass. **Known gap:** those arms exercise the shared resolver through
+the in-memory store only. The other two providers are covered because they call the same function, not
+because an arm ran against a database, so a provider that stopped calling it would not be caught there.
 
 **The AES-GCM associated data binds the tenant transitively**, because the handle is written into it
 length-prefixed. The `TenantId` field of the encryption context is populated as well, on the write at
@@ -327,13 +383,106 @@ deletion nobody asked for, in a scope nobody can enumerate.
 
 ### A declared aggregate retention survives an erasure whole, readable, and named on the record
 
-**Guarantee: an aggregate type declared through `AddErasureRetention` is not
-tombstoned, its snapshots are not deleted, its read-model rows are not cleared, its `[PersonalData]`
-fields **written while the declaration was in force** still DECRYPT after the subject's key is
-destroyed, and the erasure record names the type with
-the lawful basis, the written justification, and the period it is kept under. This holds for EVERY
-data subject named inside a retained type, not only the one the obligation was written with in mind. An aggregate
-type that is NOT named is erased exactly as it is with no retention declared at all.**
+**Guarantee: an aggregate type declared through `AddErasureRetention` **in the view of the instance that
+executes the erasure** is not tombstoned, its snapshots are not deleted, its read-model rows are not
+cleared, its `[PersonalData]` fields written while that declaration was held still DECRYPT after the
+subject's key is destroyed, and the erasure record names the type with the lawful basis, the written
+justification, and the period it is kept under. This holds for EVERY data subject named inside a retained
+type, not only the one the obligation was written with in mind. An aggregate type that is NOT named is
+erased exactly as it is with no retention declared at all.**
+
+**THE QUALIFIER IS LOAD-BEARING AND THIS SENTENCE USED TO OMIT IT.** It read *"written while the
+declaration was in force"*, unqualified, and **"in force" has no deployment-wide referent**: each process
+builds its retention registry in its own constructor from declarations written IN CODE, and nothing
+compares one instance's set against another's. There are only per-instance views, so the unqualified
+sentence quantified over an instant that does not exist, and it was therefore FALSE during any rolling
+deploy that adds a retention. The guarantee above is the true one; the superseded wording is quoted here
+because it is the sentence a reader may have acted on.
+
+**THE WINDOW, in falsifiable terms.** During a deploy that ADDS a retention declaration, with more than one
+instance live, an instance that does not yet hold the new declaration can execute an erasure and
+irreversibly destroy the key, the escrow and the recovery tokens for an aggregate type the deploy declares
+retained — and certify it `Completed`, because by its own view the erasure was correct. The loss is
+confined to types declared in that deploy and to subjects erased inside that window. **A single-instance
+deployment cannot reach it**, because there is no other view to be behind.
+
+**Consumer obligation until the deployment-wide record lands:** quiesce erasure execution across a deploy
+that adds a retention declaration, or ensure every instance holds the new declaration before any instance
+serves. See *Consumer obligations* below.
+
+**A STALE INSTANCE NOW WITHHOLDS THE DESTRUCTION, and the predicate is CONTAINMENT.** A durable,
+deployment-wide record holds the declared `(tenant, aggregate type)` pairs. Each instance records its own
+once per process, and before any destruction the executing instance refuses when **the record holds a live
+declaration it does not hold**.
+
+**Containment, not "the local set is a strict subset of the record" — and that distinction is a reachable
+counter-example rather than a preference.** The subset form conjoins the real hazard with a condition that
+is not a safety condition at all (that this instance knows nothing the record does not), and that second
+conjunct OPENS the gate precisely when an instance is behind in one pair and ahead in another:
+
+```
+v2 declares {A, C}   advances fully                 record = {A, C}
+v3 declares {A, B}   advance records A, FAILS on B  record = {A, C}
+strict subset: is {A,B} a subset of {A,C}?  No  -> PASSES -> v3 destroys C's key
+containment:   does v3 hold C?              No  -> REFUSES
+```
+
+A partial advance is reachable by construction, because SQL Server has no single-statement
+insert-if-absent and records pair by pair.
+
+**Containment makes a PARTIALLY FILLED record sound to compare against. It does NOT make the advance's
+completion irrelevant to safety, and the earlier wording of this paragraph said it did.** Superseded, quoted
+so a reader who absorbed it recognises it: *"Containment also makes the advance's COMPLETION irrelevant to
+safety, which matters because N inserts cannot be made atomic."* What containment actually buys is that a
+prefix never produces a FALSE REFUSAL and never makes the comparison unsound with respect to what is
+recorded — which is the part that matters, because N inserts cannot be made atomic. But an **unrecorded**
+pair is invisible to every instance, so for that pair no stale instance can detect its own staleness, and
+the destruction proceeds. Completion is therefore safety-bearing for the pairs that did not land, which is
+precisely why the latch closes only on complete success. A model check refutes the latch-on-prefix design in
+three steps: one instance declares a retention, its advance writes none of it, the latch closes anyway, and
+a second instance holding no declarations passes containment against an empty record and destroys the
+retained type.
+
+**The comparison runs twice, and only the later one is the safety mechanism.** The record only grows, so
+the earlier read observes a subset of what the later one observes and can only ever refuse LESS. The
+pre-claim comparison is a LIVENESS device: it refuses before the execution claim, so the request stays
+scheduled and a current instance takes it on the next poll — where a refusal after the claim would have
+nowhere to put the request. The comparison immediately before the first destruction is the whole safety
+property, and ONE refusal there covers both readers of the declaration set, the key spared by the executor
+and the rows spared by the event-store contributor. Per-key refusal would be unsound: a key destroyed
+while the rows are spared leaves retained records present and permanently unreadable.
+
+**A REFUSAL IS A DELAY, NOT A FAULT.** It is reported as a refusal rather than a failure, so it does not
+spend the request's retry budget — which, at exhaustion, would have written a terminal status that no pass
+enumerates and converted a correct withholding into a permanent non-erasure.
+
+**The advance is recorded from the scheduler's poll, not before this instance's first erasure.** The
+advance protects OTHER instances from this one, so anchoring it to this instance's first erasure would
+begin that protection days after the deploy in a low-volume deployment, and would leave the first
+post-deploy erasure decided by poll timing. It is deliberately not a readiness check: a compliance-store
+outage withholds this instance's erasures and does not stop it serving. **A PARTIAL advance never counts
+as advanced** — an unrecorded pair is a pair for which no stale instance can detect its own staleness,
+with no tell anywhere — so the latch closes only on complete success and retries on the next poll.
+
+Bound by `AStaleRetentionViewWithholdsDestructionShould` — six arms, each mutant run and attributed:
+replacing containment with strict subset reddens the incomparable-state arm; treating a tombstone as live
+reddens the withdrawn arm; closing the latch before the record confirms reddens the retry arm. Its
+liveness arms assert that an instance holding MORE than the record proceeds, and that a deployment with no
+record proceeds — without them every arm here is satisfied by a gate that refuses everything, which is its
+own regulator's finding.
+
+**WHAT IT DOES NOT CLOSE, and this is a property of the problem rather than of the design.** The window
+narrows to "until the first instance has recorded its declarations"; it does not close. At the instant
+before any instance has recorded anything, *"the pair was declared and nothing recorded it"* and *"the pair
+was never declared"* differ in no variable any running process can observe, so no mechanism confined to the
+fleet can separate them. The consumer obligations below are what close the remainder, and they survive the
+mechanism.
+
+**ALSO NOT DONE: an instance does not act on a TOMBSTONE.** A withdrawn declaration correctly stops making
+an instance look stale, but an instance whose own code still declares a withdrawn retention continues to
+spare that type. Refusing the erasure there would be the wrong direction — the harm prevented is
+over-retention of one type's key, while the harm caused is the subject not being erased at all — so acting
+on it means dropping that one obligation, which is a change in two packages and is tracked separately.
 
 Note the word: this is the opposite direction from the retention *enforcement* pass above, which
 DELETES after a period. This one WITHHOLDS destruction because the law requires the data kept — the
@@ -357,11 +506,140 @@ which aggregate to erase and has no opinion about which ones it is asked for.
 Readability is what makes the surviving record worth keeping, and it comes from the key handle rather
 than from new cryptography. A key handle is a NAME, and the provider mints random material at whatever
 name it is given, so widening the handle with the aggregate type yields a second, independently
-destroyable key with no envelope machinery (`CryptoShredding/SubjectKeyManager.cs:109`). Only a DECLARED
-type's handle is widened: every other value stays under the subject's own handle, which is the one the
-erasure destroys unconditionally and the only one it can enumerate. The erasure additionally refuses to
-destroy a discovered key that resolves to a retained handle (`Erasure/ErasureService.cs:628`). The
-decrypt path needs no change, because the envelope carries the handle that produced it.
+destroyable key with no envelope machinery (`CryptoShredding/SubjectKeyManager.GetOrCreateKeyAsync`).
+
+**EVERY aggregate type's handle is widened, declared or not, and the write path reads no retention
+declaration at all.** The superseded design widened only a DECLARED type's handle, and this document
+asserted the consequence as a guarantee -- *"every other value stays under the subject's own handle, which
+is the one the erasure destroys unconditionally and the only one it can enumerate."* That sentence is
+quoted here because it was WRONG and a reader may have absorbed it. Widening only for a type declared AT
+WRITE TIME puts every non-aggregate write and every undeclared-aggregate write on the SAME handle, so a
+retention declared afterwards binds two obligations to one key with opposite required values: destroying
+it makes legally retained data unreadable, and sparing it leaves personal data recoverable for a subject
+reported erased. That is reachable with no concurrency at all.
+
+**So the erasure no longer re-derives the handles it destroys; it ENUMERATES them.** The write path
+records every handle in a durable ledger BEFORE minting the key at it
+(`IKeyMintLedger.RecordMintIntentAsync`, called from `SubjectKeyManager.GetOrCreateKeyAsync`), and the
+erasure destroys the union of the handles it can derive from declared retentions and the handles that
+ledger reports (`IKeyMintLedger.ListHandlesAsync`, read in `Erasure/ErasureService.ExecuteAsync`).
+Recording before minting is the load-bearing order: the reverse admits a crash leaving live key material
+with no row, which nothing would ever enumerate. A row with no key behind it is handled -- the provider
+answers not-found and nothing is attested from the absence. The erasure additionally refuses to destroy a
+discovered key that resolves to a retained handle. The decrypt path needs no change, because the envelope
+carries the handle that produced it.
+
+**A WRITE THAT LANDS WHILE AN ERASURE RUNS IS DETECTED, AND THE ERASURE REFUSES TO CERTIFY.** The
+mechanism is a two-state row, and the reasoning behind it is worth stating because the obvious remedies do
+not work. The ledger row is written BEFORE the key is created, so while a write sits between those two
+steps it is invisible to both observables an erasure has: the ledger's handle set is unchanged since the
+erasure read it, and the key material reads absent because it genuinely is not there yet. That state is
+**observationally identical** to a writer that crashed between its row and its mint -- which is safe and
+correctly ignored -- and the two diverge only after the certificate is signed. So re-reading the handle
+set buys nothing, and no number of material probes separates them: the key store cannot tell "not yet
+created" from "destroyed".
+
+What separates them is the row itself. `RecordMintIntentAsync` writes it as PENDING;
+`MarkMintedAsync` confirms it once the key exists (`SubjectKeyManager.GetOrCreateKeyAsync`). An erasure
+destroys the union of both sets, re-reads the ledger at attestation, and **raises an error for every
+handle still pending**, which makes `Completed` unreachable and yields
+`CompletedExceptConcurrentWrites` naming those handles. The superseded text of this section is quoted
+below, because it described the gap as open and a reader may have acted on it.
+
+> *"A write for an obligation class with no declared retention, recording its handle after that read and
+> minting after the destruction loop, leaves a live key holding this subject's personal data under a
+> certificate that reports `Completed` and does not name it."*
+
+**Confirming a mint FAILS OPEN, deliberately, and the cost is stated rather than hidden.** A lost
+confirmation leaves the row pending, which withholds a clean certificate rather than granting one -- the
+conservative direction. A consumer's personal-data write is never failed because a confirmation could not
+be recorded. The consequence is that erasures for that subject report a concurrent write until some later
+mint at the same handle confirms the row, and the framework logs that at `Error` when it happens.
+
+**KNOWN GAP, AND IT IS PERMANENT RATHER THAN TRANSIENT -- an earlier wording of the sentence above
+implied otherwise and that implication was the defect.** A row is confirmed only by a later mint at the
+same handle. A writer that dies between writing its row and creating its key leaves the row pending with
+no later mint coming: rows are insert-only and permanent by contract, there is no abandon record, and no
+operator remedy exists. So every subsequent erasure of that data subject reports
+`CompletedExceptConcurrentWrites` and advises erasing again once the writes have stopped -- and the
+writes have stopped. **That subject can never reach `Completed`.**
+
+This is the designed indistinguishability and no amount of probing closes it: a row whose mint has not
+run is identical, in both observables an erasure has, to a row whose writer crashed. Closing it needs a
+terminal disposition for a stale pending row -- an age bound the consumer sets, or an explicit abandon
+record written by the write path -- and neither exists. **Consumers running an erasure against a
+deadline must treat a permanently pending row as an operational condition to detect, not as a transient
+one to wait out.**
+
+**THE ATTESTATION QUANTIFIES OVER WHAT THE LEDGER HOLDS, NOT OVER WHAT THIS PASS DESTROYED.** Before the
+attestation signs anything it re-reads the subject's mint ledger and probes every confirmed handle on it,
+less two sets: the handles this erasure deliberately retained, and the handles that already raised an
+error of their own during the destruction. A handle holding live material that is in neither raises an
+error, which makes `Completed` unreachable, and the outcome says a write arrived alongside.
+
+**The second subtraction is the handles that REPORTED, never the handles the pass LOOKED AT**, and the
+difference is load-bearing rather than pedantic. Subtracting everything the erasure enumerated was tried
+and is wrong: the destruction's absent branch is an idempotent no-op by design — a handle whose key never
+existed has no ciphertext this erasure could have made unreadable — so it raises no error and records no
+coverage. A handle whose ledger row existed before the enumeration and whose key was created after the
+destruction attempt is therefore enumerated, acted on, and reported by nothing. **Enumerated is an
+intent; destroyed is a fact**, and the set where they differ is the blind spot of any check that
+subtracts the enumerated set.
+
+The predicate is *is the key material gone*, never *is this handle in a list the pass kept*, and that
+choice is what keeps a retry honest: a handle an earlier pass destroyed probes as absent and is excused by
+the probe itself, where a list-membership formulation would have to carry every earlier pass's handles and
+would indict its own first pass the moment it forgot one.
+
+> **This superseded a narrower check, and the superseded wording is quoted because a reader may have
+> absorbed it:** *"the window is one round trip wide instead of spanning the whole
+> enumeration-to-attestation period, and the dominant case -- a write already in flight when the erasure
+> begins -- is caught."* Both halves were true of a write already IN FLIGHT and false of one that started
+> **and finished** inside that period. For such a handle the window was the whole period, and the handle
+> was in none of the three sets anything examined: not in the enumerated set, which predates it; not in
+> the destroyed set, so the re-occupation probe never reached it; and not pending, because its mint
+> completed, so the two-state row never reached it either. The certificate was signed over live key
+> material with nothing raised. It was found by removing two grants from the formal model, not by a test.
+
+**KNOWN GAP -- it DETECTS a concurrent write, it does not EXCLUDE one.** Two parts remain open. First,
+the attestation re-read and the completion write are not one atomic action at the store, so a row
+inserted between them is not seen; closing it needs the completion write to be conditional at the store
+on there being no pending row for the subject. **That window is the probe loop, not a single round
+trip** — the ledger read moved ahead of the destruction-status probes because it supplies their domain,
+which means a row landing during the probes is no longer observed, and there is now one provider call per
+candidate rather than one in total. It is a trade for the whole-ledger probe above, which closes a wider
+and entirely silent hole, and it is recorded as a trade rather than as a free widening. Second, nothing orders a concurrent write against
+an in-flight erasure, so a subject under continuous write load can keep receiving
+`CompletedExceptConcurrentWrites` and never reach `Completed`.
+
+**One case is reported less precisely than it could be, stated rather than left to be discovered.** A
+handle this request's own record says it destroyed, found live again, is excluded from the
+concurrent-writes outcome and falls to a partial outcome instead -- including when this pass genuinely
+destroyed it and a second write re-occupied it. The concurrent-writes outcome asserts that everything the
+erasure set out to destroy is gone, and the request's own record contradicts that, so the imprecision runs
+in the direction of not claiming success.
+
+**Consumer obligations.** Quiesce writes for a data subject before executing their erasure: a write
+racing the erasure makes that erasure report a concurrent write rather than complete, and an erasure that
+must terminate by a deadline cannot be left to chance. Do not rotate the key your `IDataSubjectHasher`
+derives from -- every pseudonymisation token changes at once, and every mint row recorded before the
+rotation becomes unfindable while remaining perfectly durable, so an erasure after a rotation enumerates
+nothing for every subject at once.
+
+This subsystem's blast radius is catastrophic and its rigor floor is R4; **R3 and R4 are UNVERIFIED** for
+the enumeration. The formal model under `spec/tla/` no longer grants the two checks it used to -- the
+coverage set is the set the request enumerated, as the implementation's is, and there is no conjunct
+barring certification while a write is mid-flight. Removing them turned both shipped-design arms red on
+a reachable violation, which is how the gap quoted above was found. The arms now separate the mechanisms
+one at a time: one refutes the design without the two-state mint row, one refutes it with the attestation
+scoped to the enumerated set alone, one refutes it with the attestation re-read and the certificate as
+separate actions, and one requires a useful certificate to stay reachable so the others cannot be
+satisfied by a design that reports a concurrent write for everything and erases nothing.
+
+**The rung is still UNVERIFIED and a green suite is not a discharge.** One grant remains and is a declared
+constant rather than an assumption built into the model's shape: the attestation re-read and the
+certificate are one action there and two in the code, which is the first remaining gap above. Read the
+model's scope statement before citing any arm.
 
 What was kept reaches the signed certificate beside the framework's own store-kind exemptions
 (`Erasure/ErasureService.cs:720`). This is the part that makes the behaviour detectable from outside: a
@@ -514,6 +792,41 @@ erasure failed: `false` is the ordinary value for an erasure discharged entirely
 the framework recorded what its contributors reported and verified nothing itself. `Verified` and
 `Verification.Methods` are derived from one value in `PersistCompletionCertificateAsync`, so a certificate
 reading `Verified = true, Methods = None` — verified by nothing — is inexpressible rather than unlikely.
+
+**Guarantee: `VerificationResult.Verified` is `true` only when some configured verification method
+actually substantiated THIS execution and nothing was recorded against it.** Formally,
+`Verified ⟹ Methods ≠ None ∧ Failures = ∅`. `false` means *not established*, for any reason, and is
+never a claim that the erasure itself failed. The seam is `ErasureVerificationService.cs:207`, where
+both conjuncts are evaluated together, so a result reading `Verified = true, Methods = None` —
+verified by nothing — is inexpressible rather than unlikely. The liveness half matters as much: an
+erasure the framework DID substantiate still reports `true`, so "refuse everything" is not a
+conforming implementation.
+
+This is the same property the certificate producer above holds, stated for the other producer. The
+two were previously enforced differently: the certificate derives both fields from one value, while
+this verdict filtered its recorded failures by severity and waived anything below `Critical`. That
+filter was correct for the set of failures that existed when it was written and did not change when a
+lower-severity producer was added, so an erasure with no key deletions on record could report
+`Verified = true` while carrying a failure whose own text said key destruction could not be verified.
+Both producers now express the property directly.
+
+**Evidence.** `NonVacuousErasureVerificationShould` carries three arms that RED-detect a violation:
+one for a recorded failure being waived, one for a method that could not substantiate being reported
+as used, and one for the configuration in which no method runs at all. The third is the arm that
+distinguishes the predicate from the property — it stays red if only the severity half is corrected.
+
+**Known gaps, by behaviour.**
+- `VerificationSeverity.Error` has no producer, so the three-state severity enum does not currently
+  discriminate at this seam. The verdict no longer depends on it.
+- `Verified` is a `bool` over a three-valued question: it cannot distinguish *we looked and it failed*
+  from *nobody looked*. `Methods` and `Failures` together carry that distinction, and a consumer that
+  needs it must read them rather than the boolean.
+- A verification method set of `None` is accepted by configuration validation. The verdict refuses
+  rather than reporting success, so the outcome is honest, but the configuration is not rejected at
+  startup.
+- These arms are sampling-class and run against fakes; they bind the verdict algebra and say nothing
+  about key-destruction semantics. **This seam's blast radius is catastrophic and its rigor floor is
+  R4; R3 and R4 remain UNVERIFIED and the arms above discharge neither.**
 
 **Guarantee: a completion is recorded only over a request that is still IN the run, so a legal hold or a
 cancellation recorded while the contributors were working is never overwritten by a signed `Completed`.**
@@ -732,10 +1045,283 @@ every region does.
 
 **One certificate per request, even with several confirmers.** A certificate issued at confirmation has an id
 derived from the request id (`ScheduledKeyDestructions.ConfirmationCertificateId`), so the certificate insert
-is the claim: a second confirmer's insert is refused as a duplicate and it records completion against the
+gives DEDUP: a second confirmer's insert is refused as a duplicate and it records completion against the
 existing certificate. The scheduler never resets a request to `Scheduled` when it is `InProgress`,
 `AwaitingKeyDestruction`, `Completed` or `Cancelled`, because it cannot tell its own failure from another
 instance's ownership.
+
+*Superseded wording, quoted so a reader who absorbed it recognises it: "the certificate insert **is the
+claim**". It is not, and the distinction became load-bearing when custody acquired columns of its own. The
+derived id DEDUPLICATES; the claim EXCLUDES. Both are kept and they do different jobs — the derived id
+additionally covers a confirmer that crashed after inserting the certificate and before recording
+completion, whose successor is a different claim entirely.*
+
+## Custody: who holds an erasure, and what a superseded holder may still write
+
+**Guarantee: an erasure request records WHO holds it and UNTIL WHEN, and a write that advances the
+attestation is applied only for the holder of the claim the request currently carries.** A caller whose
+claim has been superseded is told so and writes nothing. Custody lives in two columns of its own
+(`claim_identity`, `claim_expires_at`), paired all-null-or-all-non-null by a check constraint, and is
+taken through exactly one member — `IErasureStore.ClaimForExecutionAsync`. Writing the claimed status
+through the general status member is refused outright, so custody cannot be granted to a caller that has
+no identity to be given.
+
+**What this replaced, stated because the shape is the lesson.** The claim was already atomic: one
+conditional UPDATE, exactly one caller of N. What it did not carry was an owner or a deadline, so an
+execution interrupted by a host shutdown stayed in-progress forever — every query that looks for work
+correctly excluded it, nothing threw, nothing logged, and the subject's data was not erased. The status
+column was being asked to carry two independent facts, OUTCOME and CUSTODY, and no new status value was
+added: custody moved to its own axis instead, which is why a recovered request stays in the claimed
+status, carrying no live claim, and is re-offered by the lapse predicate rather than reset.
+
+**A LAPSE DOES NOT REVOKE; A RE-CLAIM REVOKES.** Nothing tells a holder its lease elapsed, and nothing
+needs to. A holder whose run outlasted its own lease but whom nobody superseded still holds the identity
+the row carries, and its attestation writes still apply — otherwise an executor that had already
+destroyed a subject's keys could be refused its own completion, leaving the erasure performed and no
+certificate able to attest it. The expiry is therefore consulted in the CLAIM's predicate and in the
+recovery path, and never in a fenced write, which compares the identity and only the identity.
+
+**The expiry is written and compared BY THE STORE.** The SQL providers use the database's own clock inside
+the claiming statement; the in-memory store takes a `TimeProvider`. A caller-computed instant would make a
+lapse a comparison between two machines' clocks, which is the one comparison that may never decide
+anything: a fast clock hands its holder a claim that has already expired, and a slow one holds a claim
+nobody else can take.
+
+**THE FENCE PROTECTS THE ATTESTATION, NOT THE DESTRUCTION, and a reader must not infer the stronger
+thing.** A superseded executor learns it lost the request when its first fenced write is refused — by
+which time it may already have asked the key provider to destroy keys. That is accepted, and it is
+precisely why two members are deliberately OUTSIDE the fence:
+
+- `RecordKeyDestroyedAsync` and `StageKeyDestructionAsync` record a physical act that has ALREADY
+  happened. Refusing a superseded writer there would destroy the only evidence that material is gone: the
+  generation cannot be read back, because the destruction took it, so no successor could record it either
+  and the subject's erasure would become permanently unreportable. The ledger is keyed on the generation,
+  minted once and never reused, so two claims recording one generation produce a single idempotent row.
+  That sharing is not a defect — it is how a retried erasure attests what an earlier pass achieved.
+- A write of `BlockedByLegalHold` is admitted regardless of custody. A hold is a superior authority, and
+  refusing one would drop it silently and let the run complete over data the controller has asserted a
+  legal basis to retain. The asymmetry is this subsystem's own: withholding an erasure is recoverable by
+  releasing or narrowing the hold, and destroying held records is not.
+
+**INVARIANT: THE CLAIM TOUCHES ONLY THE CUSTODY COLUMNS, AND THIS IS WHAT MAKES RE-EXECUTION SAFE.** A
+request may legitimately be executed twice — once by a holder that lapsed, once by its recoverer — and
+that is safe only because the destroyed-handle and staged-generation sets are durable per request,
+appended to and never replaced. A recoverer therefore inherits the coverage an earlier pass established
+and can attest it. **A recovery write that also cleared those sets would convert a safe re-offer into a
+permanently uncertifiable request**: the generations are gone from the key provider, because the earlier
+pass destroyed them, so no successor can re-establish what they covered and the subject's erasure can
+never be certified by anybody.
+
+Nothing in the type system prevents it, so it is stated here as an invariant rather than left as a
+comment. The claim's own statement sets `claim_identity`, `claim_expires_at` and `updated_at`, and
+advances `status` and `executed_at` **only** under a condition that fires when claiming from
+`Scheduled` — which is why a confirmation pass claiming an already-staged request does not un-stage it.
+It touches no attestation table. Any future recovery or reset path is bound by the same rule.
+
+**NO EXECUTION DEADLINE, AND THE ABSENCE IS A RULING RATHER THAN AN OMISSION.** One was specified,
+built, landed and removed in the same session. The ruling it implemented said *the lapse must cause the
+owner to stop*; an adversarial review of the built article showed that it does not survive contact with
+the destruction loop, and the measurement agreed.
+
+Three reasons, in the order they bite:
+
+- **It never stopped the owner.** The per-key handler in the destruction loop catches every exception,
+  `OperationCanceledException` included, and continues to the next key. A fired deadline therefore
+  converted each remaining key into a spurious "failed to delete" error and drove the request terminal,
+  which is worse than not firing.
+- **It could fire between an irreversible act and its record.** A key is destroyed at the provider and
+  then recorded in the ledger; a cancellation landing between those two leaves material destroyed with
+  no durable record that it was. Once a pass has destroyed something, cancellation is not a safety
+  device — it is what creates the unrecorded state.
+- **It bought no safety.** The fence already makes a late write safe: a superseded identity is refused,
+  and a lapse does not revoke. So a SLOW holder is harmless, while a STOPPED holder is the one state
+  nothing can repair. The deadline's only mechanical effect was to fire earlier, deeper inside the loop,
+  which is precisely where the unfenced damage is.
+
+**What the lapse needs to cause is a SUCCESSOR, not a stop**, and that is what the entry guard now
+provides: `ErasureService.ExecuteAsync` admits a request in the claimed status and lets the store decide
+availability in one indivisible step.
+
+*Superseded wording, quoted so a reader who absorbed it recognises it: "THE LEASE IS ALSO THE EXECUTION
+DEADLINE, which is what stops a holder from working past its own custody ... The work is cut off at
+`ClaimDuration` minus `ClaimDeadlineMargin`." That option no longer exists, and neither does the
+deadline.*
+
+**If a deadline is wanted later**, it belongs at the TOP of the destruction loop, between keys, where no
+irreversible act is waiting for its record — and the claim must RETURN its expiry rather than have a
+caller re-derive it from a local clock, since the expiry is computed by the store and a derived deadline
+is a second source of truth for a fact the store already owns.
+
+**LIVENESS: a request whose executor died is offered again once its claim lapses, and the next pass
+EXECUTES it rather than refusing it.** Stated falsifiably, because the vague version is what let this go
+wrong twice: within one `ClaimDuration` of the holder's last heartbeat-free moment, the request appears
+in `IErasureQueryStore.GetScheduledRequestsAsync`; a caller passing it to
+`ErasureService.ExecuteAsync` is GRANTED custody and runs the erasure to a terminal, certified status;
+and no sequence of calls hands the same request to two executors at once, because the claim is one
+conditional update that tests custody before status and exactly one of N callers wins.
+
+**How it is achieved.** Three parts, and each failed on its own at some point: the claim records an owner
+and a server-side expiry (`claim_identity`, `claim_expires_at`); the scheduled-request query returns a
+request in the claimed status whose expiry has passed, as well as one past its grace period; and
+`ErasureService.ExecuteAsync` admits the claimed status at its entry guard and claims with that status,
+so the store — not the caller — decides availability. **Remove any one and the request is stranded
+while the other two look correct**, which is exactly how the first two landed without the third and the
+guarantee read as satisfied.
+
+**Liveness is conditional on something calling the executor, and on nothing else.** The optional
+scheduler does it each cycle. **A host with no background service calls
+`ErasureService.ExecuteAsync` itself** — from a timer, a scheduled job or an admin endpoint — for each
+request `GetScheduledRequestsAsync` returns; that enumeration is the whole contract, and a caller needs
+no knowledge of custody to honour it, because a request another instance is actively erasing is refused
+by the store and simply reported as not executed. There is no separate recovery entry point and
+deliberately so: a second door would need its own exclusivity argument.
+
+**Evidence.** `ALapsedErasureIsActuallyReexecutedShould` binds both halves against the in-memory store:
+a request stranded in the claimed status with a lapsed lease is executed to `Completed`, and one whose
+lease is still live is refused and left exactly as its holder left it. RED-proven by restoring the
+pre-fix entry guard, which fails the liveness arm with the defect verbatim — `Invalid status:
+InProgress` — while the safety arm stays green. The provider tier is bound by the conformance kit's
+claim and fence arms, green on real PostgreSQL and real SQL Server.
+
+**KNOWN GAP on this property.** The window is bounded by `ClaimDuration` and nothing shortens it: there
+is no heartbeat, so a host that dies one second into a fifteen-minute lease leaves the request invisible
+for the rest of it. That is a deliberate trade — a renewing lease cannot distinguish a wedged-but-live
+owner from a healthy one, and the lapse must fire on the wedged one — but it means the worst-case delay
+before a subject's erasure resumes IS this option's value, and a consumer choosing it is choosing that
+delay.
+
+**Consumer obligation.** Configure `ErasureOptions.Execution.ClaimDuration` comfortably longer than a real
+erasure takes. **It is NOT a timeout on the work** — a holder whose run outlasts it still completes and
+still certifies, because a lapse does not revoke custody and only another instance actually taking the
+request does. What a short value costs is a second instance recovering a request whose first holder is
+merely slow: safe, because the destruction is idempotent and the attestation is fenced, but wasted work
+and a superseded executor that stands down part-way.
+
+*This paragraph has now been corrected TWICE IN OPPOSITE DIRECTIONS, which is worth more than either
+version. It originally said the lease is not a timeout on the work; a pass narrowed that when the
+execution deadline landed; this pass restored it when the deadline was removed. Both corrections were
+right about the tree they were written against. The lesson is the one the second correction already
+recorded about the first — a claim in a sibling paragraph survives the pass that fixes its twin — and
+the remedy is to re-read the artifact for the CLAIM rather than for the text just written.*
+
+**Evidence, in two tiers.** At the PROVIDER tier, `ErasureStoreConformanceTestKit` binds custody against
+every store a consumer can plug in, and its three derivers run those arms against the in-memory store,
+real PostgreSQL and real SQL Server. RED-proven: answering a second contender with a status mismatch
+instead of ALREADY CLAIMED — the one-token defect that strands a request which is still coming back —
+reddens exactly that arm and nothing else.
+
+At the IN-MEMORY tier, `TheClaimFenceRefusesASupersededWriterShould` binds the contract with
+both halves of every property: a completion presenting a superseded claim is refused AND the current
+holder's completion applies; a lapsed-but-unsuperseded holder still completes; a second contender is told
+ALREADY CLAIMED rather than wrong-status, because the two oblige different things of the caller; a
+recoverer takes a lapsed request AND is refused while the lease is live; and taking custody through the
+general status member throws. The fixture state that discriminates is `claimDuration: TimeSpan.Zero`,
+which the contract admits for exactly that reason — a fresh request per arm only ever produces "nothing
+is claimed", and in that state the fenced and unfenced code agree. RED-proven by two mutants: dropping the
+identity term from the completion reddens the superseded arm, and deriving the identity from the request id
+instead of minting a fresh one reddens two arms, which is the mutant that leaves the fence structurally
+present and semantically inert.
+
+**RETRACTED. THE STRANDING IS NOT CLOSED, AND THIS SECTION CLAIMED IT WAS.** The discovery queries do
+now carry the lapse predicate, so a recovered request is OFFERED — and `ErasureService.ExecuteAsync`
+refuses it. Its entry guard admits only `Scheduled` (`ErasureService.cs:554`), and the only two
+production calls to `ClaimForExecutionAsync` expect `Scheduled` (`:587`) or `AwaitingKeyDestruction`
+(`:2125`). **Nothing claims from the in-progress status, so a lapsed request is offered on every poll
+and executed on none.** Enumerated, not assumed: those are the only two call sites in `src/`.
+
+So the lease makes recovery possible, the predicate makes it VISIBLE, and no consumer acts on it. That
+is the same defect one level up from the one this section was written about, and the correction is owed
+a successor rather than another query. **Until a pass can claim from the in-progress status, treat an
+interrupted erasure as STRANDED.**
+
+*Superseded wording, quoted because it is the dangerous kind of wrong — a false CLOSED stops anybody
+looking again: "CLOSED, and recorded rather than deleted because a reader who absorbed the gap needs to
+see it go. The discovery queries now carry the lapse predicate ... Until that landed, a lapsed request
+was re-CLAIMABLE but was never re-OFFERED by a background pass, so the lease made recovery possible
+without making it happen." Every clause of that is true except the verdict. The author measured the
+query and never measured its CONSUMER.*
+
+**What the predicate did achieve, stated so the work is not misread as useless.** The discovery queries
+now carry the lapse predicate. `GetScheduledRequestsAsync` returns a request whose
+claim has lapsed as well as one past its grace period, and `GetAwaitingKeyDestructionRequestsAsync`
+excludes a request a confirmer currently holds while including one whose claim has lapsed. Both are
+decided against a clock the STORE reads. Until that landed, a lapsed request was re-CLAIMABLE but was
+never re-OFFERED by a background pass, so the lease made recovery possible without making it happen
+— the stranding was narrowed and not closed, and this section said so in the present tense.
+
+**KNOWN GAPS, and they are the reason this section does not claim more.**
+
+- **The conformance kit now binds the FENCE as well as custody, and the arms are wired in all three
+  derivers.** Three arms were added: a completion presenting a SUPERSEDED claim is refused while the
+  current holder's applies; a holder whose lease elapsed but whom nobody superseded still completes; and
+  a legal hold under a live claim is admitted and releases custody. Each is RED-proven against the
+  in-memory store by its OWN mutant, and the pair is what pins the contract: dropping the identity
+  comparison reddens the superseded arm alone, and ALSO comparing the expiry — the obvious reading, and
+  the dangerous one — reddens the lapsed-holder arm alone. Neither mutant reddens both, so the two arms
+  bind independent properties rather than restating one.
+
+  **AND THEY NOW EXECUTE GREEN AGAINST REAL ENGINES: 57 of 57 on PostgreSQL and 57 of 57 on SQL
+  Server, 0 skipped, through the container fixtures.** The first such run found THREE defects that no
+  unit suite could see, because the in-memory store cannot express any of them:
+
+  - both verdict statements aliased their counts in snake_case while the types reading them used
+    PascalCase, and Dapper's underscore matching is enabled only by a package this one does not
+    reference — so every property stayed at its default of ZERO. A blank claim verdict reads as
+    "request not found", so **ClaimForExecutionAsync answered NotFound for every request that
+    existed, and no erasure could be claimed on PostgreSQL at all.** Silent: no exception, no
+    warning, and a plausible-looking outcome;
+  - five doubled-brace placeholders in the PostgreSQL status write emitted a literal brace, so the
+    statement died with a syntax error. Loud, which is the only merciful thing about it;
+  - BOTH providers conflated an ABSENT request with a SUPERSEDED claim, because one query filtered on
+    the id and the identity together and zero was read as a lost claim. A completion for a request
+    that does not exist was therefore reported as an ordinary race the caller stands down from,
+    instead of the exception this member's contract states and the in-memory store throws.
+
+  The arms were written to catch a two-executor attestation race and instead caught total
+  non-function, which is what a conformance kit is for: it does not care which defect it finds.
+
+  *Superseded wording, quoted so a reader who absorbed it recognises it: "The conformance kit binds
+  CUSTODY against every provider; it does NOT yet bind the FENCE ... Those three properties are bound on
+  the in-memory store only." The arms now exist for every provider; only their EXECUTION against the two
+  SQL engines is outstanding.*
+
+- **The former gap, kept for the shape of it.** The kit
+  takes custody through `ClaimForExecutionAsync` wherever an arm needs a claimed request, and asserts
+  that custody is exclusive, that the loser is refused as ALREADY CLAIMED rather than wrong-status, that
+  a refused claim carries no identity, and that the claim stamps `ExecutedAt`. All three derivers wrap
+  those arms, so they run against real PostgreSQL and real SQL Server. **What the kit does not yet
+  assert is the fence itself** — that a completion presenting a superseded identity is refused, that a
+  lapsed-but-unsuperseded holder still completes, and that a legal hold is admitted regardless of
+  custody. Those three properties are bound on the in-memory store only.
+
+  **Both SQL providers' statements have now been exercised by hand against a real engine**, each on a
+  fresh database with all nine migration scripts applied in order. PostgreSQL: a wrong identity on a
+  fenced status wrote zero rows, and a legal hold with no identity under a live claim wrote one and
+  released custody. SQL Server: the claim from scheduled granted one; a second claim under a live one
+  wrote zero; a fenced write presenting the WRONG identity wrote zero; a fenced write presenting NO
+  identity under a live claim wrote zero; the row was still held by the first holder afterwards; the
+  legal-hold exemption wrote one and cleared both custody columns; and the pairing check constraint
+  refused each half alone with error 547.
+
+  **Two controls were part of that run and both matter more than the eight results.** A positive control
+  asserts the probe row exists, because every other arm expects ZERO rows and an empty table satisfies
+  all of them — which is precisely what happened on the first attempt, when the insert failed on a
+  non-null column and four arms reported success against nothing. And the legal-hold exemption is run
+  twice, once with a non-hold status, because its predicate is a disjunction whose first term is true
+  for a hold: without the second run the arm is a tautology that cannot fail.
+
+  **This NARROWS the gap; it does not close it.** What was verified is the STATEMENTS, not the C# that
+  builds them, and a by-hand check is not a standing arm — nothing re-runs it, and it will not catch
+  a later edit. The fence therefore remains **UNVERIFIED at the conformance tier** for both SQL
+  providers until the kit carries these assertions and the derivers run them.
+
+  *Superseded wording, quoted so a reader who absorbed it recognises it: "The equivalent assertions
+  against real PostgreSQL and SQL Server are NOT yet in the store conformance kit." That was true of
+  the whole contract when written and is now true of only the fence half.*
+- **The in-memory store serialises custody with a per-request lock.** That is stronger than it needs to be
+  and is stated so nobody reads it as the contract: what the contract requires is that the status test,
+  the status write, the identity and the expiry become visible together, which the SQL providers get from
+  a single conditional UPDATE.
 
 **When a request reaches `Completed` depends on the provider and its configuration:** at once on the
 in-memory and Vault providers and for AWS KMS imported key material; after AWS's pending-deletion window
@@ -750,11 +1336,343 @@ a genuine failure stays on the failure path; not re-executed; not cancellable; n
 `AwsKmsErasureReachesTerminalShould`, `AzureKeyVaultErasureReachesTerminalShould` (purge accepted completes;
 purge refused falls back; soft-deleted is not destroyed; purged completes),
 `MultiRegionKeyDestructionReachesEveryRegionShould`, `ErasureCompletionConcurrencyShould` (one certificate
-under racing confirmers; no reset of an owned or finished request), and the store conformance arm
-`AwaitingKeyDestruction_ShouldBeListable_NotRescheduled_AndNotCancellable`. Each provider's own answer is
+under racing confirmers; and the scheduler's own read-then-check declines to reset a request whose status it
+observes as owned or finished — see the next section for why that check is not what establishes the
+property), and the store conformance arm
+`AwaitingKeyDestruction_ShouldBeListable_NotRescheduled_AndNotCancellable`.
+
+*(The second parenthetical previously read "no reset of an owned or finished request". That is the property
+the system needs and it is not what the arm measures: its store is a fake whose status read returns one
+fixed value for every call, so the status cannot change between the guard's read and its write and the
+interleaving that defeats the guard is unrepresentable in the fixture. The arm is correct about the check;
+the sentence was wrong about the system.)*
+
+### A claimed erasure is never re-offered, so two instances cannot run one erasure
+
+**SAFETY: a request that an executor has claimed, or that has reached a terminal outcome, cannot be put
+back to `Scheduled`.** `Scheduled` is the only state the execution claim succeeds from, so writing it is
+not the recording of an outcome — it is a grant of permission to the next caller. Writing it over a claimed
+request re-offers an erasure somebody is already executing, and the second caller's claim then succeeds,
+because it is not a second claim at all. Both callers destroy the subject's keys and both sign a completion
+certificate, one of them attesting destruction its own pass found nothing left to perform. A signed
+certificate is evidence a consumer hands an auditor, so the false one is an authenticated false statement.
+
+**How it is achieved.** The write of `Scheduled` is conditional on the state the store finds, in one
+indivisible operation, exactly as the claim is: `InMemoryErasureStore.UpdateStatusAsync` (a
+compare-and-swap loop against the observed status, refusing the owned and terminal set), and a predicate on
+the single `UPDATE` in `PostgresErasureStore.UpdateStatusAsync` and `SqlServerErasureStore.UpdateStatusAsync`.
+Refused states are `InProgress` and `AwaitingKeyDestruction` (owned — an executor is mid-run, or the
+key-management provider holds keys it has irreversibly scheduled) and `Completed` and `Cancelled`
+(terminal). `Pending`, `Scheduled`, `BlockedByLegalHold`, `Failed` and `PartiallyCompleted` remain
+resettable, which is how a transient failure is retried at all.
+
+**LIVENESS: a request that failed on a transient fault is still resettable, so it is retried rather than
+left terminal.** A store that refused every reset would satisfy the safety half completely and make every
+transient failure permanent.
+
+**Why the caller's own check does not establish the safety half.** The scheduler's retry path reads the
+current status and declines to reset an owned request. That read and the subsequent write are two
+operations, so a claim landing between them is invisible to it: the check narrows the window and cannot
+close it. The store's refusal is the authority, and the retry path now treats a `false` return as "another
+instance owns this" and stops.
+
+**Evidence.** `ErasureStoreConformanceTestKit.UpdateStatusAsync_ResetToScheduledOfAClaimedRequest_ShouldBeRefused`
+binds the safety half for every provider, with
+`UpdateStatusAsync_ResetToScheduledOfAFailedRequest_ShouldSucceed` as its liveness twin. Both arms assert
+the returned value AND the resulting status, because a store that reports a refusal and writes anyway is
+the worst of the three outcomes. RED-proven on all three providers by removing the predicate: each reports
+`returned True and left the status Scheduled`.
+
+**Consumer obligation.** A custom `IErasureStore` must make the write of `Scheduled` conditional. The
+contract on `UpdateStatusAsync` states the partition — a status is unconditionally writable only if it is
+terminal or blocked — and the two conformance arms above fail a store that ignores it.
+
+**And a cancelled erasure is never enrolled in key destruction.** `AwaitingKeyDestruction` is the
+completion pass's discovery predicate, so writing it is not the recording of an outcome either — it enrolls
+the request in a pass that asks the key-management provider to confirm destruction and then completes and
+certifies it. That write now succeeds only from `InProgress` or from `AwaitingKeyDestruction` itself, so a
+cancelled request cannot be enrolled and certified as erased. The source set includes the target because
+the completion pass rewrites the detail while the provider still holds the keys; permitting only
+`InProgress` would break that pass, which is why the liveness arm asserts the rewrite.
+Bound by `UpdateStatusAsync_ResetToAwaitingKeyDestructionOfACancelledRequest_ShouldBeRefused` with
+`UpdateStatusAsync_AwaitingKeyDestructionFromTheClaimedWindow_ShouldSucceed` as its twin, RED-proven on
+all three providers in both directions: removing the guard lets a cancelled request be enrolled, and
+narrowing it to `InProgress` only breaks the completion pass's rewrite.
+
+**And an erasure interrupted mid-flight records a terminal outcome rather than staying claimed.** The
+write that records what happened runs on a bounded token of its own, never the caller's. A graceful
+shutdown cancels the caller's token before the execution handler runs, and both SQL stores open their
+connection with `OpenAsync(cancellationToken)`, so the outcome write previously threw instead of landing
+and the request stayed claimed with no status, no error and no certificate. Neither a throw nor a refusal
+escapes that write: an exception raised there would replace the original fault, and a refusal is reported
+rather than discarded, both through a Critical log naming the request. Bound by
+`AnInterruptedErasureRecordsItsOutcomeShould.RecordATerminalStatusWhenTheHostCancelsMidExecution`,
+RED-proven — restoring the caller's token to that write makes the cancellation escape the execution
+instead of being recorded.
+
+**A LAPSED legal hold does not block an erasure, on any provider, with or without the expiration sweep
+registered.** In force is the conjunction of two independent facts: whether the hold was RELEASED (an act,
+with an actor, a time and a reason) and whether its stated period has LAPSED (the passage of time). Neither
+implies the other and neither is a proxy for the other. Both SQL providers previously filtered on the
+release flag alone in all three in-force statements, so a hold whose stated expiry had passed was reported
+in force forever and refused an erasure that should have proceeded — while the in-memory reference store
+derived expiry correctly, which is the direction that hides, because anything built and unit-tested against
+the reference store was green in every test and inert on both shipped providers. The instant is read once
+per call and passed as a parameter, so one answer cannot straddle an expiry boundary mid-statement. Bound
+by `ActiveHoldQueries_ShouldExcludeALapsedHoldAndStillReturnIndefiniteAndFutureOnes` in the shared kit,
+which carries three discriminating rows per member — a past expiry that must be absent, a null expiry that
+must be present because an indefinite hold is the commonest kind and without it a provider returning
+nothing passes the safety half, and a future expiry that must be present because that is what catches an
+inverted comparison. Measured RED on real PostgreSQL and real SQL Server before the fix and green after,
+with the in-memory store green throughout as the control.
+
+**THE INSTANT IS PART OF THE CONTRACT, SO THE ANSWER IS DECIDABLE.** The three in-force members take the
+instant they are asked about and read no clock of their own. "The holds in force at `asOf`" is decidable;
+"the holds in force at a time the store chooses" is not, so two sound implementations could disagree and
+neither would be wrong. Two consequences follow for callers that must agree with themselves:
+
+- The erasure gate reads subject-specific holds and tenant-wide holds and UNIONS them. One instant is
+  pinned before both reads, so the union is one coherent answer rather than two sets that were never
+  simultaneously true — which is what two independent clock reads straddling an expiry boundary produce.
+- A caller may ask the same question twice and get the same answer, which is what makes a hold decision
+  reproducible in an audit rather than merely repeatable in the same second.
+
+Bound by `ActiveHoldQueries_ShouldDeriveInForceAgainstTheGivenInstant`, derived for all three stores. Its
+fixture is one hold whose expiry is in the FUTURE, so it has not lapsed in real time and the two halves
+differ only in the argument: asked as of an instant before the expiry it must be returned, asked as of one
+after it must not. A provider reading its own clock returns it in both. Mutants RUN rather than recorded —
+replacing the parameter with the provider's own clock reddens the arm on all three stores, and separately
+for the listing member on each SQL provider, five mutants in all against green baselines.
+
+**The complementary sweep keeps its own clock, deliberately.** `GetExpiredHoldsAsync` asks which holds
+have lapsed while still unreleased — the opposite question — and it is the thing that ACTS on the passage
+of time rather than a thing asked about a moment. A member's predicate follows from the question it asks,
+which is why "add an expiry term everywhere" would be wrong by this contract.
+
+**A REFUSAL IS REPORTED AS A REFUSAL, AND IT SPENDS NO FAULT BUDGET.** An execution result names its
+outcome rather than carrying a single success flag, and five returns that were reported as failures are
+refusals: the erasure was never attempted, so nothing was destroyed and the request is unchanged. A legal
+hold deferring an erasure is the one a consumer sees — it was told the erasure FAILED when the law
+required the data kept.
+
+The behavioural half is that the scheduler reads the outcome. A refusal routed into the failure path
+increments a per-process retry counter and, at exhaustion, writes a terminal failed status that the
+scheduler's own query never returns and no pass enumerates — so a correct withholding became a permanent
+non-erasure within the configured attempt limit. Bound by
+`ErasureSchedulerBackgroundServiceShould.Not_spend_the_fault_budget_on_a_refusal_the_executor_never_attempted`,
+whose fixture is deliberately a request that is STILL SCHEDULED: the failure path already exempts the
+deferred status and the owned-or-terminal set by reading the request back, so a refusal in any of those
+states would pass the arm whether or not the outcome is consulted. RED-proven by disabling the outcome
+branch, which reddens that arm and no other.
+
+A status re-read for the deferred case is retained alongside it, because the failure path is also
+reachable from the exception path rather than only from a returned result.
+
+**A lawful deferral is recorded as a deferral, never as a failure.** A request a legal hold defers is
+exempt from the retry and failure path, so it neither spends the request's fault budget on a state no
+retry can change nor has its status overwritten by a terminal failure. The terminal "failed after N
+attempts" record it used to receive is indistinguishable from a genuine execution failure — a key provider
+outage, a broken store — and overwrote the only durable statement of WHY, leaving the hold's lawful basis
+and case reference inside an error string. Bound by
+`ErasureSchedulerBackgroundServiceShould.Neither_retry_nor_fail_a_request_a_legal_hold_has_deferred`, with
+`Handle_failed_erasure_execution` as its liveness twin: without that twin the exemption would be satisfied
+by a scheduler that stopped marking anything failed at all.
+
+**A DEFERRED ERASURE BECOMES EXECUTABLE AGAIN ONCE NO HOLD BLOCKS IT, which is the liveness half of a
+lawful deferral.** A legal hold DEFERS an erasure rather than failing it, so a deferred request is not
+finished and the controller's obligation to erase is not discharged. `ErasureHoldReevaluationProcessor`
+reads every deferred request estate-wide through `IErasureBackgroundQueryStore.GetHoldDeferredRequestsAsync`,
+re-reads the hold store under each request's own recorded tenant, and returns the ones no hold blocks to
+`Scheduled`. The scheduler runs it before its execution pass, so a request it resumes is picked up in the
+same poll. **The reportable property is that the request becomes EXECUTABLE again; the statutory clock is
+the consumer's and this framework holds no authority over it.**
+
+A partial hold leaves the request deferred exactly as a full one does, because neither mechanism the
+executor runs can exclude a category from destruction — the per-subject key is scoped to the subject and
+the event-store pass is whole-aggregate — so resuming on a partial hold would hand the executor a request
+it must immediately refuse.
+
+**The pass grants ELIGIBILITY, never permission to erase, and that is what keeps it cheap to get wrong.**
+It writes the scheduled status and nothing else. Safety rests on the executor's run-level and per-key hold
+checks, so the pass must never acquire a shortcut: no writing the claimed status itself, no bypassing the
+execution entry point, no widening its accepted-status gate. A hold arriving between discovery and
+execution costs one wasted claim cycle — liveness, never safety.
+
+**Its liveness DERIVES from the hold-expiry parity above rather than assuming it.** While a lapsed hold was
+reported as in force forever on both SQL providers, this pass would have been green in every unit test
+against the in-memory reference store and INERT on both shipped providers: it would have re-read the hold,
+been told it still blocked, and deferred the request again on every poll, permanently.
+
+Bound by `ADeferredErasureIsReturnedToTheQueueShould` — five arms: the liveness arm, the still-held arm,
+the partial-hold arm, an arm asserting a claimed request is left alone, and an END-TO-END arm that blocks
+an erasure by a hold, releases the hold, runs the pass and asserts the erasure actually COMPLETES. That
+last arm is the one that distinguishes this guarantee from the weaker claim it would be easy to make:
+becoming executable again is not the property a data subject is owed; being erased is. Each is RED-proven: dropping
+the partial-hold half of the check, dropping the hold check entirely, resuming to the claimed status
+instead of the scheduled one, and discovering by the sibling member's status each redden a named arm.
+The estate-wide query itself is bound across all three stores by one parameterised conformance arm,
+`ErasureStoreConformanceTestKit.BackgroundDiscovery_AcrossOwners_ShouldReturnEveryRowOfItsOwnStatusUnscoped`,
+which runs multi-tenant with two owning tenants under no ambient scope — the shape that detects an
+ambient-tenant term, whose effect would be an empty discovery set and work silently never done.
+
+**Scope bound, stated rather than implied: this covers the STORED deferrals only.** A request refused at
+filing time is refused synchronously and never persisted, so no discovery query can find it by
+construction — the caller holds a result whose request ID has no stored request. That is defensible,
+since nothing was accepted, but it means "every deferred erasure becomes executable again" is true of the
+stored half and vacuous for the other, and a reader should not infer the wider claim.
+
+**Known gaps, and the rung.** This closes the re-offer path, the cancelled-enrolment path, the
+interrupted-outcome path, the lapsed-hold path, the dishonest-deferral path and the deferred-liveness
+path. It does not make the erasure lifecycle's liveness complete, and one gap is open by behaviour:
+- A request CLAIMED by a process that then stops — a crash, an eviction or a scale-in — stays claimed
+  permanently. No query enumerates it, the executor refuses it, and the claim carries no lease, owner
+  identity or expiry by which another instance could establish that the owner is gone. Keys may already
+  be destroyed. A graceful shutdown now records a terminal outcome, so that variant is visible; the crash
+  variant is not, and a terminal status is not re-enumerated by any discovery query either, so neither
+  variant is re-executable without an operator or a leased claim.
+
+**TWO INVARIANTS THAT NOTHING STATED, and both are cheap to record now and unrecoverable later.** Each was
+found by an adversarial contract review of the deferral design rather than by a test, and each is a
+property the current code HAS and nothing protects.
+
+1. **No irreversible act may occur between the execution claim and the hold re-check that follows it.**
+   The claim is at `ErasureService.cs:541` and the re-check at `:552`; every destructive step — the key
+   queue, the contributors, the event-store pass — is inside the block that begins after `:587`. This is
+   what makes returning a hold-deferred request to an executable state safe: a deferred request performed
+   no irreversible work, so re-entry is idempotent. **The day a key destruction moves above that
+   re-check, returning a deferred request to the executable state silently becomes a double destruction,
+   and the re-evaluation that returns it is the mechanism.** The ordering is the invariant, not the line
+   numbers.
+
+2. **Safety against erasing under a hold is discharged by the EXECUTOR, never by whatever re-evaluates a
+   deferral.** The run-level check at `ErasureService.cs:552` and the per-key check immediately before
+   each irreversible destruction at `:1262` are the two places that refuse. A pass that returns a
+   deferred request to an executable state therefore grants ELIGIBILITY and not permission: a hold
+   arriving in that window is caught by those checks, the request returns to the deferred state, and the
+   cost is one wasted cycle — liveness, never safety. **The corollary binds whoever writes that pass: it
+   must never take a shortcut past the executor** — not by writing the claimed status itself, not by
+   widening the executor's accepted-status gate, not by bypassing it. Those would move the safety
+   decision to a place that carries no safety obligation.
+
+**AND A THIRD, OWED RATHER THAN HELD, recorded because the lease design turns on it.** The claim is a
+genuine atomic claim — one conditional UPDATE with the expected state in its own WHERE clause — but it
+prevents only a second CLAIM. Three writes that advance a request's attestation are today unconditional
+on ownership: the completion record, the terminal status write, and the staging and destruction records,
+which are keyed by request alone. With one executor that is sound and is documented as deliberate. **With
+two it is not, and the harm is entirely in the attestation rather than in the destruction** — key
+destruction is idempotent by construction, which is why the provider answers a self-destroyed key and a
+never-held key identically. So any mechanism that can hand one request to a second executor owes a fence
+on every attestation write, not only on the claim. Until then, the single-executor property rests on an
+invariant nothing states: **the destroyed-handle set read when a request is claimed is complete with
+respect to every destruction that request has performed.**
+
+By the partition rule above `Pending` is also an enabling status — cancellation succeeds because a request
+is `Pending` or `Scheduled` — and its write is not yet conditional. Nothing in this framework writes
+`Pending` after creation, so no in-box path reaches the bad state; a caller of `UpdateStatusAsync` could.
+
+This subsystem's blast radius is catastrophic and its rigor floor is R4; **R3 and R4 remain UNVERIFIED** —
+the arms above are example-based, and no model checks the status machine's reachable states. The two gaps
+above are exactly the shape a model would find. Each provider's own answer is
 locked beside it: `InMemoryKeyManagementProviderShould` and the `IsKeyDestroyedAsync_*` arms of
 `VaultKeyProviderShould` (a held key is not destroyed; an absent key is; a vault that cannot be asked throws
 rather than answering; the read bypasses the metadata cache).
+
+### A changed data-subject hashing key is refused, not silently absorbed
+
+**Guarantee.** The durable **erasure store** (`PostgresErasureStore`, `SqlServerErasureStore` — which is
+also the key-mint ledger, the key-destruction ledger and the certificate store) records a non-reversible
+fingerprint of the data-subject token function the first time it is used. The record is **write-once**. A
+process whose own token function fingerprints differently **cannot complete initialisation of that store**,
+and therefore cannot read or write any token-keyed row in it.
+
+**Scope of that guarantee, stated precisely rather than generously.** The legal-hold store and the
+data-inventory store are registered separately and **each take their own connection string**, so they may
+sit on different databases from the erasure store. They do **not** yet carry this record. Therefore:
+
+| deployment | covered? |
+|---|---|
+| one database for all compliance stores (the common case, and the shipped default shape) | **yes** — the erasure store's check refuses startup before any token-keyed row is touched, and there is one hashing key per process |
+| erasure store on database A, legal-hold or inventory on database B | **partially** — a changed key is still caught by the erasure store, but a database holding *only* holds or inventory rows has no fingerprint of its own |
+
+The second row is a real gap and is listed under *Known gaps* below. It is narrower than it looks — one
+process has one token function, so the erasure store's refusal stops that process entirely — but it is not
+nothing: a host that registers only the legal-hold store, with no erasure store at all, performs no check.
+
+**Why this is a guarantee and not a convenience.** Every durable record here — erasure requests, the
+key-destruction ledger, the key-mint ledger an erasure enumerates from, legal holds, the data inventory —
+is keyed by a pseudonymisation token derived from a data-subject identifier under a secret key. Change
+that key and every key changes at once, with four consequences and **no error on any of them**:
+
+| what happens | why nothing reports it |
+|---|---|
+| the mint-ledger enumeration returns empty | empty is a legitimate answer; it means "no personal fields were written" |
+| the erasure destroys only what it can derive, then **signs a completion certificate** | the certificate attests the pass that ran, and that pass did complete |
+| a **legal-hold lookup returns empty**, so the erasure proceeds over data the law requires kept | an absent hold is indistinguishable from no hold |
+| personal data already encrypted stops being decryptable | a null field read is this framework's own assertion of a lawful erasure |
+
+**Ordinary quarterly secret-rotation hygiene applied to the hashing key is sufficient to cause all four.**
+A regulated consumer is left holding a signed erasure certificate for data that is still readable, and a
+destroyed record that the law required them to retain.
+
+**How it is achieved.** The fingerprint is derived by hashing one fixed canary identifier through the
+*registered* hasher and running the result through HKDF
+(`Erasure/DataSubjectPepperFingerprint.cs`), then claimed through
+`IDataSubjectTokenFingerprintLedger.ClaimTokenFingerprintAsync` — an atomic insert-if-absent followed by a
+read of what is now recorded. The comparison runs as the last step of each store's initialisation funnel
+(`PostgresErasureStore.InitializeCoreAsync`, `SqlServerErasureStore.InitializeCoreAsync`), which every one
+of that store's operations already awaits, so *every token-bound statement happens-after the check* by
+construction rather than by review.
+
+**It fingerprints BEHAVIOUR, not configuration**, because this interface is public and registered
+first-one-wins: a consumer's own hasher can be the one producing tokens while the configured key is read
+by nobody. Fingerprinting output therefore also detects a *replaced implementation*, which a configuration
+check cannot see at all.
+
+**Write-once is enforced at the database**, by a trigger the provisioning scripts install, not merely by
+this framework declining to offer an update path. Initialization verifies an enabled trigger on the
+fingerprint table covering both UPDATE and DELETE. SQL Server replaces its runtime-provisioned guard
+inside one transaction, preserving the previous guard if replacement fails. These catalog checks verify
+the required trigger shape; they do not prove arbitrary replacement trigger bodies. Use the shipped
+provisioning scripts and keep privileged DDL access restricted. The guard rejects ordinary UPDATE and
+DELETE; a trusted database owner can still disable/drop it or use administrative operations such as
+TRUNCATE. Missing protection plus external mutation could let a process holding the wrong key replace
+the fingerprint while an already-initialized process continues using the original token function.
+
+**Initialization owns its durability boundary.** Schema verification/provisioning and fingerprint
+claims execute independently of a caller's ambient business transaction. A later caller rollback must
+not remove the fingerprint while leaving the process's initialization latch satisfied. Both PostgreSQL
+and SQL Server suppress ambient enlistment only during initialization and fingerprint claims; ordinary
+store operations retain their existing transaction participation. The caller's ambient context is restored
+on success, failure and cancellation.
+
+**The fingerprint carries no tenant term, and its table has no tenant column.** The token function belongs
+to the process, not to a tenant. A per-tenant fingerprint would be worse than none: a tenant onboarded
+after a rotation would record the new key as correct while every earlier tenant's records were already
+orphaned, and the check would then pass forever on exactly the deployment where the damage is worst.
+
+**Evidence.**
+`PostgresTokenFingerprintShould` and `SqlServerTokenFingerprintShould` bind this against real database
+instances and are never skipped — the properties under test are substrate behaviour that no mock
+reproduces. Each suite proves the refusal, its liveness counterpart, the database-enforced write-once,
+that exactly one of two concurrently starting processes with different keys may proceed, and that the
+recorded value does not vary with the ambient tenant.
+`TokenBoundStoreOperationsAwaitTheFunnelTests` asserts structurally that every public operation of such a
+store awaits the funnel, so an operation added later that skips the check fails the build rather than
+shipping.
+`DataSubjectPepperFingerprintShould` pins the derivation against vectors computed by an independent
+RFC 5869 implementation, and proves two hashers with the *same* key but different constructions
+fingerprint differently.
+
+**Consumer obligation.** Treat the hashing key as a **permanent derivation parameter for the life of the
+data it protects**, not as a credential to rotate. If it must change, migrate every token-keyed record
+before the change: afterwards the old token cannot be recomputed from anything that remains.
+
+**Known gap — this covers RECORDS, not key NAMES.** A per-subject encryption key is named by a handle in a
+key vault, which has nowhere to hold a fingerprint beside it. So personal data already encrypted under a
+handle derived from the old token function remains undecryptable, and no check reports it. A consumer told
+"a changed hashing key is detected" and given "detected for records only" has been misled by omission,
+which is why it is stated here. A purely in-memory store records no fingerprint either, and needs none:
+its records do not outlive the process, so no later process can be orphaned by them.
 
 ## How it is achieved
 
@@ -807,6 +1725,25 @@ hosted service: a store constructed directly, or a serverless host with no start
 same provisioning type, so the floor and the startup check report the same condition the same way.
 
 ## Consumer obligations
+
+- **Remove a retention declaration by WITHDRAWING it first, then deploying.** Deleting a declaration
+  from your code without an administrative withdrawal leaves the deployment's record holding it, so every
+  instance holds fewer declarations than the record and **all erasure for that tenant stops — permanently,
+  with no deploy that can fix it**, because the record only grows. The withdrawal is the one supported way
+  to shrink it. This obligation is easy to reach by editing options, which is why it is stated first.
+- **Never re-declare a pair that has been withdrawn.** A withdrawal tombstones the pair and the tombstone
+  occupies the key, so a later declaration of the same `(tenant, aggregate type)` is silently dropped and
+  the record keeps reading as withdrawn. A new obligation over the same data takes a NEW aggregate type
+  name. Without this, a deliberate re-declaration and a stale instance are indistinguishable in every
+  readable variable, and the two call for opposite actions.
+- **Quiesce erasure execution across a deploy that ADDS a retention declaration.** Declarations live in
+  your code and are read into each instance's own registry at construction, so during a rolling deploy an
+  instance running the previous version holds a smaller set and will erase a newly-retained type as though
+  no declaration existed — irreversibly, and certified Completed, because by its own view it was right.
+  Stop the erasure scheduler across such a deploy, or ensure every instance holds the new declaration
+  before any instance serves. Adding a declaration is the only trigger: removing one, or deploying
+  anything else, is not. A single-instance deployment cannot reach it. **This obligation survives the
+  deployment-wide record described in the guarantee above**, which narrows the window and cannot close it.
 
 - **Set the ambient tenant; do not rely on the argument.** Scope comes from the ambient tenant context.
   The `tenantId` parameter can narrow a result but cannot select a tenant.

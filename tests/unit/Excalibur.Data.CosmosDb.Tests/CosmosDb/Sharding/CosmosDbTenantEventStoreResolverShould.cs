@@ -1,121 +1,158 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
-
 using System.Collections.Concurrent;
-using System.Reflection;
-
 using Excalibur.Data.Sharding;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.CosmosDb;
 using Excalibur.EventSourcing.CosmosDb.Sharding;
-
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Azure.Cosmos;
 
 namespace Excalibur.Data.Tests.CosmosDb.Sharding;
 
-/// <summary>
-/// Locks client-lifetime ownership for the Cosmos DB tenant shard resolver.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Whoever creates the client disposes it. The resolver constructs a Cosmos client per shard, so it
-/// owns it: disposing the resolver must dispose everything it built, or a long-running multi-tenant
-/// host holds one connection pool per shard open for the life of the process with nothing able to
-/// release it.
-/// </para>
-/// <para>
-/// The recording arm and the disposing arm are both asserted. Either alone passes against a resolver
-/// that leaks: recording without disposing is the leak itself, and disposing an empty ledger is what a
-/// resolver that never recorded anything does.
-/// </para>
-/// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "CosmosDb")]
 [Trait("Feature", "Disposal")]
+[Trait("Pattern", "Regression")]
 public sealed class CosmosDbTenantEventStoreResolverShould
 {
-	private const string ShardConnectionString =
-		"AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
+    [Fact]
+    public async Task ReuseOneShardAllocateASecondAndDisposeEachNativeClientExactlyOnce()
+    {
+        await using var fixture = new Fixture();
+        var first = fixture.Resolver.Resolve("tenant-1");
+        fixture.Resolver.Resolve("tenant-2").ShouldBeSameAs(first);
+        first.ShouldBeAssignableTo<IEventStore>();
+        var second = fixture.Resolver.Resolve("other-shard");
+        second.ShouldNotBeSameAs(first);
+        fixture.Clients.Count.ShouldBe(2);
+        await fixture.Resolver.DisposeAsync(); await fixture.Resolver.DisposeAsync();
+        foreach (var client in fixture.Clients) { client.DisposeCalls.ShouldBe(1); }
+    }
 
-	private static CosmosDbTenantEventStoreResolver CreateResolver()
-	{
-		var shardMap = A.Fake<ITenantShardMap>();
-		A.CallTo(() => shardMap.GetShardInfo(A<string>._))
-			.Returns(new ShardInfo("shard-1", ShardConnectionString, DatabaseName: "events-db", IndexPrefix: "events"));
+    [Fact]
+    public async Task RefuseToResolveAfterDisposalWithoutInvokingAnyNativeFactory()
+    {
+        await using var fixture = new Fixture();
+        await fixture.Resolver.DisposeAsync();
+        Should.Throw<ObjectDisposedException>(() => fixture.Resolver.Resolve("tenant-1"));
+        fixture.Clients.ShouldBeEmpty();
+    }
 
-		var loggerFactory = A.Fake<ILoggerFactory>();
-		A.CallTo(() => loggerFactory.CreateLogger(A<string>._)).Returns(NullLogger.Instance);
+    [Fact]
+    public async Task TolerateDoubleDisposal()
+    {
+        var fixture = new Fixture();
+        await fixture.Resolver.DisposeAsync(); await fixture.Resolver.DisposeAsync();
+        fixture.Clients.ShouldBeEmpty();
+    }
 
-		var options = Options.Create(new CosmosDbEventStoreOptions
-		{
-			DatabaseName = "events-db",
-			EventsContainerName = "events",
-		});
+    [Fact]
+    public async Task ReturnTheSameStoreForOneShard()
+    {
+        await using var fixture = new Fixture();
+        var first = fixture.Resolver.Resolve("tenant-1");
+        fixture.Resolver.Resolve("tenant-2").ShouldBeSameAs(first);
+        fixture.Clients.Count.ShouldBe(1);
+    }
 
-		return new CosmosDbTenantEventStoreResolver(
-			shardMap, loggerFactory, options, TestTenantContext.SingleTenant);
-	}
+    [Fact]
+    public async Task RollBackOwnedAllocationWhenLaterConstructionFailsAndRetryWithFreshClients()
+    {
+        await using var fixture = new Fixture();
+        var original = new IOException("construction failed after native allocation");
+        fixture.AfterClient = client => client.ContainerFailure = original;
+        Should.Throw<IOException>(() => fixture.Resolver.Resolve("tenant-1")).ShouldBeSameAs(original);
+        fixture.Clients.Count.ShouldBe(1);
+        var failed = fixture.Clients.Single();
+        failed.DisposeCalls.ShouldBe(1);
+        fixture.AfterClient = null;
+        fixture.Resolver.Resolve("tenant-1").ShouldNotBeNull();
+        fixture.Clients.Count.ShouldBe(2);
+        await fixture.Resolver.DisposeAsync();
+        foreach (var client in fixture.Clients) { client.DisposeCalls.ShouldBe(1); }
+    }
 
-	private static ConcurrentBag<IDisposable> CreatedClients(CosmosDbTenantEventStoreResolver resolver) =>
-		(ConcurrentBag<IDisposable>)resolver.GetType()
-			.GetField("_createdClients", BindingFlags.Instance | BindingFlags.NonPublic)!
-			.GetValue(resolver)!;
+    [Fact]
+    public async Task JoinNativeConstructionThenDisposeThePublishedBindingAndSealFurtherResolve()
+    {
+        await using var fixture = new Fixture();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var disposing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        fixture.AfterClient = _ =>
+        {
+            entered.TrySetResult();
+#pragma warning disable RS0030 // Deliberately hold synchronous native construction across resolver Dispose.
+            release.Wait();
+#pragma warning restore RS0030
+        };
+#pragma warning disable RS0030 // Controlled concurrent Resolve/Dispose against the real provider binding publication gate.
+        var resolving = Task.Run(() => fixture.Resolver.Resolve("tenant-1"));
+        Task shutdown = Task.CompletedTask;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            shutdown = Task.Run(async () => { disposing.TrySetResult(); await fixture.Resolver.DisposeAsync(); });
+            await disposing.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            shutdown.IsCompleted.ShouldBeFalse();
+        }
+        finally { release.Set(); }
+#pragma warning restore RS0030
+        await resolving.WaitAsync(TimeSpan.FromSeconds(5));
+        await shutdown.WaitAsync(TimeSpan.FromSeconds(5));
+        Should.Throw<ObjectDisposedException>(() => fixture.Resolver.Resolve("other-shard"));
+        fixture.Clients.Count.ShouldBe(1);
+        fixture.Clients.Single().DisposeCalls.ShouldBe(1);
+    }
 
-	[Fact]
-	public async Task RecordEveryClientItConstructs_SoDisposalCanReachThem()
-	{
-		var resolver = CreateResolver();
+    [Fact]
+    public async Task DirectStoreDisposalBorrowsRatherThanDisposesSuppliedNativeClients()
+    {
+        var client = new RecordingClient();
+        var store = new CosmosDbEventStore(client, Options.Create(new CosmosDbEventStoreOptions
+        { DatabaseName = "events-db", EventsContainerName = "events" }), NullLogger<CosmosDbEventStore>.Instance, TestTenantContext.SingleTenant);
+        await store.DisposeAsync();
+        client.DisposeCalls.ShouldBe(0);
+        client.Dispose();
+    }
 
-		_ = resolver.Resolve("tenant-1");
+    private sealed class RecordingClient : CosmosClient
+    {
+        private int _disposeCalls;
+        internal int DisposeCalls => Volatile.Read(ref _disposeCalls);
+        internal Exception? ContainerFailure;
+        public override Container GetContainer(string databaseId, string containerId) =>
+            ContainerFailure is { } failure ? throw failure : A.Fake<Container>();
 
-		// The client is constructed here and referenced by nothing the host can reach, so an
-		// unrecorded one can never be disposed.
-		CreatedClients(resolver).Count.ShouldBe(1);
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { Interlocked.Increment(ref _disposeCalls); }
+            // CosmosClient's protected mocking constructor creates no ClientContext to dispose.
+            base.Dispose(false);
+        }
+    }
 
-		await resolver.DisposeAsync();
-	}
-
-	[Fact]
-	public async Task DisposeTheClientsItCreated()
-	{
-		var resolver = CreateResolver();
-		var owned = A.Fake<IDisposable>();
-		CreatedClients(resolver).Add(owned);
-
-		await resolver.DisposeAsync();
-
-		A.CallTo(() => owned.Dispose()).MustHaveHappened();
-	}
-
-	[Fact]
-	public async Task RefuseToResolveAfterDisposal()
-	{
-		var resolver = CreateResolver();
-		await resolver.DisposeAsync();
-
-		_ = Should.Throw<ObjectDisposedException>(() => resolver.Resolve("tenant-1"));
-	}
-
-	[Fact]
-	public async Task TolerateDoubleDisposal()
-	{
-		var resolver = CreateResolver();
-
-		await resolver.DisposeAsync();
-		await resolver.DisposeAsync();
-	}
-
-	[Fact]
-	public async Task ReturnTheSameStoreForOneShard()
-	{
-		var resolver = CreateResolver();
-
-		var first = resolver.Resolve("tenant-1");
-		var second = resolver.Resolve("tenant-2");
-
-		first.ShouldBeSameAs(second);
-		first.ShouldBeAssignableTo<IEventStore>();
-
-		await resolver.DisposeAsync();
-	}
+    private sealed class Fixture : IAsyncDisposable
+    {
+        internal readonly ConcurrentBag<RecordingClient> Clients = [];
+        internal Action<RecordingClient>? AfterClient;
+        internal CosmosDbTenantEventStoreResolver Resolver { get; }
+        internal Fixture()
+        {
+            var map = A.Fake<ITenantShardMap>();
+            A.CallTo(() => map.GetShardInfo(A<string>._)).ReturnsLazily((string tenant) =>
+                new ShardInfo(tenant == "other-shard" ? "second" : "first", "unused", Region: "us-east-1", IndexPrefix: "events"));
+            var loggers = A.Fake<ILoggerFactory>();
+            A.CallTo(() => loggers.CreateLogger(A<string>._)).Returns(NullLogger.Instance);
+            Resolver = new CosmosDbTenantEventStoreResolver(map, loggers,
+                Options.Create(new CosmosDbEventStoreOptions { DatabaseName = "events-db", EventsContainerName = "events" }),
+                TestTenantContext.SingleTenant, (_, _) =>
+                {
+                    var client = new RecordingClient();
+                    Clients.Add(client); AfterClient?.Invoke(client); return client;
+                });
+        }
+        public ValueTask DisposeAsync() => Resolver.DisposeAsync();
+    }
 }

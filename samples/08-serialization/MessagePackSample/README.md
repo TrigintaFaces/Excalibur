@@ -4,8 +4,8 @@ This sample demonstrates **MessagePack serialization** with the Excalibur framew
 
 ## What This Sample Shows
 
-1. **High-Performance Binary Serialization** - MessagePack provides compact binary format
-2. **LZ4 Compression** - Optional compression for reduced payload size
+1. **Binary Serialization** - MessagePack provides compact binary format
+2. **LZ4 Compression** - Optional LZ4 compression; compare resulting size and processing cost for your payload
 3. **Union Types** - Polymorphic serialization with type discrimination
 4. **Attribute-Based Configuration** - Simple `[MessagePackObject]` and `[Key(n)]` attributes
 
@@ -65,6 +65,8 @@ dotnet run
 
 ## Expected Output
 
+Illustrative output; byte counts and percentages have not been verified for the current sample and configuration.
+
 ```
 Starting MessagePack Serialization Sample...
 
@@ -97,7 +99,7 @@ MessagePack Union allows polymorphic serialization...
 | Scenario | Recommendation |
 |----------|----------------|
 | High throughput required | Compare MessagePack and JSON with the actual payload and API |
-| Bandwidth-constrained | ✅ MessagePack + LZ4 compression |
+| Bandwidth-constrained | Compare compressed size and processing cost for the actual payload |
 | Cross-language systems | ✅ MessagePack (broad language support) |
 | Polymorphic messages | ✅ Union types for C#-to-C# |
 | Human-readable debugging | ❌ Use JSON instead |

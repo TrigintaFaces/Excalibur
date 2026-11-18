@@ -36,6 +36,7 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventEncoder<PutEv
 	private const string TraceParentProperty = "traceparent";
 	private const string DataProperty = "data";
 
+	private readonly CloudEventSerializer _serializer;
 	private readonly AwsEventBridgeCloudEventOptions _eventBridgeOptions;
 	private readonly ILogger<AwsEventBridgeCloudEventAdapter> _logger;
 
@@ -43,14 +44,19 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventEncoder<PutEv
 	/// Initializes a new instance of the <see cref="AwsEventBridgeCloudEventAdapter" /> class.
 	/// </summary>
 	/// <param name="options"> The general CloudEvent options (default source/mode, excluded extensions). </param>
+	/// <param name="serializer"> The decided CloudEvents serializer, carrying the resolver the consumer configured. </param>
 	/// <param name="eventBridgeOptions"> The EventBridge-specific options (event bus, detail-type strategy, extension inclusion). </param>
 	/// <param name="logger"> The logger instance. </param>
 	public AwsEventBridgeCloudEventAdapter(
 		IOptions<CloudEventOptions> options,
+		CloudEventSerializer serializer,
 		IOptions<AwsEventBridgeCloudEventOptions> eventBridgeOptions,
 		ILogger<AwsEventBridgeCloudEventAdapter> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
+
+		_serializer = serializer;
 		ArgumentNullException.ThrowIfNull(eventBridgeOptions);
 		ArgumentNullException.ThrowIfNull(logger);
 
@@ -63,8 +69,6 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventEncoder<PutEv
 	public CloudEventOptions Options { get; }
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("CloudEvent serialization may require unreferenced types for reflection-based operations")]
-	[RequiresDynamicCode("CloudEvent serialization uses reflection to dynamically access and serialize types")]
 	public Task<PutEventsRequestEntry> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -93,7 +97,7 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventEncoder<PutEv
 		};
 
 		var detailPayload = BuildDetailPayload(cloudEvent, mode);
-		entry.Detail = JsonSerializer.Serialize(detailPayload, JsonSerializerOptionsProvider.Options);
+		entry.Detail = _serializer.SerializePayload(detailPayload);
 
 		_logger.LogDebug(
 			"Converted CloudEvent {EventId} to EventBridge request entry using {Mode} mode",
@@ -110,8 +114,6 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventEncoder<PutEv
 	/// <param name="eventBusName"> </param>
 	/// <param name="cancellationToken"> </param>
 	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async Task<PutEventsRequestEntry> ToEventBridgeEventAsync(
 		CloudEvent cloudEvent,
 		string eventBusName,
@@ -124,8 +126,6 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventEncoder<PutEv
 		return entry;
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	private Dictionary<string, object?> BuildDetailPayload(CloudEvent cloudEvent, CloudEventMode mode)
 	{
 		var payload = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -169,7 +169,7 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventEncoder<PutEv
 				null => null,
 				string text => text,
 				byte[] bytes => Convert.ToBase64String(bytes),
-				_ => JsonSerializer.Serialize(cloudEvent.Data),
+				_ => _serializer.SerializePayload(cloudEvent.Data),
 			};
 		}
 

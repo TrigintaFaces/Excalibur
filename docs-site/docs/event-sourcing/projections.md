@@ -1961,9 +1961,9 @@ public class OrderPlacedNotificationHandler : IEventNotificationHandler<OrderPla
 `IEventNotificationHandler<T>` is distinct from `IEventHandler<T>` in the Dispatch layer. Notification handlers are EventSourcing-level, in-process only, and invoked during `SaveAsync`.
 :::
 
-### Zero-Overhead Opt-In
+### Optional Notification Registration
 
-If you never call `AddProjection<T>()` or `UseEventNotification()`, the broker is not registered in DI. `SaveAsync` behaves identically to pre-notification behavior with zero overhead.
+If you never call `AddProjection<T>()` or `UseEventNotification()`, the broker is not registered in DI. `SaveAsync` does not use the optional notification broker; performance equivalence requires matched measurements.
 
 ---
 

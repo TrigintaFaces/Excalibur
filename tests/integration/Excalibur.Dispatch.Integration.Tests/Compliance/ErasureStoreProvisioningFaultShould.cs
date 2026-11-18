@@ -178,6 +178,14 @@ _ = services.AddPostgresErasureStore(options =>
 			options.SchemaName = "compliance";
 			options.RequestsTableName = TableName("erasure_requests_prov", autoCreateSchema);
 			options.CertificatesTableName = TableName("erasure_certificates_prov", autoCreateSchema);
+			// THE WRITE-ONCE FINGERPRINT ROW IS PER DATABASE, so it is isolated the same way this suite
+			// already isolates its other tables. This suite deliberately composes the REAL hasher with a
+			// REAL pepper -- that is the production registration it exists to exercise -- so its
+			// fingerprint differs from every other suite sharing this container, and whichever suite
+			// initialised first would otherwise claim the row and have this one refused at startup. The
+			// refusal is correct and must not be weakened; what was wrong is two different hashers
+			// sharing one row.
+			options.TokenFingerprintTableName = TableName("erasure_token_fingerprint_prov", autoCreateSchema);
 			options.CommandTimeoutSeconds = 30;
 			options.AutoCreateSchema = autoCreateSchema;
 		});
@@ -317,6 +325,14 @@ _ = services.AddSqlServerErasureStore(options =>
 			options.SchemaName = "compliance";
 			options.RequestsTableName = TableName("ErasureRequestsProv", autoCreateSchema);
 			options.CertificatesTableName = TableName("ErasureCertificatesProv", autoCreateSchema);
+			// THE WRITE-ONCE FINGERPRINT ROW IS PER DATABASE, so it is isolated the same way this suite
+			// already isolates its other tables. This suite deliberately composes the REAL hasher with a
+			// REAL pepper -- that is the production registration it exists to exercise -- so its
+			// fingerprint differs from every other suite sharing this container, and whichever suite
+			// initialised first would otherwise claim the row and have this one refused at startup. The
+			// refusal is correct and must not be weakened; what was wrong is two different hashers
+			// sharing one row.
+			options.TokenFingerprintTableName = TableName("ErasureTokenFingerprintProv", autoCreateSchema);
 			options.CommandTimeoutSeconds = 30;
 			options.AutoCreateSchema = autoCreateSchema;
 		});

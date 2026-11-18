@@ -15,15 +15,17 @@ using DispatchMessageContext = Excalibur.Dispatch.Messaging.MessageContext;
 namespace Excalibur.Dispatch.Benchmarks.Core;
 
 /// <summary>
-/// Benchmarks for Middleware Chain Builder closure elimination.
+/// Benchmarks for middleware chain lookup and execution costs.
 /// </summary>
 /// <remarks>
 /// <para>
-/// These benchmarks validate that the <see cref="MiddlewareChainBuilder"/> and
-/// <see cref="ChainExecutor"/> eliminate per-dispatch closure allocations.
+/// These benchmarks measure <see cref="MiddlewareChainBuilder"/> and
+/// <see cref="ChainExecutor"/> with pass-through middleware and a newly allocated
+/// result. They do not by themselves establish an improvement over an earlier implementation.
 /// </para>
 /// <para>
-/// Target: Eliminate 200-300B per-dispatch closure allocations in middleware invocation.
+/// Historical target: eliminate 200-300B per-dispatch closure allocations in middleware invocation.
+/// This target is not a current measurement.
 /// </para>
 /// </remarks>
 [MemoryDiagnoser]

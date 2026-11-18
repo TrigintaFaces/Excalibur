@@ -37,12 +37,12 @@ public sealed class PostgresLeaderElectionFencingShould : IClassFixture<Postgres
 
 	public PostgresLeaderElectionFencingShould(PostgresContainerFixture fixture) => _fixture = fixture;
 
-	private IFencingTokenProvider CreateProvider(out ServiceProvider serviceProvider)
+	private IFencingTokenIssuer CreateProvider(out ServiceProvider serviceProvider)
 	{
 		var services = new ServiceCollection();
 		_ = services.AddPostgresFencingTokenProvider(_fixture.ConnectionString);
 		serviceProvider = services.BuildServiceProvider();
-		return serviceProvider.GetRequiredService<IFencingTokenProvider>();
+		return serviceProvider.GetRequiredService<IFencingTokenIssuer>();
 	}
 
 	private static string UniqueResourceId() => "resource-" + Guid.NewGuid().ToString("N");

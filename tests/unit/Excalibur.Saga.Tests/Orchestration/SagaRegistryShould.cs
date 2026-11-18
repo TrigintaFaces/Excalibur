@@ -68,7 +68,19 @@ public sealed class SagaRegistryShould : UnitTestBase
 			markerTypes[i] = current;
 		}
 
-		var handles = typeof(SagaInfo).GetMethod(nameof(SagaInfo.Handles))!;
+		// Bound by parameter types, not by name alone. Handles<TEvent>() takes no arguments and is
+		// invoked below with none, so a parameter added to it would bind here and fail at run time with
+		// TargetParameterCountException naming nothing. The empty type list fails at bind time instead.
+		var handles = typeof(SagaInfo).GetMethod(
+			nameof(SagaInfo.Handles),
+			System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
+			binder: null,
+			types: Type.EmptyTypes,
+			modifiers: null);
+
+		handles.ShouldNotBeNull(
+			$"SagaInfo.{nameof(SagaInfo.Handles)}<TEvent>() was not found as a parameterless instance "
+			+ "method. Its signature changed; this reflection-bound test must be updated in lockstep.");
 
 		// Act — register all 2000 as handled events on one saga (via the real Handles<TEvent> API).
 		SagaRegistry.Register<CapTestSaga, CapTestSagaState>(info =>

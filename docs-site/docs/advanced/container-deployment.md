@@ -95,7 +95,7 @@ EXPOSE 8080
 ENTRYPOINT ["./MyApp"]
 ```
 
-Chiseled base image (~10 MB). No .NET runtime needed. Requires `AddGeneratedServices()` in `Program.cs`. Expect zero IL2xxx/IL3xxx warnings for supported packages.
+Chiseled base image. No .NET runtime needed. Requires `AddGeneratedServices()` in `Program.cs`. Require a clean publish and execute the application’s exercised paths; package compatibility labels alone do not establish application compatibility.
 
 ---
 
@@ -170,7 +170,7 @@ app.MapHealthChecks("/healthz/live", new HealthCheckOptions
 - Startup probe prevents Kubernetes from killing the pod while transports initialize
 - `MultiTransportHealthCheck` reports Unhealthy when transports are not running
 - `MultiTransportHealthCheck` also reports Unhealthy during transport initialization (before `StartAsync` completes), which is the correct behavior for startup probes
-- For AOT apps, startup is fast (under 100 ms) but transport connections still take time
+- Measure application startup and transport initialization separately; NativeAOT does not guarantee a startup bound
 - Adjust `failureThreshold` based on your broker's connection time
 
 ### 3.3 ThrowOnStartupFailure
@@ -253,7 +253,7 @@ Server GC with 65% heap cap. Leaves headroom for native allocations, thread stac
 ```yaml
 env:
 - name: DOTNET_gcServer
-  value: "0"        # Workstation GC -- lower overhead for single-core
+  value: "0"        # Workstation GC; evaluate under the intended CPU limits
 - name: DOTNET_GCHeapHardLimitPercent
   value: "60"
 resources:
@@ -265,9 +265,9 @@ resources:
     cpu: "500m"
 ```
 
-Workstation GC for workers processing queue messages. Lower memory overhead, good for scale-to-zero scenarios.
+This example selects Workstation GC. Measure memory use, pause behavior and completed throughput under the intended CPU limits.
 
-### 5.3 High-Throughput gRPC Service (1 GiB limit)
+### 5.3 gRPC Service Configuration Example (1 GiB limit)
 
 ```yaml
 env:
@@ -284,7 +284,7 @@ resources:
     cpu: "2000m"
 ```
 
-Server GC with higher heap allowance for sustained throughput. Pin CPU requests = limits to avoid throttling.
+This example selects Server GC and a higher heap allowance. Size CPU requests and limits for the workload and monitor throttling; equal values do not eliminate CPU-limit throttling. See [Kubernetes resource management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
 
 ### 5.4 cgroup v2 Note
 
@@ -321,10 +321,10 @@ containers:
 |---------|---------|------------|
 | mTLS between services | Envoy/Istio | N/A |
 | Retry/circuit breaker | Dapr (if polyglot) | Polly (recommended for .NET-only) |
-| Observability | OTEL Collector | Direct OTLP export (leaner) |
-| Pub/sub | Dapr bindings | Direct transport SDK (lower latency) |
+| Observability | OTEL Collector | Direct OTLP export |
+| Pub/sub | Dapr bindings | Direct transport SDK |
 
-For .NET-only deployments using Excalibur.Dispatch transports, in-process is almost always leaner. Dispatch already handles retry, transport abstraction, and observability.
+Excalibur.Dispatch transports offer in-process retry, transport abstraction and observability. Compare sidecar and in-process resource use and latency with equivalent telemetry, retries and delivery behavior.
 
 ---
 
@@ -332,8 +332,8 @@ For .NET-only deployments using Excalibur.Dispatch transports, in-process is alm
 
 ### 7.1 Cold-Start Optimization
 
-- Use Native AOT for event-triggered workloads (queue, timer)
-- Keep images under 100 MB (achievable with AOT + chiseled base)
+- Evaluate NativeAOT for the application's dependencies and deployed workload.
+- Measure published image size; 100 MB is a sizing target, not a verified result for this configuration.
 - Set `minReplicas: 1` for latency-sensitive APIs to avoid scale-from-zero
 
 ### 7.2 KEDA Scaling for Queue Workers
@@ -349,7 +349,7 @@ scale:
       queueLength: 5
 ```
 
-AOT workers start in under 100 ms, making scale-from-zero practical for bursty workloads.
+Evaluate measured startup, connection initialization and scaling behavior before choosing scale-to-zero.
 
 ---
 
@@ -367,7 +367,7 @@ kubectl exec -it <pod> -- dotnet-counters monitor \
 
 **Key metrics to monitor:**
 - `gc-heap-size-bytes` -- managed heap usage against your `GCHeapHardLimitPercent`
-- `threadpool-queue-length` -- saturation indicator for dispatch throughput
+- `threadpool-queue-length` -- interpret alongside CPU, blocking and completed-work measurements
 - Transport health status via `/.well-known/ready`
 
 **OpenTelemetry export:**

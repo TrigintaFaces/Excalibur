@@ -78,7 +78,9 @@ public sealed class InMemoryLeaderElectionExtendedShould
 		le.LostLeadership += (_, _) => lostLeadership = true;
 
 		// Act
-		await le.StopAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(le, relinquished: true);
+        await le.StopAsync(CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		le.IsLeader.ShouldBeFalse();
@@ -184,7 +186,9 @@ public sealed class InMemoryLeaderElectionExtendedShould
 		le.LostLeadership += (_, _) => lostLeadership = true;
 
 		// Act
-		await le.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(le, relinquished: true);
+        await le.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		le.IsLeader.ShouldBeFalse();

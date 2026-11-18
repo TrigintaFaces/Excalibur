@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.InMemory;
 /// Author≠impl fence-CAS regression lock for item-2 (sd36sc server-side outbox fencing) —
 /// <see cref="InMemoryOutboxStore"/> enforces a monotonic fencing high-water mark so a superseded leader
 /// (a token below the high-water) is fenced off: <c>MarkSentAsync</c> <b>fails closed</b> with
-/// <see cref="StaleOutboxFencingTokenException"/>, and <c>GetUnsentMessagesAsync</c> (a set-based claim)
+/// <see cref="OutboxCompletionOutcome.FenceRefused"/>, and <c>GetUnsentMessagesAsync</c> (a set-based claim)
 /// simply yields nothing — never throwing. A valid token (≥ high-water) is honored and advances the mark.
 /// Same guard+advance contract as the SqlServer / Mongo fence siblings, in-process backend.
 /// </summary>
@@ -56,12 +56,23 @@ public sealed class InMemoryOutboxFencingCasShould : IDisposable
 		// A valid tenure marks a message sent and advances the high-water to 10.
 		await _store.MarkSentAsync(a, fencingToken: 10, CancellationToken.None);
 
-		// A superseded leader presents a lower token — must be rejected fail-closed (never silently applied).
-		var ex = await Should.ThrowAsync<StaleOutboxFencingTokenException>(
-			() => _store.MarkSentAsync(b, fencingToken: 5, CancellationToken.None).AsTask());
+		// A superseded leader presents a lower token — must be refused fail-closed (never silently applied),
+		// and the refusal must be REPORTED rather than thrown. A throw here would be indistinguishable from
+		// an infrastructure fault to the caller that must decide whether to keep draining; FenceRefused says
+		// a newer tenure exists, which is the one thing that answer has to carry.
+		var outcome = await _store.MarkSentAsync(b, fencingToken: 5, CancellationToken.None);
 
-		ex.PresentedToken.ShouldBe(5, "the exception must report the stale token that was presented");
-		ex.HighWaterToken.ShouldBe(10, "the exception must report the high-water it was fenced against");
+		outcome.ShouldBe(
+			OutboxCompletionOutcome.FenceRefused,
+			"a token below the high-water identifies a superseded tenure; FenceRefused is the only value "
+			+ "that tells the caller to stand down rather than carry on with the rest of its batch");
+
+		// SAFETY, paired with the report: the refusal must not have applied the mutation.
+		var stillUnsent = await _store.GetUnsentMessagesAsync(10, CancellationToken.None);
+		stillUnsent.ShouldContain(
+			m => m.Id == b,
+			"a refused mark-sent must leave the message claimable; refusing and applying is strictly worse "
+			+ "than either, because the store then denies doing what it did");
 	}
 
 	[Fact]
@@ -72,9 +83,12 @@ public sealed class InMemoryOutboxFencingCasShould : IDisposable
 
 		await _store.MarkSentAsync(a, fencingToken: 10, CancellationToken.None); // high-water = 10
 
-		// An equal token is the SAME tenure, still valid (guard is strictly-less-than, not <=).
-		await Should.NotThrowAsync(
-			() => _store.MarkSentAsync(b, fencingToken: 10, CancellationToken.None).AsTask());
+		// An equal token is the SAME tenure, still valid (guard is strictly-less-than, not <=). Applied is
+		// matched BY NAME: "it did not throw" is now satisfied by every refusal, so the liveness arm has to
+		// name the success rather than assert the absence of an exception.
+		(await _store.MarkSentAsync(b, fencingToken: 10, CancellationToken.None)).ShouldBe(
+			OutboxCompletionOutcome.Applied,
+			"an equal token is the same tenure and must be honoured, or a leader fences itself off");
 	}
 
 	[Fact]

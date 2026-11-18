@@ -29,7 +29,8 @@ namespace Excalibur.Dispatch.Benchmarks.Serialization;
 /// </para>
 /// </remarks>
 /// <remarks>Lives in the benchmark project, not in src: it exists to be measured against the
-/// shipping pool, and the measurement says the shipping pool wins where it counts.</remarks>
+/// shipping pool. Comparisons require matched workloads, versions, and process repetitions;
+/// this alternative is not evidence of a general performance advantage.</remarks>
 internal sealed class PooledObjectUtf8JsonWriterPool : IUtf8JsonWriterPool
 {
 	private readonly ObjectPool<Utf8JsonWriter> _pool;

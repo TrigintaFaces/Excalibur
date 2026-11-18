@@ -15,7 +15,6 @@ namespace Excalibur.Dispatch.Transport;
 /// </summary>
 internal sealed class MessagePump : IChannelMessagePump
 {
-	private readonly Channel<MessageEnvelope> _messageChannel;
 	private readonly Channel<MessageEnvelope> _channel;
 	private readonly Func<MessageEnvelope, Task> _messageHandler;
 	private readonly ChannelMessagePumpOptions _options;
@@ -26,6 +25,10 @@ internal sealed class MessagePump : IChannelMessagePump
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MessagePump" /> class.
 	/// </summary>
+	/// <param name="name">The pump name.</param>
+	/// <param name="channel">The processing channel. The caller selects its capacity and backpressure; disposing the pump completes its writer.</param>
+	/// <param name="messageHandler">The callback for each processed envelope.</param>
+	/// <param name="options">Retained pump settings; these do not reconfigure the supplied channel.</param>
 	public MessagePump(
 		string name,
 		Channel<MessageEnvelope> channel,
@@ -36,15 +39,6 @@ internal sealed class MessagePump : IChannelMessagePump
 		_channel = channel ?? throw new ArgumentNullException(nameof(channel));
 		_messageHandler = messageHandler ?? throw new ArgumentNullException(nameof(messageHandler));
 		_options = options ?? new ChannelMessagePumpOptions();
-
-		// Create message envelope channel based on options
-		var channelOptions = new BoundedChannelOptions(_options.Capacity)
-		{
-			FullMode = _options.FullMode,
-			SingleReader = _options.SingleReader,
-			SingleWriter = _options.SingleWriter,
-		};
-		_messageChannel = Channel.CreateBounded<MessageEnvelope>(channelOptions);
 	}
 
 	/// <summary>
@@ -59,11 +53,12 @@ internal sealed class MessagePump : IChannelMessagePump
 	/// <inheritdoc />
 	public ChannelMessagePumpStatus Status { get; private set; } = ChannelMessagePumpStatus.NotStarted;
 
-	/// <inheritdoc />
-	public ChannelReader<MessageEnvelope> Reader => _messageChannel.Reader;
+	/// <summary>Gets the reader of the supplied processing channel.</summary>
+	public ChannelReader<MessageEnvelope> Reader => _channel.Reader;
 
-	/// <inheritdoc />
-	public ChannelWriter<MessageEnvelope>? Writer => _messageChannel.Writer;
+	/// <summary>Gets the writer of the supplied processing channel.</summary>
+	/// <remarks>Channel capacity and backpressure belong to the caller. Stop does not promise to drain accepted writes.</remarks>
+	public ChannelWriter<MessageEnvelope>? Writer => _channel.Writer;
 
 	/// <inheritdoc />
 	public ChannelMessagePumpMetrics Metrics { get; } = new();
@@ -110,18 +105,23 @@ internal sealed class MessagePump : IChannelMessagePump
 		Status = ChannelMessagePumpStatus.Stopped;
 	}
 
-	/// <inheritdoc />
+	/// <summary>Invokes the configuration callback on the retained pump settings.</summary>
+	/// <remarks>This does not resize or reconfigure the supplied channel; its creator selects capacity and full-mode behavior.</remarks>
+	/// <param name="configure">The callback applied to the retained settings.</param>
+	/// <returns>The same pump.</returns>
 	public IChannelMessagePump Configure(Action<ChannelMessagePumpOptions>? configure)
 	{
 		configure?.Invoke(_options);
 		return this;
 	}
 
-	/// <inheritdoc />
+	/// <summary>Cancels and awaits processing, then completes the supplied channel writer.</summary>
+	/// <remarks>Successful disposal refuses further writes through the supplied ingress. This does not promise graceful draining or restart.</remarks>
+	/// <returns>A value task representing processing termination.</returns>
 	public async ValueTask DisposeAsync()
 	{
 		await StopAsync(CancellationToken.None).ConfigureAwait(false);
-		_ = _messageChannel.Writer.TryComplete();
+		_ = _channel.Writer.TryComplete();
 	}
 
 	/// <summary>
@@ -137,8 +137,8 @@ internal sealed class MessagePump : IChannelMessagePump
 	/// Core disposal logic for managed resources.
 	/// </summary>
 	/// <remarks>
-	/// Prefer <see cref="DisposeAsync"/> to avoid sync-over-async risks.
-	/// The sync path uses a 5-second timeout to prevent deadlocks on SynchronizationContexts.
+	/// Synchronous disposal cancels processing and completes the supplied writer without awaiting the processing task.
+	/// Prefer <see cref="DisposeAsync"/> when the caller must await processing termination; both paths complete the supplied writer.
 	/// </remarks>
 	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
 		Justification = "IDisposable.Dispose() is synchronous by contract. Prefer DisposeAsync when available.")]

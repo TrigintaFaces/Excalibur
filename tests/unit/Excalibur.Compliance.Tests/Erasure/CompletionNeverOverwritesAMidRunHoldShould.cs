@@ -47,7 +47,7 @@ public sealed class CompletionNeverOverwritesAMidRunHoldShould
 	[Fact]
 	public async Task Refuse_to_record_completion_over_a_hold_placed_during_the_contributor_pass()
 	{
-		var store = new InMemoryErasureStore(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()));
+		var store = new InMemoryErasureStore(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()), TimeProvider.System);
 		var requestId = await ScheduleAsync(store).ConfigureAwait(false);
 
 		// The hold arrives mid-run: the contributor is the thing that is "long", so recording it from
@@ -74,7 +74,7 @@ public sealed class CompletionNeverOverwritesAMidRunHoldShould
 	[Fact]
 	public async Task Record_completion_normally_when_nothing_interrupts_the_run()
 	{
-		var store = new InMemoryErasureStore(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()));
+		var store = new InMemoryErasureStore(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()), TimeProvider.System);
 		var requestId = await ScheduleAsync(store).ConfigureAwait(false);
 
 		var sut = BuildService(store, contributor: null);
@@ -96,13 +96,24 @@ public sealed class CompletionNeverOverwritesAMidRunHoldShould
 	[Fact]
 	public async Task Say_why_a_completion_was_refused_rather_than_reporting_the_request_missing()
 	{
-		var store = new InMemoryErasureStore(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()));
+		var store = new InMemoryErasureStore(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()), TimeProvider.System);
 		var requestId = await ScheduleAsync(store).ConfigureAwait(false);
-		_ = await store.UpdateStatusAsync(
-			requestId, ErasureRequestStatus.BlockedByLegalHold, "legal hold", CancellationToken.None).ConfigureAwait(false);
+
+		// The run takes custody first, exactly as the executor does, and every write below presents that
+		// identity. Without the claim this arm would be testing a DIFFERENT refusal -- a completion
+		// presented against an unclaimed row is refused for want of a claim, which would pass while
+		// saying nothing about whether a mid-run hold survives.
+		var claim = await store.ClaimForExecutionAsync(
+				requestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		claim.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+		var identity = claim.ClaimIdentity!;
+
+		_ = await store.UpdateStatusAsync(requestId, ErasureRequestStatus.BlockedByLegalHold, expectedStatus: null, "legal hold", identity, CancellationToken.None).ConfigureAwait(false);
 
 		var refusal = await Should.ThrowAsync<KeyNotFoundException>(
-			() => store.RecordCompletionAsync(requestId, 1, 1, Guid.NewGuid(), CancellationToken.None))
+			() => store.RecordCompletionAsync(requestId, 1, 1, Guid.NewGuid(), identity, CancellationToken.None))
 			.ConfigureAwait(false);
 
 		refusal.Message.ShouldContain(
@@ -158,7 +169,7 @@ public sealed class CompletionNeverOverwritesAMidRunHoldShould
 			null,
 			null,
 			TestAnnotationSource.None,
-			TestRetentions.None,
+			TestRetentions.None, TestMintLedger.None,
 			contributor is null ? null : [contributor]);
 	}
 
@@ -176,11 +187,7 @@ public sealed class CompletionNeverOverwritesAMidRunHoldShould
 			ErasureContributorContext context,
 			CancellationToken cancellationToken)
 		{
-			_ = await store.UpdateStatusAsync(
-				requestId,
-				ErasureRequestStatus.BlockedByLegalHold,
-				"legal hold recorded while the erasure was executing",
-				cancellationToken).ConfigureAwait(false);
+			_ = await store.UpdateStatusAsync(requestId, ErasureRequestStatus.BlockedByLegalHold, expectedStatus: null, "legal hold recorded while the erasure was executing", claimIdentity: null, cancellationToken).ConfigureAwait(false);
 
 			return ErasureContributorResult.Succeeded(1);
 		}

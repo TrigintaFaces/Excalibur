@@ -342,6 +342,8 @@ public sealed class TenantRoutedShardingE2EShould
                 ? shard
                 : throw new TenantShardNotFoundException($"Tenant '{tenantId}' is not mapped to a shard.");
 
+        public ShardInfo GetShardById(string shardId) => _byTenant.Values.FirstOrDefault(info => string.Equals(info.ShardId, shardId, StringComparison.Ordinal)) ?? throw new KeyNotFoundException(shardId);
+
         public IReadOnlyCollection<string> GetRegisteredShardIds() =>
             _byTenant.Values.Select(s => s.ShardId).ToList();
     }

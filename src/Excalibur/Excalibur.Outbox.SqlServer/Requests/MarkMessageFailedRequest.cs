@@ -58,6 +58,11 @@ public sealed class MarkMessageFailedRequest : DataRequestBase<IDbConnection, in
 	/// terminal transition: the failed message is idle, not in-flight, so its computed backoff schedule
 	/// governs the next claim and statistics report it as failed rather than leased.
 	/// </para>
+	/// <para>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </para>
 	/// </remarks>
 	public MarkMessageFailedRequest(
 		string tableName,
@@ -107,10 +112,29 @@ public sealed class MarkMessageFailedRequest : DataRequestBase<IDbConnection, in
 			parameters.Add("@FloorSeconds", floorSeconds.Value);
 		}
 
-		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+		SqlServerAffectedRows.Declare(parameters);
+		Command = CreateCommand(sql + SqlServerAffectedRows.Capture, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			await StaticDbCommand.ExecuteOutputsAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "ErrorMessage", StaticDbCommand.Input<string>(Parameters, "ErrorMessage"), DbType.String);
+				StaticDbCommand.AddParameter(command, "RetryCount", StaticDbCommand.Input<int>(Parameters, "RetryCount"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "LastAttemptAt", StaticDbCommand.Input<DateTimeOffset>(Parameters, "LastAttemptAt"), DbType.DateTimeOffset);
+				if (Parameters.ParameterNames.Contains("NextAttemptDelayMs", StringComparer.Ordinal))
+				{
+					StaticDbCommand.AddParameter(command, "NextAttemptDelayMs", StaticDbCommand.Input<int>(Parameters, "NextAttemptDelayMs"), DbType.Int32);
+				}
+				if (Parameters.ParameterNames.Contains("FloorSeconds", StringComparer.Ordinal))
+				{
+					StaticDbCommand.AddParameter(command, "FloorSeconds", StaticDbCommand.Input<int>(Parameters, "FloorSeconds"), DbType.Int32);
+				}
+				StaticDbCommand.AddParameter(command, "LeasedBy", StaticDbCommand.Input<string>(Parameters, "LeasedBy"), DbType.String);
+				StaticDbCommand.AddParameter(command, "LeasedByPrefix", StaticDbCommand.Input<string>(Parameters, "LeasedByPrefix"), DbType.String);
+				StaticDbCommand.AddParameter(command, "LeasedByPrefixLength", StaticDbCommand.Input<int>(Parameters, "LeasedByPrefixLength"), DbType.Int32);
+				SqlServerAffectedRows.Bind(command);
+			}, command => SqlServerAffectedRows.Read(command, Parameters)).ConfigureAwait(false);
 	}
 
 }

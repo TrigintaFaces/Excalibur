@@ -19,6 +19,8 @@ namespace Excalibur.Benchmarks.Caching;
 /// AD-221-6: Caching benchmark category.
 /// - Adaptive TTL calculation overhead
 /// - Cache hit/miss latency
+/// Unique-key writer cases use fresh seeded caches outside each timed invocation.
+/// Their measurements describe isolated writes, not long-lived cache retention.
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -37,51 +39,47 @@ public class AdaptiveTtlBenchmarks
 	[GlobalSetup]
 	public void GlobalSetup()
 	{
-		// Create inner memory cache
-		var cacheOptions = Options.Create(new MemoryDistributedCacheOptions());
-		_innerCache = new MemoryDistributedCache(cacheOptions);
-
-		// Create adaptive TTL strategy with correct options
-		var ttlOptions = new RuleBasedTtlOptions
+		GlobalCleanup();
+		try
 		{
-			MinTtl = TimeSpan.FromSeconds(30),
-			MaxTtl = TimeSpan.FromHours(1),
-			HitRate = { HighHitRateThreshold = 0.9, LowHitRateThreshold = 0.5 },
-		};
-		_strategy = new RuleBasedAdaptiveTtlStrategy(
-			NullLogger<RuleBasedAdaptiveTtlStrategy>.Instance,
-			ttlOptions);
-
-		// Create load monitor
-		_loadMonitor = new TestSystemLoadMonitor();
-
-		// Create adaptive cache
-		_adaptiveCache = new AdaptiveTtlCache(
-			_innerCache,
-			_strategy,
-			NullLogger<AdaptiveTtlCache>.Instance,
-			_loadMonitor);
-
-		// Pre-populate cache
-		_testData = new byte[1024]; // 1KB test data
-		Random.Shared.NextBytes(_testData);
-
-		_keys = new string[CacheSize];
-		for (int i = 0; i < CacheSize; i++)
+			InitializeSeededCache();
+		}
+		catch (Exception setupException)
 		{
-			_keys[i] = $"key-{i}";
-			_innerCache.Set(_keys[i], _testData, new DistributedCacheEntryOptions
+			try
 			{
-				AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30)
-			});
+				GlobalCleanup();
+			}
+			catch (Exception cleanupException)
+			{
+				throw new AggregateException("Cache benchmark initialization and cleanup failed.", setupException, cleanupException);
+			}
+
+			throw;
 		}
 	}
 
 	[GlobalCleanup]
 	public void GlobalCleanup()
 	{
-		_adaptiveCache?.Dispose();
+		var adaptiveCache = _adaptiveCache;
+		_adaptiveCache = null!;
+		_innerCache = null!;
+		_strategy = null!;
+		_loadMonitor = null!;
+		_testData = null!;
+		_keys = null!;
+
+		// The fixture exclusively owns this wrapper. Drain its timer before another window.
+		// MemoryDistributedCache has no public disposal contract; release its fixture roots.
+		adaptiveCache?.DisposeAsync().AsTask().GetAwaiter().GetResult();
 	}
+
+	[IterationSetup(Targets = [nameof(CacheSet), nameof(SyncSet)])]
+	public void WriterIterationSetup() => GlobalSetup();
+
+	[IterationCleanup(Targets = [nameof(CacheSet), nameof(SyncSet)])]
+	public void WriterIterationCleanup() => GlobalCleanup();
 
 	#region TTL Calculation Benchmarks
 
@@ -256,6 +254,49 @@ public class AdaptiveTtlBenchmarks
 	}
 
 	#endregion
+
+	private void InitializeSeededCache()
+	{
+		// Create inner memory cache
+		var cacheOptions = Options.Create(new MemoryDistributedCacheOptions());
+		_innerCache = new MemoryDistributedCache(cacheOptions);
+
+		// Create adaptive TTL strategy with correct options
+		var ttlOptions = new RuleBasedTtlOptions
+		{
+			MinTtl = TimeSpan.FromSeconds(30),
+			MaxTtl = TimeSpan.FromHours(1),
+			HitRate = { HighHitRateThreshold = 0.9, LowHitRateThreshold = 0.5 },
+		};
+		_strategy = new RuleBasedAdaptiveTtlStrategy(
+			NullLogger<RuleBasedAdaptiveTtlStrategy>.Instance,
+			ttlOptions);
+
+		// Create load monitor
+		_loadMonitor = new TestSystemLoadMonitor();
+
+		// Create adaptive cache
+		_adaptiveCache = new AdaptiveTtlCache(
+			_innerCache,
+			_strategy,
+			NullLogger<AdaptiveTtlCache>.Instance,
+			_loadMonitor);
+
+		// Pre-populate cache
+		_testData = new byte[1024]; // 1KB test data
+		Random.Shared.NextBytes(_testData);
+
+		_keys = new string[CacheSize];
+		for (int i = 0; i < CacheSize; i++)
+		{
+			_keys[i] = $"key-{i}";
+			_innerCache.Set(_keys[i], _testData, new DistributedCacheEntryOptions
+			{
+				AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30)
+			});
+		}
+	}
+
 }
 
 /// <summary>

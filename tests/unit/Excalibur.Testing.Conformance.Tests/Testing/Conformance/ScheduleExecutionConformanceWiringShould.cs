@@ -25,7 +25,7 @@ public sealed class ScheduleExecutionConformanceWiringShould
 	{
 		var thrown = await Should.ThrowAsync<TestFixtureAssertionException>(() => new MissingExecutionArmProbe().ConformanceSuite_ShouldWireEveryArm());
 		thrown.Message.ShouldContain(nameof(ScheduleExecutionStoreConformanceTestKit.SimultaneousAdmissionHasOneWinner));
-		thrown.Message.ShouldContain("1 of the 18 arms");
+		thrown.Message.ShouldContain("1 of the 19 arms");
 	}
 
 	private sealed class FullyWiredProbe : ScheduleExecutionStoreConformanceTestKit
@@ -67,6 +67,7 @@ public sealed class ScheduleExecutionConformanceWiringShould
 		public override Task ProgressAndReleaseRespectCurrentAuthority() => base.ProgressAndReleaseRespectCurrentAuthority();
 
 		public override Task CanceledOperationsLeaveAuthorityUnchanged() => base.CanceledOperationsLeaveAuthorityUnchanged();
+		public override Task AdmissionCountRisesUntilSettlementCommits() => base.AdmissionCountRisesUntilSettlementCommits();
 
 		public override Task ConformanceSuite_ShouldWireEveryArm() => base.ConformanceSuite_ShouldWireEveryArm();
 	}
@@ -108,6 +109,7 @@ public sealed class ScheduleExecutionConformanceWiringShould
 		public override Task ProgressAndReleaseRespectCurrentAuthority() => base.ProgressAndReleaseRespectCurrentAuthority();
 
 		public override Task CanceledOperationsLeaveAuthorityUnchanged() => base.CanceledOperationsLeaveAuthorityUnchanged();
+		public override Task AdmissionCountRisesUntilSettlementCommits() => base.AdmissionCountRisesUntilSettlementCommits();
 
 		public override Task ConformanceSuite_ShouldWireEveryArm() => base.ConformanceSuite_ShouldWireEveryArm();
 	}

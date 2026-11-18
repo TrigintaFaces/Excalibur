@@ -121,6 +121,17 @@ internal static class SagaEventId
 	/// <summary>Duplicate saga event skipped due to idempotent replay protection.</summary>
 	public const int SagaDuplicateEventSkipped = 122005;
 
+	/// <summary>
+	/// A message the saga emitted was dispatched after the state commit and the dispatcher reported it
+	/// unsuccessful. The saga state is already durable and the triggering event is already marked
+	/// processed, so the message is not re-emitted on a redelivery: this entry is the only record that
+	/// it was lost.
+	/// </summary>
+	public const int SagaEmittedMessageNotDispatched = 122006;
+
+	/// <summary>An acknowledged saga write evicted a recent delivery identity.</summary>
+	public const int SagaDeduplicationEntryEvicted = 122007;
+
 	// ========================================
 	// 122100-122199: Saga Recovery
 	// ========================================

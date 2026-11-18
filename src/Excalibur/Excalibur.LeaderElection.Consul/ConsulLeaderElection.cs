@@ -1,394 +1,621 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
-
-
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
-
 using Consul;
-
-using System.Net.Http;
-
+using Lock = System.Threading.Lock;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Diagnostics;
-
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using Polly;
-using Polly.Retry;
 
 namespace Excalibur.LeaderElection.Consul;
 
-/// <summary>
-/// Consul-based implementation of leader election for distributed systems. Uses Consul's session and KV store for distributed leadership consensus.
-/// </summary>
+/// <summary>Consul session/KV election with owned RPC lifetimes and an independent local deadline.</summary>
 public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, IDisposable, IAsyncDisposable
 {
-	// Cap on the exponential retry backoff (seconds) so a persistent transient never grows the delay unbounded.
-	private const double MaxRetryDelaySeconds = 30;
+    private static readonly TimeSpan MonitorInterval = TimeSpan.FromSeconds(2);
+    private readonly Lock _runGate = new();
+    private readonly LeaderElectionNotifications _notifications;
+    // No lifecycle-gate path may acquire this gate. It serializes only local proof
+    // publication/conditional retirement and local health eligibility, never SDK I/O.
+    private readonly Lock _proofGate = new();
+    private readonly string _resourceName;
+    private readonly ConsulLeaderElectionOptions _options;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
+        Justification = "DisposeCoreAsync joins the lifecycle and public SDK leases, then disposes only a client constructed by this instance; supplied clients are borrowed.")]
+    private readonly IConsulClient _consulClient;
+    private readonly bool _ownsClient;
+    private readonly ILogger<ConsulLeaderElection> _logger;
+    private readonly TimeProvider _timeProvider;
+    private readonly IFencingTokenIssuer? _fencingTokenProvider;
+    private readonly IMessageFailureClassifier? _failureClassifier;
+    private readonly ResiliencePipeline _retryPolicy;
+    private readonly ConcurrentDictionary<string, CandidateHealth> _candidateHealthCache = new(StringComparer.Ordinal);
+    private LocalHealth _localHealth = new(true, 1, new Dictionary<string, string>(StringComparer.Ordinal));
+    private StartSlot? _slot;
+    private volatile bool _disposed;
+    private Task? _disposal;
+    private int _publicOperations;
+    private TaskCompletionSource? _publicDrain;
 
-	private readonly string _resourceName;
-	private readonly ConsulLeaderElectionOptions _options;
-	private readonly IConsulClient _consulClient;
-	private readonly ILogger<ConsulLeaderElection> _logger;
-	private readonly Timer _renewalTimer;
-	private readonly Timer _monitorTimer;
-	private readonly ConcurrentDictionary<string, CandidateHealth> _candidateHealthCache = new(StringComparer.Ordinal);
-	private readonly ResiliencePipeline _retryPolicy;
+    /// <summary>Creates an election using the existing constructor contract.</summary>
+    /// <param name="resourceName">Resource to coordinate.</param>
+    /// <param name="options">Consul and timing settings, captured on construction.</param>
+    /// <param name="consulClient">Borrowed client, or null to construct an owned client.</param>
+    /// <param name="logger">Optional logger.</param>
+    /// <param name="fencingTokenProvider">Optional fencing token provider.</param>
+    /// <param name="timeProvider">Optional monotonic clock.</param>
+    public ConsulLeaderElection(string resourceName, IOptions<ConsulLeaderElectionOptions>? options,
+        IConsulClient? consulClient, ILogger<ConsulLeaderElection>? logger,
+        IFencingTokenIssuer? fencingTokenProvider = null, TimeProvider? timeProvider = null)
+        : this(resourceName, options, consulClient, logger, fencingTokenProvider, timeProvider, null) { }
 
-	// Optional monotonic fencing token provider (opt-in, backward compatible). When supplied, a token is
-	// minted on acquisition BEFORE leadership is announced; on token-domain exhaustion the candidate
-	// relinquishes rather than leading with an un-advanced/wrapped fence.
-	private readonly IFencingTokenProvider? _fencingTokenProvider;
-	private readonly TimeProvider _timeProvider;
+    /// <summary>Creates an election with optional permanent-failure classification.</summary>
+    /// <param name="resourceName">Resource to coordinate.</param>
+    /// <param name="options">Consul and timing settings, captured on construction.</param>
+    /// <param name="consulClient">Borrowed client, or null to construct an owned client.</param>
+    /// <param name="logger">Optional logger.</param>
+    /// <param name="fencingTokenProvider">Optional fencing token provider.</param>
+    /// <param name="timeProvider">Optional monotonic clock.</param>
+    /// <param name="failureClassifier">Optional classifier; permanent failures accelerate relinquishment.</param>
+    public ConsulLeaderElection(string resourceName, IOptions<ConsulLeaderElectionOptions>? options,
+        IConsulClient? consulClient, ILogger<ConsulLeaderElection>? logger,
+        IFencingTokenIssuer? fencingTokenProvider, TimeProvider? timeProvider, IMessageFailureClassifier? failureClassifier)
+    {
+        _resourceName = resourceName ?? throw new ArgumentNullException(nameof(resourceName));
+        _options = ConsulElectionConfiguration.Capture(options?.Value ?? throw new ArgumentNullException(nameof(options)));
+        _logger = ConsulElectionConfiguration.LoggerOrDefault(logger);
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _fencingTokenProvider = fencingTokenProvider;
+        _failureClassifier = failureClassifier;
+        _ownsClient = consulClient is null;
+        _consulClient = consulClient ?? ConsulElectionConfiguration.CreateClient(_options);
+        CandidateId = LeaderCandidateIdentity.Resolve(_options.InstanceId);
+        _notifications = new LeaderElectionNotifications(error => LogErrorDuringMonitoring(error, _resourceName));
+        _retryPolicy = ConsulElectionConfiguration.CreateRetryPolicy(_options,
+            (error, attempt, delay) => _notifications.EnqueueDiagnostic(LogRetryAttempt, error, attempt, delay, _resourceName));
+    }
 
-	// The fencing token minted for the current leadership term, carried on the LeaderChanged event so
-	// subscribers capture the exact token issued at this transition (no TOCTOU re-read). Null when no
-	// provider is configured or leadership is not held.
-	// Sentinel for "no current fencing token" — a real monotonic token is never long.MinValue. The field is
-	// accessed via Interlocked from both the acquire/renew flow and the LeaderChanged event raise, so a plain
-	// long? (non-atomic, no memory barrier) could tear or read stale across those threads.
-	private const long NoFencingToken = long.MinValue;
-	private long _currentFencingToken = NoFencingToken;
+    /// <inheritdoc/>
+    public string CandidateId { get; }
+    /// <inheritdoc/>
+    public Task NotificationsCompleted => _notifications.NotificationsCompleted;
+    /// <inheritdoc/>
+    public bool IsLeader => CurrentRun()?.Kernel.Current is not null;
+    /// <inheritdoc/>
+    public Leadership? CurrentLeadership
+    {
+        get { var held = CurrentRun()?.Kernel.Current; return held is null ? null : new Leadership(held.FencingToken, held.AcquiredAt); }
+    }
+    /// <inheritdoc/>
+    public string? CurrentLeaderId
+    {
+        get { var run = CurrentRun(); if (run is null) { return null; } var status = run.Kernel.ReadStatus(); return status.Tenure is not null ? CandidateId : status.ObservedHolder; }
+    }
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionEventArgs>? BecameLeader;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionEventArgs>? LostLeadership;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
 
-	// UTC ticks of the instant the current leadership tenure began, accessed via Interlocked
-	// alongside _currentFencingToken (both mutated at the same acquisition site under no lock, mirroring
-	// the existing lock-free field pattern used throughout this type).
-	private long _leadershipAcquiredAtTicks;
+    /// <inheritdoc/>
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        _notifications.ThrowIfReentrant();
+        StartSlot slot;
+        lock (_runGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_slot is { Shutdown: { } oldShutdown } && !oldShutdown.IsCompletedSuccessfully) { throw new InvalidOperationException("Previous Consul run has not reached successful quiescence."); }
+            if (_slot is { Shutdown: null } running) { slot = running; }
+            else
+            {
+                slot = new StartSlot(_slot?.Run?.Kernel.NotificationDrainTask ?? _slot?.PreviousNotifications ?? Task.CompletedTask);
+                _slot = slot;
+                slot.Worker = LeaderElectionExecution.RunAsync(() => AdmitRunAsync(slot));
+            }
+        }
+        try { await slot.Initial.Task.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { _ = BeginStop(slot); throw; }
+    }
 
-	// Timestamp of the last exchange with Consul that CONFIRMED this candidate still holds the lock: a
-	// successful session renewal, a monitor read naming us leader, or the acquisition itself. The grace
-	// period is measured from here, so it bounds how long leadership can be believed without confirmation.
-	// Monotonic (GetTimestamp, not wall clock) because it measures an elapsed interval in this process;
-	// Interlocked because both timer callbacks write it off the thread pool.
-	private long _lastSuccessfulRenewalTicks;
+    private async Task AdmitRunAsync(StartSlot slot)
+    {
+        try
+        {
+            await slot.PreviousNotifications.WaitAsync(slot.Stop.Token).ConfigureAwait(false);
+            Run run;
+            lock (_runGate)
+            {
+                if (slot.StopRequested || _disposed || !ReferenceEquals(_slot, slot)) { throw new OperationCanceledException(slot.Stop.Token); }
+                run = new Run(this, slot); slot.Run = run;
+                run.Actor = LeaderElectionExecution.RunAsync(() => RunActorAsync(run));
+            }
+            await run.Initial.Task.ConfigureAwait(false);
+            slot.Initial.TrySetResult();
+        }
+        catch (OperationCanceledException) when (slot.StopRequested) { slot.Initial.TrySetCanceled(slot.Stop.Token); }
+        catch (Exception error) { slot.Initial.TrySetException(error); throw; }
+    }
 
-	private ConcurrentBag<Task> _trackedTasks = [];
-	private readonly CancellationTokenSource _shutdownTokenSource = new();
+    /// <inheritdoc/>
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        lock (_runGate)
+        {
+            if (_disposed) { return (_disposal ?? Task.CompletedTask).WaitAsync(cancellationToken); }
+            return _slot is null ? Task.CompletedTask : BeginStop(_slot).WaitAsync(cancellationToken);
+        }
+    }
+    private Run? CurrentRun() { lock (_runGate) { return _slot?.Run; } }
+    private Task BeginStop(StartSlot slot)
+    {
+        lock (_runGate)
+        {
+            if (slot.Shutdown is not null) { return slot.Shutdown; }
+            slot.StopRequested = true;
+            _notifications.EnqueueDiagnostic(LogStoppingElection, _resourceName);
+            slot.Run?.Kernel.RequestStop();
+            return slot.Shutdown = LeaderElectionExecution.RunAsync(() => StopSlotAsync(slot));
+        }
+    }
+    private async Task StopSlotAsync(StartSlot slot)
+    {
+        var failures = new List<Exception>();
+        await CaptureAsync(() => slot.Stop.CancelAsync(), failures).ConfigureAwait(false);
+        await CaptureAsync(() => slot.Worker, failures).ConfigureAwait(false);
+        if (slot.Run is { } run)
+        {
+            await CaptureAsync(() => run.Actor, failures).ConfigureAwait(false);
+            await CaptureAsync(() => run.Kernel.DisposeAsync().AsTask(), failures).ConfigureAwait(false);
+            if (run.ActorFailure is not null) { failures.Add(run.ActorFailure); }
+            await WriteCurrentHealthAsync(isHealthy: false, CancellationToken.None).ConfigureAwait(false);
+        }
+        slot.Stop.Dispose();
+        ConsulElectionFailures.Throw(failures);
+    }
 
-	private string? _sessionId;
-	private volatile bool _isRunning;
-	private volatile bool _disposed;
-	private string? _lastKnownLeaderId;
-	private volatile string? _cachedCurrentLeaderId;
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+#pragma warning disable RS0030 // Existing synchronous disposal joins the memoized ownership cleanup; no consumer callback is joined.
+        BeginDispose().GetAwaiter().GetResult();
+#pragma warning restore RS0030
+        GC.SuppressFinalize(this);
+    }
+    /// <inheritdoc/>
+    public async ValueTask DisposeAsync() { await BeginDispose().ConfigureAwait(false); GC.SuppressFinalize(this); }
+    private Task BeginDispose()
+    {
+        lock (_runGate)
+        {
+            _disposed = true;
+            // Permanent disposal seals the same admitted start slot before its async stop worker runs.
+            if (_slot is { } slot) { slot.StopRequested = true; }
+            return _disposal ??= LeaderElectionExecution.RunAsync(DisposeCoreAsync);
+        }
+    }
+    private async Task DisposeCoreAsync()
+    {
+        try
+        {
+            var failures = new List<Exception>();
+            StartSlot? slot; Task publicDrain;
+            lock (_runGate) { slot = _slot; publicDrain = _publicDrain?.Task ?? Task.CompletedTask; }
+            if (slot is not null) { await CaptureAsync(() => BeginStop(slot), failures).ConfigureAwait(false); }
+            await CaptureAsync(() => publicDrain, failures).ConfigureAwait(false);
+            if (_ownsClient)
+            {
+                try { _consulClient.Dispose(); }
+                catch (Exception error) { failures.Add(error); }
+            }
+            ConsulElectionFailures.Throw(failures);
+        }
+        finally { _notifications.Seal(); }
+    }
 
-	/// <summary>
-	/// Initializes a new instance of the <see cref="ConsulLeaderElection" /> class.
-	/// </summary>
-	/// <param name="resourceName"> The resource to elect a leader for. </param>
-	/// <param name="options"> The Consul leader election options. </param>
-	/// <param name="consulClient"> The Consul client. </param>
-	/// <param name="logger"> The logger. </param>
-	/// <param name="fencingTokenProvider">
-	/// Optional monotonic fencing token provider. When supplied, a token is minted on acquisition before
-	/// leadership is announced; if the token domain is exhausted the candidate relinquishes (fail-closed).
-	/// </param>
-	/// <param name="timeProvider">
-	/// Optional time provider used for event timestamps. Defaults to <see cref="TimeProvider.System"/>.
-	/// Inject a controllable provider to make emitted timestamps deterministic in tests.
-	/// </param>
-	public ConsulLeaderElection(
-		string resourceName,
-		IOptions<ConsulLeaderElectionOptions>? options,
-		IConsulClient? consulClient,
-		ILogger<ConsulLeaderElection>? logger,
-		IFencingTokenProvider? fencingTokenProvider = null,
-		TimeProvider? timeProvider = null)
-	{
-		_resourceName = resourceName ?? throw new ArgumentNullException(nameof(resourceName));
-		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-		_logger = logger ?? NullLogger<ConsulLeaderElection>.Instance;
-		_fencingTokenProvider = fencingTokenProvider;
-		_timeProvider = timeProvider ?? TimeProvider.System;
+    private async Task RunActorAsync(Run run)
+    {
+        try
+        {
+            _notifications.EnqueueDiagnostic(LogStartingElection, _resourceName, CandidateId);
+            while (!run.Stop.IsCancellationRequested)
+            {
+                bool eligible; lock (_proofGate) { eligible = CanLeadUnderProofGate(); }
+                if (!eligible)
+                {
+                    run.Initial.TrySetResult();
+                    await LeaderElectionDelay.WaitAsync(_options.RetryInterval, _timeProvider, run.Stop.Token).ConfigureAwait(false);
+                    continue;
+                }
+                Attempt attempt; long generation;
+                // Stop and acquisition admission share the lifecycle gate. A normal stop
+                // cannot turn a loop-boundary race into an unrelated actor failure.
+                lock (_runGate)
+                {
+                    if (run.StopRequested) { break; }
+                    attempt = new Attempt();
+                    generation = run.Kernel.BeginAcquisition(attempt, attempt.Acquire);
+                }
+                attempt.Generation = generation;
+                attempt.Acquire.TryLaunch(() => AcquireAsync(run, attempt));
+                try
+                {
+                    await attempt.Acquire.Completion.ConfigureAwait(false);
+                    bool published;
+                    lock (_proofGate)
+                    {
+                        published = attempt.Acquired && CanLeadUnderProofGate() && !run.Stop.IsCancellationRequested &&
+                            run.Kernel.Publish(generation, attempt.ProofRequestStart, attempt, attempt.Fence, _timeProvider.GetUtcNow());
+                    }
+                    if (published)
+                    {
+                        _notifications.EnqueueDiagnostic(LogAcquiredLeadership, _resourceName);
+                        attempt.Monitor.TryLaunch(() => MonitorAsync(run, attempt));
+                    }
+                    else
+                    {
+                        run.Kernel.ReportObservation(generation, true, attempt.OtherLeader, "Consul acquisition did not establish a usable tenure", null, _timeProvider.GetUtcNow());
+                        run.Kernel.Retire(generation, "acquisition not published");
+                    }
+                }
+                catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { run.Kernel.Retire(generation, "stopped"); }
+                catch (Exception error)
+                {
+                    run.Kernel.Retire(generation, "Consul acquisition failed", error);
+                    run.Kernel.ReportObservation(generation, false, null, attempt.Acquired ? "fencing or ownership proof failed" : "error during acquisition", error, _timeProvider.GetUtcNow());
+                    _notifications.EnqueueDiagnostic(LogErrorAcquiringLeadership, error, _resourceName);
+                    if (attempt.SessionId is null && !run.Initial.Task.IsCompleted)
+                    {
+                        // Preserve startup propagation after session-create retries exhaust.
+                        run.Initial.TrySetException(error);
+                        _ = BeginStop(run.Slot);
+                    }
+                }
+                finally { run.Initial.TrySetResult(); }
 
-		CandidateId = _options.InstanceId ?? $"{Environment.MachineName}_{Guid.NewGuid():N}";
+                var lastRequestStart = attempt.ProofRequestStart;
+                var interval = _options.RenewInterval;
+                while (!run.Stop.IsCancellationRequested && run.Kernel.Current is not null)
+                {
+                    await LeaderElectionDelay.WaitFromAsync(lastRequestStart, interval, _timeProvider, run.Stop.Token).ConfigureAwait(false);
+                    var operation = new OwnedOperationLatch();
+                    if (!run.Kernel.TryRegisterOperation(generation, operation)) { break; }
+                    lastRequestStart = _timeProvider.GetTimestamp();
+                    var renewalStart = lastRequestStart;
+                    var confirmed = false;
+                    operation.TryLaunch(async () =>
+                    {
+                        if (!await ConsulElectionSessions.RenewAsync(_consulClient, _options, attempt.SessionId!, run.Stop.Token).ConfigureAwait(false)) { return; }
+                        var pair = await ReadLeaderAsync(run.Stop.Token).ConfigureAwait(false);
+                        confirmed = Owns(pair, attempt);
+                    });
+                    try
+                    {
+                        await operation.Completion.ConfigureAwait(false);
+                        lock (_proofGate)
+                        {
+                            if (confirmed && CanLeadUnderProofGate()) { run.Kernel.Confirm(generation, renewalStart); }
+                            else { run.Kernel.Retire(generation, "Consul session or KV ownership proof no longer matches"); }
+                        }
+                        interval = _options.RenewInterval;
+                    }
+                    catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { break; }
+                    catch (Exception error)
+                    {
+                        _notifications.EnqueueDiagnostic(LogErrorDuringRenewal, error, _resourceName);
+                        // The pinned SDK maps a missing/expired server session to this
+                        // exception. It is definitive loss, even without a classifier.
+                        if (ConsulElectionFailures.IsSessionExpired(error)) { run.Kernel.Retire(generation, "Consul session expired", error); }
+                        else if (ConsulElectionFailures.IsPermanent(_failureClassifier, error)) { run.Kernel.Retire(generation, "permanent Consul renewal failure", error); }
+                        interval = _options.RetryInterval;
+                    }
+                }
+                run.Kernel.Retire(generation, run.Stop.IsCancellationRequested ? "stopped" : "tenure ended");
+                await run.Kernel.RetirementTask.ConfigureAwait(false);
+                run.Kernel.CompleteRetirement(generation);
+                await run.Kernel.WaitForNotificationDrainAsync(run.Stop.Token).ConfigureAwait(false);
+                await LeaderElectionDelay.WaitAsync(_options.RetryInterval, _timeProvider, run.Stop.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { }
+        catch (Exception error) { run.ActorFailure = error; run.Initial.TrySetException(error); _ = BeginStop(run.Slot); }
+        finally { run.Initial.TrySetResult(); }
+    }
+    private async Task AcquireAsync(Run run, Attempt attempt)
+    {
+        attempt.SessionId = await ConsulElectionSessions.CreateAsync(_consulClient, _options, _retryPolicy,
+            _resourceName, CandidateId, attempt.Nonce, run.Stop.Token).ConfigureAwait(false);
+        _notifications.EnqueueDiagnostic(LogCreatedSession, attempt.SessionId, _resourceName);
+        await WriteCurrentHealthAsync(null, run.Stop.Token).ConfigureAwait(false);
+        // Create/metadata retries are not TTL confirmation. Renew immediately before acquire;
+        // anchor before that request, then verify actual KV.Session and private payload proof.
+        attempt.ProofRequestStart = _timeProvider.GetTimestamp();
+        if (!await ConsulElectionSessions.RenewAsync(_consulClient, _options, attempt.SessionId, run.Stop.Token).ConfigureAwait(false)) { return; }
+        var information = new LeaderInfo
+        {
+            CandidateId = CandidateId, SessionId = attempt.SessionId, OwnerNonce = attempt.Nonce,
+            AcquiredAt = _timeProvider.GetUtcNow(), Metadata = new Dictionary<string, string>(_options.CandidateMetadata, StringComparer.Ordinal)
+        };
+        attempt.Payload = ConsulElectionPayloads.EncodeLeader(information);
+        var acquired = await _retryPolicy.ExecuteAsync(async ct =>
+            await _consulClient.KV.Acquire(new KVPair(GetLeaderKeyPath()) { Session = attempt.SessionId, Value = attempt.Payload }, ConsulElectionConfiguration.WriteOptions(_options), ct).ConfigureAwait(false), run.Stop.Token).ConfigureAwait(false);
+        attempt.Acquired = acquired.Response;
+        var current = await ReadLeaderAsync(run.Stop.Token).ConfigureAwait(false);
+        attempt.OtherLeader = Display(current);
+        if (!attempt.Acquired || !Owns(current, attempt)) { attempt.Acquired = false; return; }
+        if (_fencingTokenProvider is not null)
+        {
+            attempt.Fence = await FencingTokenMinting.MintWithRetryAsync(_fencingTokenProvider, _resourceName, run.Stop.Token, 3).ConfigureAwait(false);
+            _notifications.EnqueueDiagnostic(LogFencingTokenIssued, CandidateId, attempt.Fence.Value, _resourceName);
+        }
+    }
 
-		// Create or use provided Consul client
-		_consulClient = consulClient ?? new ConsulClient(config =>
-		{
-			if (!string.IsNullOrEmpty(_options.ConsulAddress))
-			{
-				config.Address = new Uri(_options.ConsulAddress);
-			}
+    private async Task MonitorAsync(Run run, Attempt attempt)
+    {
+        try
+        {
+            var previousStart = _timeProvider.GetTimestamp();
+            while (!attempt.MonitorStop.IsCancellationRequested)
+            {
+                await LeaderElectionDelay.WaitFromAsync(previousStart, MonitorInterval, _timeProvider, attempt.MonitorStop.Token).ConfigureAwait(false);
+                var expected = run.Kernel.Current;
+                if (expected is null) { return; }
+                previousStart = _timeProvider.GetTimestamp();
+                try
+                {
+                    var current = await ReadLeaderAsync(attempt.MonitorStop.Token).ConfigureAwait(false);
+                    lock (_proofGate)
+                    {
+                        if (!ReferenceEquals(expected, run.Kernel.Current)) { continue; }
+                        // A consistent read accelerates definitive loss; it never refreshes TTL.
+                        // Matching the already-published private proof is not a new holder transition.
+                        if (!Owns(current, attempt))
+                        {
+                            run.Kernel.ReportObservation(attempt.Generation, true, Display(current), null, null, _timeProvider.GetUtcNow());
+                            run.Kernel.Retire(attempt.Generation, "consistent Consul monitor no longer proves ownership");
+                        }
+                    }
+                }
+                catch (OperationCanceledException) when (attempt.MonitorStop.IsCancellationRequested) { return; }
+                catch (Exception error)
+                {
+                    _notifications.EnqueueDiagnostic(LogErrorDuringMonitoring, error, _resourceName);
+                    if (ConsulElectionFailures.IsPermanent(_failureClassifier, error))
+                    {
+                        lock (_proofGate) { if (ReferenceEquals(expected, run.Kernel.Current)) { run.Kernel.Retire(attempt.Generation, "permanent Consul monitoring failure", error); } }
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException) when (attempt.MonitorStop.IsCancellationRequested) { }
+        catch (Exception error) { attempt.MonitorFailure = error; run.Kernel.Retire(attempt.Generation, "Consul monitor worker failed", error); }
+    }
 
-			if (!string.IsNullOrEmpty(_options.Datacenter))
-			{
-				config.Datacenter = _options.Datacenter;
-			}
+    private async Task RetireAsync(Run run, RenewalTenureDeadline.Retirement retirement)
+    {
+        var attempt = (Attempt)retirement.AcquisitionOwner;
+        var failures = new List<Exception>();
+        // The read-only lane has no authority to allocate/confirm a tenure. Its fixed latch
+        // may launch before this seal, but both outcomes are joined before session cleanup.
+        await CaptureAsync(() => attempt.MonitorStop.CancelAsync(), failures).ConfigureAwait(false);
+        await CaptureMonitorCompletionAsync(attempt.Monitor.SealAndJoinAsync(), attempt, failures).ConfigureAwait(false);
+        if (retirement.OperationCompletion is not null)
+        {
+            try { await retirement.OperationCompletion.ConfigureAwait(false); }
+            catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { }
+            catch (Exception error) { _notifications.EnqueueDiagnostic(LogErrorDuringRenewal, error, _resourceName); }
+        }
+        if (attempt.MonitorFailure is not null) { failures.Add(attempt.MonitorFailure); }
+        if (attempt.SessionId is { } session)
+        {
+            await CaptureAsync(async () =>
+            {
+                _ = await _consulClient.KV.Release(new KVPair(GetLeaderKeyPath()) { Session = session, Value = attempt.Payload }, ConsulElectionConfiguration.WriteOptions(_options), CancellationToken.None).ConfigureAwait(false);
+                _notifications.EnqueueDiagnostic(LogReleasedLeadership, _resourceName);
+            }, failures).ConfigureAwait(false);
+            await CaptureAsync(async () =>
+            {
+                await ConsulElectionSessions.DestroyAsync(_consulClient, _options, session, CancellationToken.None).ConfigureAwait(false);
+                _notifications.EnqueueDiagnostic(LogDestroyedSession, session, _resourceName);
+            }, failures).ConfigureAwait(false);
+        }
+        attempt.MonitorStop.Dispose();
+        ConsulElectionFailures.Throw(failures);
+    }
 
-			if (!string.IsNullOrEmpty(_options.Token))
-			{
-				config.Token = _options.Token;
-			}
-		});
+    private static async Task CaptureMonitorCompletionAsync(Task task, Attempt attempt, List<Exception> failures)
+    {
+        try { await task.ConfigureAwait(false); }
+        catch (OperationCanceledException) when (attempt.MonitorStop.IsCancellationRequested) { }
+        catch (Exception error) { failures.Add(error); }
+    }
+    private async Task<KVPair?> ReadLeaderAsync(CancellationToken token) =>
+        (await _consulClient.KV.Get(GetLeaderKeyPath(), ConsulElectionConfiguration.LeaderQueryOptions(_options), token).ConfigureAwait(false)).Response;
+    private bool Owns(KVPair? pair, Attempt attempt)
+    {
+        if (pair?.Value is null || !string.Equals(pair.Session, attempt.SessionId, StringComparison.Ordinal)) { return false; }
+        var information = Parse(pair);
+        return information is not null && string.Equals(information.SessionId, attempt.SessionId, StringComparison.Ordinal) &&
+            string.Equals(information.OwnerNonce, attempt.Nonce, StringComparison.Ordinal) && string.Equals(information.CandidateId, CandidateId, StringComparison.Ordinal);
+    }
+    private static LeaderInfo? Parse(KVPair? pair)
+    {
+        if (pair?.Value is null || string.IsNullOrEmpty(pair.Session)) { return null; }
+        return ConsulElectionPayloads.ReadLeader(pair.Value);
+    }
+    private static string? Display(KVPair? pair) => Parse(pair)?.CandidateId;
+    private void Notify(RenewalTenureDeadline.Transition transition)
+    {
+        var args = new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: transition.Timestamp);
+        InvokeEach(transition.Acquired ? BecameLeader : LostLeadership, args);
+        InvokeEach(LeaderChanged, new LeaderChangedEventArgs(transition.Acquired ? transition.PreviousHolder : CandidateId,
+            transition.Acquired ? CandidateId : null, _resourceName, transition.Acquired ? transition.FencingToken : null, timestamp: transition.Timestamp));
+    }
+    private void NotifyObservation(RenewalTenureDeadline.Observation observation)
+    {
+        if (observation.HasHolder && !string.Equals(observation.PreviousHolder, observation.Holder, StringComparison.Ordinal))
+        {
+            InvokeEach(LeaderChanged, new LeaderChangedEventArgs(observation.PreviousHolder, observation.Holder, _resourceName, timestamp: observation.Timestamp));
+        }
+        if (observation.FailureReason is not null)
+        {
+            InvokeEach(AcquisitionFailed, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName, observation.FailureReason, observation.Timestamp, observation.Cause));
+        }
+    }
+    private void InvokeEach<T>(EventHandler<T>? subscribers, T args) where T : EventArgs
+    {
+        _notifications.InvokeEach(subscribers, this, args);
+    }
 
-		_retryPolicy = new ResiliencePipelineBuilder()
-			.AddRetry(new RetryStrategyOptions
-			{
-				MaxRetryAttempts = _options.MaxRetryAttempts,
-				DelayGenerator = args =>
-				{
-					// Exponential backoff, capped so a long-lived transient can't grow the delay unbounded.
-					var seconds = Math.Min(Math.Pow(2, args.AttemptNumber), MaxRetryDelaySeconds);
-					return ValueTask.FromResult<TimeSpan?>(TimeSpan.FromSeconds(seconds));
-				},
-				// Retry only TRANSIENT faults (Consul request / HTTP / timeout), never programming errors or
-				// other non-retryable exceptions — those must surface, not spin on aggressive backoff.
-				ShouldHandle = new PredicateBuilder()
-					.Handle<ConsulRequestException>()
-					.Handle<HttpRequestException>()
-					.Handle<TaskCanceledException>(),
-				OnRetry = args =>
-				{
-					LogRetryAttempt(args.Outcome.Exception!, args.AttemptNumber, args.RetryDelay.TotalSeconds, _resourceName);
-					return ValueTask.CompletedTask;
-				},
-			})
-			.Build();
-
-		_renewalTimer = new Timer(RenewSession, state: null, Timeout.Infinite, Timeout.Infinite);
-		_monitorTimer = new Timer(MonitorLeadership, state: null, Timeout.Infinite, Timeout.Infinite);
-	}
-
-	/// <inheritdoc />
-	public event EventHandler<LeaderElectionEventArgs>? BecameLeader;
-
-	/// <inheritdoc />
-	public event EventHandler<LeaderElectionEventArgs>? LostLeadership;
-
-	/// <inheritdoc />
-	public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
-
-	/// <inheritdoc/>
-	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
-
-	/// <inheritdoc />
-	public string CandidateId { get; }
-
-	/// <inheritdoc />
-	public bool IsLeader => string.Equals(CurrentLeaderId, CandidateId, StringComparison.Ordinal);
-
-	/// <inheritdoc />
-	public Leadership? CurrentLeadership
-	{
-		get
-		{
-			if (!IsLeader)
-			{
-				return null;
-			}
-
-			var token = Interlocked.Read(ref _currentFencingToken);
-			var acquiredAtTicks = Interlocked.Read(ref _leadershipAcquiredAtTicks);
-			return new Leadership(token == NoFencingToken ? null : token, new DateTimeOffset(acquiredAtTicks, TimeSpan.Zero));
-		}
-	}
-
-	/// <inheritdoc />
-	public string? CurrentLeaderId => _cachedCurrentLeaderId;
-
-	/// <inheritdoc />
-	public async Task StartAsync(CancellationToken cancellationToken)
-	{
-		if (_isRunning)
-		{
-			LogAlreadyRunning(_resourceName);
-			return;
-		}
-
-		_isRunning = true;
-		LogStartingElection(_resourceName, CandidateId);
-
-		// Create Consul session with health checks
-		await CreateSessionAsync(cancellationToken).ConfigureAwait(false);
-
-		// Update our health status
-		await UpdateHealthAsync(isHealthy: true, metadata: null, cancellationToken).ConfigureAwait(false);
-
-		// Start trying to acquire leadership
-		await TryAcquireLeadershipAsync(cancellationToken).ConfigureAwait(false);
-
-		// Start renewal timer
-		var renewInterval = _options.RenewInterval;
-		_ = _renewalTimer.Change(renewInterval, renewInterval);
-
-		// Start monitoring timer
-		var monitorInterval = TimeSpan.FromSeconds(2);
-		_ = _monitorTimer.Change(monitorInterval, monitorInterval);
-	}
-
-	/// <inheritdoc />
-	public async Task StopAsync(CancellationToken cancellationToken)
-	{
-		if (!_isRunning)
-		{
-			return;
-		}
-
-		_isRunning = false;
-		_ = _renewalTimer.Change(Timeout.Infinite, Timeout.Infinite);
-		_ = _monitorTimer.Change(Timeout.Infinite, Timeout.Infinite);
-
-		LogStoppingElection(_resourceName);
-
-		// Release leadership if we hold it
-		if (IsLeader)
-		{
-			await ReleaseLeadershipAsync().ConfigureAwait(false);
-		}
-
-		// Destroy session
-		await DestroySessionAsync().ConfigureAwait(false);
-
-		// Update our health status
-		await UpdateHealthAsync(isHealthy: false, metadata: null, cancellationToken).ConfigureAwait(false);
-	}
-
-	/// <inheritdoc />
-	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
-	{
-		var health = new CandidateHealth
-		{
-			CandidateId = CandidateId,
-			IsHealthy = isHealthy,
-			HealthScore = isHealthy ? 1.0 : 0.0,
-			LastUpdated = _timeProvider.GetUtcNow(),
-			IsLeader = IsLeader,
-			Metadata = metadata ?? new Dictionary<string, string>(StringComparer.Ordinal),
-		};
-
-		_ = _candidateHealthCache.AddOrUpdate(CandidateId, static (_, h) => h, static (_, _, h) => h, health);
-
-		// Update health in Consul
-		var healthKeyPath = GetHealthKeyPath(CandidateId);
-		var healthData = JsonSerializer.SerializeToUtf8Bytes(health, ConsulLeaderElectionJsonContext.Default.CandidateHealth);
-
-		try
-		{
-			await _retryPolicy.ExecuteAsync(
-				async ct => _ = await _consulClient.KV.Put(new KVPair(healthKeyPath) { Value = healthData }, ct).ConfigureAwait(false),
-				cancellationToken).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			LogFailedToUpdateHealth(ex, _resourceName);
-		}
-
-		// If we're unhealthy and the leader, consider stepping down
-		if (!isHealthy && IsLeader && _options.StepDownWhenUnhealthy)
-		{
-			LogSteppingDownUnhealthy(_resourceName);
-			await ReleaseLeadershipAsync().ConfigureAwait(false);
-		}
-	}
-
-	/// <inheritdoc />
-	public async Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken)
-	{
-		var healthPrefix = GetHealthKeyPrefix();
-
-		try
-		{
-			var result = await _consulClient.KV.List(healthPrefix, cancellationToken).ConfigureAwait(false);
-
-			if (result.Response == null)
-			{
-				return _candidateHealthCache.Values.ToList();
-			}
-
-			var healthList = new List<CandidateHealth>();
-
-			foreach (var entry in result.Response)
-			{
-				if (entry.Value != null)
-				{
-					try
-					{
-						var health = JsonSerializer.Deserialize(entry.Value, ConsulLeaderElectionJsonContext.Default.CandidateHealth);
-						if (health != null)
-						{
-							healthList.Add(health);
-							_ = _candidateHealthCache.AddOrUpdate(health.CandidateId, static (_, h) => h, static (_, _, h) => h, health);
-						}
-					}
-					catch (JsonException ex)
-					{
-						LogFailedToDeserializeHealth(ex, entry.Key);
-					}
-				}
-			}
-
-			return healthList;
-		}
-		catch (Exception ex)
-		{
-			LogErrorGettingCandidateHealth(ex, _resourceName);
-			return _candidateHealthCache.Values.ToList();
-		}
-	}
-
-	/// <summary>
-	/// Disposes the resources used by the Consul leader election service.
-	/// </summary>
-	public void Dispose()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_isRunning = false;
-		_renewalTimer.Dispose();
-		_monitorTimer.Dispose();
-		_shutdownTokenSource.Dispose();
-	}
-
-	/// <summary>
-	/// Asynchronously disposes the resources, ensuring proper cleanup of Consul session and leadership.
-	/// </summary>
-	public async ValueTask DisposeAsync()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_isRunning = false;
-
-		// 1. Disable timers and wait for in-flight callbacks
-		await _renewalTimer.DisposeAsync().ConfigureAwait(false);
-		await _monitorTimer.DisposeAsync().ConfigureAwait(false);
-
-		// 2. Cancel shutdown token to signal tracked tasks
-		await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
-
-		// 3. Wait for all tracked tasks to complete
-		try
-		{
-			await Task.WhenAll(_trackedTasks).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-		{
-			// Expected during shutdown
-		}
-
-		// 4. Clean up session and leadership
-		if (IsLeader)
-		{
-			await ReleaseLeadershipAsync().ConfigureAwait(false);
-		}
-
-		await DestroySessionAsync().ConfigureAwait(false);
-
-		_shutdownTokenSource.Dispose();
-	}
-
+    /// <inheritdoc/>
+    public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var lease = EnterPublicOperation();
+        Task? retirement = null;
+        CandidateHealth health;
+        lock (_proofGate)
+        {
+            _localHealth = new LocalHealth(isHealthy, isHealthy ? 1 : 0, metadata is null ? new Dictionary<string, string>(StringComparer.Ordinal) : new Dictionary<string, string>(metadata, StringComparer.Ordinal));
+            var run = CurrentRun();
+            if (!CanLeadUnderProofGate() && run?.Kernel.Current is { } held)
+            {
+                run.Kernel.Retire(held.Generation, "local candidate unhealthy");
+                retirement = run.Kernel.RetirementTask;
+            }
+            health = CreateHealth(_localHealth);
+            _candidateHealthCache[CandidateId] = health;
+        }
+        await WriteHealthAsync(health, cancellationToken).ConfigureAwait(false);
+        if (retirement is not null) { await retirement.WaitAsync(cancellationToken).ConfigureAwait(false); }
+    }
+    /// <inheritdoc/>
+    public async Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var lease = EnterPublicOperation();
+        try
+        {
+            var response = await _consulClient.KV.List(GetHealthKeyPrefix(), ConsulElectionConfiguration.HealthQueryOptions(_options), cancellationToken).ConfigureAwait(false);
+            if (response.Response is null) { return _candidateHealthCache.Values.ToArray(); }
+            var result = new List<CandidateHealth>();
+            foreach (var entry in response.Response)
+            {
+                if (entry.Value is null) { continue; }
+                var health = ConsulElectionPayloads.ReadHealth(entry.Value, out var error);
+                if (error is not null) { _notifications.EnqueueDiagnostic(LogFailedToDeserializeHealth, error, entry.Key); continue; }
+                if (health is null || string.IsNullOrEmpty(health.CandidateId)) { continue; }
+                _candidateHealthCache[health.CandidateId] = health; result.Add(health);
+            }
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception error) { _notifications.EnqueueDiagnostic(LogErrorGettingCandidateHealth, error, _resourceName); return _candidateHealthCache.Values.ToArray(); }
+    }
+    private bool CanLeadUnderProofGate() => !_options.StepDownWhenUnhealthy || (_localHealth.Healthy && _localHealth.Score >= _options.MinimumHealthScore);
+    private CandidateHealth CreateHealth(LocalHealth local) => new()
+    {
+        CandidateId = CandidateId, IsHealthy = local.Healthy, HealthScore = local.Score,
+        LastUpdated = _timeProvider.GetUtcNow(), IsLeader = IsLeader,
+        Metadata = new Dictionary<string, string>(local.Metadata, StringComparer.Ordinal)
+    };
+    private async Task WriteCurrentHealthAsync(bool? isHealthy, CancellationToken token)
+    {
+        CandidateHealth health;
+        lock (_proofGate)
+        {
+            var snapshot = isHealthy.HasValue ? new LocalHealth(isHealthy.Value, isHealthy.Value ? 1 : 0, _localHealth.Metadata) : _localHealth;
+            health = CreateHealth(snapshot); _candidateHealthCache[CandidateId] = health;
+        }
+        await WriteHealthAsync(health, token).ConfigureAwait(false);
+    }
+    private async Task WriteHealthAsync(CandidateHealth health, CancellationToken token)
+    {
+        var payload = ConsulElectionPayloads.EncodeHealth(health);
+        try
+        {
+            await _retryPolicy.ExecuteAsync(async ct => { _ = await _consulClient.KV.Put(new KVPair(GetHealthKeyPath(CandidateId)) { Value = payload }, ConsulElectionConfiguration.WriteOptions(_options), ct).ConfigureAwait(false); }, token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception error) { _notifications.EnqueueDiagnostic(LogFailedToUpdateHealth, error, _resourceName); }
+    }
+    private PublicOperation EnterPublicOperation()
+    {
+        lock (_runGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_publicOperations++ == 0) { _publicDrain = new(TaskCreationOptions.RunContinuationsAsynchronously); }
+            return new PublicOperation(this);
+        }
+    }
+    private void LeavePublicOperation()
+    {
+        lock (_runGate) { if (--_publicOperations == 0) { _publicDrain!.TrySetResult(); } }
+    }
+    private sealed class PublicOperation(ConsulLeaderElection owner) : IDisposable
+    {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
+            Justification = "This lease borrows the parent; disposing it only releases the public-operation count. Disposing the parent here would join this same lease and deadlock.")]
+        private ConsulLeaderElection? _owner = owner;
+        public void Dispose() => Interlocked.Exchange(ref _owner, null)?.LeavePublicOperation();
+    }
+    private sealed record LocalHealth(bool Healthy, double Score, IDictionary<string, string> Metadata);
+    private sealed class Attempt
+    {
+        internal string Nonce { get; } = ConsulElectionPayloads.CreateOwnerNonce();
+        internal string? SessionId;
+        internal byte[]? Payload;
+        internal long Generation;
+        internal long ProofRequestStart;
+        internal bool Acquired;
+        internal string? OtherLeader;
+        internal long? Fence;
+        internal Exception? MonitorFailure;
+        internal OwnedOperationLatch Acquire { get; } = new();
+        internal OwnedOperationLatch Monitor { get; } = new();
+        internal CancellationTokenSource MonitorStop { get; } = new();
+    }
+    private sealed class StartSlot(Task previousNotifications)
+    {
+        internal Task PreviousNotifications { get; } = previousNotifications;
+        internal CancellationTokenSource Stop { get; } = new();
+        internal TaskCompletionSource Initial { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal Task Worker { get; set; } = Task.CompletedTask;
+        internal Run? Run;
+        internal Task? Shutdown;
+        internal volatile bool StopRequested;
+    }
+    private sealed class Run
+    {
+        internal Run(ConsulLeaderElection owner, StartSlot slot)
+        {
+            Slot = slot;
+            Kernel = new RenewalTenureDeadline(owner._timeProvider, owner._options.RenewInterval + owner._options.GracePeriod,
+                retirement => owner.RetireAsync(this, retirement), owner.Notify, observe: owner.NotifyObservation, notifications: owner._notifications);
+        }
+        internal StartSlot Slot { get; }
+        internal CancellationTokenSource Stop => Slot.Stop;
+        internal bool StopRequested => Slot.StopRequested;
+        internal RenewalTenureDeadline Kernel { get; }
+        internal TaskCompletionSource Initial { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal Task Actor { get; set; } = Task.CompletedTask;
+        internal Exception? ActorFailure;
+    }
+    private static async Task CaptureAsync(Func<Task> action, List<Exception> failures)
+    {
+        try { await action().ConfigureAwait(false); }
+        catch (Exception error) { failures.Add(error); }
+    }
+    private string GetLeaderKeyPath() => $"{_options.KeyPrefix}/leader/{_resourceName}";
+    private string GetHealthKeyPrefix() => $"{_options.KeyPrefix}/health/{_resourceName}/";
+    private string GetHealthKeyPath(string candidateId) => GetHealthKeyPrefix() + candidateId;
 	// LoggerMessage delegates
 	[LoggerMessage(LeaderElectionEventId.ConsulRetryAttempt, Microsoft.Extensions.Logging.LogLevel.Warning,
 		"Retry {RetryCount} after {TimeSpan}s for resource '{Resource}'")]
@@ -458,9 +685,9 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		"Candidate {CandidateId} minted fencing token {Token} for resource {Resource}")]
 	partial void LogFencingTokenIssued(string candidateId, long token, string resource);
 
-	[LoggerMessage(LeaderElectionEventId.ConsulFencingTokenExhausted, Microsoft.Extensions.Logging.LogLevel.Critical,
-		"Candidate {CandidateId} could not mint a fencing token for resource {Resource} — token domain exhausted; relinquishing leadership (fail-closed) rather than leading with an un-advanced fence")]
-	partial void LogFencingTokenExhausted(Exception exception, string candidateId, string resource);
+	[LoggerMessage(LeaderElectionEventId.ConsulFencingTokenMintFailed, Microsoft.Extensions.Logging.LogLevel.Critical,
+		"Candidate {CandidateId} could not mint a fencing token for resource {Resource}; releasing the lock and relinquishing leadership (fail-closed) rather than leading with an un-advanced fence")]
+	partial void LogFencingTokenIssueError(Exception exception, string candidateId, string resource);
 
 	[LoggerMessage(LeaderElectionEventId.ConsulErrorAcquiringLeadership, Microsoft.Extensions.Logging.LogLevel.Error,
 		"Error trying to acquire leadership for resource '{Resource}'")]
@@ -495,485 +722,8 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		"renewal, exceeding the configured grace period of {GracePeriod}")]
 	partial void LogGracePeriodElapsed(string resource, TimeSpan elapsed, TimeSpan gracePeriod);
 
-	/// <summary>
-	/// Creates a new Consul session for leader election with configured health checks and TTL.
-	/// </summary>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	private async Task CreateSessionAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			var sessionRequest = new SessionEntry
-			{
-				Name = $"leader-election-{_resourceName}-{CandidateId}",
-				Behavior = SessionBehavior.Delete,
-				TTL = _options.SessionTTL,
-				LockDelay = _options.LockDelay,
-			};
 
-			// Add health checks if configured
-			if (_options.EnableHealthChecks && !string.IsNullOrEmpty(_options.HealthCheckId))
-			{
-				sessionRequest.Checks = [_options.HealthCheckId, "serfHealth"];
-			}
 
-			var result = await _retryPolicy.ExecuteAsync(
-				async ct => await _consulClient.Session.Create(sessionRequest, ct).ConfigureAwait(false),
-				cancellationToken).ConfigureAwait(false);
-
-			_sessionId = result.Response;
-			LogCreatedSession(_sessionId, _resourceName);
-		}
-		catch (Exception ex)
-		{
-			LogFailedToCreateSession(ex, _resourceName);
-			throw;
-		}
-	}
-
-	/// <summary>
-	/// Destroys the current Consul session and releases associated resources.
-	/// </summary>
-	private async Task DestroySessionAsync()
-	{
-		if (string.IsNullOrEmpty(_sessionId))
-		{
-			return;
-		}
-
-		try
-		{
-			_ = await _consulClient.Session.Destroy(_sessionId).ConfigureAwait(false);
-			LogDestroyedSession(_sessionId, _resourceName);
-		}
-		catch (Exception ex)
-		{
-			LogFailedToDestroySession(ex, _resourceName);
-		}
-		finally
-		{
-			_sessionId = null;
-		}
-	}
-
-	/// <summary>
-	/// Attempts to acquire leadership by creating a lock in Consul's KV store using the current session.
-	/// </summary>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	private async Task TryAcquireLeadershipAsync(CancellationToken cancellationToken)
-	{
-		if (string.IsNullOrEmpty(_sessionId))
-		{
-			LogCannotAcquireWithoutSession(_resourceName);
-			return;
-		}
-
-		var keyPath = GetLeaderKeyPath();
-		var leaderInfo = new LeaderInfo
-		{
-			CandidateId = CandidateId,
-			SessionId = _sessionId,
-			AcquiredAt = _timeProvider.GetUtcNow(),
-			Metadata = _options.CandidateMetadata,
-		};
-
-		var leaderData = JsonSerializer.SerializeToUtf8Bytes(leaderInfo, ConsulLeaderElectionJsonContext.Default.LeaderInfo);
-
-		try
-		{
-			// Try to acquire the lock
-			var acquired = await _retryPolicy.ExecuteAsync(
-				async ct =>
-				{
-					var result = await _consulClient.KV.Acquire(
-						new KVPair(keyPath) { Value = leaderData, Session = _sessionId },
-						ct).ConfigureAwait(false);
-
-					return result.Response;
-				},
-				cancellationToken).ConfigureAwait(false);
-
-			if (acquired)
-			{
-				// Mint the fencing token BEFORE announcing leadership so the fence is always advanced first.
-				// On token-domain exhaustion, relinquish (release the lock, do not lead) — fail-closed.
-				if (!await TryMintFencingTokenAsync(cancellationToken).ConfigureAwait(false))
-				{
-					await ReleaseLeadershipAsync().ConfigureAwait(false);
-					RaiseAcquisitionFailed("fencing token domain exhausted", exception: null);
-					return;
-				}
-
-				_cachedCurrentLeaderId = CandidateId;
-				Interlocked.Exchange(ref _leadershipAcquiredAtTicks, _timeProvider.GetUtcNow().UtcTicks);
-				Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
-				LogAcquiredLeadership(_resourceName);
-
-				// Raise events
-				BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-
-				if (!string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal))
-				{
-					var fencingToken = Interlocked.Read(ref _currentFencingToken);
-					LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(_lastKnownLeaderId, CandidateId, _resourceName, fencingToken == NoFencingToken ? null : fencingToken, timestamp: _timeProvider.GetUtcNow()));
-					_lastKnownLeaderId = CandidateId;
-				}
-			}
-			else
-			{
-				LogFailedToAcquireLeadership(_resourceName);
-				RaiseAcquisitionFailed("lost the acquisition race", exception: null);
-			}
-		}
-		catch (Exception ex)
-		{
-			LogErrorAcquiringLeadership(ex, _resourceName);
-			RaiseAcquisitionFailed("error during acquisition", ex);
-		}
-	}
-
-	/// <summary>
-	/// Mints a monotonic fencing token on acquisition (when a provider is configured), returning
-	/// <see langword="true"/> if leadership may proceed. Returns <see langword="false"/> only when the token
-	/// domain is exhausted (<see cref="FencingTokenExhaustedException"/>) — the fail-closed relinquish path.
-	/// </summary>
-	private async Task<bool> TryMintFencingTokenAsync(CancellationToken cancellationToken)
-	{
-		if (_fencingTokenProvider is null)
-		{
-			// No provider configured => this election runs in NON-FENCING mode by design, not "minted
-			// nothing, proceed anyway". A consumer who needs fencing must configure a provider; the
-			// fenced-resource seam (GuardActiveGateHasFencingToken) is what guards against a fenced
-			// store being used without one, not this method.
-			return true;
-		}
-
-		try
-		{
-			var token = await _fencingTokenProvider.IssueTokenAsync(_resourceName, cancellationToken).ConfigureAwait(false);
-			_ = Interlocked.Exchange(ref _currentFencingToken, token);
-			LogFencingTokenIssued(CandidateId, token, _resourceName);
-			return true;
-		}
-		catch (FencingTokenExhaustedException ex)
-		{
-			LogFencingTokenExhausted(ex, CandidateId, _resourceName);
-			return false;
-		}
-	}
-
-	/// <summary>
-	/// Raises <see cref="AcquisitionFailed"/>, guarding the invocation so a throwing subscriber
-	/// can never break the acquisition/renewal loop.
-	/// </summary>
-	private void RaiseAcquisitionFailed(string reason, Exception? exception)
-	{
-		try
-		{
-			AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName, reason, _timeProvider.GetUtcNow(), exception));
-		}
-		catch (Exception)
-		{
-			// A throwing subscriber must never break the acquire loop.
-		}
-	}
-
-	/// <summary>
-	/// Releases the current leadership lock in Consul and raises the appropriate events.
-	/// </summary>
-	private async Task ReleaseLeadershipAsync()
-	{
-		if (string.IsNullOrEmpty(_sessionId))
-		{
-			return;
-		}
-
-		var keyPath = GetLeaderKeyPath();
-
-		try
-		{
-			var released = await _consulClient.KV.Release(new KVPair(keyPath) { Session = _sessionId }).ConfigureAwait(false);
-
-			if (released.Response)
-			{
-				_cachedCurrentLeaderId = null;
-				_ = Interlocked.Exchange(ref _currentFencingToken, NoFencingToken);
-				LogReleasedLeadership(_resourceName);
-
-				// Raise events
-				LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-				_lastKnownLeaderId = null;
-			}
-		}
-		catch (Exception ex)
-		{
-			LogErrorReleasingLeadership(ex, _resourceName);
-		}
-	}
-
-	/// <summary>
-	/// Timer callback that renews the Consul session to maintain leadership eligibility.
-	/// </summary>
-	/// <param name="state"> The timer callback state (unused). </param>
-	private void RenewSession(object? state)
-	{
-		if (!_isRunning || _disposed || string.IsNullOrEmpty(_sessionId))
-		{
-			return;
-		}
-
-		var task = RenewSessionAsync();
-		_trackedTasks.Add(task);
-
-		// Drain completed tasks to prevent unbounded growth
-		DrainCompletedTrackedTasks();
-	}
-
-	/// <summary>
-	/// Timer callback that monitors leadership changes and raises appropriate events.
-	/// </summary>
-	/// <param name="state"> The timer callback state (unused). </param>
-	private void MonitorLeadership(object? state)
-	{
-		if (!_isRunning || _disposed)
-		{
-			return;
-		}
-
-		var task = MonitorLeadershipAsync();
-		_trackedTasks.Add(task);
-
-		// Drain completed tasks to prevent unbounded growth
-		DrainCompletedTrackedTasks();
-	}
-
-	private void DrainCompletedTrackedTasks()
-	{
-		var snapshot = Interlocked.Exchange(ref _trackedTasks, new ConcurrentBag<Task>());
-		foreach (var t in snapshot)
-		{
-			if (!t.IsCompleted)
-			{
-				_trackedTasks.Add(t);
-			}
-		}
-	}
-
-	private async Task RenewSessionAsync()
-	{
-		try
-		{
-			var result = await _consulClient.Session.Renew(_sessionId).ConfigureAwait(false);
-
-			if (result.Response == null)
-			{
-				LogSessionRenewalFailed(_resourceName);
-
-				// A null response is Consul TELLING us the session is gone. That is a definitive loss: the
-				// server has already released the lock and another candidate may hold it, so relinquish at
-				// once rather than waiting out the grace period, which exists for the ambiguous case.
-				RelinquishLocally();
-
-				// Session expired, recreate it
-				await CreateSessionAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
-
-				// Try to reacquire leadership
-				if (!IsLeader)
-				{
-					await TryAcquireLeadershipAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
-				}
-			}
-			else
-			{
-				Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
-				LogRenewedSession(_resourceName);
-			}
-		}
-		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-		{
-			// Shutdown requested — expected during disposal
-		}
-		catch (Exception ex)
-		{
-			// An exception is AMBIGUOUS about ownership: Consul was unreachable, so the session may still be
-			// alive and renew shortly, or it may already have expired server-side and been handed on.
-			// Relinquishing at once would be a false relinquish on a transient blip; holding indefinitely
-			// would let this candidate act as leader for unbounded time after the server-side TTL lapsed.
-			// The grace period is exactly that bound, and this is where it is enforced.
-			LogErrorDuringRenewal(ex, _resourceName);
-			RelinquishIfGraceElapsed();
-		}
-	}
-
-	private async Task MonitorLeadershipAsync()
-	{
-		try
-		{
-			var (fetched, currentLeader) = await FetchCurrentLeaderIdAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
-
-			if (!fetched)
-			{
-				// A failed read tells us nothing about who holds the lock. Overwriting the cached leader with
-				// the failure's null would drop leadership on the first transient blip -- a false relinquish
-				// with no grace at all, which is the opposite of the bound this option promises. Leave the
-				// cached value alone and let the same grace period decide, so an unreachable Consul produces
-				// one relinquish after the bound rather than one per failed poll.
-				RelinquishIfGraceElapsed();
-				return;
-			}
-
-			if (string.Equals(currentLeader, CandidateId, StringComparison.Ordinal))
-			{
-				// Consul confirmed us as leader, which is as good a confirmation as a renewal.
-				Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
-			}
-
-			_cachedCurrentLeaderId = currentLeader;
-
-			// Check if leadership changed
-			if (!string.Equals(_lastKnownLeaderId, currentLeader, StringComparison.Ordinal))
-			{
-				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(_lastKnownLeaderId, currentLeader, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-
-				if (string.Equals(currentLeader, CandidateId, StringComparison.Ordinal) &&
-					!string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal))
-				{
-					BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-				}
-				else if (string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal) &&
-						 !string.Equals(currentLeader, CandidateId, StringComparison.Ordinal))
-				{
-					LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-				}
-
-				_lastKnownLeaderId = currentLeader;
-			}
-
-			// If no leader and we're running, try to acquire
-			if (string.IsNullOrEmpty(currentLeader) && !string.IsNullOrEmpty(_sessionId))
-			{
-				await TryAcquireLeadershipAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
-			}
-		}
-		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-		{
-			// Shutdown requested — expected during disposal
-		}
-		catch (Exception ex)
-		{
-			LogErrorDuringMonitoring(ex, _resourceName);
-		}
-	}
-
-	/// <summary>
-	/// Relinquishes leadership when the configured grace period has elapsed since the last exchange with
-	/// Consul that confirmed this candidate holds the lock.
-	/// </summary>
-	/// <remarks>
-	/// This is the enforcement site for the framework-wide grace bound on this provider. Consul's own
-	/// session TTL bounds when a DIFFERENT candidate may take the lock; it does not bound how long THIS
-	/// candidate keeps believing it is leader while it cannot reach the server. Without this check the
-	/// two windows are unrelated, and a partitioned incumbent reports leadership indefinitely.
-	/// </remarks>
-	private void RelinquishIfGraceElapsed()
-	{
-		if (!IsLeader)
-		{
-			return;
-		}
-
-		var elapsed = _timeProvider.GetElapsedTime(Interlocked.Read(ref _lastSuccessfulRenewalTicks));
-		if (elapsed > _options.GracePeriod)
-		{
-			LogGracePeriodElapsed(_resourceName, elapsed, _options.GracePeriod);
-			RelinquishLocally();
-		}
-	}
-
-	/// <summary>
-	/// Drops locally-held leadership without contacting Consul.
-	/// </summary>
-	/// <remarks>
-	/// Deliberately does not call <c>KV.Release</c>: this path runs precisely when Consul is unreachable or
-	/// has already invalidated the session, so there is nothing to release and an attempt would block the
-	/// relinquish behind the same unreachable server. The lock is freed server-side by the session TTL.
-	/// </remarks>
-	private void RelinquishLocally()
-	{
-		if (!IsLeader)
-		{
-			return;
-		}
-
-		_cachedCurrentLeaderId = null;
-		_ = Interlocked.Exchange(ref _currentFencingToken, NoFencingToken);
-
-		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-		_lastKnownLeaderId = null;
-	}
-
-	/// <summary>
-	/// Asynchronously fetches the current leader ID from Consul's KV store.
-	/// </summary>
-	/// <param name="cancellationToken"> A token to monitor for cancellation requests. </param>
-	/// <returns>
-	/// <c>Fetched</c> is <see langword="true"/> when Consul answered, in which case <c>LeaderId</c> is the
-	/// current leader's candidate id or <see langword="null"/> for "no leader". <c>Fetched</c> is
-	/// <see langword="false"/> when the read failed, which says nothing about who holds the lock and must
-	/// not be read as "no leader".
-	/// </returns>
-	private async Task<(bool Fetched, string? LeaderId)> FetchCurrentLeaderIdAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			var keyPath = GetLeaderKeyPath();
-			var result = await _consulClient.KV.Get(keyPath, cancellationToken).ConfigureAwait(false);
-
-			if (result.Response is { Value: not null })
-			{
-				var leaderInfo = JsonSerializer.Deserialize(result.Response.Value, ConsulLeaderElectionJsonContext.Default.LeaderInfo);
-				return (true, leaderInfo?.CandidateId);
-			}
-
-			// Consul answered and the key is absent: genuinely no leader.
-			return (true, null);
-		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-		{
-			throw;
-		}
-		catch (Exception ex)
-		{
-			LogErrorGettingCurrentLeader(ex, _resourceName);
-		}
-
-		return (false, null);
-	}
-
-	/// <summary>
-	/// Gets the Consul KV path for the leader lock key.
-	/// </summary>
-	/// <returns> The leader key path. </returns>
-	private string GetLeaderKeyPath() => $"{_options.KeyPrefix}/leader/{_resourceName}";
-
-	/// <summary>
-	/// Gets the Consul KV prefix path for candidate health data.
-	/// </summary>
-	/// <returns> The health key prefix path. </returns>
-	private string GetHealthKeyPrefix() => $"{_options.KeyPrefix}/health/{_resourceName}/";
-
-	/// <summary>
-	/// Gets the Consul KV path for a specific candidate's health data.
-	/// </summary>
-	/// <param name="candidateId"> The candidate identifier. </param>
-	/// <returns> The health key path for the specified candidate. </returns>
-	private string GetHealthKeyPath(string candidateId) => GetHealthKeyPrefix() + candidateId;
-
-	/// <summary>
-	/// Information about the current leader stored in Consul.
-	/// </summary>
 	internal sealed class LeaderInfo
 	{
 		/// <summary>
@@ -987,6 +737,9 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		/// </summary>
 		/// <value> The session identifier. </value>
 		public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets the private per-tenure payload proof.</summary>
+        public string OwnerNonce { get; set; } = string.Empty;
 
 		/// <summary>
 		/// Gets or sets the timestamp when leadership was acquired.

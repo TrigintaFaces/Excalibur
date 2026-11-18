@@ -255,20 +255,6 @@ fi
 SHA="$(git rev-parse --verify "$REF" 2>/dev/null || true)"
 [ -n "$SHA" ] || { echo "[committed-sha-build-gate] CANNOT EVALUATE — cannot resolve ref: $REF" >&2; exit "$E_ENV"; }
 
-# Resolve a muxer that can satisfy this repository's global.json pin, preferring a repo-local install.
-# The probe worktree is a clean checkout, and the local SDK directory is untracked — so a bare `dotnet`
-# there resolves no SDK at all and EVERY project "fails". That is an environment fault, not a property
-# of the code, and it must never be counted as one.
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
-DOTNET=""
-for candidate in \
-    "$REPO_ROOT/.dotnet/dotnet.exe" "$REPO_ROOT/.dotnet/dotnet" \
-    "${DOTNET_ROOT:-}/dotnet.exe" "${DOTNET_ROOT:-}/dotnet"; do
-    if [ -x "$candidate" ]; then DOTNET="$candidate"; break; fi
-done
-[ -n "$DOTNET" ] || DOTNET="$(command -v dotnet 2>/dev/null || true)"
-[ -n "$DOTNET" ] || { echo "[committed-sha-build-gate] CANNOT EVALUATE — no dotnet muxer found." >&2; exit "$E_ENV"; }
-
 mapfile -t CHANGED < <(git diff-tree --no-commit-id --name-only -r "$SHA" 2>/dev/null)
 declare -A PROJECTS=()
 for f in "${CHANGED[@]}"; do
@@ -338,8 +324,53 @@ if [ "${#PROJECTS[@]}" -eq 0 ]; then
     exit "$E_OK"
 fi
 
-WT="$(mktemp -d)/wt"
-cleanup() { git worktree remove --force "$WT" >/dev/null 2>&1; rm -rf "$(dirname "$WT")" 2>/dev/null; }
+# Own one canonical direct child of the canonical temporary directory. A failed
+# mktemp must never turn dirname(WT) into / (or another broad deletion target).
+TEMP_BASE="$(realpath -e -- "${TMPDIR:-/tmp}")" || {
+    echo "[committed-sha-build-gate] CANNOT EVALUATE — temporary base cannot be resolved." >&2
+    exit "$E_ENV"
+}
+[ -n "$TEMP_BASE" ] && [ -d "$TEMP_BASE" ] || {
+    echo "[committed-sha-build-gate] CANNOT EVALUATE — temporary base is not a directory." >&2
+    exit "$E_ENV"
+}
+TEMP_CREATED="$(mktemp -d -- "$TEMP_BASE/csbg.XXXXXXXX")" || {
+    echo "[committed-sha-build-gate] CANNOT EVALUATE — cannot create owned temporary directory." >&2
+    exit "$E_ENV"
+}
+TEMP_ROOT="$(realpath -e -- "$TEMP_CREATED")" || {
+    echo "[committed-sha-build-gate] CANNOT EVALUATE — created temporary directory cannot be resolved." >&2
+    exit "$E_ENV"
+}
+if [ ! -d "$TEMP_ROOT" ] || [ "$(dirname -- "$TEMP_ROOT")" != "$TEMP_BASE" ]; then
+    echo "[committed-sha-build-gate] CANNOT EVALUATE — created temporary directory is outside its owned scope." >&2
+    exit "$E_ENV"
+fi
+case "$(basename -- "$TEMP_ROOT")" in
+    csbg.?*) ;;
+    *) echo "[committed-sha-build-gate] CANNOT EVALUATE — unexpected temporary directory name." >&2; exit "$E_ENV" ;;
+esac
+readonly TEMP_BASE TEMP_ROOT
+WT="$TEMP_ROOT/wt"
+cleanup() {
+    local resolved resolved_wt
+    resolved="$(realpath -e -- "$TEMP_ROOT" 2>/dev/null)" || return
+    if [ "$resolved" != "$TEMP_ROOT" ] || [ "$(dirname -- "$resolved")" != "$TEMP_BASE" ]; then
+        echo "[committed-sha-build-gate] REFUSE cleanup outside original owned temporary scope." >&2
+        return
+    fi
+    case "$(basename -- "$resolved")" in csbg.?*) ;; *) return ;; esac
+    if [ -e "$WT" ]; then
+        resolved_wt="$(realpath -e -- "$WT" 2>/dev/null)" || return
+        if [ "$resolved_wt" != "$TEMP_ROOT/wt" ]; then
+            echo "[committed-sha-build-gate] REFUSE cleanup of redirected worktree." >&2
+            return
+        fi
+    fi
+    # Both recursive operations receive the verified original absolute targets.
+    git worktree remove --force "$WT" >/dev/null 2>&1
+    rm -rf -- "$TEMP_ROOT" 2>/dev/null
+}
 trap cleanup EXIT
 
 # `env -u` the per-invocation git variables before creating the worktree.
@@ -356,6 +387,47 @@ trap cleanup EXIT
 # is safe here because the worktree is addressed by SHA and path, not by the caller's index.
 if ! env -u GIT_INDEX_FILE -u GIT_WORK_TREE git worktree add --detach "$WT" "$SHA" >/dev/null 2>&1; then
     echo "[committed-sha-build-gate] CANNOT EVALUATE — git worktree add failed for $SHA." >&2
+    exit "$E_ENV"
+fi
+
+
+# An executable muxer is not evidence that it can satisfy this COMMIT's SDK policy.
+# Probe after checkout: global.json resolution starts from the current directory,
+# and the target pin may differ from the caller's dirty/current global.json.
+# Prefer the local install only when its actual resolution succeeds. A stale local
+# install must not hide a compatible host later on PATH. Do not alter the target
+# policy or infer compatibility from --list-sdks.
+declare -a SDK_CANDIDATES=("$REPO_ROOT/.dotnet/dotnet.exe" "$REPO_ROOT/.dotnet/dotnet")
+if [ -n "${DOTNET_ROOT:-}" ]; then
+    SDK_CANDIDATES+=("$DOTNET_ROOT/dotnet.exe" "$DOTNET_ROOT/dotnet")
+fi
+while IFS= read -r candidate; do
+    [ -n "$candidate" ] && SDK_CANDIDATES+=("$candidate")
+done < <(type -ap dotnet 2>/dev/null)
+
+DOTNET=""
+declare -A PROBED_MUXERS=()
+for candidate in "${SDK_CANDIDATES[@]}"; do
+    # DOTNET_ROOT can be a Windows-native path under Git Bash. Normalize it before
+    # changing cwd, so neither relative PATH entries nor backslashes bind to WT.
+    if command -v cygpath >/dev/null 2>&1; then
+        candidate="$(cygpath -u "$candidate")" || continue
+    fi
+    [ -x "$candidate" ] || continue
+    candidate="$(cd -P -- "$(dirname -- "$candidate")" && printf '%s/%s\n' "$PWD" "$(basename -- "$candidate")")" || continue
+    [ -z "${PROBED_MUXERS[$candidate]:-}" ] || continue
+    PROBED_MUXERS["$candidate"]=1
+    if (cd "$WT" && timeout 30 "$candidate" --version) >"$(dirname "$WT")/sdk-probe.log" 2>&1; then
+        DOTNET="$candidate"
+        echo "[committed-sha-build-gate] SDK resolution succeeded in target checkout via $DOTNET."
+        break
+    fi
+    echo "[committed-sha-build-gate] SDK probe rejected $candidate for target $SHA." >&2
+    head -5 "$(dirname "$WT")/sdk-probe.log" | sed 's/^/      /' >&2
+done
+if [ -z "$DOTNET" ]; then
+    echo "[committed-sha-build-gate] CANNOT EVALUATE — no candidate muxer resolves the target checkout's SDK policy." >&2
+    echo "      Provision the target's SDK; no source build was attempted." >&2
     exit "$E_ENV"
 fi
 

@@ -138,10 +138,10 @@ CREATE TABLE [events].[Events] (
 -- The global position counter. The store allocates each append's position by UPDATEing this row
 -- inside the appending transaction: the row lock is released only at COMMIT and the increment rolls
 -- back with the transaction, so an aborted append burns no position. The committed positions are
--- therefore always a contiguous prefix, which is what lets a subscriber treat the highest position
--- it has seen as a high-water mark. An IDENTITY cannot provide that -- it hands its number out
--- before COMMIT, so a rollback leaves a permanent hole and two concurrent appends can commit in the
--- opposite order to their positions.
+-- therefore a contiguous prefix at each instant. Safe checkpoint advancement ALSO requires a reader
+-- that cannot skip a lower position while concurrent commits occur. The counter alone does not make
+-- a scan atomic. An IDENTITY alone cannot provide these guarantees: rollback can leave a permanent
+-- hole and concurrent appends can commit in the opposite order to their allocated positions.
 CREATE TABLE [events].[EventsPosition] (
     -- Singleton by construction: a second counter row would reintroduce gaps.
     [Id]    TINYINT NOT NULL CONSTRAINT [PK_EventsPosition] PRIMARY KEY,
@@ -157,14 +157,21 @@ SELECT 1, ISNULL((SELECT MAX([Position]) FROM [events].[Events]), 0);
 GO
 
 
-:::caution What gapless ordering costs you
+CREATE INDEX [IX_Events_Aggregate] ON [events].[Events] ([AggregateId], [AggregateType], [Version]);
+CREATE INDEX [IX_Events_EventType] ON [events].[Events] ([EventType], [Timestamp]);
+```
 
-The counter row buys a contiguous position sequence, and it is not free: it serialises appends. Every
-writer takes the same row lock and holds it until COMMIT, so appends commit one at a time.
+:::caution Ordering and performance
 
-**The allocation itself is free. What you pay for is one durable commit per append, and what gaplessness
-costs you is scaling — not latency.** Measured on SQL Server, with the two arms interleaved one iteration
-at a time so neither inherits a slow moment:
+The shared counter row provides contiguous positions. Writers hold its lock until
+commit, so competing append transactions can wait for that lock. Preserve this
+ordering contract when considering alternative allocation schemes: an `IDENTITY`
+allocation alone does not establish contiguous committed visibility.
+
+**Historical SQL Server observation.** These retained figures came from an
+interleaved insert/counter experiment on one machine. The source revision,
+complete environment, repetitions and uncertainty are not recorded here. They do
+not establish current capacity, a speedup or zero counter-allocation cost.
 
 | | ms per operation |
 |---|---:|
@@ -172,30 +179,17 @@ at a time so neither inherits a slow moment:
 | **the same insert plus the counter allocation, one transaction** | **1.91** |
 | the counter allocation and insert, with the commit removed from the measurement | 0.020 |
 
-Taking the counter row out would buy you nothing: the allocation is about 20 microseconds of work and it
-does not show up against the cost of committing. **At one writer, or a few, the gapless guarantee is
-free.**
+The 0.020 ms row has a different measurement boundary from the transaction rows.
+The 2.00 versus 1.91 ms observations do not establish that adding the counter is
+faster or free. Throughput depends on the full append operation, transaction size,
+storage, contention and database behavior; commit latency alone cannot predict it.
+Faster storage can change those costs without removing the serialization requirement.
 
-What it costs is **concurrency scaling**. A database can *group-commit* — batch several concurrent
-transactions' log records into a single flush — but only when nothing serialises them. Every appender here
-takes the same counter row lock and holds it to COMMIT, so appends cannot share a flush:
-
-```
-gapless positions:   store throughput  ~=  1 / commit_latency     -- flat, however many writers
-gaps permitted:      store throughput  ~=  N / commit_latency     -- N writers share a flush
-```
-
-So adding writers past a handful neither helps nor hurts: they queue, and the queue drains at the commit
-rate. An `IDENTITY` column keeps climbing instead — and buys that by **not** producing a total order:
-positions then have gaps, and a subscriber cannot tell a gap that will never fill from one that is about
-to. **This gap does not close on faster storage**, because both sides get faster together.
-
-**Measure your own commit latency rather than taking a number from here.** It varies by orders of magnitude
-between a developer laptop and a production write path — on one container volume it moved between 1.9 ms
-and 4.2 ms within half an hour, so a single reading is not a capacity figure. The cheapest probe:
+The following serial insert probe observes one transaction workload. It does not
+measure the event store's append ceiling. Use a disposable probe table.
 
 ```sql
--- per-commit cost in milliseconds; invert it for the store's append ceiling
+-- Elapsed milliseconds per serial insert transaction, including loop overhead.
 DECLARE @i INT = 0, @t0 DATETIME2(7) = SYSUTCDATETIME();
 WHILE @i < 1000
 BEGIN
@@ -207,36 +201,29 @@ END
 SELECT CAST(DATEDIFF_BIG(microsecond, @t0, SYSUTCDATETIME()) / 1000.0 / 1000 AS DECIMAL(10, 3)) AS ms_per_commit;
 ```
 
-Run it a few times: if the spread is wide, your storage is the variable, not the store.
+Repeat under controlled conditions. Variation warrants investigating the complete
+workload and environment; it does not identify storage as the sole cause. An earlier
+container-volume observation ranged from 1.9 to 4.2 ms within half an hour; its
+incomplete provenance makes it historical context, not a current capacity figure.
 
-**Batching helps and is the lever you control.** The counter allocates one block per append, so several
-events written in one append share a single serialisation — an aggregate that emits three or four events
-per command pays close to the same price as one that emits one.
+A multi-event append shares one counter-block allocation and transaction. Measure
+both per-append and per-event costs; cost is not necessarily independent of event count.
 
-:::note On the numbers above
+These observations are neither a performance floor nor a specification. Multimodal
+distributions make a single mean an incomplete summary. Preserve distributions and
+process-level variation before drawing comparisons.
 
-These are a floor from one machine, not a specification, and your hardware's log-flush rate will move
-them. We have deliberately dropped the finer-grained comparison table that used to sit here: the
-benchmark it came from reports a multimodal distribution, for which a mean and a standard deviation are
-not valid statistics, so the three-significant-figure ratios it produced asserted a precision the
-underlying data does not support.
-
-:::
-
-**Why you may want to pay it.** Without a contiguous sequence, a subscriber cannot treat the highest
-position it has seen as a high-water mark — a hole that fills in after the subscriber has passed it is
-an event that is never read again, silently and permanently. Competing implementations generally
-tolerate gaps and then ship a timeout that assumes a long-unfilled gap is dead, which is a data-loss
-setting with a reassuring name. This design removes the need for that setting.
-
-These figures are a shape, not a spec: they come from one machine and are dominated by its storage
-latency. Measure your own if the number matters to your capacity plan.
+A contiguous committed prefix at one instant is not enough to advance a subscriber
+checkpoint safely: a scan can span concurrent commits. The registered SQL Server
+`IGlobalStreamQuery.ReadAllAsync` uses a contiguity guard and stops before a gap;
+resume from the last delivered position. A type-filtered page is legitimately sparse
+and does not supply that same protection, so do not use its maximum position to
+advance a shared unfiltered checkpoint. Keep the registered reader and its source
+binding when composing projections. Performance changes must preserve both allocation
+and reader visibility guarantees; these observations establish no competitor's
+correctness or speed.
 
 :::
-
-CREATE INDEX [IX_Events_Aggregate] ON [events].[Events] ([AggregateId], [AggregateType], [Version]);
-CREATE INDEX [IX_Events_EventType] ON [events].[Events] ([EventType], [Timestamp]);
-```
 
 :::note Upgrading an existing event-store schema
 

@@ -18,7 +18,9 @@ namespace Excalibur.Dispatch;
 /// <b>The refusals are reported, never thrown, and that is a liveness requirement rather than a taste.</b> The
 /// drain reports a failure from inside its own exception handler, where a sibling <c>catch</c> cannot run; an
 /// exception raised there escapes the whole cycle and abandons every message the caller still legitimately
-/// holds. A refusal on one message must cost that message and nothing else.
+/// holds. Row-scoped ClaimLost, AlreadyTerminal and MessageNotFound outcomes concern only that row;
+/// FenceRefused concerns the captured tenure and requires stopping later admission throughout that
+/// authority domain. Callers must preserve this distinction even inside failure reporting.
 /// </para>
 /// </remarks>
 public enum OutboxCompletionOutcome

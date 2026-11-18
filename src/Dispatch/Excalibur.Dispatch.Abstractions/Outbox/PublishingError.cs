@@ -8,13 +8,13 @@ namespace Excalibur.Dispatch;
 /// Represents an error that occurred during message publishing.
 /// </summary>
 /// <remarks> Creates a new publishing error. </remarks>
-/// <param name="messageId"> The ID of the message that failed. </param>
+/// <param name="messageId"> The affected message ID, or an empty string for an operation-level infrastructure error without a known message. </param>
 /// <param name="error"> The error message. </param>
 /// <param name="exception"> The exception that caused the failure. </param>
 public sealed class PublishingError(string messageId, string error, Exception? exception = null)
 {
 	/// <summary>
-	/// Gets the ID of the message that failed to publish.
+	/// Gets the affected message ID, or an empty string when an operation-level error has no known message.
 	/// </summary>
 	public string MessageId { get; init; } = messageId ?? throw new ArgumentNullException(nameof(messageId));
 

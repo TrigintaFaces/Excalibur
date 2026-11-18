@@ -45,7 +45,7 @@ The **InMemory provider** implements this pattern using a thread-safe in-memory 
 - ✅ **TTL Expiration** - Automatic cleanup of expired payloads via background service
 - ✅ **Compression** - Optional GZip compression with configurable threshold and ratio validation
 - ✅ **Checksum Validation** - SHA256 integrity checking to detect corruption
-- ✅ **Native AOT Compatible** - PublishAot=true for ahead-of-time compilation
+- **NativeAOT verification required** - Publish and execute the configured provider and payload paths; setting `PublishAot=true` alone is not verification
 - ✅ **Lazy Deletion** - Expired entries removed on access or via background cleanup
 
 ---
@@ -442,7 +442,9 @@ public async Task MessageWithClaimCheck_ShouldPreservePayload()
 - Average payload size
 - Retention period (TTL)
 
-**Estimated Memory Usage:**
+**Payload-byte arithmetic before compression:**
+
+These examples exclude object/dictionary overhead and transient copies. They are not process-memory estimates.
 
 ```
 Memory (MB) ≈ (Avg Payload Size KB × Number of Payloads) / 1024
@@ -457,7 +459,7 @@ Memory (MB) ≈ (Avg Payload Size KB × Number of Payloads) / 1024
 - ✅ Use for **testing** with small datasets
 - ✅ Use for **single-node development** with limited load
 - ❌ **Avoid** for production high-throughput scenarios
-- ❌ **Avoid** when payload count > 10,000 or total size > 1GB
+- Establish a memory budget with the actual payloads, retention and concurrency; no measured entry-count or byte-capacity boundary is established here
 
 ### Cleanup Performance
 
@@ -480,26 +482,25 @@ The background cleanup service scans all entries periodically. Performance chara
 
 **Costs:**
 - ❌ CPU overhead for compression/decompression
-- ❌ Increased latency for StoreAsync/RetrieveAsync
+- Compression adds CPU work; measure its effect on complete store/retrieve latency.
 
 **When to Enable Compression:**
 - ✅ Payloads are text-based (JSON, XML, CSV)
 - ✅ Memory is constrained
 - ❌ Payloads are already compressed (images, videos, archives)
-- ❌ Latency is critical
+- Measure latency with representative payloads before enabling compression in a latency-sensitive workload.
 
 ### Concurrency
 
 The provider uses `ConcurrentDictionary` for thread-safe access:
 
-- **Read Operations** (RetrieveAsync): Lock-free, high concurrency
-- **Write Operations** (StoreAsync): Lock-free atomic add
-- **Delete Operations** (DeleteAsync): Lock-free atomic remove
-- **Cleanup**: Snapshots keys to avoid enumeration issues
+Dictionary access is thread-safe. Payload copying, compression, expiration handling and
+dictionary mutations have additional costs. Retrieval can remove an expired entry, so the
+whole `RetrieveAsync` operation is not a lock-free lookup. Microsoft documents fine-grained
+locking for dictionary modifications in [ConcurrentDictionary](https://learn.microsoft.com/en-us/dotnet/api/system.collections.concurrent.concurrentdictionary-2?view=net-10.0).
 
-**Concurrency Limits**: No explicit limit, but performance degrades with:
-- Very high write rates (> 10,000 ops/sec)
-- Very large dictionary sizes (> 100,000 entries)
+No measured operation-rate or entry-count capacity limit is established here. Measure contention,
+allocation and retained memory with the intended concurrency, payload distribution and retention.
 
 ---
 
@@ -587,18 +588,15 @@ System.OutOfMemoryException: Exception of type 'System.OutOfMemoryException' was
 System.InvalidOperationException: Checksum validation failed for claim check 'cc-...'. Payload may be corrupted.
 ```
 
-**Causes:**
-- Memory corruption (extremely rare in managed .NET)
-- Payload modified in storage (should not happen with ConcurrentDictionary)
-- Bug in compression/decompression logic
+**Investigation areas, not established causes:**
+- Payload ownership and mutation; a concurrent container does not make stored payloads immutable
+- Serialization, checksum and compression/decompression consistency across the write/read paths
+- The mismatch alone does not establish memory corruption or a provider defect
 
 **Solutions:**
-1. **Disable checksum validation** (if acceptable for your scenario):
-   ```csharp
-   options.ValidateChecksum = false;
-   ```
-
-2. **Report the issue**: This indicates a potential bug in the provider
+1. **Preserve failure evidence**: Retain the exception, payload ownership history and configured serialization/compression settings, handling payload data according to its sensitivity.
+2. **Investigate the mismatch**: Check the write/read path and reproduce with controlled input. A checksum failure does not identify its root cause.
+3. **Keep required integrity checks enabled and reject the invalid payload**: Disabling validation hides the symptom and changes the integrity contract; it is not a repair or a behavior-preserving performance optimization. Report an attributable provider defect with a minimal reproduction.
 
 ---
 

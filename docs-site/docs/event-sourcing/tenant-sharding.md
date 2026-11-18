@@ -41,7 +41,7 @@ flowchart TD
 | Few tenants, shared database | No sharding needed |
 | Regulatory data residency (GDPR, sovereignty) | Shard by region |
 | Large tenants requiring isolation | Shard per tenant |
-| 100K+ events/sec aggregate throughput | Shard for write scalability |
+| Measured write demand exceeds the capacity of the selected deployment | Evaluate sharding |
 
 ## Quick Start
 
@@ -328,19 +328,46 @@ The `PartitionKey` on `OutboundMessage` is set to the tenant ID (when available)
 
 ### Health Checks
 
-`TenantShardHealthCheck` verifies shard map operational status:
+Register physical-shard readiness through the public health-check extension:
 
 ```csharp
-services.AddHealthChecks()
-    .AddCheck<TenantShardHealthCheck>("tenant-shards");
+using Excalibur.EventSourcing.Sharding;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class TenantShardHealthRegistration
+{
+    public static void Configure(IServiceCollection services)
+    {
+
+        services.AddHealthChecks().AddTenantShardHealthCheck(
+            new TenantShardHealthCheckOptions
+            {
+                MaxConcurrentProbes = 4,
+                Timeout = TimeSpan.FromSeconds(30)
+            }, name: "tenant-shards", tags: ["ready"]);
+    }
+}
 ```
 
-Reports:
-- **Healthy** when all shards are reachable
-- **Degraded** when some shards are unreachable
-- **Unhealthy** when no shards are reachable
+Each provider resolver probes the exact physical shard returned by `ITenantShardMap.GetShardById`.
+Shard IDs are never passed to tenant/default routing. The cached physical binding used by normal
+tenant operations also owns the readiness reader. No ambient tenant is required.
 
-The health check iterates all registered shard IDs and probes each via `ITenantStoreResolver` for actual connectivity verification.
+- **Healthy:** every registered physical shard served its provider-specific read.
+- **Degraded:** some reads failed; inspect `failedShardIds` and the retained per-shard causes.
+- **Unhealthy:** no reads succeeded, no shards are registered, or the resolver has no readiness capability.
+
+SQL Server and PostgreSQL read at most one event through their configured global reader, binding
+the actual event-read columns even on an empty table. MongoDB, Cosmos DB, DynamoDB and Firestore
+perform native namespace reads; an empty schemaless collection proves read access, not event-field
+integrity or write access. Probes do not invoke provider initialization or provisioning. These checks
+are for readiness, not process liveness; choose a scrape interval appropriate for one read per shard.
+Concurrency defaults to four and the registered cancellation timeout defaults to thirty seconds.
+
+The standard ASP.NET Core mapping returns HTTP 200 for Degraded. If every shard must be ready for
+your endpoint, configure its `HealthCheckOptions.ResultStatusCodes[HealthStatus.Degraded]` as 503.
+Custom maps must implement physical lookup; custom event-store resolvers implement
+`ITenantShardReadinessProbe` against the same physical bindings they serve to tenant operations.
 
 ## Architecture
 
@@ -387,3 +414,35 @@ Key design points:
 - [Event Store Providers](./providers.md) -- Provider-specific setup
 - [Outbox Pattern](../patterns/outbox.md) -- Partitioned outbox with sharding
 - [Projections](./projections.md) -- Parallel catch-up with sharding
+
+
+### Physical shard probe permissions and lifetime
+
+`MaxConcurrentProbes` is a limit **per health-check invocation**, not a process-wide limit.
+Concurrent health requests can each start that many reads; control health endpoint concurrency
+and polling frequency at the host. The registration timeout cancels active reads through the
+health-check cancellation token. SDKs must honor that token; this is not a forced network abort.
+
+MongoDB selects `_id` only; Firestore selects the document name only; Cosmos selects `c.id`
+through a bounded query stream. Identifiers are discarded and event payloads are not selected.
+An identifier may still be sensitive. Do not expose these operator checks to tenants.
+Empty schemaless results prove read access, not field integrity or event deserialization.
+
+Cosmos credentials must already permit the configured container query, including its metadata
+and query execution rights. A point-read-only credential can fail this readiness read even when
+point reads work. Do not broaden application credentials just to turn the health check green;
+use a separately designed readiness capability consistent with your least-privilege policy.
+
+DynamoDB uses `Query` for the reserved partition value `__excalibur_readiness__`, selects only
+the partition attribute, and never uses `Scan`. A `dynamodb:LeadingKeys` condition that permits
+only tenant partitions may intentionally reject this sentinel. Such rejection remains a failed
+readiness probe; do not grant wildcard keys or broaden IAM solely for this check. Deploy this
+probe only where the existing reviewed policy explicitly permits that sentinel, or supply a
+custom resolver/readiness implementation using an already-authorized bounded readiness key.
+The sentinel's absence is a valid empty read; no sentinel row is created.
+
+Resolver disposal stops new binding publication and releases completed bindings, stores first,
+then their owned clients/data sources. Failed construction releases partial clients. Cached
+tenant routing remains lock-free. Disposal does not wait for active store operations or probes;
+the host must stop accepting work before disposing services. Firestore's shared SDK channel
+lifetime is not owned or shut down by this resolver.

@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Excalibur.Dispatch.Serialization;
 using Shouldly;
 using Xunit;
@@ -39,7 +40,7 @@ public class AotJsonParsingContractShould
     public void RejectIncompleteOrAdditionalInput(string json, bool array)
     {
         using var serializer = CreateSerializer(ParsingContractContext.Default);
-        Should.Throw<JsonException>(() => Read<ParsingContractPayload>(serializer, json, array));
+        Should.Throw<SerializationException>(() => Read<ParsingContractPayload>(serializer, json, array)).InnerException.ShouldBeOfType<JsonException>();
     }
 
     [Theory]
@@ -49,7 +50,7 @@ public class AotJsonParsingContractShould
     {
         const string json = "{\"Name\":\"payload\",}";
         using var strict = CreateSerializer(ParsingContractContext.Default);
-        Should.Throw<JsonException>(() => Read<ParsingContractPayload>(strict, json, array));
+        Should.Throw<SerializationException>(() => Read<ParsingContractPayload>(strict, json, array)).InnerException.ShouldBeOfType<JsonException>();
         using var allowed = CreateSerializer(new ParsingContractContext(new JsonSerializerOptions { AllowTrailingCommas = true }));
         Read<ParsingContractPayload>(allowed, json, array).Name.ShouldBe("payload");
     }
@@ -64,7 +65,7 @@ public class AotJsonParsingContractShould
     public void HonorCommentOption(string json, bool array)
     {
         using var strict = CreateSerializer(ParsingContractContext.Default);
-        Should.Throw<JsonException>(() => Read<ParsingContractPayload>(strict, json, array));
+        Should.Throw<SerializationException>(() => Read<ParsingContractPayload>(strict, json, array)).InnerException.ShouldBeOfType<JsonException>();
         using var allowed = CreateSerializer(new ParsingContractContext(new JsonSerializerOptions { ReadCommentHandling = JsonCommentHandling.Skip }));
         Read<ParsingContractPayload>(allowed, json, array).Name.ShouldBe("payload");
     }
@@ -75,7 +76,7 @@ public class AotJsonParsingContractShould
     public void HonorDepthBelowAndAboveDefault(bool array)
     {
         using var shallow = CreateSerializer(new ParsingContractContext(new JsonSerializerOptions { MaxDepth = 1 }));
-        Should.Throw<JsonException>(() => Read<ParsingContractNode>(shallow, "{\"Child\":{\"Child\":null}}", array));
+        Should.Throw<SerializationException>(() => Read<ParsingContractNode>(shallow, "{\"Child\":{\"Child\":null}}", array)).InnerException.ShouldBeOfType<JsonException>();
         using var deep = CreateSerializer(new ParsingContractContext(new JsonSerializerOptions { MaxDepth = 128 }));
         string json = string.Concat(Enumerable.Repeat("{\"Child\":", 70)) + "null" + new string('}', 70);
         ParsingContractNode? node = Read<ParsingContractNode>(deep, json, array);
@@ -83,7 +84,7 @@ public class AotJsonParsingContractShould
         node.ShouldBeNull();
         using var boundary = CreateSerializer(new ParsingContractContext(new JsonSerializerOptions { MaxDepth = 2 }));
         Read<ParsingContractNode>(boundary, "{\"Child\":{\"Child\":null}}", array).Child.ShouldNotBeNull();
-        Should.Throw<JsonException>(() => Read<ParsingContractNode>(boundary, "{\"Child\":{\"Child\":{\"Child\":null}}}", array));
+        Should.Throw<SerializationException>(() => Read<ParsingContractNode>(boundary, "{\"Child\":{\"Child\":{\"Child\":null}}}", array)).InnerException.ShouldBeOfType<JsonException>();
     }
 
     [Theory]
@@ -92,18 +93,20 @@ public class AotJsonParsingContractShould
     public void PreserveNullResultAndMissingMetadataErrors(bool array)
     {
         using var serializer = CreateSerializer(ParsingContractContext.Default);
-        Should.Throw<InvalidOperationException>(() => Read<ParsingContractPayload>(serializer, "null", array));
-        Should.Throw<InvalidOperationException>(() => Read<int?>(serializer, "null", array));
-        Should.Throw<NotSupportedException>(() => Read<UnregisteredParsingPayload>(serializer, "{}", array));
+        Should.Throw<SerializationException>(() => Read<ParsingContractPayload>(serializer, "null", array)).Message.ShouldContain("returned null");
+        Should.Throw<SerializationException>(() => Read<int?>(serializer, "null", array)).Message.ShouldContain("returned null");
+        Should.Throw<SerializationException>(() => Read<UnregisteredParsingPayload>(serializer, "{}", array)).InnerException.ShouldBeOfType<NotSupportedException>();
     }
 
     [Fact]
     public void PreserveEmptyArgumentExceptions()
     {
         using var serializer = CreateSerializer(ParsingContractContext.Default);
-        Should.Throw<ArgumentNullException>(() => serializer.Deserialize<ParsingContractPayload>((byte[])null!)).ParamName.ShouldBe("data");
-        Should.Throw<ArgumentNullException>(() => serializer.Deserialize<ParsingContractPayload>(Array.Empty<byte>())).ParamName.ShouldBe("data");
-        Should.Throw<ArgumentException>(() => serializer.Deserialize<ParsingContractPayload>(ReadOnlySpan<byte>.Empty)).ParamName.ShouldBe("data");
+        // Retain the historical case identity and all inputs. The canonical span-based codec
+        // treats a null array as empty input and wraps the original JSON refusal for every form.
+        Should.Throw<SerializationException>(() => serializer.Deserialize<ParsingContractPayload>((byte[])null!)).InnerException.ShouldBeOfType<JsonException>();
+        Should.Throw<SerializationException>(() => serializer.Deserialize<ParsingContractPayload>(Array.Empty<byte>())).InnerException.ShouldBeOfType<JsonException>();
+        Should.Throw<SerializationException>(() => serializer.Deserialize<ParsingContractPayload>(ReadOnlySpan<byte>.Empty)).InnerException.ShouldBeOfType<JsonException>();
     }
 
     [Theory]
@@ -116,12 +119,14 @@ public class AotJsonParsingContractShould
         var context = new ParsingContractContext(options);
         using var serializer = CreateSerializer(context);
         Read<ParsingContractPayload>(serializer, "  {\"Name\":\"converted\"}", array).Name.ShouldBe("converted");
-        converter.Options.ShouldBeSameAs(context.Options);
+        var effectiveOptions = converter.Options.ShouldNotBeNull();
+        effectiveOptions.IsReadOnly.ShouldBeTrue();
+        if (!UseOwnedPolicy) { effectiveOptions.ShouldBeSameAs(context.GetTypeInfo(typeof(ParsingContractPayload))!.Options); }
         converter.TokenStart.ShouldBe(2);
         converter.ReturnNull = true;
-        Should.Throw<InvalidOperationException>(() => Read<ParsingContractPayload>(serializer, "{}", array));
+        Should.Throw<SerializationException>(() => Read<ParsingContractPayload>(serializer, "{}", array)).Message.ShouldContain("returned null");
         var sentinel = new InvalidOperationException("converter sentinel");converter.Failure = sentinel;
-        Should.Throw<InvalidOperationException>(() => Read<ParsingContractPayload>(serializer, "{}", array)).ShouldBeSameAs(sentinel);
+        Should.Throw<SerializationException>(() => Read<ParsingContractPayload>(serializer, "{}", array)).InnerException.ShouldBeSameAs(sentinel);
     }
 
     [Theory]
@@ -132,12 +137,12 @@ public class AotJsonParsingContractShould
         var converter = new ParsingContractConverter();
         var options = new JsonSerializerOptions();options.Converters.Add(converter);
         using var serializer = CreateSerializer(new ParsingContractContext(options));
-        Should.Throw<JsonException>(() => Read<ParsingContractPayload>(serializer, "{\"Name\":\"converted\",\"Other\":[}", array));
+        Should.Throw<SerializationException>(() => Read<ParsingContractPayload>(serializer, "{\"Name\":\"converted\",\"Other\":[}", array)).InnerException.ShouldBeOfType<JsonException>();
         converter.Calls.ShouldBe(1);
     }
 
-    protected virtual bool UseComposite => false;
-    private ParsingSerializer CreateSerializer(JsonSerializerContext context) => new(UseComposite, context);
+    protected virtual bool UseOwnedPolicy => false;
+    private ParsingSerializer CreateSerializer(JsonSerializerContext context) => new(UseOwnedPolicy, context);
     private static T Read<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(ParsingSerializer serializer, string json, bool array)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(json);
@@ -147,7 +152,7 @@ public class AotJsonParsingContractShould
 
 public sealed class CompositeAotJsonParsingContractShould : AotJsonParsingContractShould
 {
-    protected override bool UseComposite => true;
+    protected override bool UseOwnedPolicy => true;
 
     [Theory]
     [InlineData(false)]
@@ -155,7 +160,8 @@ public sealed class CompositeAotJsonParsingContractShould : AotJsonParsingContra
     public void SelectFirstSupportingContextAndKeepItsOptionsAfterWarmup(bool array)
     {
         var permissive = new ParsingContractContext(new JsonSerializerOptions { AllowTrailingCommas = true });
-        using var serializer = new CompositeAotJsonSerializer(OtherParsingContext.Default, permissive, ParsingContractContext.Default);
+        var serializer = SystemTextJsonSerializer.CreateWithMetadata(new JsonSerializerOptions(permissive.Options)
+        { TypeInfoResolver = JsonTypeInfoResolver.Combine(OtherParsingContext.Default, permissive, ParsingContractContext.Default) });
         byte[] bytes = "{\"Name\":\"priority\",}"u8.ToArray();
         for (int i = 0; i < 2; i++)
         {
@@ -172,12 +178,13 @@ public sealed class CompositeAotJsonParsingContractShould : AotJsonParsingContra
     public void NeverRetryLaterContextAfterSelectedParsingFailure(bool array)
     {
         var permissive = new ParsingContractContext(new JsonSerializerOptions { AllowTrailingCommas = true });
-        using var serializer = new CompositeAotJsonSerializer(ParsingContractContext.Default, permissive);
+        var serializer = SystemTextJsonSerializer.CreateWithMetadata(new JsonSerializerOptions(ParsingContractContext.Default.Options)
+        { TypeInfoResolver = JsonTypeInfoResolver.Combine(ParsingContractContext.Default, permissive) });
         byte[] valid = "{\"Name\":\"warm\"}"u8.ToArray();
         byte[] trailingComma = "{\"Name\":\"priority\",}"u8.ToArray();
         for (int i = 0; i < 2; i++)
         {
-            Should.Throw<JsonException>(() => array ? serializer.Deserialize<ParsingContractPayload>(trailingComma) : serializer.Deserialize<ParsingContractPayload>(trailingComma.AsSpan()));
+            Should.Throw<SerializationException>(() => array ? serializer.Deserialize<ParsingContractPayload>(trailingComma) : serializer.Deserialize<ParsingContractPayload>(trailingComma.AsSpan())).InnerException.ShouldBeOfType<JsonException>();
             (array ? serializer.Deserialize<ParsingContractPayload>(valid) : serializer.Deserialize<ParsingContractPayload>(valid.AsSpan())).Name.ShouldBe("warm");
         }
     }
@@ -190,30 +197,30 @@ public sealed class CompositeAotJsonParsingContractShould : AotJsonParsingContra
         var first = new ParsingContractConverter();var second = new ParsingContractConverter();
         var firstOptions = new JsonSerializerOptions();firstOptions.Converters.Add(first);
         var secondOptions = new JsonSerializerOptions();secondOptions.Converters.Add(second);
-        using var serializer = new CompositeAotJsonSerializer(new ParsingContractContext(firstOptions), new ParsingContractContext(secondOptions));
+        var serializer = SystemTextJsonSerializer.CreateWithMetadata(new JsonSerializerOptions(firstOptions)
+        { TypeInfoResolver = JsonTypeInfoResolver.Combine(new ParsingContractContext(firstOptions), new ParsingContractContext(secondOptions)) });
         byte[] bytes = "{\"Name\":\"first\"}"u8.ToArray();
         (array ? serializer.Deserialize<ParsingContractPayload>(bytes) : serializer.Deserialize<ParsingContractPayload>(bytes.AsSpan())).Name.ShouldBe("first");
         first.Calls.ShouldBe(1);second.Calls.ShouldBe(0);
         var sentinel = new InvalidOperationException("first context converter");first.Failure = sentinel;
-        Should.Throw<InvalidOperationException>(() => array ? serializer.Deserialize<ParsingContractPayload>(bytes) : serializer.Deserialize<ParsingContractPayload>(bytes.AsSpan())).ShouldBeSameAs(sentinel);
+        Should.Throw<SerializationException>(() => array ? serializer.Deserialize<ParsingContractPayload>(bytes) : serializer.Deserialize<ParsingContractPayload>(bytes.AsSpan())).InnerException.ShouldBeSameAs(sentinel);
         first.Calls.ShouldBe(2);second.Calls.ShouldBe(0);
     }
 }
 
 internal sealed class ParsingSerializer : IDisposable
 {
-    private readonly AotJsonSerializer? single;
-    private readonly CompositeAotJsonSerializer? composite;
+    private readonly ISerializer _serializer;
 
-    internal ParsingSerializer(bool useComposite, JsonSerializerContext context)
+    internal ParsingSerializer(bool useOwnedPolicy, JsonSerializerContext context)
     {
-        if (useComposite) { composite = new CompositeAotJsonSerializer(context); }
-        else { single = new AotJsonSerializer(context); }
+        _serializer = useOwnedPolicy ? SystemTextJsonSerializer.CreateWithMetadata(new JsonSerializerOptions(context.Options)
+        { TypeInfoResolver = context }) : SystemTextJsonSerializer.Create(context);
     }
 
-    internal T Deserialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(byte[] data) => single is not null ? single.Deserialize<T>(data) : composite!.Deserialize<T>(data);
-    internal T Deserialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(ReadOnlySpan<byte> data) => single is not null ? single.Deserialize<T>(data) : composite!.Deserialize<T>(data);
-    public void Dispose() { single?.Dispose();composite?.Dispose(); }
+    internal T Deserialize<T>(byte[] data) => _serializer.Deserialize<T>(data);
+    internal T Deserialize<T>(ReadOnlySpan<byte> data) => _serializer.Deserialize<T>(data);
+    public void Dispose() { } // Test handle owns no resource; errors pass through unchanged.
 }
 
 public sealed class ParsingContractPayload

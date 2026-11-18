@@ -13,11 +13,12 @@ This folder contains benchmark projects, baseline artifacts, and benchmark tooli
 
 ## Canonical Runner
 
-```bash
-pwsh ./eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -ArtifactsPath ./benchmarks/runs/BenchmarkDotNet.Artifacts.FullRefresh-20260219
+```powershell
+$runPath = Join-Path ./benchmarks/runs ("FullRefresh-" + [DateTime]::UtcNow.ToString("yyyyMMddTHHmmssZ") + "-" + [Guid]::NewGuid().ToString("N"))
+pwsh ./eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -ArtifactsPath $runPath
 ```
 
-This produces per-class logs and summary files in `benchmarks/runs/BenchmarkDotNet.Artifacts.FullRefresh-20260219/results/`.
+This selects a new evidence directory for per-class logs and summary files. Record the resolved path and exact source/build inputs. Run controlled bounded subsets under the repository measurement protocol; do not append new captures to historical epoch directories.
 
 ## Policy
 

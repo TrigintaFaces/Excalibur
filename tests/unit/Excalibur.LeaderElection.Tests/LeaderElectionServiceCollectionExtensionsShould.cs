@@ -53,7 +53,10 @@ public sealed class LeaderElectionServiceCollectionExtensionsShould
 		options.EnableHealthChecks.ShouldBeTrue();
 		options.MinimumHealthScore.ShouldBe(0.8);
 		options.StepDownWhenUnhealthy.ShouldBeTrue();
-		options.InstanceId.ShouldNotBeNullOrWhiteSpace();
+		// Unconfigured means NULL, not a generated value. A non-null default would make a generated
+		// identity indistinguishable from a chosen one; resolution happens in LeaderCandidateIdentity.
+		options.InstanceId.ShouldBeNull(
+			"registration must not invent an identity -- it is resolved at election construction");
 		options.CandidateMetadata.ShouldNotBeNull();
 		options.CandidateMetadata.ShouldBeEmpty();
 	}

@@ -1,11 +1,14 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+
+using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Serialization;
+using Excalibur.Outbox;
 using Excalibur.Outbox.SqlServer;
 
 using Microsoft.Data.SqlClient;
@@ -41,49 +44,14 @@ public static class SqlServerOutboxExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Legacy outbox registration may select reflection serialization. Use the overload with explicit OutboxMetadataSerialization for generated metadata.")]
+	[RequiresDynamicCode("Legacy outbox registration may select runtime code generation. Use the overload with explicit OutboxMetadataSerialization.")]
 	public static IServiceCollection AddSqlServerOutboxStore(
 		this IServiceCollection services,
 		Action<SqlServerOutboxOptions> configure)
 	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = services.Configure(configure);
-		BridgeProcessorIdFromOutboxBuilder(services);
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerOutboxOptions>, SqlServerOutboxOptionsValidator>());
-		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
-		// multi-tenancy composition replaces it with the ambient context. The store registration below no longer
-		// depends on it.
-		services.AddDefaultTenantContext();
-		// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker inseparably from
-		// the store registration, and attests the mechanism this store actually implements. It is the partitioned
-		// seam rather than the scoped one because this store reads no ambient tenant on any path: each message
-		// persists its own TenantId on the write path and the drain hands that value back, so the owning
-		// partition is re-established from the row rather than inferred from ambient state. That seam takes no
-		// ITenantContext, so there is no dependency here to be handed and silently discarded. Statistics is an
-		// estate-wide operator report and counts the whole table.
-		services.AddTenantAwareStore<IOutboxStore, SqlServerOutboxStore>(
-			static sp => new SqlServerOutboxStore(
-				sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>(),
-				sp.GetService<IPayloadSerializer>(),
-				inboxOptions: null,
-				sp.GetRequiredService<ILogger<SqlServerOutboxStore>>()));
-		services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerOutboxStore>());
-		// Non-keyed convenience alias, so a host that calls only this extension can inject
-		// IOutboxStore without [FromKeyedServices]. AddTenantAwareStore registers the CONCRETE store --
-		// it infers the service type from the factory, not from the contract -- so without this the
-		// contract this method is named for resolves to nothing, and the consumer meets it at startup.
-		// Forwards to keyed "default" so the keyed and non-keyed views can never disagree; TryAdd so a
-		// consumer's own registration still wins.
-		services.TryAddSingleton<IOutboxStore>(static sp => sp.GetRequiredKeyedService<IOutboxStore>("default"));
-
-		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
-			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
-		services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
-		services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
-		services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
-
-		return services;
+		return RegisterSqlServerOutboxStore(services, configure,
+			static sp => CreateManagedSqlServerStore(sp, connectionFactory: null), validateOptions: true);
 	}
 
 	/// <summary>
@@ -106,52 +74,16 @@ public static class SqlServerOutboxExtensions
 	/// </code>
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("Legacy outbox registration may select reflection serialization. Use the overload with explicit OutboxMetadataSerialization for generated metadata.")]
+	[RequiresDynamicCode("Legacy outbox registration may select runtime code generation. Use the overload with explicit OutboxMetadataSerialization.")]
 	public static IServiceCollection AddSqlServerOutboxStore(
 		this IServiceCollection services,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
 		Action<SqlServerOutboxOptions> configure)
 	{
-		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = services.Configure(configure);
-		BridgeProcessorIdFromOutboxBuilder(services);
-		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
-		// multi-tenancy composition replaces it with the ambient context. The store registration below no longer
-		// depends on it.
-		services.AddDefaultTenantContext();
-		// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker inseparably from
-		// the store registration, and attests the mechanism this store actually implements. It is the partitioned
-		// seam rather than the scoped one because this store reads no ambient tenant on any path: each message
-		// persists its own TenantId on the write path and the drain hands that value back, so the owning
-		// partition is re-established from the row rather than inferred from ambient state. That seam takes no
-		// ITenantContext, so there is no dependency here to be handed and silently discarded. Statistics is an
-		// estate-wide operator report and counts the whole table.
-		services.AddTenantAwareStore<IOutboxStore, SqlServerOutboxStore>(sp =>
-		{
-			var connectionFactory = connectionFactoryProvider(sp);
-			var options = sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-			var payloadSerializer = sp.GetService<IPayloadSerializer>();
-			var logger = sp.GetRequiredService<ILogger<SqlServerOutboxStore>>();
-			return new SqlServerOutboxStore(connectionFactory, options, payloadSerializer, logger);
-		});
-		services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerOutboxStore>());
-		// Non-keyed convenience alias, so a host that calls only this extension can inject
-		// IOutboxStore without [FromKeyedServices]. AddTenantAwareStore registers the CONCRETE store --
-		// it infers the service type from the factory, not from the contract -- so without this the
-		// contract this method is named for resolves to nothing, and the consumer meets it at startup.
-		// Forwards to keyed "default" so the keyed and non-keyed views can never disagree; TryAdd so a
-		// consumer's own registration still wins.
-		services.TryAddSingleton<IOutboxStore>(static sp => sp.GetRequiredKeyedService<IOutboxStore>("default"));
-
-		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
-			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
-		services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
-		services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
-		services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
-
-		return services;
+		return RegisterSqlServerOutboxStore(services, configure,
+			sp => CreateManagedSqlServerStore(sp, connectionFactoryProvider(sp)), validateOptions: false);
 	}
 
 	/// <summary>
@@ -190,6 +122,8 @@ public static class SqlServerOutboxExtensions
 	/// <c>sp =&gt; () =&gt; (SqlConnection)sp.GetRequiredService&lt;TDb&gt;().Connection</c>
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("Legacy outbox registration may select reflection serialization. Use the overload with explicit OutboxMetadataSerialization for generated metadata.")]
+	[RequiresDynamicCode("Legacy outbox registration may select runtime code generation. Use the overload with explicit OutboxMetadataSerialization.")]
 	public static IServiceCollection AddSqlServerOutboxStore<TDb>(
 		this IServiceCollection services,
 		Action<SqlServerOutboxOptions> configure)
@@ -223,6 +157,8 @@ public static class SqlServerOutboxExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Legacy outbox registration may select reflection serialization. Use the overload with explicit OutboxMetadataSerialization for generated metadata.")]
+	[RequiresDynamicCode("Legacy outbox registration may select runtime code generation. Use the overload with explicit OutboxMetadataSerialization.")]
 	public static IDispatchBuilder UseSqlServerOutboxStore(
 		this IDispatchBuilder builder,
 		Action<SqlServerOutboxOptions> configure)
@@ -244,6 +180,8 @@ public static class SqlServerOutboxExtensions
 	/// </param>
 	/// <param name="configure">Action to configure the options (used for table names, timeouts, etc.).</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
+	[RequiresUnreferencedCode("Legacy outbox registration may select reflection serialization. Use the overload with explicit OutboxMetadataSerialization for generated metadata.")]
+	[RequiresDynamicCode("Legacy outbox registration may select runtime code generation. Use the overload with explicit OutboxMetadataSerialization.")]
 	public static IDispatchBuilder UseSqlServerOutboxStore(
 		this IDispatchBuilder builder,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
@@ -336,4 +274,166 @@ public static class SqlServerOutboxExtensions
 
 		return builder;
 	}
+	/// <summary>Adds SQL Server outbox storage with explicit generated header metadata.</summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="metadataSerialization">Store-specific generated metadata; overrides any common default.</param>
+	/// <param name="configure">SQL Server options.</param>
+	/// <returns>The service collection.</returns>
+	public static IServiceCollection AddSqlServerOutboxStore(
+		this IServiceCollection services,
+		OutboxMetadataSerialization metadataSerialization,
+		Action<SqlServerOutboxOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(metadataSerialization);
+		return RegisterSqlServerOutboxStore(services, configure,
+			sp => CreateGeneratedSqlServerStore(sp, connectionFactory: null, metadataSerialization), validateOptions: true);
+	}
+
+	/// <summary>Adds SQL Server outbox storage with a consumer connection factory and generated metadata.</summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionFactoryProvider">The connection factory resolver.</param>
+	/// <param name="metadataSerialization">Store-specific generated metadata.</param>
+	/// <param name="configure">SQL Server options.</param>
+	/// <returns>The service collection.</returns>
+	public static IServiceCollection AddSqlServerOutboxStore(
+		this IServiceCollection services,
+		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
+		OutboxMetadataSerialization metadataSerialization,
+		Action<SqlServerOutboxOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
+		ArgumentNullException.ThrowIfNull(metadataSerialization);
+		return RegisterSqlServerOutboxStore(services, configure,
+			sp => CreateGeneratedSqlServerStore(sp, connectionFactoryProvider(sp), metadataSerialization), validateOptions: false);
+	}
+
+	/// <summary>Adds generated-metadata SQL Server outbox storage through a typed database marker.</summary>
+	/// <typeparam name="TDb">The consumer database marker.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="metadataSerialization">Store-specific generated metadata.</param>
+	/// <param name="configure">SQL Server options.</param>
+	/// <returns>The service collection.</returns>
+	public static IServiceCollection AddSqlServerOutboxStore<TDb>(
+		this IServiceCollection services,
+		OutboxMetadataSerialization metadataSerialization,
+		Action<SqlServerOutboxOptions> configure)
+		where TDb : class, Excalibur.Data.IDb =>
+		services.AddSqlServerOutboxStore(sp => () => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
+			metadataSerialization, configure);
+
+	/// <summary>Selects generated-metadata SQL Server storage from the Dispatch builder.</summary>
+	/// <param name="builder">The Dispatch builder.</param>
+	/// <param name="metadataSerialization">Store-specific generated metadata.</param>
+	/// <param name="configure">SQL Server options.</param>
+	/// <returns>The builder.</returns>
+	public static IDispatchBuilder UseSqlServerOutboxStore(
+		this IDispatchBuilder builder,
+		OutboxMetadataSerialization metadataSerialization,
+		Action<SqlServerOutboxOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		_ = builder.Services.AddSqlServerOutboxStore(metadataSerialization, configure);
+		return builder;
+	}
+
+	/// <summary>Selects generated-metadata SQL Server storage with a connection factory.</summary>
+	/// <param name="builder">The Dispatch builder.</param>
+	/// <param name="connectionFactoryProvider">The connection factory resolver.</param>
+	/// <param name="metadataSerialization">Store-specific generated metadata.</param>
+	/// <param name="configure">SQL Server options.</param>
+	/// <returns>The builder.</returns>
+	public static IDispatchBuilder UseSqlServerOutboxStore(
+		this IDispatchBuilder builder,
+		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
+		OutboxMetadataSerialization metadataSerialization,
+		Action<SqlServerOutboxOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		_ = builder.Services.AddSqlServerOutboxStore(connectionFactoryProvider, metadataSerialization, configure);
+		return builder;
+	}
+
+	internal static SqlServerOutboxStore CreateGeneratedSqlServerStore(
+		IServiceProvider serviceProvider,
+		Func<SqlConnection>? connectionFactory,
+		OutboxMetadataSerialization metadataSerialization)
+	{
+		var options = serviceProvider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
+		var payloadSerializer = serviceProvider.GetService<IPayloadSerializer>();
+		var inboxOptions = serviceProvider.GetService<IOptions<Excalibur.Inbox.SqlServer.SqlServerInboxOptions>>();
+		var logger = serviceProvider.GetRequiredService<ILogger<SqlServerOutboxStore>>();
+		var requireInboxTenant = serviceProvider.GetService<IOptions<TenantContextOptions>>()?.Value.RequireTenant ?? false;
+		return connectionFactory is null
+			? new SqlServerOutboxStore(options, payloadSerializer, inboxOptions, logger, metadataSerialization, requireInboxTenant)
+			: new SqlServerOutboxStore(connectionFactory, options.Value, payloadSerializer, inboxOptions?.Value, logger, metadataSerialization, requireInboxTenant);
+	}
+
+	[RequiresUnreferencedCode("Legacy outbox registration may select reflection serialization. Use the overload with explicit OutboxMetadataSerialization for generated metadata.")]
+	[RequiresDynamicCode("Legacy outbox registration may select runtime code generation. Use the overload with explicit OutboxMetadataSerialization.")]
+	internal static SqlServerOutboxStore CreateManagedSqlServerStore(
+		IServiceProvider serviceProvider,
+		Func<SqlConnection>? connectionFactory)
+	{
+		if (serviceProvider.GetService<OutboxMetadataSerialization>() is { } metadata)
+		{
+			return CreateGeneratedSqlServerStore(serviceProvider, connectionFactory, metadata);
+		}
+
+		var options = serviceProvider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
+		var payloadSerializer = serviceProvider.GetService<IPayloadSerializer>();
+		var inboxOptions = serviceProvider.GetService<IOptions<Excalibur.Inbox.SqlServer.SqlServerInboxOptions>>();
+		var logger = serviceProvider.GetRequiredService<ILogger<SqlServerOutboxStore>>();
+		var requireInboxTenant = serviceProvider.GetService<IOptions<TenantContextOptions>>()?.Value.RequireTenant ?? false;
+		return connectionFactory is null
+			? new SqlServerOutboxStore(options, payloadSerializer, inboxOptions, logger, requireInboxTenant)
+			: new SqlServerOutboxStore(connectionFactory, options.Value, payloadSerializer, inboxOptions?.Value, logger, requireInboxTenant);
+	}
+
+	private static IServiceCollection RegisterSqlServerOutboxStore(
+		IServiceCollection services,
+		Action<SqlServerOutboxOptions> configure,
+		Func<IServiceProvider, SqlServerOutboxStore> storeFactory,
+		bool validateOptions)
+
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		_ = services.Configure(configure);
+		BridgeProcessorIdFromOutboxBuilder(services);
+		if (validateOptions)
+		{
+			services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerOutboxOptions>, SqlServerOutboxOptionsValidator>());
+		}
+		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
+		// multi-tenancy composition replaces it with the ambient context. The store registration below no longer
+		// depends on it.
+		services.AddDefaultTenantContext();
+		// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker inseparably from
+		// the store registration, and attests the mechanism this store actually implements. It is the partitioned
+		// seam rather than the scoped one because this store reads no ambient tenant on any path: each message
+		// persists its own TenantId on the write path and the drain hands that value back, so the owning
+		// partition is re-established from the row rather than inferred from ambient state. That seam takes no
+		// ITenantContext, so there is no dependency here to be handed and silently discarded. Statistics is an
+		// estate-wide operator report and counts the whole table.
+		services.AddTenantAwareStore<IOutboxStore, SqlServerOutboxStore>(storeFactory);
+		services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerOutboxStore>());
+		// Non-keyed convenience alias, so a host that calls only this extension can inject
+		// IOutboxStore without [FromKeyedServices]. AddTenantAwareStore registers the CONCRETE store --
+		// it infers the service type from the factory, not from the contract -- so without this the
+		// contract this method is named for resolves to nothing, and the consumer meets it at startup.
+		// Forwards to keyed "default" so the keyed and non-keyed views can never disagree; TryAdd so a
+		// consumer's own registration still wins.
+		services.TryAddSingleton<IOutboxStore>(static sp => sp.GetRequiredKeyedService<IOutboxStore>("default"));
+
+		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
+		services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+
+		return services;
+	}
+
+
 }

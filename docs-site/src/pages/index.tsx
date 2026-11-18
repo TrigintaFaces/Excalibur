@@ -173,10 +173,10 @@ const features: { title: string; icon: ReactNode; description: string }[] = [
       'Authorize with native ASP.NET Core [Authorize] via a standard AuthorizationHandler<GrantsAuthorizationRequirement>. Grants flow to a pluggable policy engine (Cedar or OPA) and fail closed — any evaluation fault denies the request.',
   },
   {
-    title: 'Low-Allocation Messaging',
+    title: 'Configurable Messaging',
     icon: <IconLightning />,
     description:
-      'Message dispatching with configurable middleware and a measured 96 B per command. Latency depends on your handler, pipeline and runtime; the measured figures and their conditions are published in the performance docs.',
+      'Message dispatching with configurable middleware. Allocation and latency depend on the handler, pipeline, ambient context and runtime; dated measurements and their conditions are published in the performance docs.',
   },
   {
     title: 'Event Sourcing Built-in',
@@ -389,16 +389,16 @@ dotnet add package Excalibur.Hosting.Web`}
 function PerformanceShowcaseSection() {
   const docs = useDocsBase();
   const metrics: { value: string; label: string; detail: string }[] = [
-    { value: '96 B', label: 'Allocated per command', detail: 'Measured 17 October 2026, byte-identical across every process.' },
-    { value: '~60 ns', label: 'Command dispatch overhead', detail: 'Median of three independent processes with a no-op handler.' },
+    { value: '96 B', label: 'Allocated per command', detail: 'Historical managed fixture, 17 October 2026; 96 B in each of three processes.' },
+    { value: '~60 ns', label: 'Command dispatch overhead', detail: 'Historical managed fixture, 17 October 2026; median of three processes with a no-op handler.' },
   ];
 
   return (
     <section className={styles.performanceSection}>
       <div className="container">
         <div className={styles.sectionHeader}>
-          <Heading as="h2">Measured Performance</Heading>
-          <p>Each figure below carries the date and conditions it was measured under. The comparison against other libraries is mid-refresh, so these numbers do not rank the current source against competitors — follow the link for the full method and how to reproduce them.</p>
+          <Heading as="h2">Dated Performance Observations</Heading>
+          <p>These October 17, 2026 observations describe the recorded managed benchmark fixture, not the current release or NativeAOT execution. Follow the link for its environment, raw evidence and reproduction commands.</p>
         </div>
         <div className={styles.metricsGrid}>
           {metrics.map((m, idx) => (

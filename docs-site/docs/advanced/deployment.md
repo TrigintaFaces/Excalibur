@@ -50,7 +50,7 @@ WORKDIR "/src/src/MyApp"
 RUN dotnet build -c Release -o /app/build
 
 FROM build AS publish
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish -c Release -o /app/publish -p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
@@ -449,7 +449,9 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 ### AOT-Safe Handler Patterns
 
-All Dispatch handlers are AOT-compatible when using source generators:
+Source generators support eligible handler shapes. Handler bodies, payload
+metadata, and dependencies must also support NativeAOT; verify the published
+application's actual handler paths.
 
 ```csharp
 // AOT-compatible - discovered at compile time

@@ -20,6 +20,7 @@
       "samples\\03-cloud-native\\CloudNativePatterns.Examples\\ClaimCheck\\ClaimCheck.csproj",
       "samples\\04-reliability\\OrderingValidation\\OrderingValidation.csproj",
       "samples\\04-reliability\\OutboxPattern\\OutboxPattern.csproj",
+      "samples\\04-reliability\\PrimarySqlAtomicSaga\\PrimarySqlAtomicSaga.csproj",
       "samples\\04-reliability\\RetryAndCircuitBreaker\\RetryAndCircuitBreaker.csproj",
       "samples\\04-reliability\\SagaOrchestration\\SagaOrchestration.csproj",
       "samples\\05-serverless\\AwsLambda\\AwsLambda.csproj",
@@ -99,7 +100,9 @@
       "samples\\09-advanced\\persistence-patterns\\MultiDatabase\\MultiDatabase.csproj",
       "samples\\09-advanced\\persistence-patterns\\OutOfBandProjections\\OutOfBandProjections.csproj",
       "samples\\09-advanced\\persistence-patterns\\TransactionalHandlers\\TransactionalHandlers.csproj",
-      "samples\\11-real-world\\EnterpriseOrderProcessing\\EnterpriseOrderProcessing.csproj"
+      "samples\\11-real-world\\EnterpriseOrderProcessing\\EnterpriseOrderProcessing.csproj",
+      "samples\\09-advanced\\persistence-patterns\\BulkDataProcessing\\BulkDataProcessing.csproj",
+      "samples\\10-aot\\BulkDataProcessing\\BulkDataProcessing.csproj"
     ]
   }
 }

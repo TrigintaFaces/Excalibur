@@ -73,7 +73,16 @@ public sealed class GetDeadLetterMessages : DataRequest<IEnumerable<DeadLetterRe
 		}
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QueryAsync<DeadLetterRecord>(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.QueryAsync(conn, Command, command =>
+		{
+			StaticDbCommand.AddParameter(command, "MaxRetries", StaticDbCommand.Input<int>(Parameters, "MaxRetries"), DbType.Int32);
+			StaticDbCommand.AddParameter(command, "BatchSize", StaticDbCommand.Input<int>(Parameters, "BatchSize"), DbType.Int32);
+			StaticDbCommand.AddParameter(command, "Offset", StaticDbCommand.Input<int>(Parameters, "Offset"), DbType.Int32);
+			if (Parameters.ParameterNames.Contains("OlderThan", StringComparer.Ordinal))
+			{
+				StaticDbCommand.AddParameter(command, "OlderThan", StaticDbCommand.Input<DateTimeOffset>(Parameters, "OlderThan"), DbType.DateTimeOffset);
+			}
+		}, PostgresRecoveryRowReader.Read).ConfigureAwait(false);
 	}
 }
 

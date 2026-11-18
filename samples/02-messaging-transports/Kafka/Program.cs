@@ -56,6 +56,13 @@ builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
+	// CloudEvents serialization is chosen once, here. The AddCloudEventsForKafka() call further down
+	// wires the Kafka CloudEvents binding but deliberately does not choose a serialization strategy on
+	// your behalf; without this line it reports that at startup.
+	// For a trimmed or ahead-of-time publish, pass a source-generated JsonSerializerContext instead:
+	//   dispatch.AddCloudEvents(MyPayloadContext.Default);
+	_ = dispatch.AddCloudEvents();
+
 	// Configure JSON serialization
 
 	// Route SensorReadingEvent to Kafka transport

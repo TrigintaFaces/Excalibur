@@ -69,7 +69,7 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 		await SeedHoldAsync(subject, tenantId: tenant);
 
 		var visible = await CreateStore(tenant)
-			.GetActiveHoldsForDataSubjectAsync(subject, tenantId: null, TestCancellationToken);
+			.GetActiveHoldsForDataSubjectAsync(subject, tenantId: null, DateTimeOffset.UtcNow, TestCancellationToken);
 
 		visible.ShouldHaveSingleItem().TenantId.ShouldBe(tenant);
 	}
@@ -93,7 +93,7 @@ public sealed class PostgresComplianceTenantTotalityShould : IntegrationTestBase
 		await SeedHoldAsync(subject, tenantId: foreignTenant);
 
 		var visible = await CreateStore(tenant)
-			.GetActiveHoldsForDataSubjectAsync(subject, tenantId: null, TestCancellationToken);
+			.GetActiveHoldsForDataSubjectAsync(subject, tenantId: null, DateTimeOffset.UtcNow, TestCancellationToken);
 
 		visible.ShouldBeEmpty(
 			"tenant terms are compared ordinally by the framework, so a case-variant is a DIFFERENT "

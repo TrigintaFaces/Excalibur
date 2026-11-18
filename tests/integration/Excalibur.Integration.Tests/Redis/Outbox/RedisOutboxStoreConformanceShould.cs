@@ -261,13 +261,21 @@ public sealed class RedisOutboxStoreConformanceShould : OutboxStoreConformanceTe
 
 		var claims = await Task.WhenAll(Enumerable.Range(0, messages.Length)
 			.Select(_ => owner.GetUnsentMessagesAsync(1, CancellationToken.None).AsTask())).ConfigureAwait(false);
+		claims.Length.ShouldBe(messages.Length);
+		foreach (var batch in claims) { batch.ShouldHaveSingleItem(); }
 		claims.SelectMany(batch => batch).Select(message => message.Id).Order()
 			.ShouldBe(messages.Select(message => message.Id).Order());
 		var database = _connection!.GetDatabase();
 		var owners = await Task.WhenAll(messages.Select(message =>
 			database.HashGetAsync($"{_keyPrefix}:msg:{message.Id}", "LeasedBy"))).ConfigureAwait(false);
-		owners.Select(value => value.ToString()).Distinct().Count().ShouldBe(1);
-		owners[0].ToString().ShouldNotBeNullOrWhiteSpace();
+		// Process fallback ownership stays stable, but each acquisition has its own opaque receipt.
+		var receipts = claims.SelectMany(batch => batch).ToDictionary(message => message.Id, message => message.DispatcherId, StringComparer.Ordinal);
+		foreach (var receipt in receipts.Values) { receipt.ShouldNotBeNullOrWhiteSpace(); }
+		receipts.Values.Distinct(StringComparer.Ordinal).Count().ShouldBe(messages.Length);
+		for (var index = 0; index < messages.Length; index++)
+		{
+			owners[index].ToString().ShouldBe(receipts[messages[index].Id]);
+		}
 
 		foreach (var message in messages)
 		{
@@ -286,6 +294,53 @@ public sealed class RedisOutboxStoreConformanceShould : OutboxStoreConformanceTe
 			((int)await database.HashGetAsync(key, "RetryCount").ConfigureAwait(false)).ShouldBe(1);
 		}
 		(await owner.GetUnsentMessagesAsync(100, CancellationToken.None).ConfigureAwait(false)).ShouldBeEmpty();
+	}
+
+
+	[Fact]
+	public async Task ScopeTypedCompletionToTheExactStoredReceiptRatherThanTheStoreObject()
+	{
+		_fixture.DockerAvailable.ShouldBeTrue("This regression requires real Redis.");
+		var store = await CreateStoreAsync().ConfigureAwait(false);
+		var messages = new[] { CreateTestMessage(), CreateTestMessage() };
+		foreach (var message in messages) { await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false); }
+		var firstAcquisition = (await store.GetUnsentMessagesAsync(1, CancellationToken.None).ConfigureAwait(false)).ShouldHaveSingleItem();
+		var secondAcquisition = (await store.GetUnsentMessagesAsync(1, CancellationToken.None).ConfigureAwait(false)).ShouldHaveSingleItem();
+		var claimed = new[] { firstAcquisition, secondAcquisition };
+		claimed.Length.ShouldBe(2);
+		claimed.Select(message => message.Id).Order().ShouldBe(messages.Select(message => message.Id).Order());
+		var firstId = claimed[0].Id;
+		var firstReceipt = claimed[0].DispatcherId;
+		var otherReceipt = claimed[1].DispatcherId;
+		firstReceipt.ShouldNotBeNullOrWhiteSpace();
+		otherReceipt.ShouldNotBeNullOrWhiteSpace();
+		firstReceipt.ShouldNotBe(otherReceipt);
+		var database = _connection!.GetDatabase();
+		var key = $"{_keyPrefix}:msg:{firstId}";
+		((string?)await database.HashGetAsync(key, "LeasedBy").ConfigureAwait(false)).ShouldBe(firstReceipt);
+		var before = await database.HashGetAllAsync(key).ConfigureAwait(false);
+		var completion = store.GetService(typeof(IClaimScopedOutboxStore)) as IClaimScopedOutboxStore;
+		completion.ShouldNotBeNull();
+		(await completion.MarkSentAsync(firstId, otherReceipt, CancellationToken.None).ConfigureAwait(false))
+			.ShouldBe(OutboxCompletionOutcome.ClaimLost);
+		(await database.HashGetAllAsync(key).ConfigureAwait(false)).OrderBy(entry => entry.Name.ToString())
+			.ShouldBe(before.OrderBy(entry => entry.Name.ToString()));
+		// A separate store instance is legitimate when it presents the exact captured receipt.
+		await using var peer = new RedisOutboxStore(_connection!, Options.Create(new RedisOutboxOptions
+		{
+			ConnectionString = _fixture.ConnectionString, KeyPrefix = _keyPrefix, ProcessorId = "typed-peer",
+		}), NullLogger<RedisOutboxStore>.Instance);
+		var peerCompletion = ((IOutboxStore)peer).GetService(typeof(IClaimScopedOutboxStore)) as IClaimScopedOutboxStore;
+		peerCompletion.ShouldNotBeNull();
+		(await peerCompletion.MarkSentAsync(firstId, firstReceipt, CancellationToken.None).ConfigureAwait(false))
+			.ShouldBe(OutboxCompletionOutcome.Applied);
+		((string?)await database.HashGetAsync(key, "Status").ConfigureAwait(false))
+			.ShouldBe(((int)OutboxStatus.Sent).ToString(System.Globalization.CultureInfo.InvariantCulture));
+		var terminal = await database.HashGetAllAsync(key).ConfigureAwait(false);
+		(await peerCompletion.MarkSentAsync(firstId, firstReceipt, CancellationToken.None).ConfigureAwait(false))
+			.ShouldBe(OutboxCompletionOutcome.AlreadyTerminal);
+		(await database.HashGetAllAsync(key).ConfigureAwait(false)).OrderBy(entry => entry.Name.ToString())
+			.ShouldBe(terminal.OrderBy(entry => entry.Name.ToString()));
 	}
 
 	// ---------------------------------------------------------------------------------------------------
@@ -432,6 +487,9 @@ public sealed class RedisOutboxStoreConformanceShould : OutboxStoreConformanceTe
 
 	[Fact]
 	public Task MarkFailedAsync_ShouldSetErrorMessage_Test() => MarkFailedAsync_ShouldSetErrorMessage();
+
+	[Fact]
+	public Task FailedMessagesAdminRead_MustCarryEachMessageOwnTenant_Test() => FailedMessagesAdminRead_MustCarryEachMessageOwnTenant();
 
 	[Fact]
 	public Task MarkFailedAsync_ShouldSetRetryCount_Test() => MarkFailedAsync_ShouldSetRetryCount();

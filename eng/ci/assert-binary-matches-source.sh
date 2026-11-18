@@ -61,6 +61,15 @@ read_utf16() {
     strings -el "$1" 2>/dev/null
 }
 
+print_recovery() {
+    printf '      coordinate exclusive build access; verify no build/test is active before stopping idle build servers.\n' >&2
+    printf '      then: dotnet build-server shutdown; dotnet build <impl.csproj> -c Release -nodeReuse:false\n' >&2
+    printf '      build the TEST project too; require both build exit codes 0, current-source compilation and matching impl/copy hashes.\n' >&2
+    printf '      pin source bytes before/after; rerun this check. Matching stale binaries are not verification.\n' >&2
+    printf '      CS0006 outside your change: suspect an aborted shared-graph clean; inspect owner evidence.\n' >&2
+    printf '      --no-incremental is reserved for an owned isolated graph or coordinated serialized repair, not routine recovery.\n' >&2
+}
+
 check_binary() {
     local dll="$1" expect="$2" forbid="${3:-}" control="${4:-}"
 
@@ -82,7 +91,7 @@ check_binary() {
     if [ -n "$forbid" ] && printf '%s' "$content" | grep -qF -- "$forbid"; then
         printf 'FAIL: forbidden token present in the binary: %s\n' "$forbid" >&2
         printf '      the artifact under test is NOT the source you think you are testing.\n' >&2
-        printf '      rebuild the IMPL project explicitly: dotnet build <impl.csproj> -c Release --no-incremental\n' >&2
+        print_recovery
         return 1
     fi
 
@@ -93,7 +102,7 @@ check_binary() {
 
     printf 'FAIL: expected token ABSENT from the binary: %s\n' "$expect" >&2
     printf '      the artifact under test does not match the current source.\n' >&2
-    printf '      rebuild the IMPL project explicitly: dotnet build <impl.csproj> -c Release --no-incremental\n' >&2
+    print_recovery
     return 1
 }
 

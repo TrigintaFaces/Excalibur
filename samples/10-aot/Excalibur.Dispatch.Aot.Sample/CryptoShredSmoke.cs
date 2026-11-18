@@ -20,7 +20,7 @@ internal static class CryptoShredSmoke
 {
     public static async Task RunAsync()
     {
-        Require(!RuntimeFeature.IsDynamicCodeSupported, "Run the published NativeAOT executable.");
+        Require(!RuntimeFeature.IsDynamicCodeSupported, "dynamic code must be disabled; a native result requires running the published native executable");
         await RunPairAsync("tenant:a%one", "tenant:b%two");
         await RunPairAsync(TenantDefaults.DefaultTenantId, KeyedTenantPartition.Untenanted.TenantId);
         Console.WriteLine("Native crypto-shredding: tenant isolation, explicit ownership and lawful tombstone verified.");

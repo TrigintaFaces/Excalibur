@@ -44,10 +44,10 @@ public sealed class AwsSqsRetryBudgetShould
 		(await processor.DispatchPendingMessagesAsync(deadline.Token).ConfigureAwait(false)).ShouldBe(0);
 		state.PublishCalls.ShouldBe(1, message.LastError);
 		handler.Requests.ShouldBe(0, "a client with hidden SDK retries must be refused before sending");
-		message.Status.ShouldBe(OutboxStatus.DeadLettered, message.LastError);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.DeadLettered, message.LastError);
 		((global::Excalibur.Dispatch.Transport.Tests.AwsSqs.AwsEventBridgePersistedAcceptanceShould.RetainingQueue)provider.GetRequiredService<global::Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>()).AssertRetained(message, global::Excalibur.Dispatch.ErrorHandling.DeadLetterReason.UnhandledException, 1);
-		message.LastError.ShouldContain("Unhandled exception");
-		message.LastError.ShouldNotContain("Max retries exceeded");
+		(await AwsPersistedOutboxObservation.ErrorAsync(provider, message)).ShouldContain("Unhandled exception");
+		(await AwsPersistedOutboxObservation.ErrorAsync(provider, message)).ShouldNotContain("Max retries exceeded");
 	}
 
 	[Theory]
@@ -406,7 +406,7 @@ public sealed class AwsSqsRetryBudgetShould
 		var processor = provider.GetRequiredService<IOutboxProcessor>();
 		processor.Init("owned-permanent-sdk-failure");
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(0);
-		message.Status.ShouldBe(OutboxStatus.DeadLettered, message.LastError);
+		await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.DeadLettered, message.LastError);
 		((global::Excalibur.Dispatch.Transport.Tests.AwsSqs.AwsEventBridgePersistedAcceptanceShould.RetainingQueue)provider.GetRequiredService<global::Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>()).AssertRetained(message, code == "InvalidMessageContents"
 			? global::Excalibur.Dispatch.ErrorHandling.DeadLetterReason.PoisonMessage
 			: global::Excalibur.Dispatch.ErrorHandling.DeadLetterReason.UnhandledException, 1);

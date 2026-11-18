@@ -48,6 +48,13 @@ internal sealed class InsertDataTask : DataRequest<int>
 		parameters.Add("MaxAttempts", configuration.MaxAttempts, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, parameters: parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = conn => DataTaskCommandExecutor.ExecuteAsync(conn, Command, command =>
+		{
+			DataTaskCommandExecutor.Add(command, "DataTaskId", DbType.Guid, parameters.Get<Guid>("DataTaskId"));
+			DataTaskCommandExecutor.Add(command, "CreatedAt", DbType.DateTimeOffset, parameters.Get<DateTimeOffset>("CreatedAt"));
+			DataTaskCommandExecutor.Add(command, "RecordType", DbType.String, parameters.Get<string?>("RecordType"));
+			DataTaskCommandExecutor.Add(command, "Attempts", DbType.Int32, parameters.Get<int>("Attempts"));
+			DataTaskCommandExecutor.Add(command, "MaxAttempts", DbType.Int32, parameters.Get<int>("MaxAttempts"));
+		});
 	}
 }

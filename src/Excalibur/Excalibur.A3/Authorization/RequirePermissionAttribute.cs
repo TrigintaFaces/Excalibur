@@ -56,7 +56,7 @@ public sealed class RequirePermissionAttribute : Attribute
 	/// </summary>
 	/// <value>The conditional expression string, or <see langword="null"/> if not specified.</value>
 	/// <remarks>
-	/// <para>Expressions are parsed at startup and cached as ASTs. Evaluation is zero-allocation.</para>
+	/// <para>Expressions are parsed at startup and cached as ASTs. Evaluation allocation depends on the expression and attribute values.</para>
 	/// <para>Supports <c>subject.*</c>, <c>action.*</c>, and <c>resource.*</c> attribute references.</para>
 	/// <para>Operators: <c>==</c>, <c>!=</c>, <c>&gt;</c>, <c>&lt;</c>, <c>&gt;=</c>, <c>&lt;=</c>, <c>contains</c>, <c>startsWith</c>.</para>
 	/// <para>Logic: <c>AND</c>, <c>OR</c>, <c>NOT</c>, parentheses.</para>

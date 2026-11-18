@@ -15,11 +15,10 @@ namespace Excalibur.Dispatch.Resilience;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The mapping is intentionally conservative: only failures that are <em>provably</em> non-retryable
-/// are classified <see cref="MessageFailureKind.Permanent"/> or <see cref="MessageFailureKind.Poison"/>;
-/// everything else falls through to <see cref="MessageFailureKind.Transient"/> so an unrecognised
-/// failure receives a <em>bounded</em> retry (the attempt cap is the backstop) rather than being
-/// silently dropped or dead-lettered.
+/// Recognized transient faults receive bounded retries. Unrecognized faults return
+/// <see cref="MessageFailureKind.Unknown"/>: insufficient evidence for automatic retry is not proof
+/// of permanent rejection, poison content or successful delivery. Durable consumers retain unknown
+/// failures for explicit review rather than discard them.
 /// </para>
 /// <para>
 /// This exception-level classifier is distinct from, and complementary to, the message-level
@@ -72,8 +71,7 @@ internal sealed class DefaultMessageFailureClassifier : IMessageFailureClassifie
             System.Net.Http.HttpRequestException => MessageFailureKind.Transient,
             System.IO.IOException => MessageFailureKind.Transient,
 
-            // anything unrecognised is treated as transient so it gets a bounded retry —
-            // never an infinite loop, never a silent drop. The attempt cap is the safety net.
+            // Lack of classification is not evidence that replay will recover.
             _ => ClassifyUnrecognized(ex),
         };
     }
@@ -83,20 +81,22 @@ internal sealed class DefaultMessageFailureClassifier : IMessageFailureClassifie
     /// must not) reference, matched by their fully-qualified type name. Signing and signature-
     /// verification failures are provably non-retryable — the message will fail identically on every
     /// attempt — so they are classified <see cref="MessageFailureKind.Permanent"/> rather than being
-    /// given a futile bounded retry. Everything else remains <see cref="MessageFailureKind.Transient"/>.
+    /// given a futile bounded retry. A trusted provider's positive transient observation is retained on
+    /// the original exception; everything else remains <see cref="MessageFailureKind.Unknown"/>.
     /// </summary>
     private static MessageFailureKind ClassifyUnrecognized(Exception exception) =>
         exception.GetType().FullName switch
         {
             "Excalibur.Security.VerificationException" => MessageFailureKind.Permanent,
             "Excalibur.Security.SigningException" => MessageFailureKind.Permanent,
-            _ => MessageFailureKind.Transient,
+            _ when KnownTransientFailureEvidence.Contains(exception) => MessageFailureKind.Transient,
+            _ => MessageFailureKind.Unknown,
         };
 
     /// <summary>
     /// Unwraps a single-inner <see cref="AggregateException"/> chain to its root cause so the
     /// classification reflects the real failure rather than the wrapper. A genuinely multi-fault
-    /// aggregate is left flattened (and classified transient via the default arm).
+    /// aggregate is left flattened (and classified unknown via the default arm).
     /// </summary>
     private static Exception Unwrap(Exception exception)
     {

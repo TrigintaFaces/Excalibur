@@ -83,6 +83,14 @@ public sealed class FencingStartupGuardResolvesThroughGetServiceShould
 			"Leader election + a genuinely UNFENCED store (fencing absent on the inner store, so absent through the " +
 			"decorator via GetService) must fail closed at startup. A store that cannot enforce a fencing high-water " +
 			"mark under an active leader gate is the 'looks fenced but isn't' split-brain window the guard closes.");
+
+		// A fenced processor always owns a terminal path, including explicit discard. General fenced
+		// completion alone is insufficient; ordinary terminal capability must not hide this absence.
+		var withoutFencedTerminal = HonestFake(b => b.Implements<IFencedOutboxStore>()
+			.Implements<IFencedClaimScopedOutboxStore>());
+		var missingTerminal = Should.Throw<InvalidOperationException>(() => CreateProcessor(
+			new TelemetryOutboxStoreDecorator(withoutFencedTerminal), A.Fake<ILeaderProcessingGate>()));
+		missingTerminal.Message.ShouldContain(nameof(IFencedDeadLetterableOutboxStore));
 	}
 
 	[Fact]
@@ -137,7 +145,11 @@ public sealed class FencingStartupGuardResolvesThroughGetServiceShould
 	// itself for a capability it implements and null otherwise; the fake must too.
 	private static IOutboxStore HonestFake(Action<IFakeOptions<IOutboxStore>>? configure = null)
 	{
-		var fake = configure is null ? A.Fake<IOutboxStore>() : A.Fake<IOutboxStore>(configure);
+		var fake = A.Fake<IOutboxStore>(b =>
+		{
+			b.Implements<IClaimScopedOutboxStore>().Implements<IClaimScopedDeadLetterableOutboxStore>();
+			configure?.Invoke(b);
+		});
 		A.CallTo(() => fake.GetService(A<Type>._))
 			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(fake) ? fake : null);
 		return fake;

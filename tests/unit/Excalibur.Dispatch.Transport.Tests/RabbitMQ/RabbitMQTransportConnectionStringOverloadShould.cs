@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using Excalibur.Dispatch.Transport.RabbitMQ;
-
 namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ;
 
 /// <summary>
@@ -11,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ;
 /// <remarks>
 /// Sprint 698 T.6 (j6vml): Verifies the connection string overload delegates
 /// to the builder overload and configures options correctly.
-/// Sprint 750: Updated to use non-default credentials (RabbitMqOptionsValidator
+/// Connection input uses non-default credentials (live connection validation
 /// now rejects guest:guest as insecure).
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -21,19 +19,20 @@ public sealed class RabbitMQTransportConnectionStringOverloadShould
 	[Fact]
 	public void RegisterRabbitMQOptionsWithConnectionString()
 	{
-		// Arrange
 		var services = new ServiceCollection();
-		services.AddLogging();
-		const string connectionString = "amqp://user:password@localhost:5672";
+		_ = services.AddLogging();
+		const string connectionString = "amqps://user:password@localhost:5671";
 
-		// Act
-		services.AddRabbitMQTransport(connectionString);
+		_ = services.AddRabbitMQTransport(connectionString);
 		using var provider = services.BuildServiceProvider();
+		var factory = provider.GetRequiredService<global::RabbitMQ.Client.IConnectionFactory>()
+			.ShouldBeOfType<global::RabbitMQ.Client.ConnectionFactory>();
 
-		// Assert -- the connection string overload delegates to the builder which configures options
-		var options = provider.GetService<Microsoft.Extensions.Options.IOptions<RabbitMqOptions>>();
-		options.ShouldNotBeNull();
-		options.Value.Connection.ConnectionString.ShouldBe(connectionString);
+		factory.HostName.ShouldBe("localhost");
+		factory.Port.ShouldBe(5671);
+		factory.UserName.ShouldBe("user");
+		factory.Password.ShouldBe("password");
+		factory.Ssl.Enabled.ShouldBeTrue();
 	}
 
 	[Fact]

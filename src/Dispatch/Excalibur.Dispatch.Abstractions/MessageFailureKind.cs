@@ -50,4 +50,12 @@ public enum MessageFailureKind
     /// is not proof of rejection or non-delivery.
     /// </summary>
     Uncertain = 3,
+
+    /// <summary>
+    /// The failure is unrecognized; there is insufficient evidence that retry will recover.
+    /// Do not automatically retry, acknowledge delivery or discard the message. Foreground callers
+    /// receive the original failure; durable owners retain it for explicit classification and recovery.
+    /// This is distinct from uncertain delivery acceptance.
+    /// </summary>
+    Unknown = 4,
 }

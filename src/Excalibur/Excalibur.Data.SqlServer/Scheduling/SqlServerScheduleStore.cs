@@ -14,14 +14,14 @@ namespace Excalibur.Data.SqlServer.Scheduling;
 
 /// <summary>Durable SQL Server schedule storage with fenced, renewable occurrence ownership.</summary>
 /// <remarks>
-/// Provision scripts/004_CreateScheduleSchema.sql before use. Administration is store-global;
+/// Provision scripts/004_CreateScheduleSchema.sql, 005_CreateScheduleFailureSchema.sql and 006_AddScheduleCronRecurrenceProfile.sql before use. Administration is store-global;
 /// message tenant metadata does not restrict inventory or administrative operations. Handler effects
 /// remain at-least-once. Database restore or cloning requires an offline authority-epoch rotation.
 /// Ambient transactions are rejected and ambiguous commit responses are never automatically retried.
 /// </remarks>
-public sealed class SqlServerScheduleStore : IScheduleExecutionLeaseRenewal
+public sealed partial class SqlServerScheduleStore : IScheduleExecutionLeaseRenewal, IScheduleExecutionFailureStore
 {
-	private const string Columns = "Id, Generation, MessageName, MessageBody, CronExpression, TimeZoneId, IntervalTicks, NextExecutionUtc, LastExecutionUtc, Enabled, MissedExecutionBehavior, MetadataJson, OwnerToken, AdmittedOccurrence, LeaseExpiresUtc, ProgressCommitted";
+	private const string Columns = "Id, Generation, MessageName, MessageBody, CronExpression, TimeZoneId, IntervalTicks, NextExecutionUtc, LastExecutionUtc, Enabled, MissedExecutionBehavior, MetadataJson, OwnerToken, AdmittedOccurrence, LeaseExpiresUtc, ProgressCommitted, AdmissionAttempts, CapturedMaxAdmissionAttempts, CronRecurrenceProfileId, CronRecurrenceProfileVersion";
 	private readonly string _connectionString;
 	private readonly int _commandTimeout;
 	private readonly int _lockTimeout;
@@ -74,16 +74,21 @@ public sealed class SqlServerScheduleStore : IScheduleExecutionLeaseRenewal
 		var owned = new ScheduleExecutionSnapshot(Guid.NewGuid(), message);
 		ArgumentException.ThrowIfNullOrWhiteSpace(owned.Message.MessageName);
 		ArgumentNullException.ThrowIfNull(owned.Message.MessageBody);
+		ValidateCronRecurrence(owned.Message);
 		if (owned.Message.Id == Guid.Empty)
 		{
 			throw new ArgumentException("The schedule identifier must be nonempty.", nameof(message));
 		}
 		_ = await MutateAsync(owned.Message.Id, async (connection, transaction, _, row, _, token) =>
 		{
-			const string values = "@Id, @Generation, @MessageName, @MessageBody, @CronExpression, @TimeZoneId, @IntervalTicks, @NextExecutionUtc, @LastExecutionUtc, @Enabled, @MissedExecutionBehavior, @MetadataJson";
-			const string assignments = "Generation=@Generation, MessageName=@MessageName, MessageBody=@MessageBody, CronExpression=@CronExpression, TimeZoneId=@TimeZoneId, IntervalTicks=@IntervalTicks, NextExecutionUtc=@NextExecutionUtc, LastExecutionUtc=@LastExecutionUtc, Enabled=@Enabled, MissedExecutionBehavior=@MissedExecutionBehavior, MetadataJson=@MetadataJson, OwnerToken=NULL, AdmittedOccurrence=NULL, LeaseExpiresUtc=NULL, ProgressCommitted=0";
+			if (row?.CapturedMaxAdmissionAttempts is not null)
+			{
+				throw new InvalidOperationException("A captured unsettled occurrence must be fulfilled or quarantined before replacing its schedule.");
+			}
+			const string values = "@Id, @Generation, @MessageName, @MessageBody, @CronExpression, @TimeZoneId, @IntervalTicks, @NextExecutionUtc, @LastExecutionUtc, @Enabled, @MissedExecutionBehavior, @MetadataJson, @CronRecurrenceProfileId, @CronRecurrenceProfileVersion";
+			const string assignments = "Generation=@Generation, MessageName=@MessageName, MessageBody=@MessageBody, CronExpression=@CronExpression, TimeZoneId=@TimeZoneId, IntervalTicks=@IntervalTicks, NextExecutionUtc=@NextExecutionUtc, LastExecutionUtc=@LastExecutionUtc, Enabled=@Enabled, MissedExecutionBehavior=@MissedExecutionBehavior, MetadataJson=@MetadataJson, CronRecurrenceProfileId=@CronRecurrenceProfileId, CronRecurrenceProfileVersion=@CronRecurrenceProfileVersion, OwnerToken=NULL, AdmittedOccurrence=NULL, LeaseExpiresUtc=NULL, ProgressCommitted=0, AdmissionAttempts=0, CapturedMaxAdmissionAttempts=NULL";
 			await using var command = Command(connection, transaction, row is null
-				? $"INSERT dispatch.ScheduledMessage ({Columns[..Columns.IndexOf(", OwnerToken", StringComparison.Ordinal)]}) VALUES ({values})"
+				? $"INSERT dispatch.ScheduledMessage ({Columns[..Columns.IndexOf(", OwnerToken", StringComparison.Ordinal)]}, CronRecurrenceProfileId, CronRecurrenceProfileVersion) VALUES ({values})"
 				: $"UPDATE dispatch.ScheduledMessage SET {assignments} WHERE Id=@Id");
 			AddMessage(command, owned);
 			_ = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
@@ -94,14 +99,28 @@ public sealed class SqlServerScheduleStore : IScheduleExecutionLeaseRenewal
 	/// <inheritdoc />
 	public async Task CompleteAsync(Guid scheduleId, CancellationToken cancellationToken)
 	{
-		_ = await MutateAsync(scheduleId, async (connection, transaction, _, row, _, token) =>
+		_ = await MutateAsync(scheduleId, async (connection, transaction, storeId, row, now, token) =>
 		{
 			if (row is null)
 			{
 				return false;
 			}
+			if (row.CapturedMaxAdmissionAttempts is not null)
+			{
+				var occurrence = row.Message.NextExecutionUtc ?? throw new InvalidOperationException("A captured schedule has no occurrence.");
+				var history = await ReadFailureAsync(connection, transaction, storeId, scheduleId, row.Generation, occurrence, token).ConfigureAwait(false);
+				if (history?.Snapshot.Disposition == ScheduleFailureDisposition.Quarantined) { return true; }
+				await WriteFailureAsync(connection, transaction, storeId, row, occurrence, row.OwnerToken ?? Guid.Empty,
+					new ScheduleOccurrenceFailure(history?.Snapshot.Reason ?? ScheduleFailureReason.AdministrativeCancellation,
+						ScheduleFailureDisposition.Quarantined), now, history, token).ConfigureAwait(false);
+				await using var quarantine = Command(connection, transaction,
+					"UPDATE dispatch.ScheduledMessage SET Enabled=0,OwnerToken=NULL,AdmittedOccurrence=NULL,LeaseExpiresUtc=NULL WHERE Id=@Id");
+				Add(quarantine, "@Id", SqlDbType.UniqueIdentifier, scheduleId);
+				_ = await quarantine.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+				return true;
+			}
 			await using var command = Command(connection, transaction,
-				"UPDATE dispatch.ScheduledMessage SET Enabled=0, Generation=@Generation, OwnerToken=NULL, AdmittedOccurrence=NULL, LeaseExpiresUtc=NULL, ProgressCommitted=0 WHERE Id=@Id");
+				"UPDATE dispatch.ScheduledMessage SET Enabled=0, Generation=@Generation, OwnerToken=NULL, AdmittedOccurrence=NULL, LeaseExpiresUtc=NULL, ProgressCommitted=0, AdmissionAttempts=0, CapturedMaxAdmissionAttempts=NULL WHERE Id=@Id");
 			Add(command, "@Id", SqlDbType.UniqueIdentifier, scheduleId);
 			Add(command, "@Generation", SqlDbType.UniqueIdentifier, Guid.NewGuid());
 			_ = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
@@ -132,16 +151,7 @@ public sealed class SqlServerScheduleStore : IScheduleExecutionLeaseRenewal
 			{
 				return null;
 			}
-			var expires = Expiry(now);
-			var lease = new ScheduleExecutionLease(storeId, scheduleId, generation, occurrenceUtc, Guid.NewGuid());
-			await using var command = Command(connection, transaction,
-				"UPDATE dispatch.ScheduledMessage SET OwnerToken=@Owner, AdmittedOccurrence=@Occurrence, LeaseExpiresUtc=@Expires, ProgressCommitted=0 WHERE Id=@Id");
-			Add(command, "@Id", SqlDbType.UniqueIdentifier, scheduleId);
-			Add(command, "@Owner", SqlDbType.UniqueIdentifier, lease.OwnerToken);
-			Add(command, "@Occurrence", SqlDbType.DateTimeOffset, occurrenceUtc);
-			Add(command, "@Expires", SqlDbType.DateTimeOffset, expires);
-			_ = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
-			return lease;
+			return await GrantAsync(connection, transaction, storeId, row, occurrenceUtc, now, row.CapturedMaxAdmissionAttempts, token).ConfigureAwait(false);
 		}, cancellationToken);
 
 	/// <inheritdoc />
@@ -172,12 +182,12 @@ public sealed class SqlServerScheduleStore : IScheduleExecutionLeaseRenewal
 		ArgumentNullException.ThrowIfNull(result);
 		return MutateAsync(lease.ScheduleId, async (connection, transaction, storeId, row, now, token) =>
 		{
-			if (!Matches(storeId, row, lease) || row!.ExpiresUtc <= now || row.ProgressCommitted)
+			if (!Matches(storeId, row, lease) || row!.ExpiresUtc <= now || row.ProgressCommitted || row.CapturedMaxAdmissionAttempts is not null)
 			{
 				return false;
 			}
 			await using var command = Command(connection, transaction,
-				"UPDATE dispatch.ScheduledMessage SET LastExecutionUtc=@Last, NextExecutionUtc=@Next, Enabled=CASE WHEN @Disable=1 THEN 0 ELSE Enabled END, ProgressCommitted=1 WHERE Id=@Id");
+				"UPDATE dispatch.ScheduledMessage SET LastExecutionUtc=@Last, NextExecutionUtc=@Next, Enabled=CASE WHEN @Disable=1 THEN 0 ELSE Enabled END, ProgressCommitted=1, AdmissionAttempts=0 WHERE Id=@Id");
 			Add(command, "@Id", SqlDbType.UniqueIdentifier, lease.ScheduleId);
 			Add(command, "@Last", SqlDbType.DateTimeOffset, result.LastExecutionUtc);
 			Add(command, "@Next", SqlDbType.DateTimeOffset, result.NextExecutionUtc);
@@ -290,6 +300,8 @@ public sealed class SqlServerScheduleStore : IScheduleExecutionLeaseRenewal
 		Add(command, "@MessageBody", SqlDbType.NVarChar, message.MessageBody);
 		Add(command, "@CronExpression", SqlDbType.NVarChar, message.CronExpression);
 		Add(command, "@TimeZoneId", SqlDbType.NVarChar, message.TimeZoneId);
+		Add(command, "@CronRecurrenceProfileId", SqlDbType.NVarChar, message.CronRecurrenceProfileId);
+		Add(command, "@CronRecurrenceProfileVersion", SqlDbType.Int, message.CronRecurrenceProfileVersion);
 		Add(command, "@IntervalTicks", SqlDbType.BigInt, message.Interval?.Ticks);
 		Add(command, "@NextExecutionUtc", SqlDbType.DateTimeOffset, message.NextExecutionUtc);
 		Add(command, "@LastExecutionUtc", SqlDbType.DateTimeOffset, message.LastExecutionUtc);
@@ -309,6 +321,8 @@ public sealed class SqlServerScheduleStore : IScheduleExecutionLeaseRenewal
 			Id = reader.GetGuid(0), MessageName = reader.GetString(2), MessageBody = reader.GetString(3),
 			CronExpression = reader.IsDBNull(4) ? null! : reader.GetString(4),
 			TimeZoneId = reader.IsDBNull(5) ? null : reader.GetString(5),
+			CronRecurrenceProfileId = reader.IsDBNull(18) ? null : reader.GetString(18),
+			CronRecurrenceProfileVersion = reader.IsDBNull(19) ? null : reader.GetInt32(19),
 			Interval = reader.IsDBNull(6) ? null : TimeSpan.FromTicks(reader.GetInt64(6)),
 			NextExecutionUtc = reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7),
 			LastExecutionUtc = reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8),
@@ -319,9 +333,9 @@ public sealed class SqlServerScheduleStore : IScheduleExecutionLeaseRenewal
 		};
 		return new Row(message, reader.GetGuid(1), reader.IsDBNull(12) ? null : reader.GetGuid(12),
 			reader.IsDBNull(13) ? null : reader.GetDateTimeOffset(13), reader.IsDBNull(14) ? null : reader.GetDateTimeOffset(14),
-			reader.GetBoolean(15));
+			reader.GetBoolean(15), reader.GetInt32(16), reader.IsDBNull(17) ? null : reader.GetInt32(17));
 	}
 
 	private sealed record Row(ScheduledMessage Message, Guid Generation, Guid? OwnerToken,
-		DateTimeOffset? Occurrence, DateTimeOffset? ExpiresUtc, bool ProgressCommitted);
+		DateTimeOffset? Occurrence, DateTimeOffset? ExpiresUtc, bool ProgressCommitted, int AdmissionAttempts, int? CapturedMaxAdmissionAttempts);
 }

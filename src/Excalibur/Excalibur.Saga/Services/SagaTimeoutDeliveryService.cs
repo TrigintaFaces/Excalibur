@@ -7,8 +7,10 @@ using System.Text.Json;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Resilience;
 
 using Excalibur.Saga.Abstractions;
+using Excalibur.Saga.Orchestration;
 using Excalibur.Saga.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +37,8 @@ namespace Excalibur.Saga.Services;
 /// at-least-once delivery semantics. The underlying <see cref="ISagaTimeoutStore"/> implementation
 /// (e.g., SqlServerSagaTimeoutStore) must persist timeouts to survive process restarts.
 /// </para>
+/// <para>The existing constructor/JSON(Type) runtime path retains its trimming/AOT limitations and
+/// annotations. This hold integration does not certify full NativeAOT timeout delivery.</para>
 /// </remarks>
 internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 {
@@ -43,6 +47,7 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 	private readonly ILogger<SagaTimeoutDeliveryService> _logger;
 	private readonly SagaTimeoutOptions _options;
 	private readonly ISagaTypeRegistry _typeRegistry;
+	private readonly SagaTimeoutFailureDelivery _failures;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SagaTimeoutDeliveryService"/> class.
@@ -52,8 +57,8 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="options">The timeout delivery options.</param>
 	/// <param name="typeRegistry">The type registry naming every timeout message type the host
-	/// registered during composition. Required: it is the only resolution path, so a service built
-	/// without one resolves nothing and retires every timeout undelivered.</param>
+	/// registered during composition. Required: it is the only resolution path; an unresolved stored
+	/// type is retained as Unknown for explicit configuration repair, never acknowledged undelivered.</param>
 	public SagaTimeoutDeliveryService(
 		ISagaTimeoutStore timeoutStore,
 		IServiceProvider serviceProvider,
@@ -66,7 +71,16 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_typeRegistry = typeRegistry ?? throw new ArgumentNullException(nameof(typeRegistry));
+		_failures = new SagaTimeoutFailureDelivery(_timeoutStore,
+			_serviceProvider.GetService<IMessageFailureClassifier>() ?? new DefaultMessageFailureClassifier(), _logger, _options.BatchSize);
 	}
+
+    /// <inheritdoc />
+    public override async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _failures.ValidateAsync(cancellationToken).ConfigureAwait(false);
+        await base.StartAsync(cancellationToken).ConfigureAwait(false);
+    }
 
 	/// <inheritdoc />
 	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
@@ -113,6 +127,8 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 	private async Task ProcessDueTimeoutsAsync(CancellationToken cancellationToken)
 	{
 		using var activity = SagaActivitySource.StartActivity("ProcessDueTimeouts");
+
+		await _failures.RetryPendingAsync(cancellationToken).ConfigureAwait(false);
 
 		// ClaimDueTimeoutsAsync atomically leases due timeouts to this processor, so under a
 		// multi-instance deployment two SagaTimeoutDeliveryService instances polling concurrently
@@ -165,9 +181,8 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 		// partition rather than the one the saga was saved under, finds nothing, and the timeout is a silent
 		// no-op — no exception, no log, just a saga that never advances.
 		//
-		// The scope wraps the entire method, not just the dispatch, because the MarkDeliveredAsync calls on the
-		// unresolvable-type and invalid-message paths retire the row by (TenantId, TimeoutId) and would otherwise
-		// match nothing, redelivering that timeout forever.
+		// The scope wraps dispatch and conditional hold/retirement so each mutation addresses the original
+		// stored partition. Unresolvable/invalid messages are retained for explicit repair, never acknowledged.
 		//
 		// BeginScope takes the partition's own term for an untenanted timeout, NOT null. A null ambient does
 		// not "resolve back to the untenanted partition" — it clears the ambient, and the default
@@ -179,8 +194,14 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 		using var tenantScope = TenantContextHolder.BeginScope(partition.TenantId);
 		_ = (activity?.SetTag("tenant.id", partition.TenantId));
 
+		var dispatchSucceeded = false;
 		try
 		{
+            if (await _failures.SuppressPendingAsync(claim, cancellationToken).ConfigureAwait(false)) { return; }
+            // Keep polling/rebinding existing pending work at capacity, but do not dispatch another
+            // new source whose failure could retain an unbounded payload backlog. No ack/delete:
+            // ordinary lease expiry preserves eligibility once disposition storage recovers.
+            if (!_failures.HasCapacity) { return; }
 			// The registry is the ONLY resolution path. TimeoutType is a value read back from the timeout
 			// store, so resolving it by scanning every loaded assembly would let a stored string select any
 			// type in the process and hand it to the deserializer below -- the gadget-chain shape. The
@@ -191,9 +212,8 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 				LogTimeoutTypeResolutionFailed(
 					timeout.TimeoutType,
 					timeout.TimeoutId);
-				// Mark as delivered to prevent retry loop for unresolvable types
-				await RetireAsync(claim, cancellationToken).ConfigureAwait(false);
-				return;
+                await _failures.RecordUntypedResultAsync(claim, $"Timeout type '{timeout.TimeoutType}' is not registered; repair configuration before explicit resume.", cancellationToken).ConfigureAwait(false);
+                return;
 			}
 
 			object? timeoutMessage;
@@ -209,15 +229,15 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 			if (timeoutMessage is null)
 			{
 				LogTimeoutMessageCreationFailed(timeout.TimeoutType);
-				await RetireAsync(claim, cancellationToken).ConfigureAwait(false);
-				return;
+                await _failures.RecordUntypedResultAsync(claim, $"Timeout '{timeout.TimeoutId}' could not be constructed as a dispatch message; repair configuration before explicit resume.", cancellationToken).ConfigureAwait(false);
+                return;
 			}
 
 			if (timeoutMessage is not IDispatchMessage dispatchMessage)
 			{
 				LogTimeoutMessageTypeInvalid(timeout.TimeoutType);
-				await RetireAsync(claim, cancellationToken).ConfigureAwait(false);
-				return;
+                await _failures.RecordUntypedResultAsync(claim, $"Timeout '{timeout.TimeoutId}' could not be constructed as a dispatch message; repair configuration before explicit resume.", cancellationToken).ConfigureAwait(false);
+                return;
 			}
 
 			// Dispatch via saga handling infrastructure using scoped dispatcher
@@ -228,6 +248,11 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 			{
 				MessageId = timeout.TimeoutId,
 			};
+			if (claim.OwnedDelivery is { } originalDelivery)
+			{
+				// Encode BEFORE dispatch. Failure leaves the row leased for retry; never queue a partial group.
+				SagaTimeoutDeliveryMetadata.Write(context, originalDelivery);
+			}
 			context.SetMessageType(timeout.TimeoutType);
 			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
@@ -244,22 +269,14 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 
 			var result = await dispatcher.DispatchAsync(dispatchMessage, context, cancellationToken).ConfigureAwait(false);
 
-			// A dispatch can FAIL WITHOUT THROWING, so the result cannot be discarded. TimeoutMiddleware
-			// returns a result with Succeeded:false when TimeoutOptions.ThrowOnTimeout is disabled, and
-			// RateLimitingMiddleware returns one when the limit is exceeded. Retiring the row on the
-			// strength of "DispatchAsync returned" therefore deletes a timeout that was never delivered --
-			// zero deliveries, row gone, and the saga waits forever for a timeout that no longer exists.
-			// That is strictly outside the at-least-once guarantee this store documents.
-			//
-			// Both sibling processors already convert a failed result into a throw so their retry
-			// machinery fires (OutboxProcessor and InboxProcessor); this is the third such caller and was
-			// the only one that did not. Throwing here reaches the catch below, which deliberately does
-			// NOT mark delivered, so the claim lapses and the timeout is re-delivered on a later poll.
-			if (result is { Succeeded: false })
-			{
-				var errorMessage = result.ErrorMessage ?? ErrorConstants.MessageDispatchFailed;
-				throw new InvalidOperationException(errorMessage);
-			}
+            // An untyped failed result carries no canonical retry evidence. Preserve it as Unknown,
+            // with diagnostic text only; do not infer a kind from strings or fabricate an exception.
+            if (result is { Succeeded: false })
+            {
+                await _failures.RecordUntypedResultAsync(claim, result.ErrorMessage, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            dispatchSucceeded = true;
 
 			// Mark delivered after successful dispatch
 			await RetireAsync(claim, cancellationToken).ConfigureAwait(false);
@@ -273,7 +290,10 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 		{
 			LogTimeoutDeliveryFailed(timeout.TimeoutId, timeout.SagaId, ex);
 			_ = (activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message));
-			// Do NOT mark as delivered - will retry on next poll
+			// A retirement/cleanup fault after successful dispatch is not a new handler failure.
+            // Caller cancellation likewise never grants a successful disposition.
+            if (!dispatchSucceeded && !cancellationToken.IsCancellationRequested)
+            { await _failures.RecordFaultAsync(claim, ex, cancellationToken).ConfigureAwait(false); }
 		}
 	}
 

@@ -128,7 +128,9 @@ public static class OutboxBuilderElasticsearchExtensions
 		else if (esBuilder.CloudIdValue is not null)
 		{
 			var cloudId = esBuilder.CloudIdValue;
-			services.TryAddSingleton(_ => new ElasticsearchClient(new ElasticsearchClientSettings(new Uri(cloudId))));
+			services.TryAddSingleton(_ => new ElasticsearchClient(new ElasticsearchClientSettings(
+                new Elastic.Transport.CloudNodePool(cloudId, credentials: null!),
+                sourceSerializer: (_, settings) => ElasticsearchOutboxSerializer.Create(settings, esBuilder.SourceTypeInfoResolver))));
 		}
 		else if (esBuilder.NodeUrisValue is not null)
 		{
@@ -136,13 +138,16 @@ public static class OutboxBuilderElasticsearchExtensions
 			services.TryAddSingleton(_ =>
 			{
 				var pool = new Elastic.Transport.StaticNodePool(uris);
-				return new ElasticsearchClient(new ElasticsearchClientSettings(pool));
+				return new ElasticsearchClient(new ElasticsearchClientSettings(pool,
+                    sourceSerializer: (_, settings) => ElasticsearchOutboxSerializer.Create(settings, esBuilder.SourceTypeInfoResolver)));
 			});
 		}
 		else if (esBuilder.NodeUriValue is not null)
 		{
 			var uri = esBuilder.NodeUriValue;
-			services.TryAddSingleton(_ => new ElasticsearchClient(new ElasticsearchClientSettings(uri)));
+			services.TryAddSingleton(_ => new ElasticsearchClient(new ElasticsearchClientSettings(
+                new Elastic.Transport.SingleNodePool(uri),
+                sourceSerializer: (_, settings) => ElasticsearchOutboxSerializer.Create(settings, esBuilder.SourceTypeInfoResolver))));
 		}
 		// If no connection configured, the store will use whatever ElasticsearchClient
 		// is already registered in DI (e.g., from the Data package).

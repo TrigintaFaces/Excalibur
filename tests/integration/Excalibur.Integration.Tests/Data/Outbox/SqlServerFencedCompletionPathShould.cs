@@ -331,18 +331,25 @@ public sealed class SqlServerFencedCompletionPathShould : IClassFixture<SqlServe
 		// A superseded tenure now presents an older token for a DIFFERENT, live message.
 		var (superseded, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
 
-		var refusal = await Should.ThrowAsync<StaleOutboxFencingTokenException>(
-			async () => await store.MarkSentAsync(superseded.Id, 5, CancellationToken.None)
-				.ConfigureAwait(false)).ConfigureAwait(false);
+		var refusal = await store.MarkSentAsync(superseded.Id, 5, CancellationToken.None)
+			.ConfigureAwait(false);
 
-		refusal.PresentedToken.ShouldBe(5L, "the refusal must name the token that was presented");
+		refusal.ShouldBe(
+			OutboxCompletionOutcome.FenceRefused,
+			"the refusal must be classified from the high-water the MUTATING TRANSACTION used. A store that "
+			+ "classifies from a prior untransacted read compares against a value that can be stale-low, the "
+			+ "comparison then comes out false, and a fenced refusal is mis-reported as a missing row");
 
-		refusal.HighWaterToken.ShouldBe(
+		// THE PRESENTED AND RECORDED TOKENS ARE NO LONGER ON THE REFUSAL, and this arm now asks the
+		// diagnostic for the one that matters. That is the single capability the exception had and the
+		// outcome value does not; the mark itself is still observable, and still has to be correct, which
+		// is what this assertion holds. A store whose mutating transaction advanced the wrong mark fails
+		// here exactly as it used to fail on the exception property.
+		var afterRefusal = await store.GetFencingHighWaterAsync(CancellationToken.None).ConfigureAwait(false);
+		afterRefusal.ShouldBe(
 			durableHighWater,
-			"the refusal must report the high-water the MUTATING TRANSACTION used. A store that "
-			+ "classifies from a prior untransacted read cannot report that value, which is precisely the "
-			+ "defect: its captured high-water can be stale-low, the comparison then comes out false, and "
-			+ "a fenced refusal is mis-reported as a missing row");
+			"a refused token must not move the recorded mark, and the mark the refusal was judged against "
+			+ "must still be readable by an operator diagnosing which tenure won");
 
 		(await ReadStatusAsync(superseded.Id).ConfigureAwait(false)).ShouldNotBe(
 			StatusSent,
@@ -350,14 +357,17 @@ public sealed class SqlServerFencedCompletionPathShould : IClassFixture<SqlServe
 	}
 
 	/// <summary>
-	/// DISCRIMINATION, and this is the defect stated as an assertion: a stale token must NOT surface as a
-	/// plain <see cref="InvalidOperationException"/> meaning "not found, already sent, or dead-lettered".
+	/// DISCRIMINATION, and this is the defect stated as an assertion: a stale token must NOT surface as
+	/// <see cref="OutboxCompletionOutcome.MessageNotFound"/> or
+	/// <see cref="OutboxCompletionOutcome.AlreadyTerminal"/>, either of which means "nothing here for you"
+	/// rather than "a newer tenure exists".
 	/// </summary>
 	/// <remarks>
-	/// The pre-fix store threw exactly that for a genuinely fenced refusal, and the two instruct the
-	/// caller to do OPPOSITE things — a fence refusal means stop draining entirely, a not-found means
-	/// carry on with the rest of the batch. Asserting only "it threw" would pass against the defect,
-	/// because the defect also throws. The TYPE is the contract.
+	/// The pre-fix store answered a genuinely fenced refusal with a plain not-found, and the two instruct
+	/// the caller to do OPPOSITE things — a fence refusal means stop draining entirely, a not-found means
+	/// carry on with the rest of the batch. Asserting only "it did not apply" would pass against the
+	/// defect, because the defect also does not apply. The VALUE is the contract, and it is a value rather
+	/// than an exception type precisely so a caller cannot read it as either a success or a fault.
 	/// </remarks>
 	[Fact]
 	public async Task NotMisreportAFencedRefusalAsAMissingRow()
@@ -370,11 +380,11 @@ public sealed class SqlServerFencedCompletionPathShould : IClassFixture<SqlServe
 
 		var (superseded, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
 
-		var thrown = await Should.ThrowAsync<Exception>(
-			async () => await store.MarkSentAsync(superseded.Id, 7, CancellationToken.None)
-				.ConfigureAwait(false)).ConfigureAwait(false);
+		var outcome = await store.MarkSentAsync(superseded.Id, 7, CancellationToken.None)
+			.ConfigureAwait(false);
 
-		thrown.ShouldBeOfType<StaleOutboxFencingTokenException>(
+		outcome.ShouldBe(
+			OutboxCompletionOutcome.FenceRefused,
 			"a fenced refusal on a row that EXISTS and is NOT terminal must be reported as a stale fence, "
 			+ "never as a missing-or-terminal row. The message was staged and claimed in this test, so "
 			+ "'not found' is provably the wrong answer, and the caller's correct response differs: stop "

@@ -38,6 +38,7 @@ public static class SqlServerFencingTokenServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
 		services.TryAddSingleton<IFencingTokenProvider>(_ => new SqlServerFencingTokenProvider(connectionString));
+		services.RegisterFencingIssuerProjection();
 		services.TryAddSingleton<FencingTokenMiddleware>();
 
 		return services;

@@ -51,6 +51,27 @@ Each transport package provides CloudEvents serialization for wire-level interop
 
 Transport packages register `ICloudEventEncoder<T>`, `ICloudEventEnvelopeConverter`, and `IEnvelopeCloudEventBridge` automatically.
 
+**Each of those calls needs a serialization choice alongside it.** A transport registration wires that
+transport's CloudEvents binding, but it deliberately does not decide how your payloads are serialized —
+so you make that call once, and the transport registration reports it at startup if you leave it out:
+
+```csharp
+// Reflection-free: your source-generated context covers the types you publish as CloudEvent data.
+// This is the overload to use if you trim or publish with Native AOT.
+services.AddDispatch(dispatch => dispatch.AddCloudEvents(MyPayloadContext.Default));
+
+// Or the reflective path, correct on a full runtime and annotated so your own build warns you.
+services.AddDispatch(dispatch => dispatch.AddCloudEvents());
+```
+
+This sample uses the first form — see `SampleJsonContext` in `Program.cs`.
+
+The resolver overload selects the metadata-aware formatter. If you construct a serializer directly,
+use `CloudEventSerializer.CreateWithMetadata(CloudEventPayloadSerialization.CreateOptions(MyPayloadContext.Default))`.
+The legacy constructor retains the SDK formatter even when its options include a resolver. Cover every
+published payload type and validate custom converters and transport dependencies in your own trimmed
+or native executable.
+
 When using the EventBridge message bus, publication requires a positive per-entry
 `PutEvents` acknowledgement; HTTP 200 can still contain rejected entries. Established
 transient entry failures propagate to the configured retry owner, while permanent or

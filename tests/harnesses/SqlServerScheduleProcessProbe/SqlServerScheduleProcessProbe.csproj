@@ -5,10 +5,16 @@
     <IsTestProject>false</IsTestProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Excalibur.Dispatch.Generated</InterceptorsNamespaces>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.SqlServer/Excalibur.Data.SqlServer.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.SourceGenerators/Excalibur.Dispatch.SourceGenerators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>
   <Target Name="GetScheduleProbeFiles" DependsOnTargets="Build" Returns="@(ScheduleProbeFiles)">
     <ItemGroup><ScheduleProbeFiles Include="$(TargetDir)**/*" /></ItemGroup>

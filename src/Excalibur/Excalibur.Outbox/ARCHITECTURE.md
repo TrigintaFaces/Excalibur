@@ -11,6 +11,38 @@
 > separately under *The change-feed family* below. The two families are mutually exclusive by construction,
 > and that exclusivity is gated rather than merely asserted — see `OutboxCapabilityMatrixShould`.
 
+## Captured authority and local drain admission
+
+An `OutboxProcessor` run captures one leadership token and keeps it for the claim and every sent,
+failure, retry and dead-letter mutation. A later token reported by the gate never relabels an old claim.
+The default-on fenced composition refuses missing authority and never downgrades to an unfenced write.
+No-election and explicitly asserted single-active-writer compositions retain their unfenced behavior.
+
+Once a store reports a typed or thrown tenure refusal, new local admissions at that token or an older
+token stop. This state is shared with other processors and publishers using the same authority-domain
+identity, including processors recreated in later dependency-injection scopes. Reference identity is
+used, so unrelated elections with equal numeric tokens do not poison each other. Custom transient gate
+wrappers may expose one stable `ILeaderProcessingAuthorityDomain.AuthorityDomain` object for their
+underlying monotonic token sequence; never reuse that object for an unrelated election or reset the
+token sequence while retaining it. A genuinely newer authorized token may admit a fresh run.
+
+The ordering boundary is local admission, not atomic observation of a remote lease. An operation
+admitted before refusal may still invoke or settle after it. Already admitted transports, claims and
+batch workers remain owned and are joined. The run's private refusal stop wakes channel waits without
+canceling those external operations or recording unattempted rows as delivery failures. The returned
+integer counts actual accepted dispatches; it does not assert durable completion or queue exhaustion,
+and a stopped zero-count run does not prove that no work remained. Row-scoped claim loss, absence and
+already-terminal outcomes continue other owned work.
+
+The implementation boundary is `OutboxProcessor.Tenure.cs` and the explicit `ProcessorTenure` parameter
+threaded through `OutboxProcessor.cs`. `OutboxProcessorTenureShould` specifies sequential, parallel
+minimized-window and at-least-once later-batch refusal, immutable old-token completion, recreated
+authority domains, typed and thrown failure/dead-letter refusal, and joins of held admitted transports.
+`BatchingOwnershipShould` separately specifies that producer failure cannot orphan an admitted batch
+consumer. These controls concern local admission, result counts and task ownership; they do not certify
+every durable provider, remote no-send-after-expiry, per-transport fanout CAS or broker/store exactly-once.
+The separate durable multi-transport capability limitations below still apply.
+
 ## Delivery guarantee
 
 **At-least-once.** Every staged message is delivered to its transport **at least once**. Under a dispatcher
@@ -77,54 +109,147 @@ Sub-guarantees (invariants):
 | **R3** | Monotonic attempts, and **termination** | The recorded attempt count never decreases (`GREATEST(attempts, n)`), **and it advances whenever a failure is recorded**, so a repeatedly failing message reaches the dead-letter ceiling in bounded attempts rather than retrying forever. | Holds **on the claim path**. Monotonicity alone is not the point of R3: a store that never decreases the count but also never advances it satisfies the letter and loses the reason, so termination is stated here explicitly rather than left implied by the ceiling. Termination holds on every provider and on both paths: the scheduled read projects the stored attempt count (`attempts AS Attempts` → `RetryCount`), so a scheduled message resumes its attempt history rather than restarting at zero. |
 | **F1** | Leadership fencing *(optional)* | On stores implementing `IFencedOutboxStore`, a superseded leader presenting a stale token is refused on **claim and mark-sent** on every store that participates in fencing. **Which further members are fenced is per store, and the honest form is a matrix rather than a sentence — see the fenced-member matrix below.** Four stores additionally fence the **completion path** — **InMemory, Oracle, PostgreSQL and SQL Server**: they implement `IFencedClaimScopedOutboxStore` (mark-failed, carrying both the leadership token and the claim identity) and `IFencedDeadLetterableOutboxStore` (dead-lettering, carrying the leadership token), both returning an outcome rather than throwing. InMemory is in that set because it is the development and testing store and is held to the same contract; the three a production deployment can choose from are Oracle, PostgreSQL and SQL Server. **MongoDB and Redis implement neither, and that is now a startup refusal rather than a degraded configuration** — see the note on composition below. On Postgres and Oracle mark-sent is realised as a row DELETE, so on those stores the fenced mark-sent IS a fenced delete statement — that is the storage form of mark-sent, not a third fenced operation a consumer can invoke. Refusal on the failure members is **per store and per member**, and it is no longer uniform. Where a store implements the fenced form of the claim-scoped completion, its mark-failed statement carries both the leadership token and the claim identity and is refused on either — **one shipped store does.** Its ordinary mark-failed and its backoff statement carry a claim identity but **no leadership token**, so they refuse a foreign claim and not a superseded tenure. **Dead-lettering now depends on which of two statements the caller reaches, on the one store whose statements have been read whole.** PostgreSQL ships both: a fenced form that advances the durable high-water and conditions **both** the copy into the dead-letter table **and** the delete from the outbox on the presented token still matching it — so a superseded tenure moves nothing and deletes nothing — and the original form, which matches the message id alone and refuses no one. **The fenced form carries the leadership token only**: it separates tenures and does not separate two claim cycles of one tenure. **The other stores' dead-letter paths have not been characterised and no claim is made about them here** — do not read that silence as an assurance. **Note what the unfenced statement does and does not do:** the row's payload is copied to the dead-letter table before the outbox row is deleted, so a message terminated by a superseded tenure is recoverable from that table — the defect is a wrong terminal decision, not a lost message. Both shipped completion paths treat a mark-sent refusal as an abort of the cycle rather than routing it into one of those members. | **Holds** for every message that was claimed through the fenced claim on InMemory, Oracle and Postgres — this is every message either shipped drain path ever presents to mark-sent. MongoDB and Redis are outside this property entirely: they do not fence (see the composition note). Per this document's own standard, a guarantee whose cited arm does not establish it is documented UNVERIFIED rather than asserted. **Holds on SQL Server.** The guard advances the durable high-water under a range lock and conditions the write on that advance accepting the token, in one transaction. Enforced by `SqlServerOutboxFenceClaimsUnderSnapshotShould`, which runs against a dedicated database with snapshot isolation enabled and fails against the pre-fix guard. A concurrent conformance arm covers the PER-DOCUMENT guard only: it places the row in the state a fresher tenure's own claim would have left it in and deliberately does NOT advance the scope-wide high-water, so it proves the per-document term is honoured and is **not** evidence about the scope-wide dimension. **The scope-wide case is now covered by its own arm**, `Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent`: a tenure claims a message while it is genuinely still the leader, a fresher tenure then advances the high-water by completing an unrelated message through the ordinary fenced path, and the first tenure's mark-sent must be refused. It takes no per-store hook, so unlike the per-document arm it applies to every store that participates in fencing rather than only those that can place per-document state. The distinction it draws is the one that matters here: a store treating a completed claim as standing authority to finish the message passes the per-document arm and fails this one, because the fence must be re-judged against the durable high-water at mutation time rather than at claim time. **Coverage splits by mechanism, and the bound-vs-run caveat applies to one half of it.** The in-memory store is covered **structurally**: `FenceCheckAndGuardedMutationShareOneLockTests` asserts, over the store's syntax, that every touch of the fencing high-water sits inside one lock region and that the mutations the fence authorises sit inside that same region — so a check separated from the write it guards is a compile-time-visible defect rather than a race a test must win. That guard needs no backing service and runs unconditionally. It is used because the window it protects is in-process: a behavioural arm for it passes on both sides of the defect and therefore locks nothing. Oracle, Postgres and SQL Server are covered **behaviourally**, by the fencing arms their conformance classes bind — and those classes are integration-gated, executing only where the real backing service is available. **For those five, read "an arm covers this" as bound, not as run:** a claim whose only enforcement is an arm that does not execute in a given suite is, for that suite, unenforced, so the arms named here establish enforcement where the provider's service is present and nowhere else. A claim whose only enforcement is an arm that does not run in a given suite is, for that suite, unenforced — so the arms named here establish enforcement **where the provider's service is present**, and nowhere else. A suite that declares it participates in fencing and whose store then stops presenting `IFencedOutboxStore` now FAILS rather than skipping, so a silently dropped capability is a red. A suite that declares no participation still skips, which is the honest outcome for a store that never claimed the capability -- the distinction is the declaration, not the skip. **COMPOSITION NOTE.** When a leader election is registered, the host refuses to start unless the outbox store implements `IFencedOutboxStore` **and both completion-path capabilities** (`IFencedClaimScopedOutboxStore`, `IFencedDeadLetterableOutboxStore`). **MongoDB and Redis implement none of the three, so neither can be composed under a leader election: the host throws at startup unless it opts into `AsSingleWriter()` and takes responsibility for there being exactly one active writer.** Both can express the atomic comparison a fence needs, but neither can keep the high-water durable: a value an asynchronous replica can roll backwards across failover or promotion is not a fence, so they do not offer the fenced contract at all rather than offering a weaker one. The refusal turns on the conjunction: all three are required, and implementing the first alone does not satisfy it. Everything said above about their fencing mechanisms therefore describes how they behave **where fencing is inactive**, which is the only configuration in which they can run; it is not a description of a degraded-but-live fenced deployment, and must not be read as one. A consumer wanting a fenced outbox today uses Oracle, PostgreSQL or SQL Server. **Whether that refusal is the right trade — fail-closed at startup versus a documented partial guarantee — is a product decision recorded elsewhere, not a property of this store.** |
 
-**L1 — a message is never simultaneously DELIVERED and ACTIONABLE in the dead-letter queue. UNVERIFIED.**
+### The dead-letter disposition
 
-The external dead-letter entry is written **before** the fenced terminal mark, deliberately. The ordering
-was weighed and this is the safer half of it:
+> **Read S-c first.** It is the property the mechanism protects. L1 below is a *consequence* of it, and
+> stating L1 on its own — as this section previously did — asserts a conjunction over two independent
+> sinks, one of which this package cannot observe.
 
-```
-mark-then-enqueue, crash between   row TERMINAL, no entry       -> the message is present NOWHERE. Silent loss.
-enqueue-then-mark, crash between   entry present, row claimable -> a duplicate on redrive. Visible over-count.
-```
+**S-c — an entry is actionable only while its message is not. UNVERIFIED.**
 
-**An over-count a human can see beats a loss nobody can**, so the failure mode this ordering selects is
-the one that has an observer. When the mark is instead **refused synchronously**, the entry is withdrawn,
-because a refusal is precisely the case where withdrawal is sound: we learned in-band that our mark did
-not take, so nothing else is relying on the entry.
+A dead-letter entry is selectable by the redrive surface only in states where the message it describes is
+**not claimable by any dispatcher**.
 
-**SCOPE — L1 is claimed ONLY for the synchronous-refusal path.** A crash between the enqueue and the mark
-leaves it violated **by design**, per the trade above.
+*Falsified by:* an execution producing a state in which `GetEntriesAsync` or `ReplayBatchAsync` returns an
+entry while the outbox row it describes satisfies the store's claim predicate.
 
-**And on that path it holds only under four conditions, all of which a consumer can observe or cause:**
+*How it is achieved:* the terminal dead-lettered transition excludes the row from every store's claim
+predicate. The external entry is written **before** that transition, deliberately — see the ordering trade
+below — so the window between the two writes is the window in which S-c does not hold. Where the
+transition is refused **synchronously**, the entry is withdrawn
+(`OutboxProcessor.CompensateDeadLetterEntryAsync`), because a refusal is the one case where withdrawal is
+sound: the system learned in-band that its mark did not take, so nothing is relying on the entry.
 
-1. **The composed dead-letter queue implements the admin surface** that exposes entry withdrawal. A
-   consumer-supplied queue without it makes withdrawal unavailable; the framework logs an error and
-   returns, and L1 does not hold for that composition. **This is the condition a consumer is most likely
-   to cause, because the queue is theirs to supply.**
+*Status:* **UNVERIFIED.** Unit arms drive the processor against substituted stores and observe the
+withdrawal; no arm observes it against a real dead-letter queue, and no arm places the store in the
+refusing state and then asserts the entry is gone.
+
+**Claimed only for the synchronous-refusal path**, and on that path only under four conditions a consumer
+can observe or cause:
+
+1. **The composed queue implements the admin surface** that exposes entry withdrawal. A consumer-supplied
+   queue without it makes withdrawal unavailable; the framework logs an error and returns. **This is the
+   condition a consumer is most likely to cause, because the queue is theirs to supply — and a consumer
+   DECORATOR over the queue has the same effect**, because the withdrawal path resolves the admin surface
+   by a **type test on the instance it holds**, which sees only the outermost object. A decorator that
+   forwards the queue members without re-declaring the admin surface is therefore indistinguishable from a
+   queue that never had it.
+
+   *Why a type test rather than a capability probe, since the sibling contract does the opposite:*
+   `IOutboxStore` exposes `GetService(Type)` precisely so that a capability survives decoration, and says
+   so in its own documentation. **`IDeadLetterQueue` exposes no such probe**, so the type test is the only
+   discovery mechanism this contract offers. It degrades safely — the failure is reported, not thrown —
+   but it cannot see through a decorator, and no composition can make it.
 2. **The withdrawal succeeds.** A negative result or an exception leaves the entry in place; it is logged,
    not retried, and not thrown.
-3. **The withdrawal completes within its own deadline.** The compensation is **not** cancellable by the
-   drain: it does not take the drain's cancellation token but opens its own
-   `CancellationTokenSource(DeadLetterCompensationTimeout)`, so a host shutting down does not prevent it
-   attempting. The bound is deliberate — this runs on the way out, and an unbounded call to a remote
-   queue would hold shutdown open indefinitely. What remains is therefore an ordinary timeout rather
-   than a certainty: if the withdrawal does not finish inside that deadline the entry stays, and the
-   cancellation observed on that path is the compensation's own deadline expiring, not the host stopping.
-4. **The enqueue does not throw after writing the entry.** That call is not inside a try, so a throw after
-   the external write unwinds the whole operation with no mark, no compensation, and the entry's handle
-   never captured — **withdrawal is then impossible for want of a reference.** This is distinguishable
-   from the crash case above: in a crash nobody is left who knows the entry should not exist; here
-   somebody is, and cannot act.
+3. **The withdrawal completes inside its own deadline.** It is **not** cancellable by the drain — it opens
+   its own bounded token, so a host shutting down does not prevent it attempting — but the bound is a
+   timeout, not a certainty.
+4. **The enqueue does not throw after writing.** That call is not inside a `try`, so a throw after the
+   external write unwinds with no mark, no compensation, and the entry's handle never captured:
+   withdrawal is then impossible for want of a reference. This is distinguishable from a crash — in a
+   crash nobody is left who knows the entry should not exist; here somebody is, and cannot act.
 
-**Why UNVERIFIED rather than asserted:** no arm exercises this. Nothing refuses a fenced mark and then
-asserts the entry is gone, so the compensation has never been observed to fire. The conditions above come
-from an independent reading of the committed code, not from a run. **Per this document's own standard, a
-guarantee whose only support is a reading is documented and not claimed.**
+**The ordering trade, and why it selects this failure.**
+
+```
+mark-then-enqueue, crash between   row terminal, no entry       -> present NOWHERE. Silent loss.
+enqueue-then-mark, crash between   entry present, row claimable -> a duplicate on redrive. Visible.
+```
+
+An over-count a human can see beats a loss nobody can, so this ordering selects the failure that has an
+observer. **The loss in the first row is a consequence of the terminal state being indistinguishable from
+a completed one, not of the ordering itself:** a design carrying a durable *terminal-but-unpublished*
+state, with a sweep that finds it, recovers rather than loses. That design is not built here; the ordering
+above is what ships.
+
+**L1 — a message is never simultaneously delivered and actionable in the dead-letter queue. DERIVED, not
+asserted.**
+
+*Derivation:* **S-c ∧ D1 ⟹ L1.** If the message is not claimable, no dispatcher can hand it to a transport
+— that is D1, *lease before dispatch* — so it cannot become delivered while the entry is actionable.
+
+*Status:* **L1 inherits the weaker of its premises, and both are UNVERIFIED.** S-c's status is above.
+**D1 is itself UNVERIFIED, and its falsification condition is the one stated under *The central
+invariant*: redirect a drain loop past the claim and every arm in this document still passes.** So L1
+rests on S-c's reading plus D1's reading, and a reader should treat it as derived from two unenforced
+properties rather than as a checked guarantee — stated here so that auditing L1 does not require going to
+find what D1 is exposed to.
+
+**Why L1 is stated as derived rather than asserted, recorded so the restructure is not undone.** As a
+standalone invariant it *appeared* to be about one mechanism while silently depending on a second, and it
+asserts a conjunction over the delivery sink and the dead-letter sink with no shared transaction between
+them — unprovable by construction. **Without this paragraph the derivation reads as indirection, and the
+next author tidying this section promotes L1 back.** The entry is withdrawn on a refusal because the row
+**became claimable again**, never because the message was later delivered; delivery is a downstream
+consequence of that claimability rather than anything observed here.
+
+**AND THERE IS NO LIVENESS PARTNER. L-c IS FALSE TODAY, not merely unstated.**
+
+The repair property — *every broken instance of S-c is eventually repaired* — **does not hold**. Every
+condition above is a way for the invariant to break, a failed withdrawal is logged and never retried, and
+no sweep reconciles an entry against the state of the message it names. So the honest form is a safety
+property with a known, unrepaired failure set, and **not** an invariant the system restores. A design
+carrying the terminal-but-unpublished state named in the ordering trade is what would make L-c true.
 
 **Consumer obligation:** handlers must be idempotent — the same at-least-once contract as the rest of this
-document. Redrive is not an exception to it, and under condition 1 in particular — the one a consumer is
-most likely to cause, since the queue is theirs to supply — an operator may find an entry for a message a
-live successor is also about to deliver.
+document. Redrive is not an exception to it, and under condition 1 in particular an operator may find an
+entry for a message a live successor is also about to deliver.
+
+**L2 — a dead-letter replay fires at most once per entry. UNVERIFIED.**
+
+The replayed flag is a **claim won before the effect**, not a record written after it. `ReplayCoreAsync`
+first executes a conditional update — set replayed where the entry is not already replayed — and **its row
+count is the decision**: exactly one caller can make that transition, and any other observes zero rows and
+declines without invoking the handler. Winning the claim is what authorises the replay.
+
+*Falsifiable:* two callers replaying one entry both invoke the handler; or an entry already replayed is
+replayed again; or a batch replay re-delivers entries it has already delivered.
+
+A handler that throws propagates and **the claim is released**, so a replay that failed because something
+downstream was briefly unavailable does not consume the entry. That release is sound for the same reason
+the dead-letter withdrawal above is sound: the failure is learned synchronously, so nothing else is
+relying on the claim.
+
+> **Known gap, and it is a gap in DETECTABILITY rather than in bounding.** If the process stops between
+> winning the claim and delivering, or if the release after a failed handler does not itself succeed, the
+> entry is left flagged replayed without having been delivered — and **that state cannot be told apart
+> from a replay that succeeded**, because the entry carries the same flag and the same timestamp either
+> way. What makes this the correct half of the trade is not visibility, it is **boundedness**: the
+> previous ordering left the entry permanently actionable, so every subsequent batch replay re-delivered
+> it, indefinitely. Now at most one replay is lost and the state converges.
+>
+> **The entry is not destroyed and remains recoverable.** The read that resolves an entry deliberately
+> carries **no** replayed-or-not predicate, so an entry in this state is still addressable and can be
+> replayed again. That asymmetry between the claim (which must refuse an already-replayed entry) and the
+> read (which must still resolve one) is what keeps the gap repairable, and it is load-bearing: adding the
+> predicate to the read for symmetry would convert a bounded repairable loss into a lost message.
+
+**Consumer obligations for L2, both of which decide whether the gap above is detectable by you:**
+
+1. **Confirm a replay that reported an error against your own handler's effects, never against the
+   entry's state.** The entry is not evidence in that case, and this sentence is the only thing that makes
+   the gap detectable at all.
+2. **A standing operator sweep that filters on not-yet-replayed will not show such an entry**, because its
+   flag is set. If you rely on that filter as your working set, a claimed-but-undelivered entry leaves it
+   silently. Query without the filter, or by age, when reconciling.
+
+**Why UNVERIFIED rather than asserted:** the fire-once property is a concurrency claim, and proving it
+needs two genuinely racing callers against a real backing store. At the time of writing those arms are
+authored but not landed, so per this document's own standard the property is documented and not claimed.
+The previous behaviour — the flag written after the handler, with no predicate on the read and the update's
+row count discarded — is **not** a hypothetical: it is what shipped, and it re-delivered through the batch
+surface whenever a caller's filter did not exclude already-replayed entries.
 
 **On R2.** An earlier revision stated R2 as *"only the dispatcher that holds a message's current
 reservation may mark **or** unreserve it."* The **mark** half was never implementable as written:
@@ -197,7 +322,36 @@ that returned the columns as nulls.
 5. **Leadership fencing (F1, optional)** — the property is: **no claim or mark-sent is admitted under a
    token below the stored high-water, and the high-water only ever advances.** A stale token yields zero
    claimable rows — it must not throw, or a superseded leader crash-loops its drain — while a stale
-   mark-sent fails closed with `StaleOutboxFencingTokenException`.
+   mark-sent fails closed and **REPORTS its refusal as `OutboxCompletionOutcome.FenceRefused`**, the same
+   way the fenced failure and dead-letter members already do.
+
+   **The refusal is a RETURNED VALUE and not an exception, and the reason is a defect this seam had four
+   times.** `IFencedOutboxStore.MarkSentAsync` returned `void`, and a void-returning mutation can express
+   exactly two outcomes: it threw, or it did not. The seam needs three — applied, refused, and an
+   infrastructure fault — so refusal travelled through an exception and each implementation reached
+   independently for a different wrong encoding: one reported a refusal as already-sent, one typed it as a
+   generic failure that a catch-all then dead-lettered, one summed rowcounts across a multi-statement batch
+   so the caller's own refusal test could never fire. A refusal indistinguishable from a failure is disposed
+   of as a failure; one indistinguishable from a success marks a message sent that was never sent. Returning
+   the outcome makes both unrepresentable rather than merely unlikely. **Infrastructure faults still throw**
+   — a refusal is the expected outcome of losing leadership and is not an error; a dropped connection is.
+
+   **Consumer obligation: test `OutboxCompletionOutcome.Applied` BY NAME.** Deciding success by excluding
+   the refusals known at compile time makes every value added to the enumeration later begin life as a
+   silent success, which is how this contract fails open.
+
+   **The refusal is TENURE-scoped and the other outcomes are ROW-scoped, and conflating them costs
+   messages either way.** `FenceRefused` means a newer tenure exists, so every remaining write this caller
+   would make is unfenced and it must stop draining altogether. `ClaimLost`, `AlreadyTerminal` and
+   `MessageNotFound` concern that one message: the caller records the outcome and carries on with the rest
+   of its batch. A caller that stands down on a row-scoped refusal strands messages a live tenure still
+   owns; one that carries on after a fence refusal lets a superseded tenure keep writing.
+
+   **What the outcome does NOT carry, stated because it is the one capability the exception had.** The
+   presented and recorded tokens were properties on `StaleOutboxFencingTokenException` and have no
+   counterpart on the enumeration. Read the store's recorded mark through
+   `IFencedOutboxStoreDiagnostics.GetFencingHighWaterAsync` instead — that member exists for exactly this
+   question and answers it without a refusal having to occur first.
 
    **What the fence does NOT cover, stated so it is not inferred closed.** The fence has two members.
 
@@ -214,15 +368,23 @@ that returned the columns as nulls.
    as excluding these messages: a guarantee scoped by the calls it happens to receive says nothing about
    the calls it does not.**
 
-   **On SQL Server a refusal is distinguished from a not-found by a value read in an earlier round
-   trip, so the two are not always distinguishable.** The store enforces the fence and then marks in a
-   second statement, classifying a zero-row result against the high-water it captured before the
-   mutation ran. When the presented token equals that captured value — the steady state, since a leader
-   advances the high-water to its own token on its own claim — a genuine refusal is reported as a
-   generic not-found rather than as a fencing refusal, and a caller keying on the fencing exception will
-   not see it. **The mutation still refuses correctly; only its classification is lossy.** Postgres and
-   Oracle return the high-water from the same folded statement and disambiguate three ways, which is the
-   shape this path should adopt. UNVERIFIED: no arm RED-detects the misclassification.
+   **Every fenced store now classifies its refusal from the SAME action that performed the mutation, and
+   all of them use one classifier.** The fence term is judged FIRST, which is load-bearing: a superseded
+   tenure also fails every other term, so judging the fence later reports a tenure-wide refusal as a single
+   lost message — the exact inversion of the instruction the caller needs. SQL Server returns the advanced
+   high-water, the rowcount and a row-existence flag from one transaction; its mark-sent statement excludes
+   terminal rows and carries no lease term, so a row observed present with the fence accepted and nothing
+   updated is already-terminal and is reported as such. Postgres and Oracle realise mark-sent as a DELETE,
+   so a terminal message leaves no row behind: an absent row is the accurate report and those stores answer
+   `MessageNotFound` rather than claiming to have observed a terminal row they never saw. Enforced by
+   `Fencing_StaleToken_ShouldBeRefusedWithoutApplyingTheMutation` and the five sibling fencing arms in the
+   conformance kit, and by `NotMisreportAFencedRefusalAsAMissingRow` on the SQL Server integration suite.
+
+   *(Superseded, quoted so a reader who inherited it recognises it: "On SQL Server a refusal is
+   distinguished from a not-found by a value read in an earlier round trip, so the two are not always
+   distinguishable … The mutation still refuses correctly; only its classification is lossy. UNVERIFIED: no
+   arm RED-detects the misclassification." The separate untransacted advance that made the classification
+   lossy was deleted; the arms above now RED-detect the misclassification it described.)*
 
    **This paragraph is now PER STORE. On InMemory, Oracle, PostgreSQL and SQL Server the two completion
    members below DO take a token** — `IFencedClaimScopedOutboxStore.MarkFailedAsync` carries the leadership token
@@ -235,12 +397,26 @@ that returned the columns as nulls.
 
    Where the completion members take no token, a
    superseded leader is refused on the success path and admitted on every failure path if a caller routes
-   a refusal into one of them. **A caller MUST treat `OutboxFenceRefusedException` — the abstract base of both `StaleOutboxFencingTokenException` and `OutboxFencingTokenUnavailableException`, so catching the base covers a refusal this document does not enumerate — as an abort of the
-   whole drain cycle with no further store write** — it means "this message is no longer mine", never
-   "this message is bad" — and both shipped drain paths (`OutboxProcessor` and the
-   `OutboxBackgroundService` → `MessageBusOutboxPublisher` path) recognise such a refusal specifically and
-   abort that message with no further write, rather than letting it fall into the generic failure handling
-   that would retry, back off, or dead-letter it on the superseded tenure's behalf.
+   a refusal into one of them. **A caller MUST treat a fence refusal as an abort of the whole drain cycle
+   with no further store write** — it means "this message is no longer mine", never "this message is bad".
+   A refusal reaches a caller through **two** channels and both mean the same thing:
+
+   - **`OutboxCompletionOutcome.FenceRefused`, returned** — the contract, and the only channel a
+     first-party store uses.
+   - **`OutboxFenceRefusedException`, thrown** — still raised by the missing-token composition guard (its
+     `OutboxFencingTokenUnavailableException` subtype), and still handled, so a consumer store written
+     against the older contract keeps working. `StaleOutboxFencingTokenException` is the other subtype;
+     catching the abstract base covers a refusal this document does not enumerate. No first-party store
+     raises either any more.
+
+   Both shipped drain paths (`OutboxProcessor` and the `OutboxBackgroundService` →
+   `MessageBusOutboxPublisher` path) recognise a refusal on BOTH channels specifically and abort that
+   message with no further write, rather than letting it fall into the generic failure handling that would
+   retry, back off, or dead-letter it on the superseded tenure's behalf. The returned channel is enforced by
+   `DispatchPendingMessagesAsync_AbortsWithNoFurtherWrite_WhenFencedMarkSentReportsRefusal`, which is built
+   on two messages because a one-message version of it would be vacuous; its row-scoped twin,
+   `DispatchPendingMessagesAsync_KeepsDraining_WhenFencedMarkSentReportsARowScopedRefusal`, is what stops
+   the recognition over-correcting into standing the tenure down on an outcome about one row.
    **PARTIAL, and stated so it is not inferred complete.** That recognition is placed at the points a
    refusal is observed, not at every point one can arise: the failure members (`MarkFailedAsync`, backoff
    scheduling, dead-lettering, release) accept no token, so a refusal reaching one of them by a path that
@@ -665,8 +841,8 @@ DynamoDB's base-table query is physically ordered by a per-message key, not by c
 instead query a Global Secondary Index keyed on the partition and creation time. A GSI is
 eventually-consistent with the base table: for a brief interval after `AddAsync` returns, a just-staged
 message can be absent from a `GetPendingAsync`/`ClaimPendingAsync` read on that provider — a **latency**
-property (the row is durably present on DynamoDB's strongly-consistent base table throughout; the next read
-sees it) and not a loss property. AWS documents GSI propagation as typically completing within a fraction
+property (the row is durably present on DynamoDB's strongly-consistent base table throughout; a later read
+can observe it after propagation, but the immediately following read is not guaranteed to do so) and not a loss property. AWS documents GSI propagation as typically completing within a fraction
 of a second under normal conditions, with no formal upper bound — a recovery sweep run on an interval, not
 a single immediate read, is what the guarantee is designed around. Messages a read does return come back
 in creation order on these three providers: Cosmos DB and Firestore order the query by creation time, and
@@ -953,6 +1129,32 @@ uniformly: on PostgreSQL the totality script emits a notice and exits successful
 raises and names the script to run first. A successful exit is therefore not evidence of a converged
 database on every provider.
 
+## What a staged message carries, and what it does not
+
+**Guarantee, in falsifiable terms.** A staged message's headers contain *exactly* the values marked on
+the message context with `SetPropagatedItem`, plus whatever envelope keys the store supplies as its own
+framing. **No other context state reaches them** — in particular not `IMessageContext.Items`, which is
+request-local. Staging more than this is as wrong as staging less, so the property is falsifiable in both
+directions: an item written only to `Items` must be absent from the staged headers, and a marked value
+must be present, on *every* provider.
+
+**How it is achieved.** `OutboundMessage.FromContext` reads the marked values from the context itself and
+merges them, so a store cannot stage a message without them. The postcondition is stated on
+`IOutboxStore.EnqueueAsync` rather than in each implementation, because the specification was the thing
+that was missing.
+
+**Known gap, stated rather than implied.** A store that assembles an `OutboundMessage` by hand instead of
+through that factory is responsible for the postcondition itself, and nothing structurally stops it. All
+nine in-box stores use the factory.
+
+**Why this is written down.** While the behaviour lived only in the implementations, one store staged the
+whole `Items` collection, two staged their own envelope keys and nothing else, and six staged neither.
+Every one of those was legal against the interface as written, none was a subtyping violation, and a
+consumer could not predict which they would get — a value marked for propagation arrived on some
+providers and was silently absent on the rest, with nothing downstream able to tell the difference. That
+silence is the catastrophic class for this subsystem, which is why the fix is a stated postcondition and
+a single construction path rather than a per-provider correction.
+
 ## Consumer obligations
 
 - **Register an `IDeadLetterQueue`, or register `NullDeadLetterQueue.Instance` to choose discard.** There
@@ -1034,7 +1236,11 @@ state, and they are listed rather than omitted so a reader can tell "nothing enf
 | R2 release ownership | `MarkFailed_ByANonOwner_ShouldNotReleaseTheClaim` |
 | **R2′** mark-sent takes no ownership term | **Structural, not behavioural.** `IOutboxStore.MarkSentAsync(string messageId, CancellationToken)` accepts no owner token, so there is no value a store could compare — the property is read off the signature rather than asserted by an arm. A future overload taking a token would change the contract, not break a test |
 | R3 monotonic attempts | `MarkFailedAsync_ShouldSetRetryCount` and `MarkFailed_StaleLateReport_ShouldNotLowerTheAttemptCount` |
-| **L1** never DELIVERED and ACTIONABLE in the dead-letter queue | **Unit arms only; UNVERIFIED against a real store.** `OutboxProcessorShould.WithdrawTheDeadLetterEntry_WhenTheFencedMarkIsRefused` and `WithdrawTheDeadLetterEntry_WhenTheTenureHasNoTokenAtAll` (safety) and `NotWithdrawTheDeadLetterEntry_WhenTheMarkIsApplied` (liveness) drive the processor against substituted stores and observe the withdrawal; no arm yet observes it on a real dead-letter queue. Claimed only for the synchronous-refusal path, and only under four conditions a consumer can cause — see *The central invariant* |
+| **S-c** an entry is actionable only while its message is not | **Unit arms only; UNVERIFIED against a real store.** `OutboxProcessorShould.WithdrawTheDeadLetterEntry_WhenTheFencedMarkIsRefused` and `WithdrawTheDeadLetterEntry_WhenTheTenureHasNoTokenAtAll` (safety) and `NotWithdrawTheDeadLetterEntry_WhenTheMarkIsApplied` (liveness) drive the processor against substituted stores and observe the withdrawal; no arm observes it on a real dead-letter queue, and **no arm places the store in the refusing state and then asserts the entry is gone**. Claimed only for the synchronous-refusal path and only under four conditions a consumer can cause — see *The dead-letter disposition* |
+| **L1** never delivered and actionable in the dead-letter queue | **DERIVED, not independently evidenced. S-c ∧ D1 ⟹ L1**, so it inherits the weaker premise and both are UNVERIFIED. **No arm binds L1 directly, and none is required:** each premise is independently bindable, which makes the premises the cheaper and more precise coverage target. An end-to-end arm observing both sinks — refuse the mark, let a second tenure claim and deliver, assert the entry is absent — would be **stronger** evidence than either premise's arm and is **not excluded** |
+| **L-c** every broken instance of S-c is eventually repaired | **FALSE TODAY, and stated rather than omitted.** There is no repair: a failed withdrawal is logged and never retried, and no sweep reconciles an entry against the state of the message it names. **There is no arm because there is no mechanism** — do not read the absence as missing coverage of a property that holds. **When a repair mechanism lands, an arm is owed, and this row is the only place that will remember** |
+| **L2** a dead-letter replay fires at most once per entry | **UNVERIFIED — arms authored, not landed.** The property is a concurrency claim and needs two genuinely racing callers against a real backing store, so no unit arm can establish it. What IS established is the shape of the previous defect, which was not hypothetical: the flag was written after the handler, the read carried no replayed-or-not predicate, and the update's row count was discarded, so concurrent redrives both delivered and a batch whose filter omitted already-replayed entries re-delivered all of them. **Do not read the claim statement's existence as the property being proven** |
+| **L2's known gap** — a claim won then not delivered is indistinguishable from a replay that succeeded | **Not an arm, a stated residual.** Bounded (one lost replay, state converges) and recoverable (the read deliberately omits the replayed predicate, so the entry stays addressable), but **not detectable from the entry's state** — only from a logged warning and from the consumer obligation to confirm against their own handler's effects. A reader looking for an arm here will not find one, and that is the honest state rather than an omission |
 | Bounded store refuses rather than discards | `OutboxCapacityEvictionShould` — safety: `RefuseToStage_RatherThanDiscardAnUnsentLeasedMessage`; liveness: `EvictTheDeliveredMessage_WhenOneIsAvailable`, `EvictTheDeadLetteredMessage_RatherThanRefusing`. Runs unconditionally, no backing service |
 | Ordering within a claim | `OutboxOrderingPersistenceIntegrationShould` (SQL Server), `PostgresOutboxKeystoneRoundTripShould`, `OracleOutboxKeystoneRoundTripShould` — each stages out of order and requires an ascending claim, each paired with a round-trip arm so the assertion cannot pass against unread columns |
 | Full-field durability | `StageMessageAsync_ShouldRoundTripEveryCallerSuppliedField` |
@@ -1249,8 +1455,13 @@ change the current attempt. Re-reporting a result replaces all classification ev
 together.
 
 A failed fanout is immediately terminal because of classification only when every failed destination has an established
-permanent or poison classification. A transient, uncertain or unclassified destination keeps the
-bounded persisted retry policy. Unclassified failed results remain explicitly unknown;
+permanent or poison classification. A transient or uncertain destination remains eligible for the
+bounded persisted retry policy. An unclassified failure is Unknown, distinct from
+uncertain delivery acceptance. After a confirmed claim-authorized Unknown/Unknown
+disposition record, later drains hold the source for explicit review rather than
+automatically republishing, acknowledging, discarding or retiring it. Refused or uncertain
+persistence does not establish a confirmed hold. Legacy Unknown/MaxRetriesExceeded
+evidence retains the existing exhausted disposition. Unclassified results remain unknown;
 the processor does not manufacture an exception and ask the classifier to infer their
 kind. Permanent faults retire as unhandled exceptions and poison faults as poison
 messages. The original established exception is retained for diagnostics.
@@ -1277,8 +1488,26 @@ request ceiling. Store implementations must persist `LastError` through claim pr
 and preserve their claim and fencing guards across archival. The existing token-only
 retirement capability protects leadership generations; it does not distinguish two claims
 within one generation. Processor identity alone likewise does not distinguish successive
-claims by the same processor. Per-claim retirement requires an atomically checked claim
-identity and a reported refusal outcome; this remains under repair.
+claims by the same processor. Worker retirement instead uses the claim-scoped completion
+capability with the captured acquisition identity and a reported `OutboxCompletionOutcome`.
+The provider checks that authority atomically with retirement; a refused completion does not
+fall back to the token-only or processor-identity-only path.
+
+An observed Unknown failure is retained at the source: the worker first conditionally
+persists version-1 disposition evidence with the exact classification/reason pair
+`Unknown`/`Unknown` and the observed absolute attempt count under its current claim/fence.
+It does not copy that failure to a queue, mark it sent, retire or discard it. Later drains
+recognize the exact pair before decoding, sending or applying the attempt ceiling; legacy
+`Unknown`/`MaxRetriesExceeded` evidence remains an exhausted disposition. Failed or ambiguous
+marker acknowledgement does not prove persistence and can still permit at-least-once replay.
+
+This is a held-source profile, not a targeted requeue API. `RetryFailedMessagesAsync` does
+not clear the hold. Explicit low-level recovery requires stopping competing drains, reviewing
+the retained fault and replay consequences, acquiring fresh target authority and using the
+strongest applicable claim-scoped conditional failure write to replace the marker while
+preserving payload, tenant and absolute attempt count. Resume only after `Applied`; refusal
+or uncertain acknowledgement never authorizes replay. Unrelated acquired rows and lease expiry
+remain the operator composition's responsibility. Idempotent consumers remain necessary.
 
 The result-aware circuit-breaker execution records each delivery outcome once. Caller
 cancellation observed at the dispatch boundary, including transport exceptions wrapping

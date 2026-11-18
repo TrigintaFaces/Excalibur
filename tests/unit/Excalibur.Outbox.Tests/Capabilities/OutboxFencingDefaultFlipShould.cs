@@ -65,8 +65,10 @@ public sealed class OutboxFencingDefaultFlipShould
 	{
 		// LIVENESS — THE default-ON flip. Gate present, fencing-capable store, no opt-out → fenced drain.
 		var store = new RecordingFencedOutboxStore();
+		var gate = FencedGate(TenureToken);
+		gate.ShouldProcess.ShouldBeTrue("this positive claim control requires current processing authorization");
 		await using var processor = CreateProcessor(
-			store, gate: FencedGate(TenureToken), singleActiveWriter: false, logger: NullLogger<OutboxProcessor>.Instance);
+			store, gate: gate, singleActiveWriter: false, logger: NullLogger<OutboxProcessor>.Instance);
 
 		await DriveOneDrainAsync(processor).ConfigureAwait(false);
 
@@ -77,6 +79,27 @@ public sealed class OutboxFencingDefaultFlipShould
 		store.UnfencedClaimCalled.ShouldBeFalse(
 			"The fenced deployment must NOT fall through to the unfenced claim.");
 		store.ObservedToken.ShouldBe(TenureToken, "The current tenure's fencing token must be presented to the store.");
+	}
+
+	[Fact]
+	public async Task DoNotClaimOrPoisonTheTenure_WhenAuthorizationIsTemporarilyPaused()
+	{
+		var store = new RecordingFencedOutboxStore();
+		var gate = FencedGate(TenureToken);
+		var authorized = false;
+		A.CallTo(() => gate.ShouldProcess).ReturnsLazily(() => authorized);
+		await using var processor = CreateProcessor(
+			store, gate, singleActiveWriter: false, logger: NullLogger<OutboxProcessor>.Instance);
+
+		await DriveOneDrainAsync(processor).ConfigureAwait(false);
+		store.FencedClaimCalled.ShouldBeFalse("a token alone does not authorize a new claim");
+		store.UnfencedClaimCalled.ShouldBeFalse("a paused gate must not downgrade to an unfenced claim");
+
+		authorized = true;
+		await DriveOneDrainAsync(processor).ConfigureAwait(false);
+		store.FencedClaimCalled.ShouldBeTrue("a temporary authorization pause does not reject the still-valid tenure");
+		store.UnfencedClaimCalled.ShouldBeFalse();
+		store.ObservedToken.ShouldBe(TenureToken);
 	}
 
 	[Fact]
@@ -152,6 +175,7 @@ public sealed class OutboxFencingDefaultFlipShould
 	private static ILeaderProcessingGate FencedGate(long token)
 	{
 		var gate = A.Fake<ILeaderProcessingGate>();
+		A.CallTo(() => gate.ShouldProcess).Returns(true);
 		A.CallTo(() => gate.FencingToken).Returns(token);
 		return gate;
 	}
@@ -192,8 +216,24 @@ public sealed class OutboxFencingDefaultFlipShould
 	// Non-fencing store — implements IOutboxStore DIRECTLY. The default IServiceProvider.GetService on
 	// IOutboxStore returns null for IFencedOutboxStore (not an instance), so this store honestly reports "no
 	// fencing capability" through the real seam.
-	private sealed class RecordingPlainOutboxStore : IOutboxStore
+	private sealed class RecordingPlainOutboxStore : IOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore
 	{
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		public ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string messageId, string errorMessage, int retryCount, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		public ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffAsync(string messageId, string errorMessage, int retryCount, DateTimeOffset nextAttemptAt, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		private static ValueTask<OutboxCompletionOutcome> Missing(string id, string claim, CancellationToken token)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(id);
+			ArgumentException.ThrowIfNullOrWhiteSpace(claim);
+			token.ThrowIfCancellationRequested();
+			return ValueTask.FromResult(OutboxCompletionOutcome.MessageNotFound);
+		}
+
 		public bool UnfencedClaimCalled { get; private set; }
 
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
@@ -217,8 +257,31 @@ public sealed class OutboxFencingDefaultFlipShould
 	// The default GetService resolves IFencedOutboxStore to this instance, so the processor's capability seam
 	// discovers fencing honestly.
 	private sealed class RecordingFencedOutboxStore
-		: IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore
+		: IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore
 	{
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		public ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string messageId, string errorMessage, int retryCount, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		public ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffAsync(string messageId, string errorMessage, int retryCount, DateTimeOffset nextAttemptAt, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, string claimIdentity, CancellationToken cancellationToken)
+			=> Missing(messageId, claimIdentity, cancellationToken);
+		private static ValueTask<OutboxCompletionOutcome> Missing(string id, string claim, CancellationToken token)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(id);
+			ArgumentException.ThrowIfNullOrWhiteSpace(claim);
+			token.ThrowIfCancellationRequested();
+			return ValueTask.FromResult(OutboxCompletionOutcome.MessageNotFound);
+		}
+
+
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, OutboxWriteAuthority authority, CancellationToken cancellationToken)
+			=> Missing(messageId, authority.ClaimIdentity, cancellationToken);
+
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount,
+			OutboxWriteAuthority authority, CancellationToken cancellationToken)
+			=> Missing(messageId, authority.ClaimIdentity, cancellationToken);
 		public bool FencedClaimCalled { get; private set; }
 
 		public bool UnfencedClaimCalled { get; private set; }
@@ -229,8 +292,8 @@ public sealed class OutboxFencingDefaultFlipShould
 		// reaches when a leader gate is present -- and these two are never exercised by that arm. They are
 		// implemented rather than omitted because the startup fencing invariant now requires a store under a
 		// leader election to fence the completion path as well, and a double that could not would be refused
-		// before the arm under test ever ran. They return Applied so an accidental future caller gets a
-		// definite answer rather than a throw from a member the interface says exists.
+		// before the arm under test ever ran. The strong route reports missing because this recording
+		// store always returns empty batches and has no owned row to settle.
 		public ValueTask<OutboxCompletionOutcome> MarkFailedAsync(
 			string messageId,
 			string errorMessage,
@@ -238,7 +301,7 @@ public sealed class OutboxFencingDefaultFlipShould
 			DateTimeOffset? nextAttemptAt,
 			OutboxWriteAuthority authority,
 			CancellationToken cancellationToken) =>
-			new(OutboxCompletionOutcome.Applied);
+			Missing(messageId, authority.ClaimIdentity, cancellationToken);
 
 		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
 			string messageId,
@@ -255,8 +318,8 @@ public sealed class OutboxFencingDefaultFlipShould
 			return new ValueTask<IEnumerable<OutboundMessage>>([]);
 		}
 
-		public ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
-			=> ValueTask.CompletedTask;
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
+			=> new(OutboxCompletionOutcome.Applied);
 
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 		{

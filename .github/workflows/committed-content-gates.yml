@@ -32,6 +32,38 @@ permissions:
   contents: read
 
 jobs:
+  release-runner-mechanism:
+    name: Release runner mechanism (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Install runner parser
+        run: |
+          python -m pip install --disable-pip-version-check PyYAML==6.0.3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      # Tests use isolated temporary repositories; no real release gates or publication run here.
+      # Any missing shell produces a skipped control and a failing self-test exit, never a pass.
+      - name: Release runner self-test (non-vacuity and owned process cleanup)
+        run: |
+          python eng/ci/pre-release-gates.py --self-test
+          exit $LASTEXITCODE
+
   # Proves the real-infra tenant-isolation gate's own MECHANISM is non-vacuous: it exercises the gate's
   # REAL `dotnet test` invocation + output-parse + exit-mapping against a permanent planted-violation
   # fixture (Category=GateSelfTest — env-armed, Docker-free), asserting a real dotnet FAIL maps to the
@@ -262,6 +294,10 @@ jobs:
 
       - name: Coverage diff uses the base SDK and candidate helpers
         run: python3 eng/ci/coverage-diff-layout.test.py
+
+      - name: Public API promotion CLI safety and parity
+        timeout-minutes: 2
+        run: python3 eng/ci/promote-public-api.test.py -v
 
       - name: Workflow inventory is current (generated, not hand-maintained)
         run: python3 eng/ci/generate-workflow-inventory.py --check

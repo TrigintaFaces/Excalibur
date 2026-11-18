@@ -13,34 +13,16 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Excalibur.Integration.Tests.Data.Outbox;
 
 /// <summary>
-/// NON-SKIPPED real-SQL-Server lock on the outbox <b>statistics</b> tenant term, resolved through the
+/// NON-SKIPPED real-SQL-Server lock on estate-wide outbox statistics, resolved through the
 /// production registration seam rather than constructed by hand.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>Why this resolves through DI instead of calling the constructor.</b> The statistics statement is the
-/// one relational outbox statement that takes no message identifier, so its tenant predicate is the only
-/// thing confining it, and the store resolves that predicate from the ambient tenant context it was built
-/// with. Every construction site in the provider's registration omitted that context, so the store was
-/// built with none on every path — including a multi-tenant host. A test that constructs the store itself
-/// chooses what the registration failed to supply, and therefore cannot see the defect. This lock builds
-/// the store the way a host does and asserts what that host observes.
-/// </para>
-/// <para>
-/// <b>What the operator sees when it is wrong.</b> The absent case of the keyed partition is the reserved
-/// untenanted sentinel, so a store built without a context emits
-/// <c>COALESCE(TenantId, sentinel) = sentinel</c> while the write path persists each message's real
-/// tenant. The read operand is a constant and the write operand is the actual tenant, so they never match
-/// and every tenanted message is aggregated by nothing. A backlog alert built on this reads empty while
-/// the outbox fills, which is worse than an error because nothing draws attention to it.
-/// </para>
-/// <para>
-/// <b>Both arms are required.</b> A statistics call that counts nothing at all satisfies the confinement
-/// property perfectly, so the safety arm alone cannot distinguish a correctly scoped report from an inert
-/// one. The liveness arm is asserted alongside it, and a direct row count over a separate connection
-/// proves both messages are on disk — so a zero is attributable to the predicate rather than to a write
-/// that never landed.
-/// </para>
+/// The historical registration defect made a backlog report appear empty when tenanted rows were
+/// present. The current contract is explicitly estate-wide: writes carry their own tenant and statistics
+/// counts the whole table, independent of the ambient tenant. This fixture keeps a changing tenant
+/// context to prove that the operator report still includes both persisted tenants through real DI.
+/// Its deployment mode must therefore explicitly require tenants, matching that resolving context.
+/// An independent SQL count proves both writes landed and that the report neither hides nor invents rows.
 /// </remarks>
 [Collection(SqlServerOutboxStoreTestCollection.CollectionName)]
 [Trait("Category", "Integration")]
@@ -61,13 +43,13 @@ public sealed class SqlServerOutboxStatisticsTenantWiringShould
 	}
 
 	/// <summary>
-	/// LIVENESS and SAFETY as a pair: the owning tenant's staged message is counted, and the other
-	/// tenant's staged message is not.
+	/// LIVENESS and SAFETY as a pair: both tenants' persisted messages are counted, and no rows
+	/// beyond those actually present are invented.
 	/// </summary>
 	/// <remarks>
-	/// Both messages are staged through the same store, in the same table, differing only in their tenant,
-	/// so nothing but the tenant term can explain a difference in the counts. Asserting the pair is what
-	/// separates a scoped report from a report that returns zero to everybody.
+	/// Both messages are staged through the same store and table with different tenants. The selected
+	/// ambient tenant must not confine this estate-wide report. The independent row count distinguishes
+	/// a real measurement from an empty or fabricated result.
 	/// </remarks>
 	[Fact]
 	public async Task Count_every_tenants_staged_message_because_the_report_is_estate_wide()
@@ -114,10 +96,10 @@ public sealed class SqlServerOutboxStatisticsTenantWiringShould
 	/// Registers the outbox store the way a host does, then resolves it — the seam this lock binds.
 	/// </summary>
 	/// <remarks>
-	/// The ambient context is registered BEFORE the provider registration so the provider's fail-closed
-	/// single-tenant default (a <c>TryAdd</c>) yields to it, matching the composition order a multi-tenant
-	/// host produces. Nothing here hands the store a tenant context directly: if the registration does not
-	/// thread the resolved context into construction, the resolved store has none.
+	/// The resolving context is registered before the provider's single-tenant default, together with
+	/// required-tenant deployment mode so startup validation sees a consistent multi-tenant composition.
+	/// The outbox persists each message's explicit tenant; its estate-wide statistics deliberately reads
+	/// no ambient tenant. The store is still resolved through the actual provider registration.
 	/// </remarks>
 	private async Task<SqlServerOutboxStore> BuildStoreThroughRegistrationAsync()
 	{
@@ -130,6 +112,7 @@ public sealed class SqlServerOutboxStatisticsTenantWiringShould
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 		services.AddSingleton<ITenantContext>(_tenantContext);
+		_ = services.Configure<TenantContextOptions>(static options => options.RequireTenant = true);
 
 		var connectionString = _fixture.ConnectionString;
 		var schemaName = _fixture.SchemaName;

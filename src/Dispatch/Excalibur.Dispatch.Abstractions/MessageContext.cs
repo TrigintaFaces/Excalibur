@@ -18,6 +18,26 @@ namespace Excalibur.Dispatch.Messaging;
 /// <param name="requestServices">The service provider for dependency resolution during message processing.</param>
 public class MessageContext(IDispatchMessage message, IServiceProvider requestServices) : IMessageContext
 {
+	private readonly bool _usesInheritedItemsStorage;
+
+	/// <summary>
+	/// Opts a sealed framework-owned context into the inherited item-storage implementation.
+	/// </summary>
+	internal MessageContext(IDispatchMessage message, IServiceProvider requestServices, bool usesInheritedItemsStorage)
+		: this(message, requestServices)
+	{
+		_usesInheritedItemsStorage = usesInheritedItemsStorage;
+	}
+
+	/// <summary>
+	/// Custom derived contexts keep their interface dictionary semantics unless explicitly opted in internally.
+	/// </summary>
+	internal bool UsesDefaultItemsStorage
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => _usesInheritedItemsStorage || GetType() == typeof(MessageContext);
+	}
+
 	private static readonly IMessageVersionMetadata DefaultVersionMetadata = new MessageVersionMetadata();
 	private static readonly IValidationResult DefaultValidationResult = SerializableValidationResult.Success();
 	private static readonly IAuthorizationResult DefaultAuthorizationResult = Excalibur.Dispatch.AuthorizationResult.Success();
@@ -26,7 +46,7 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	/// <summary>
 	/// Lazily initialized items dictionary. Only allocated when first write occurs.
 	/// </summary>
-	private Dictionary<string, object>? _items;
+	private volatile Dictionary<string, object>? _items;
 
 	// An explicitly assigned null is still a present dictionary entry.
 	private bool _messageTypeWasSet;
@@ -129,6 +149,32 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 			_messageIdWasExplicitlySet = true;
 		}
 	}
+
+	/// <summary>
+	/// Gets a value indicating whether <see cref="MessageId" /> was ASSIGNED rather than minted by this
+	/// context.
+	/// </summary>
+	/// <value>
+	/// <see langword="true" /> when something assigned the identifier; <see langword="false" /> when
+	/// reading <see cref="MessageId" /> would mint one, or already has.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// Deliberately <see langword="internal" />, and the distinction it carries is load-bearing rather
+	/// than cosmetic. <see cref="MessageId" /> mints a fresh GUID in its own getter when nobody assigned
+	/// one, which is correct for logging and correlation and WRONG for a deduplication key: a minted value
+	/// describes this delivery, so a redelivery of the same message produces a different one. The string
+	/// alone cannot separate "a producer told us what this message is" from "this context invented a value
+	/// a microsecond ago", and those are opposite facts.
+	/// </para>
+	/// <para>
+	/// Note what this does NOT establish: an assigned value is not necessarily a message identity either.
+	/// Two public transport adapters assign a fresh per-receive GUID, so a reader that needs stability
+	/// across a redelivery must prefer an identity carried in the message payload over this context
+	/// entirely, and use this bit only to reject a minted one.
+	/// </para>
+	/// </remarks>
+	internal bool MessageIdWasAssigned => _messageIdWasExplicitlySet;
 
 	/// <inheritdoc />
 	/// <remarks>
@@ -278,8 +324,8 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	/// </summary>
 	/// <remarks>
 	/// Both <c>_validationResult</c> and <c>_authorizationResult</c> are <see langword="volatile"/>
-	/// fields, so reads are already memory-safe without locking. Removing the lock eliminates
-	/// ~50-200ns of contention overhead per read on the hot path.
+	/// fields. This getter reads them without acquiring a lock; its latency depends on the workload
+	/// and runtime. The two reads do not constitute an atomic snapshot of both results.
 	/// </remarks>
 	public bool Success
 	{
@@ -301,20 +347,24 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 		{
 			if (_items is null)
 			{
-				_items = new Dictionary<string, object>(StringComparer.Ordinal);
+				var items = new Dictionary<string, object>(StringComparer.Ordinal);
 
 				// Values kept in dedicated fields for the hot path still belong to Items from a caller's
 				// point of view -- transports and telemetry enumerate this dictionary. Seed them on the
 				// first materialization so the dictionary's contents are unchanged by the hoisting.
 				if (_messageTypeWasSet)
 				{
-					_items[MessageContextExtensions.MessageTypeKey] = MessageTypeName!;
+					items[MessageContextExtensions.MessageTypeKey] = MessageTypeName!;
 				}
 
 				if (MessageTypeIsRoutingDefault)
 				{
-					_items[MessageContextExtensions.MessageTypeIsRoutingDefaultKey] = RoutingDefaultMarker;
+					items[MessageContextExtensions.MessageTypeIsRoutingDefaultKey] = RoutingDefaultMarker;
 				}
+
+				// Readers may observe the dictionary without taking this lock. Publish only after
+				// deferred entries are seeded; the volatile write pairs with their acquiring reads.
+				_items = items;
 			}
 
 			return _items;

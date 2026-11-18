@@ -92,38 +92,6 @@ public sealed class MessageContextTransportExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void GetHeaders_ReturnsNonInternalItems()
-	{
-		// Arrange
-		var context = CreateFakeContext();
-		context.Items["CustomHeader"] = "value";
-		context.Items["__InternalKey"] = "hidden";
-
-		// Act
-		var headers = context.GetHeaders();
-
-		// Assert
-		headers.ShouldContainKey("CustomHeader");
-		headers.ShouldNotContainKey("__InternalKey");
-	}
-
-	[Fact]
-	public void GetAttributes_ReturnsNonInternalItems()
-	{
-		// Arrange
-		var context = CreateFakeContext();
-		context.Items["attr1"] = "val1";
-		context.Items["__internal"] = "hidden";
-
-		// Act
-		var attributes = context.GetAttributes();
-
-		// Assert
-		attributes.ShouldContainKey("attr1");
-		attributes.ShouldNotContainKey("__internal");
-	}
-
-	[Fact]
 	public void GetScheduledDeliveryTime_ThrowsOnNullContext()
 	{
 		// Act & Assert
@@ -145,22 +113,6 @@ public sealed class MessageContextTransportExtensionsShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
 			() => MessageContextTransportExtensions.GetTraceContext(null!));
-	}
-
-	[Fact]
-	public void GetHeaders_ThrowsOnNullContext()
-	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(
-			() => MessageContextTransportExtensions.GetHeaders(null!));
-	}
-
-	[Fact]
-	public void GetAttributes_ThrowsOnNullContext()
-	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(
-			() => MessageContextTransportExtensions.GetAttributes(null!));
 	}
 
 	private static MessageEnvelope CreateFakeContext()

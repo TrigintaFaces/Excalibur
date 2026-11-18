@@ -113,6 +113,8 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 		{
 			try
 			{
+				await EnsureRetentionDeclarationsRecordedAsync(stoppingToken).ConfigureAwait(false);
+				await ReevaluateHoldDeferredErasuresAsync(stoppingToken).ConfigureAwait(false);
 				await ProcessScheduledErasuresAsync(stoppingToken).ConfigureAwait(false);
 				await CompletePendingErasuresAsync(stoppingToken).ConfigureAwait(false);
 				await MaybeCleanupCertificatesAsync(stoppingToken).ConfigureAwait(false);
@@ -138,6 +140,80 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 		}
 
 		LogErasureSchedulerStopped();
+	}
+
+	/// <summary>
+	/// Records this instance's retention declarations in the deployment-wide record, once per process.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>At the TOP of the poll, before any batch is fetched</b>, and NOT before this instance's first
+	/// erasure. The advance protects OTHER instances from this one, so until it has happened an instance
+	/// that holds fewer declarations cannot detect that it is behind. Anchored to the first erasure, that
+	/// protection would begin days after the deploy in a low-volume deployment, and the first post-deploy
+	/// erasure would be decided by which instance's poll won.
+	/// </para>
+	/// <para>
+	/// <b>Isolated like the other passes, and deliberately NOT a readiness check.</b> A compliance-store
+	/// outage must not stop the application serving; it withholds only this instance's erasures, which is
+	/// the intended direction — the staleness gate on the erasure path refuses while the record cannot be
+	/// read. The latch stays open on failure, so the next poll retries.
+	/// </para>
+	/// </remarks>
+	/// <param name="cancellationToken">A token that cancels the recording.</param>
+	/// <returns>A task that completes when the attempt has been made.</returns>
+	private async Task EnsureRetentionDeclarationsRecordedAsync(CancellationToken cancellationToken)
+	{
+		try
+		{
+			await using var scope = _scopeFactory.CreateAsyncScope();
+			var latch = scope.ServiceProvider.GetService<ErasureRetentionAdvanceLatch>();
+			if (latch is not null)
+			{
+				await latch.EnsureAdvancedAsync(
+					scope.ServiceProvider.GetService<IErasureRetentionDeclarationLedger>(),
+					cancellationToken).ConfigureAwait(false);
+			}
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+#pragma warning disable CA1031 // One pass's failure must not stop the others.
+		catch (Exception ex)
+#pragma warning restore CA1031
+		{
+			LogErasureRetentionAdvanceFailed(ex);
+		}
+	}
+
+	/// <summary>
+	/// Returns requests a legal hold deferred to the executable state once no hold blocks them. Isolated
+	/// from the other passes so a failure here never stops scheduled erasures from executing, and vice
+	/// versa. It runs BEFORE the execution pass so a request it resumes is picked up in the same poll
+	/// rather than waiting for the next one.
+	/// </summary>
+	private async Task ReevaluateHoldDeferredErasuresAsync(CancellationToken cancellationToken)
+	{
+		try
+		{
+			await using var scope = _scopeFactory.CreateAsyncScope();
+			var processor = scope.ServiceProvider.GetService<IErasureHoldReevaluationProcessor>();
+			if (processor is not null)
+			{
+				_ = await processor.ReevaluateDeferredErasuresAsync(cancellationToken).ConfigureAwait(false);
+			}
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+#pragma warning disable CA1031 // One pass's failure must not stop the others.
+		catch (Exception ex)
+#pragma warning restore CA1031
+		{
+			LogErasureSchedulerHoldReevaluationPassError(ex);
+		}
 	}
 
 	private async Task ProcessScheduledErasuresAsync(CancellationToken cancellationToken)
@@ -242,6 +318,21 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 						result.KeysDeleted,
 						result.RecordsAffected);
 			}
+			else if (result.Outcome == ErasureExecutionOutcome.Refused)
+			{
+				// A REFUSAL IS NOT A FAULT, so it must not spend this request's fault budget. The executor
+				// declined and destroyed nothing -- a legal hold deferring the erasure, another executor
+				// already owning it, an ineligible status. Routing that into the failure path increments a
+				// per-process retry counter and, at exhaustion, writes a terminal Failed that the
+				// scheduler's own query never returns and no pass enumerates: a correct withholding
+				// converted into a permanent non-erasure, within MaxRetryAttempts poll intervals.
+				//
+				// The request is left exactly as the executor left it, so whatever re-enumerates that
+				// state picks it up -- a still-Scheduled request on the next poll, a deferred one through
+				// the hold re-evaluation pass.
+				_ = _retryAttempts.TryRemove(request.RequestId, out _);
+				LogErasureSchedulerRequestRefused(request.RequestId, result.ErrorMessage);
+			}
 			else
 			{
 				LogErasureSchedulerRequestFailed(request.RequestId, result.ErrorMessage);
@@ -278,6 +369,28 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 		// execution" as a failure -- and resetting such a request to Scheduled hands it back for a second
 		// execution, a second certificate, or a cancellation beside keys that are already being destroyed.
 		var current = await erasureStore.GetStatusAsync(request.RequestId, cancellationToken).ConfigureAwait(false);
+
+		// A LAWFUL DEFERRAL IS NOT A FAULT, and treating it as one was wrong in three separate ways.
+		//
+		// A legal hold is the system working correctly, not an error. Routed through the retry path, a
+		// deferral spent the request's fault budget on a state no retry can change -- the hold is still
+		// there on the next cycle -- and at exhaustion the status was overwritten with a terminal "failed
+		// after N attempts". That record is INDISTINGUISHABLE from a genuine execution failure: a key
+		// provider outage, a broken store. The status that explained WHY is gone, and the hold's lawful
+		// basis, case reference and description survive only as a sentence inside an error message. A
+		// consumer handing an auditor a list of failed erasures could not tell which were deferred by law
+		// and which were broken.
+		//
+		// Leaving the deferral standing is also what makes it discoverable: BlockedByLegalHold is a
+		// durable, self-describing state a re-evaluation pass can find, where Failed is terminal and
+		// enumerated by nothing.
+		if (current?.Status is ErasureRequestStatus.BlockedByLegalHold)
+		{
+			_ = _retryAttempts.TryRemove(request.RequestId, out _);
+			LogErasureDeferredByLegalHold(request.RequestId);
+			return;
+		}
+
 		if (current?.Status is ErasureRequestStatus.AwaitingKeyDestruction
 			or ErasureRequestStatus.InProgress
 			or ErasureRequestStatus.Completed
@@ -297,25 +410,67 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 				? TimeSpan.FromTicks(opts.RetryDelayBase.Ticks * (1L << attemptCount))
 				: opts.RetryDelayBase;
 
-			LogErasureSchedulerRetrying(request.RequestId, attemptCount, opts.MaxRetryAttempts, delay);
-
-			// Set status back to Scheduled so the next polling cycle picks it up after the delay
-			_ = await erasureStore.UpdateStatusAsync(
+			// Set status back to Scheduled so the next polling cycle picks it up after the delay.
+			//
+			// THE STORE MAY REFUSE THIS, and the refusal is the authority rather than the check above.
+			// That check reads the current status and then writes, so a claim landing between the two is
+			// invisible to it; the store's write of Scheduled is conditional on the state it finds, which
+			// is the only place the test and the write are one operation. A false return therefore means
+			// another instance now owns the request -- exactly the case the check above is trying to
+			// detect, caught where it can actually be caught.
+			// NO CLAIM, and null is the STRICTER argument rather than an omission. This is a SUPERVISOR: it
+			// cannot obtain an identity, because the identity is minted inside the executor and never comes
+			// back out. Passing null says "do this only if nobody is working on the request", which is exactly
+			// what a supervisor means -- so the write is refused while a live claim exists and applies once
+			// that claim lapses.
+			var rescheduled = await erasureStore.UpdateStatusAsync(
 				request.RequestId,
 				ErasureRequestStatus.Scheduled,
+				expectedStatus: null,
 				$"Retry {attemptCount}/{opts.MaxRetryAttempts}: {errorMessage}",
+				claimIdentity: null,
 				cancellationToken).ConfigureAwait(false);
+
+			// Tested BY NAME. Anything other than Applied means this instance is not retrying: either a live
+			// claim holds the request, or its status moved on. Both oblige the same thing here -- release the
+			// attempt budget and stand down -- so they are not separated.
+			if (rescheduled != ErasureWriteOutcome.Applied)
+			{
+				// Logged, and the attempt counter is released: this instance is not retrying anything, so
+				// holding a count against a request another instance owns would spend that request's
+				// budget on an attempt that never happened and could mark it permanently Failed early.
+				_ = _retryAttempts.TryRemove(request.RequestId, out _);
+				LogErasureSchedulerNotRescheduledAwaitingDestruction(request.RequestId);
+				return;
+			}
+
+			// Logged only once the reschedule actually landed. Announcing a retry before the write meant
+			// the log asserted a retry that the store may have refused.
+			LogErasureSchedulerRetrying(request.RequestId, attemptCount, opts.MaxRetryAttempts, delay);
 		}
 		else
 		{
 			// Retries exhausted -- mark as permanently failed and clean up tracking
 			_ = _retryAttempts.TryRemove(request.RequestId, out _);
 
-			_ = await erasureStore.UpdateStatusAsync(
+			// TESTED BY NAME, like the reschedule above, and for the same reason: null is the stricter
+			// argument, so anything other than Applied means a live claim holds the request or its status
+			// moved on. Marking a request permanently Failed is the one write that cannot be undone by a
+			// later pass, so a refusal here must not be silent -- discarding it meant an operator saw
+			// nothing while the request stayed in whatever state the other instance left it.
+			var failed = await erasureStore.UpdateStatusAsync(
 				request.RequestId,
 				ErasureRequestStatus.Failed,
+				expectedStatus: null,
 				$"Failed after {attemptCount} attempts: {errorMessage}",
+				claimIdentity: null,
 				cancellationToken).ConfigureAwait(false);
+
+			if (failed != ErasureWriteOutcome.Applied)
+			{
+				LogErasureSchedulerNotRescheduledAwaitingDestruction(request.RequestId);
+				return;
+			}
 
 			LogErasureSchedulerMarkedFailed(request.RequestId, errorMessage);
 		}
@@ -423,6 +578,12 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 	private partial void LogErasureSchedulerMarkedFailed(Guid requestId, string? error);
 
 	[LoggerMessage(
+			ComplianceEventId.ErasureDeferredByLegalHold,
+			LogLevel.Information,
+			"Erasure request {RequestId} is deferred by an active legal hold. This is lawful and is NOT a failure: the deferral is left standing rather than retried or marked failed, and the request becomes executable again once no hold blocks it")]
+	private partial void LogErasureDeferredByLegalHold(Guid requestId);
+
+	[LoggerMessage(
 			ComplianceEventId.ErasureSchedulerRetrying,
 			LogLevel.Information,
 			"Erasure request {RequestId} scheduled for retry (attempt {AttemptCount}/{MaxAttempts}, delay: {Delay})")]
@@ -433,6 +594,24 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 			LogLevel.Error,
 			"Error in erasure scheduler completion pass for requests awaiting key destruction")]
 	private partial void LogErasureSchedulerCompletionPassError(Exception exception);
+
+	[LoggerMessage(
+			ComplianceEventId.ErasureSchedulerHoldReevaluationPassError,
+			LogLevel.Error,
+			"Error in erasure scheduler hold re-evaluation pass for requests a legal hold deferred")]
+	private partial void LogErasureSchedulerHoldReevaluationPassError(Exception exception);
+
+	[LoggerMessage(
+			ComplianceEventId.ErasureSchedulerRequestRefused,
+			LogLevel.Information,
+			"Erasure request {RequestId} was REFUSED rather than attempted, so it does not consume the fault budget: {Reason}")]
+	private partial void LogErasureSchedulerRequestRefused(Guid requestId, string? reason);
+
+	[LoggerMessage(
+			ComplianceEventId.ErasureRetentionAdvanceFailed,
+			LogLevel.Error,
+			"This instance could not record its retention declarations, so other instances cannot yet detect that they hold fewer; erasures are withheld until it succeeds and it is retried on the next poll")]
+	private partial void LogErasureRetentionAdvanceFailed(Exception exception);
 
 	[LoggerMessage(
 			ComplianceEventId.ErasureSchedulerNotRescheduledAwaitingDestruction,

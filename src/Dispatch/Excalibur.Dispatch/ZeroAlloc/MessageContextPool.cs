@@ -104,7 +104,7 @@ internal sealed class MessageContextPool : IMessageContextPool
 	}
 
 	private sealed class PooledMessageContext(IServiceProvider serviceProvider)
-		: MessageContext(EmptyMessage.Instance, serviceProvider)
+		: MessageContext(EmptyMessage.Instance, serviceProvider, usesInheritedItemsStorage: true)
 	{
 		public void Initialize(IDispatchMessage message) => Message = message;
 

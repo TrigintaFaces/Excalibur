@@ -8,6 +8,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using MQTTnet;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -52,7 +54,8 @@ public static class MqttTransportServiceCollectionExtensions
 			var provider = sp.GetRequiredKeyedService<IMqttConnectionProvider>(name);
 			var options = sp.GetRequiredService<IOptionsMonitor<MqttOptions>>().Get(name);
 			var logger = sp.GetRequiredService<ILogger<MqttTransportSender>>();
-			return new MqttTransportSender(provider, options, logger);
+			var cloudEventEncoder = sp.GetService<ICloudEventEncoder<MqttApplicationMessage>>();
+			return new MqttTransportSender(provider, options, logger, cloudEventEncoder);
 		});
 
 		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
@@ -63,8 +66,7 @@ public static class MqttTransportServiceCollectionExtensions
 
 			// Decoding is applied unconditionally: the decoder is total, so a message carrying no
 			// CloudEvents markers is returned untouched. Gating this on a second opt-in is what would
-			// leave receive asymmetric with send, where encoding applies automatically once CloudEvents
-			// is configured.
+			// leave receive asymmetric with send in the other direction.
 			return new MqttTransportReceiver(provider, options, logger).WithCloudEventDecoding(CloudEventBinding.Mqtt);
 		});
 

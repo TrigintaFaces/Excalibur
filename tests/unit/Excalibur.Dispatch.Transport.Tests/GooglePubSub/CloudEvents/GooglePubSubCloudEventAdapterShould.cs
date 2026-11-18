@@ -4,6 +4,7 @@
 #pragma warning disable IL2026 // RequiresUnreferencedCode
 #pragma warning disable IL3050 // RequiresDynamicCode
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using CloudNative.CloudEvents;
 
 using Excalibur.Dispatch.CloudEvents;
@@ -26,6 +27,7 @@ public sealed class GooglePubSubCloudEventAdapterShould
 		Should.Throw<ArgumentNullException>(() =>
 			new GooglePubSubCloudEventAdapter(
 				null!,
+				TestCloudEventSerializers.Reflection,
 				new GooglePubSubCloudEventOptions(),
 				NullLogger<GooglePubSubCloudEventAdapter>.Instance));
 	}
@@ -36,6 +38,7 @@ public sealed class GooglePubSubCloudEventAdapterShould
 		Should.Throw<ArgumentNullException>(() =>
 			new GooglePubSubCloudEventAdapter(
 				Microsoft.Extensions.Options.Options.Create(new CloudEventOptions()),
+				TestCloudEventSerializers.Reflection,
 				null!,
 				NullLogger<GooglePubSubCloudEventAdapter>.Instance));
 	}
@@ -46,6 +49,7 @@ public sealed class GooglePubSubCloudEventAdapterShould
 		Should.Throw<ArgumentNullException>(() =>
 			new GooglePubSubCloudEventAdapter(
 				Microsoft.Extensions.Options.Options.Create(new CloudEventOptions()),
+				TestCloudEventSerializers.Reflection,
 				new GooglePubSubCloudEventOptions(),
 				null!));
 	}
@@ -184,6 +188,7 @@ public sealed class GooglePubSubCloudEventAdapterShould
 
 		return new GooglePubSubCloudEventAdapter(
 			options,
+			TestCloudEventSerializers.Reflection,
 			pubSubOptions ?? new GooglePubSubCloudEventOptions(),
 			NullLogger<GooglePubSubCloudEventAdapter>.Instance);
 	}

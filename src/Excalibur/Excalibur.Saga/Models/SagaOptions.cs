@@ -54,9 +54,14 @@ public sealed class SagaOptions
 	public TimeSpan CleanupInterval { get; set; } = TimeSpan.FromHours(1);
 
 	/// <summary>
-	/// Gets or sets the maximum number of retry attempts for failed saga steps.
+	/// Gets or sets the total local attempt ceiling for a saga event, including the initial attempt.
 	/// </summary>
-	/// <value>The maximum retry attempts, default is 3.</value>
+	/// <remarks>
+    /// Further attempts require a transient or uncertain shared failure classification. Permanent,
+    /// poison and unknown failures stop without automatic replay; caller cancellation is not retried.
+    /// Values below one still permit one initial attempt.
+    /// </remarks>
+    /// <value>The total local attempt ceiling, default is 3.</value>
 	[Range(0, 100)]
 	public int MaxAttempts { get; set; } = 3;
 

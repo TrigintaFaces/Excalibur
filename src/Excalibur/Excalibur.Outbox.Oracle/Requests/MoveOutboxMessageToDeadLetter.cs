@@ -40,6 +40,11 @@ public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 	/// longer re-enter the partition the message came from. It is copied from the outbox row, whose tenant
 	/// column is total, so the value is always present and is never inferred here.
 	/// </para>
+	/// <para>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </para>
 	/// </remarks>
 	public MoveOutboxMessageToDeadLetter(
 		string messageId,
@@ -88,8 +93,16 @@ public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 			commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
 		ResolveAsync = async conn =>
 		{
-			_ = await conn.ExecuteAsync(Command).ConfigureAwait(false);
-			return parameters.Get<int>("MovedCount");
+			return await StaticDbCommand.ExecuteOutputsAsync(conn, Command, command =>
+			{
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "ErrorMessage", StaticDbCommand.Input<string>(parameters, "ErrorMessage"), DbType.String);
+				StaticDbCommand.AddOutputParameter(command, "MovedCount", DbType.Int32);
+			}, command =>
+			{
+				return StaticDbCommand.Output<int>(command, parameters, "MovedCount", DbType.Int32);
+			}).ConfigureAwait(false);
 		};
 	}
 }

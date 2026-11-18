@@ -22,7 +22,7 @@ public interface IAuditContext
 {
 	/// <summary>
 	/// Records an audit assertion if the condition is true.
-	/// No-op if condition is false (zero overhead for passing assertions).
+	/// Does not record an audit event if condition is false.
 	/// </summary>
 	/// <param name="condition">The domain condition observed.</param>
 	/// <param name="message">Human-readable description of what was observed.</param>

@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Tests.Resilience;
 /// MS-2 AC-1 (poison ⇒ <see cref="MessageFailureKind.Poison"/>), AC-2 (transient ⇒
 /// <see cref="MessageFailureKind.Transient"/>), the permanent arm, and the edge cases EC-1 (cancellation is
 /// never poison), EC-2 (single-inner <see cref="AggregateException"/> unwraps to root), EC-3 (unknown ⇒
-/// transient-with-cap default), plus the null-guard.
+/// explicit unknown default), plus the null-guard.
 /// </para>
 /// <para>
 /// <b>RED on the pre-fix surface:</b> mutate <c>DefaultMessageFailureClassifier.Classify</c> to always
@@ -88,10 +88,10 @@ public sealed class MessageFailureClassifierShould
 			.ShouldBe(MessageFailureKind.Poison);
 
 	[Fact]
-	public void ClassifyUnknownExceptionAsTransient_BoundedRetryDefault() =>
-		// EC-3: anything unrecognised ⇒ transient-with-cap (never infinite loop, never silent drop).
+	public void ClassifyUnknownExceptionAsUnknown_WithoutAssumingRetryWillRecover() =>
+		// R08 supersedes EC-3's broad transient default; absence of knowledge is explicit.
 		Classifier.Classify(new InvalidOperationException("unrecognised"))
-			.ShouldBe(MessageFailureKind.Transient);
+			.ShouldBe(MessageFailureKind.Unknown);
 
 	[Fact]
 	public void ThrowOnNullException() =>

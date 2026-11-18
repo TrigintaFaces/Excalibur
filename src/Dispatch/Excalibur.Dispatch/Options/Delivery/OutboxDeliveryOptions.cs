@@ -206,10 +206,36 @@ public class OutboxDeliveryOptions
 	public int MaxAttempts { get; set; } = 5;
 
 	/// <summary>
-	/// Gets or sets the default time-to-live for outbox messages, after which they expire and are eligible for cleanup. Null value
-	/// indicates messages never expire and require manual cleanup or processing.
+	/// Gets or sets the intended default time-to-live for outbox messages. <b>NOT ENFORCED TODAY — setting
+	/// it has no effect, and no outbox message expires.</b>
 	/// </summary>
 	/// <value>The current <see cref="DefaultMessageTimeToLive"/> value.</value>
+	/// <remarks>
+	/// <para>
+	/// <b>Do not rely on this to bound how long a message can sit undelivered.</b> It is stamped onto the
+	/// message at staging and then dropped: the type the stores persist and return carries no expiry
+	/// member, so nothing durable records it, no provider has a column for it, and the drain never
+	/// compares anything against it. <c>DeadLetterReason.MessageExpired</c> exists but has no producer —
+	/// it appears only in the text that maps the enum to a string.
+	/// </para>
+	/// <para>
+	/// It is documented rather than deleted because the option is shipped, and because an unenforced
+	/// setting that SAYS it is unenforced is recoverable while one that reads as working is not: a
+	/// consumer who set it to bound a retention or compliance window currently has no bound at all and
+	/// no way to discover that.
+	/// </para>
+	/// <para>
+	/// <b>Until it is enforced, bound the age elsewhere</b> — the dead-letter path on attempt exhaustion
+	/// (<see cref="MaxAttempts"/>) still applies, and provider-level retention or a scheduled cleanup over
+	/// the outbox table is what actually removes old rows.
+	/// </para>
+	/// <para>
+	/// Enforcing it is a contract change on the persisted message plus a schema change in every outbox
+	/// provider, and the read side must land AFTER the storage side: a drain taught to compare an expiry
+	/// today would read the not-before timestamp as the expiry and dead-letter every scheduled message the
+	/// moment it became due.
+	/// </para>
+	/// </remarks>
 	public TimeSpan? DefaultMessageTimeToLive { get; set; }
 
 	/// <summary>

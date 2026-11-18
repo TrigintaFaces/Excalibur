@@ -209,7 +209,7 @@ The `Excalibur.EventSourcing.ProjectionCapacity` meter emits `projection.capacit
 
 ## Snapshots and event retention
 
-Aggregate snapshots accelerate loading an aggregate: restore a compatible snapshot, then apply subsequent events. Snapshotting is optional. Without snapshots, or with infrequent snapshots, aggregate loading replays more events; correctness still comes from the retained event history.
+Aggregate snapshots can reduce replay work: restore a compatible snapshot, then apply subsequent events. Measure total loading cost, including snapshot retrieval and deserialization. Snapshotting is optional. Without snapshots, or with infrequent snapshots, aggregate loading replays more events; correctness still comes from the retained event history.
 
 Projection population does not use aggregate snapshots. A new projection may derive information absent from an aggregate snapshot, so it reads the event stream from zero. An existing generation resumes from its own durable checkpoint. Frequent aggregate snapshots do not replace projection checkpoints and cannot reconstruct missing historical events.
 

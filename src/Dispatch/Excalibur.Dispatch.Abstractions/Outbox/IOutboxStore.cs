@@ -87,6 +87,29 @@ public interface IOutboxStore : IServiceProvider
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
 	/// <returns> A task representing the asynchronous enqueue operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when message or context is null. </exception>
+	/// <remarks>
+	/// <para>
+	/// <strong>Postcondition on what is staged.</strong> The staged message's headers contain exactly the
+	/// values marked on <paramref name="context" /> with
+	/// <see cref="MessageContextPropagationExtensions.SetPropagatedItem" />, plus whatever envelope keys
+	/// this store supplies as its own framing. <strong>No other context state reaches them</strong> — in
+	/// particular not <see cref="IMessageContext.Items" />, which is request-local.
+	/// </para>
+	/// <para>
+	/// This is stated here, on the interface, because it is the specification and not an implementation
+	/// detail: while it lived only in the implementations, one store staged the whole
+	/// <see cref="IMessageContext.Items" /> collection, two staged their envelope keys and nothing else,
+	/// and six staged neither — all three behaviours legal, none a subtyping violation, and a consumer
+	/// unable to predict which they would get. Staging MORE than this is now as wrong as staging less,
+	/// and a conformance derivation can check both directions.
+	/// </para>
+	/// <para>
+	/// Build the staged message with
+	/// <see cref="OutboundMessage.FromContext(string, byte[], string, IMessageContext, System.Collections.Generic.IDictionary{string, object})" />,
+	/// which satisfies the postcondition by construction. A store that assembles an
+	/// <see cref="OutboundMessage" /> by hand is responsible for satisfying it itself.
+	/// </para>
+	/// </remarks>
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken);
@@ -98,13 +121,14 @@ public interface IOutboxStore : IServiceProvider
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
 	/// <returns> Collection of unsent messages ready for delivery. </returns>
 	/// <remarks>
+	/// This operation returns persisted payload bytes and closed routing/header data; it does not
+	/// discover or deserialize consumer payload types. Payload decoding belongs to the configured worker
+	/// codec and its explicit metadata. Provider construction may impose separate runtime requirements.
 	/// This claim is unfenced. A store that can enforce leadership fencing implements
 	/// <see cref="IFencedOutboxStore"/>, whose overloads take the leadership token; a store that
 	/// cannot is never handed one.
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException"> Thrown when batchSize is less than 1. </exception>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 		int batchSize,
 		CancellationToken cancellationToken);

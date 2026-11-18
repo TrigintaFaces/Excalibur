@@ -60,6 +60,16 @@
     <!-- PayloadSizeGuard/PayloadTooLargeException are internal cross-cutting primitives
          consumed down the graph by core Dispatch inbox/outbox + the transport packages. -->
     <InternalsVisibleTo Include="Excalibur.Dispatch" />
+    <!-- One shared internal outbox authority-domain admission state across publisher and processor. -->
+    <InternalsVisibleTo Include="Excalibur.Outbox" />
+    <!-- Shared closed-shape outbox header JSON reader, not payload type discovery. -->
+    <InternalsVisibleTo Include="Excalibur.Outbox.SqlServer" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.Postgres" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.Oracle" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.Redis" />
+    <!-- Shares the internal UpgradePathResolver: the version-graph search has one implementation
+         and lives here because this is the only assembly both upcasting callers already reference. -->
+    <InternalsVisibleTo Include="Excalibur.EventSourcing" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Abstractions" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AwsSqs" />
@@ -68,8 +78,10 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Grpc" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.IbmMq" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Kafka" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Mqtt" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Pulsar" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Abstractions.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Messaging.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>

@@ -836,12 +836,12 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		var policy = provider.GetRequiredKeyedService<IRetryPolicy>("frugal");
 
 		var calls = 0;
-		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
+		_ = await Should.ThrowAsync<TimeoutException>(async () =>
 			await policy.ExecuteAsync(
 				_ =>
 				{
 					calls++;
-					throw new InvalidOperationException("always fails");
+					throw new TimeoutException("always fails");
 				},
 				TestContext.Current.CancellationToken));
 
@@ -897,11 +897,11 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 					_ =>
 					{
 						calls++;
-						throw new InvalidOperationException("always fails");
+						throw new TimeoutException("always fails");
 					},
 					TestContext.Current.CancellationToken);
 			}
-			catch (InvalidOperationException)
+			catch (TimeoutException)
 			{
 				// expected: the delegate always throws
 			}

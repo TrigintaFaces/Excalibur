@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Amazon.EventBridge;
+using Amazon.EventBridge.Model;
 using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 
+using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Aws;
 using Excalibur.Dispatch.Transport.AwsSqs;
 
@@ -204,7 +207,14 @@ public static class AwsCoreServiceCollectionExtensions
 				? new AmazonEventBridgeClient(credentials, config)
 				: new AmazonEventBridgeClient(config);
 		});
-		services.TryAddSingleton<AwsEventBridgeMessageBus>();
+		services.TryAddSingleton(sp => new AwsEventBridgeMessageBus(
+			sp.GetRequiredService<IAmazonEventBridge>(),
+			sp.GetRequiredService<IPayloadSerializer>(),
+			sp.GetRequiredService<AwsEventBridgeOptions>(),
+			sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AwsEventBridgeMessageBus>>(),
+			ownsClient: false,
+			cloudEventBridge: sp.GetService<IEnvelopeCloudEventBridge>(),
+			cloudEventEncoder: sp.GetService<ICloudEventEncoder<PutEventsRequestEntry>>()));
 		_ = services.AddRemoteMessageBus("eventbridge", static sp => sp.GetRequiredService<AwsEventBridgeMessageBus>());
 	}
 }

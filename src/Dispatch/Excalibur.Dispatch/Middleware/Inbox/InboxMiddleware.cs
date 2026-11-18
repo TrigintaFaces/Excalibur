@@ -12,6 +12,7 @@ using System.Text.Json;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Serialization;
 
@@ -74,6 +75,23 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		"dispatch.inbox.deduplicated",
 		unit: "{messages}",
 		description: "Number of inbox messages skipped or reset by deduplication, tagged with inbox.disposition (duplicate/timeout-reset) and inbox.mode (full/light).");
+
+	// A message the inbox cannot key BYPASSES deduplication, so the delivery guarantee for that message
+	// type degrades from effectively-once to at-least-once. That was previously recorded only as a log
+	// line, which an operator reads later and a monitoring system cannot alert on -- so nothing in a
+	// running deployment said that one message type was getting a weaker guarantee than the rest. This
+	// counter makes the degradation observable and alertable. It does NOT change the delivery decision:
+	// refusing from this position is not safe to ship, because the dead-letter bridge is gated on retry
+	// exhaustion and a bare failure from here routes nowhere by default.
+	//
+	// inbox.message_type is bounded by the number of message types a deployment declares, which is finite
+	// and known at build time -- it is not user data and carries no cardinality risk.
+	private static readonly Counter<long> UnkeyedCounter = InboxMeter.CreateCounter<long>(
+		"dispatch.inbox.unkeyed",
+		unit: "{messages}",
+		description: "Number of messages that passed through the inbox WITHOUT deduplication because no "
+			+ "identity could be resolved, tagged with inbox.message_type. A non-zero value means that "
+			+ "message type is receiving at-least-once rather than effectively-once delivery.");
 
 	// Bounded inbox.disposition / inbox.mode tag values (cardinality safety — bounded by construction).
 	private const string DispositionDuplicate = "duplicate";
@@ -178,7 +196,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		var messageId = GetMessageId(message, context);
 		if (string.IsNullOrEmpty(messageId))
 		{
-			LogCannotProcessMessageWithoutIdentifier();
+			RecordUnkeyed(message);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
 
@@ -254,6 +272,33 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 	}
 
 	/// <summary>
+	/// Records that a message passed through the inbox without being deduplicated, because no identity
+	/// could be resolved for it.
+	/// </summary>
+	/// <remarks>
+	/// Three surfaces, because they reach different readers and a log reaches none of them in time: the
+	/// counter is what a monitoring system alerts on, the activity tag is what shows in the trace of the
+	/// affected request, and the log names the type for whoever is reading logs. The message TYPE is the
+	/// load-bearing detail and the previous log carried none of it, so an operator could see that
+	/// something was bypassing deduplication and not which thing.
+	/// </remarks>
+	private void RecordUnkeyed(IDispatchMessage message)
+	{
+		var messageTypeName = message.GetType().Name;
+
+		UnkeyedCounter.Add(
+			1,
+			new KeyValuePair<string, object?>("inbox.message_type", messageTypeName));
+
+		// The inbox's own activity is not started on this path, so the tag goes on whatever span is
+		// current. A null Activity is the normal case when nothing is sampling and must not throw.
+		_ = Activity.Current?.SetTag("inbox.deduplicated", false);
+		_ = Activity.Current?.SetTag("inbox.unkeyed_message_type", messageTypeName);
+
+		LogCannotProcessMessageWithoutIdentifier(messageTypeName);
+	}
+
+	/// <summary>
 	/// Records a deduplication disposition (a duplicate skip or a stuck-Processing timeout reset)
 	/// on the <c>dispatch.inbox.deduplicated</c> counter so dedup-rate is independently observable.
 	/// </summary>
@@ -264,44 +309,114 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 			new KeyValuePair<string, object?>("inbox.mode", mode));
 
 	/// <summary>
-	/// Extracts the message identifier from the message and context.
+	/// Resolves the deduplication identity of a message, preferring the sources that survive a
+	/// redelivery over the sources that are cheapest to read.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <strong>A deduplication key must be a property of the MESSAGE, never of the DELIVERY.</strong>
+	/// The guarantee this subsystem provides is effectively-once processing of each
+	/// <c>(MessageId, HandlerType)</c>, and that is worth nothing unless two deliveries of one message
+	/// resolve to the SAME key. So the order below is ranked by stability across a redelivery.
+	/// </para>
+	/// <para>
+	/// <strong>Why <see cref="IMessageContext.MessageId" /> is not consulted first, which it used to be.</strong>
+	/// A message context is constructed per dispatch, and <c>MessageContext.MessageId</c> mints a fresh
+	/// GUID in its own getter when nobody has assigned one. Read first, that made the key per-delivery:
+	/// a redelivery of the same message produced a different key, no duplicate was ever detected, the
+	/// handler ran again, and the dispatch reported success — the failure is silent, which is this
+	/// framework's catastrophic class. Reading it first also made every source below it unreachable,
+	/// because the minted value is never empty.
+	/// </para>
+	/// <para>
+	/// <strong>And an assigned value is not automatically a message identity either.</strong> "Somebody
+	/// set this" is a property of the WRITE; what a deduplication key needs is a property of the VALUE —
+	/// that it is invariant across deliveries of one message. Those are different predicates, and three
+	/// reachable public paths satisfy the first with a per-delivery value: <c>InMemoryTransportAdapter</c>
+	/// and <c>CronTimerTransportAdapter</c> each assign a fresh per-receive GUID, and
+	/// <c>MessageMetadata.CreateDefault()</c> mints one that <c>IMessageMetadata.ApplyToContext()</c> then
+	/// assigns. That is why a payload-borne identity outranks the context entirely rather than merely
+	/// outranking a minted one.
+	/// </para>
+	/// <para>
+	/// <strong>RESIDUAL GAP, stated because an overstated guard is read as a closed one.</strong> The
+	/// minted-value check below is NECESSARY AND NOT SUFFICIENT: it rejects a value the context invented
+	/// and nobody assigned, and it cannot reject one that was invented and then assigned. So a message
+	/// that carries no identity of its own, received through one of those three paths, still resolves a
+	/// per-delivery key. Closing that needs a refusal at the bottom of this order rather than a better
+	/// guess in the middle of it — there is no stable identity to find for such a message, and
+	/// manufacturing one is what produced the defect in the first place.
+	/// </para>
+	/// <para>
+	/// <strong>What is NOT a substitute, and the reason is sharper than "it is a correlation key".</strong>
+	/// <c>IMessageIdentityFeature.ExternalId</c> is a plain <see cref="string" /> that is never fabricated
+	/// and already round-trips on the wire, which makes it a tempting slot. <strong>It carries TWO
+	/// meanings.</strong> Its own contract documents it as "an external identifier for correlation with
+	/// external systems" and every neighbour in that feature is a grouping key, so a consumer may
+	/// legitimately set it to an order number; but the inbox retry drain writes a per-message identity into
+	/// it. The value carries no provenance, so a reader cannot tell which writer wrote it — structurally
+	/// the same defect as a context identifier that cannot say whether it was assigned or invented, which
+	/// is why no guard on the member would fix it either. Keying on it would therefore sometimes collapse
+	/// every message naming one external entity into a single entry, and that direction is the worse of
+	/// the two: a message suppressed as a duplicate it never was is unrecoverable, where a handler running
+	/// twice is covered by the standing idempotency obligation.
+	/// </para>
+	/// </remarks>
 	[UnconditionalSuppressMessage(
 		"Trimming",
 		"IL2075:'this' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicProperties' in call to target method",
 		Justification = "Message types are preserved through source generation and DI registration")]
 	private static string? GetMessageId(IDispatchMessage message, IMessageContext context)
 	{
-		// Prefer direct context property access (hot path) before dictionary lookups.
-		if (!string.IsNullOrEmpty(context.MessageId))
+		// 1. The message's own identity, typed. IDomainEvent.EventId is an interface member carrying a
+		//    per-event unique value that is part of the serialized payload, so it is identical on every
+		//    delivery of that event by construction. This arm did not exist, and its absence is why the
+		//    reflective fallback below used to resolve a domain event's CORRELATION id: DomainEvent
+		//    exposes EventId, CorrelationId and CausationId and no MessageId at all. Typed rather than
+		//    reflective, so it also costs nothing and raises no trimming question.
+		if (message is IDomainEvent domainEvent && !string.IsNullOrEmpty(domainEvent.EventId))
 		{
-			return context.MessageId;
+			return domainEvent.EventId;
 		}
 
-		// Fall back to context items for compatibility with middleware that only populates Items.
-		var contextMessageId = context.GetItem<object>("MessageId");
-		if (contextMessageId != null)
-		{
-			return ToNullableString(contextMessageId);
-		}
-
-		// Try message envelope
-		var envelopeObj = context.GetItem<object>("MessageEnvelope");
-		if (envelopeObj is IMessageEnvelope envelope)
+		// 2. The wire envelope's identity -- the producer's, carried with the message.
+		if (context.GetItem<object>("MessageEnvelope") is IMessageEnvelope envelope
+			&& !string.IsNullOrEmpty(envelope.MessageId))
 		{
 			return envelope.MessageId;
 		}
 
-		// Reflection-based fallback for messages that expose IDs via strongly-typed properties.
+		// 3. An identity a middleware placed in Items.
+		var contextMessageId = context.GetItem<object>("MessageId");
+		if (contextMessageId != null)
+		{
+			var fromItems = ToNullableString(contextMessageId);
+			if (!string.IsNullOrEmpty(fromItems))
+			{
+				return fromItems;
+			}
+		}
+
+		// 4. An identity ASSIGNED to the context -- by the wire deserializer, or restored from the
+		//    durable inbox entry on a retry drain. Only an assigned value is considered: a value the
+		//    context minted for itself describes this delivery and not the message. For a context
+		//    implementation that cannot distinguish the two, the value is taken as assigned, which is
+		//    correct for every implementation that does not mint one.
+		if (TryGetAssignedMessageId(context, out var assigned))
+		{
+			return assigned;
+		}
+
+		// 5. A consumer convention: a MessageId property on the message type. Kept because it is the
+		//    only route for a message that is neither a domain event nor carried in an envelope. The
+		//    CorrelationId arm that used to sit here is REMOVED -- a correlation id names a CONVERSATION,
+		//    so using it as the key collapsed every message in one conversation to a single entry and
+		//    suppressed all but the first as duplicates.
 		var messageType = message.GetType();
 
-		if (MessageIdPropertyCache.TryGetValue(messageType, out var messageIdProperty))
+		if (!MessageIdPropertyCache.TryGetValue(messageType, out var messageIdProperty))
 		{
-			// Cache hit
-		}
-		else
-		{
-			messageIdProperty = messageType.GetProperty("MessageId") ?? messageType.GetProperty("CorrelationId");
+			messageIdProperty = messageType.GetProperty("MessageId");
 
 			// Bounded cache: skip caching when full to prevent unbounded memory growth
 			if (MessageIdPropertyCache.Count < MaxCacheEntries)
@@ -313,10 +428,45 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		if (messageIdProperty != null)
 		{
 			var messageIdPropertyValue = messageIdProperty.GetValue(message);
-			return ToNullableString(messageIdPropertyValue);
+			var fromProperty = ToNullableString(messageIdPropertyValue);
+			if (!string.IsNullOrEmpty(fromProperty))
+			{
+				return fromProperty;
+			}
 		}
 
 		return null;
+	}
+
+	/// <summary>
+	/// Gets the context's message identifier only when it was ASSIGNED rather than minted by the context
+	/// itself.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <see cref="MessageContext" /> records whether its identifier was assigned, and that bit is the
+	/// difference between "a producer told us what this message is" and "this context invented a value a
+	/// microsecond ago" — two opposite facts that the <see cref="string" /> alone cannot separate. The bit
+	/// is read through a pattern match rather than added to <see cref="IMessageContext" />, so no shipped
+	/// interface changes and no consumer implementation acquires a member it has no concept of.
+	/// </para>
+	/// <para>
+	/// A context that is not a <see cref="MessageContext" /> has no minting behaviour to distinguish, so
+	/// its identifier is treated as assigned. That is the correct reading for every implementation that
+	/// does not invent one, and an implementation that does invent one is indistinguishable from a
+	/// producer-supplied value by any means available here.
+	/// </para>
+	/// </remarks>
+	private static bool TryGetAssignedMessageId(IMessageContext context, out string? messageId)
+	{
+		if (context is MessageContext concrete && !concrete.MessageIdWasAssigned)
+		{
+			messageId = null;
+			return false;
+		}
+
+		messageId = context.MessageId;
+		return !string.IsNullOrEmpty(messageId);
 	}
 
 	private static string? ToNullableString(object? value) => value as string ?? value?.ToString();
@@ -401,8 +551,10 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 
 	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.InboxMiddlewareExecuting, LogLevel.Warning,
-		"Cannot process message without identifier, skipping inbox processing")]
-	private partial void LogCannotProcessMessageWithoutIdentifier();
+		"No identity could be resolved for {MessageTypeName}, so it passed through the inbox WITHOUT "
+		+ "deduplication -- this message type is receiving at-least-once rather than effectively-once "
+		+ "delivery. Give the message type its own identity, or configure a transport that supplies one.")]
+	private partial void LogCannotProcessMessageWithoutIdentifier(string messageTypeName);
 
 	[LoggerMessage(MiddlewareEventId.InboxMiddlewareExecuting + 10, LogLevel.Debug,
 		"Processing message {MessageId} with inbox semantics")]
@@ -480,6 +632,19 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		DispatchRequestDelegate nextDelegate,
 		CancellationToken cancellationToken)
 	{
+		// REFUSED UNTIL PROVEN OTHERWISE. Reaching this method means a dedup decision is about to be taken,
+		// so from here on the honest default is that this dispatch was refused; the mark is upgraded to
+		// Admitted immediately beside each handler invocation below.
+		//
+		// The reason it is set HERE rather than on each refusing exit is that the caller's guard is a
+		// DENYLIST: a drain finalizes an entry unless the stage said Declined, so a new exit added later
+		// that forgets to mark would read as consent and finalize an entry whose handler never ran, which
+		// is silent and unrecoverable by retry. Defaulting to Declined inverts that: a forgotten mark costs
+		// a redelivery against an idempotent handler, which is loud and recoverable. NotEvaluated then
+		// means exactly one thing to the caller -- no dedup decision was reached, so the handler ran
+		// through the rest of the pipeline -- which is what the three early-outs above leave behind.
+		MarkInboxDisposition(context, InboxLeaseDisposition.Declined);
+
 		// Use message type as handler type for middleware-level inbox tracking.
 		// The composite key (messageId, handlerType) supports per-handler deduplication,
 		// but at middleware level we use message type as a reasonable default since
@@ -852,6 +1017,13 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 					var result = await nextDelegate(message, context, ct).ConfigureAwait(false);
 					capturedResult = result;
 
+					// The handler ran on THIS dispatch, so the caller may finalize the entry. Marked after
+					// the invocation returns rather than before it, so the mark reports what happened
+					// instead of what was intended. A failure result aborts the transaction below and the
+					// caller throws on the failed result before it ever reads this, so an abort cannot
+					// leave a committed Admitted behind.
+					MarkInboxDisposition(context, InboxLeaseDisposition.Admitted);
+
 					if (!result.Succeeded)
 					{
 						// Roll the native transaction back so nothing is marked processed and the message is
@@ -904,6 +1076,10 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		DispatchRequestDelegate nextDelegate,
 		CancellationToken cancellationToken)
 	{
+		// REFUSED UNTIL PROVEN OTHERWISE, for the reason given at the top of the full-inbox path: the
+		// caller's guard is a denylist, so an unmarked exit must read as a refusal rather than as consent.
+		MarkInboxDisposition(context, InboxLeaseDisposition.Declined);
+
 		var expiry = TimeSpan.FromHours(_options.DeduplicationExpiryHours);
 
 		// Single atomic-claim primitive (converged dedup seam): claim-before-execute through
@@ -938,6 +1114,10 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 			// Execute the message handler while holding the claim.
 			var result = await nextDelegate(message, context, cancellationToken)
 				.ConfigureAwait(false);
+
+			// The handler ran on this dispatch, so the caller may finalize.
+			MarkInboxDisposition(context, InboxLeaseDisposition.Admitted);
+
 
 			if (result.Succeeded)
 			{

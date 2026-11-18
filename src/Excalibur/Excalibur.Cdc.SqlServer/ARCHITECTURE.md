@@ -72,6 +72,19 @@ source, so a fault in either stops the other; neither is left running after the 
 a faulted consumer strands the producer forever, because a bounded channel in wait mode blocks a writer
 until a reader takes an item.
 
+### Caller cancellation reaches handler and checkpoint retry waits
+
+The handler and checkpoint retry policies receive the batch's cancellation token, including while
+Polly is waiting between attempts. Cancellation interrupts that wait without starting another retry;
+the policy also passes its token to the handler or checkpoint action. A live caller can still recover
+from a transient failure after the configured backoff. This uses the existing policy, without changing
+its retry count, failure classification or delay settings.
+
+Cancellation remains cooperative: a handler or callback that ignores its token can delay completion.
+It does not roll back effects already performed or provide a total end-to-end retry budget. The
+`CdcChangeApplierShould` carried-backoff controls exercise both handler and checkpoint waits with an
+actual Polly retry timer on a per-case virtual clock; they do not establish a SQL outage or shutdown SLA.
+
 ## How it is achieved
 
 - **The per-table barrier belongs to the run.** `CdcChangeApplier.cs:105` creates the failed-table set once

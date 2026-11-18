@@ -267,7 +267,7 @@ public sealed class PostgresDataInventoryTenantTotalityShould : IntegrationTestB
 			// is the point of putting the column check on both paths.
 			AutoCreateSchema = false,
 		}),
-		new PassThroughDataSubjectHasher(),
+		ConformanceDataSubjectHasher.Instance,
 		EnabledTestLogger.Create<PostgresDataInventoryStore>(),
 		// A single-tenant host never receives an ABSENT context: the framework registers its own
 		// single-tenant default, so GetRequiredService always resolves one. Passing null here would
@@ -291,15 +291,5 @@ public sealed class PostgresDataInventoryTenantTotalityShould : IntegrationTestB
 		public string? TenantId { get; } = tenantId;
 
 		public bool HasTenant => !string.IsNullOrWhiteSpace(TenantId);
-	}
-
-	/// <summary>
-	/// Implements <see cref="IDataSubjectHasher"/> directly and inherits no first-party base. Hashing is
-	/// not the property under test, and a stable identity keeps the seeded row findable without making
-	/// the assertion depend on a hash algorithm.
-	/// </summary>
-	private sealed class PassThroughDataSubjectHasher : IDataSubjectHasher
-	{
-		public string HashDataSubjectId(string dataSubjectId) => dataSubjectId;
 	}
 }

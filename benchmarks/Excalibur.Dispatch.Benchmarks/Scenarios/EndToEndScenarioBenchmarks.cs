@@ -40,6 +40,14 @@ namespace Excalibur.Dispatch.Benchmarks.Scenarios;
 /// <item>Scenario 2: Full event sourcing read-modify-write cycle with snapshot</item>
 /// <item>Scenario 3: Full pipeline with middleware, event store, outbox, and transport send</item>
 /// </list>
+/// <para>
+/// Middleware performs simulation work, not production authentication or validation.
+/// Scenario 3 ten-call variants reuse one aggregate ID and expect a new stream on every append:
+/// one append succeeds and later conflicts are ignored while outbox staging and sending continue.
+/// Successful dispatch counts therefore do not establish successful event-append counts.
+/// Snapshot data is synthetic; these methods do not rehydrate an aggregate from persisted state.
+/// Submitted tasks do not establish overlapping execution.
+/// </para>
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -145,8 +153,8 @@ public class EndToEndScenarioBenchmarks
 		_ = services.AddDispatch();
 
 		// Add 2 representative middleware (logging + validation simulation)
-		_ = services.AddMiddleware<TimingMiddleware>();
-		_ = services.AddMiddleware<ValidationSimulationMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, TimingMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, ValidationSimulationMiddleware>();
 
 		_dispatchToOutboxProvider = services.BuildServiceProvider();
 		_dispatchToOutboxDispatcher = _dispatchToOutboxProvider.GetRequiredService<IDispatcher>();
@@ -395,9 +403,9 @@ public class EndToEndScenarioBenchmarks
 		_ = services.AddDispatch();
 
 		// Add middleware pipeline: validation -> auth simulation -> timing
-		_ = services.AddMiddleware<ValidationSimulationMiddleware>();
-		_ = services.AddMiddleware<AuthSimulationMiddleware>();
-		_ = services.AddMiddleware<TimingMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, ValidationSimulationMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, AuthSimulationMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, TimingMiddleware>();
 
 		_fullPipelineProvider = services.BuildServiceProvider();
 		_fullPipelineDispatcher = _fullPipelineProvider.GetRequiredService<IDispatcher>();

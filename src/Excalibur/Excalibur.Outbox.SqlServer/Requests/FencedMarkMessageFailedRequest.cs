@@ -61,6 +61,11 @@ internal sealed class FencedMarkMessageFailedRequest : DataRequestBase<IDbConnec
 	/// <param name="claimIdentity">The claim identity stamped on the row at reservation.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public FencedMarkMessageFailedRequest(
 		string outboxTableName,
 		string fenceTableName,
@@ -140,6 +145,23 @@ internal sealed class FencedMarkMessageFailedRequest : DataRequestBase<IDbConnec
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.QuerySingleAsync<FencedClaimMutationResult>(Command).ConfigureAwait(false);
+			await StaticDbCommand.SingleAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "Scope", StaticDbCommand.Input<string>(Parameters, "Scope"), DbType.String);
+				StaticDbCommand.AddParameter(command, "FencingToken", StaticDbCommand.Input<long>(Parameters, "FencingToken"), DbType.Int64);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "ErrorMessage", StaticDbCommand.Input<string>(Parameters, "ErrorMessage"), DbType.String);
+				StaticDbCommand.AddParameter(command, "RetryCount", StaticDbCommand.Input<int>(Parameters, "RetryCount"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "ClaimIdentity", StaticDbCommand.Input<string>(Parameters, "ClaimIdentity"), DbType.String);
+				StaticDbCommand.AddParameter(command, "LastAttemptAt", StaticDbCommand.Input<DateTimeOffset>(Parameters, "LastAttemptAt"), DbType.DateTimeOffset);
+				if (Parameters.ParameterNames.Contains("NextAttemptDelayMs", StringComparer.Ordinal))
+				{
+					StaticDbCommand.AddParameter(command, "NextAttemptDelayMs", StaticDbCommand.Input<int>(Parameters, "NextAttemptDelayMs"), DbType.Int32);
+				}
+				if (Parameters.ParameterNames.Contains("FloorSeconds", StringComparer.Ordinal))
+				{
+					StaticDbCommand.AddParameter(command, "FloorSeconds", StaticDbCommand.Input<int>(Parameters, "FloorSeconds"), DbType.Int32);
+				}
+			}, static reader => new FencedClaimMutationResult { HighWaterToken = StaticDbValue.Int64(reader, 0), UpdatedCount = StaticDbValue.Int32(reader, 1), RowExists = StaticDbValue.Boolean(reader, 2), IsTerminal = StaticDbValue.Boolean(reader, 3) }).ConfigureAwait(false);
 	}
 }

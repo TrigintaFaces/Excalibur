@@ -4,6 +4,11 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Data.Sharding;
+using Excalibur.EventSourcing.Sharding;
+using Excalibur.EventSourcing.Queries;
+using Excalibur.EventSourcing.SqlServer.DependencyInjection;
+using Excalibur.EventSourcing.SqlServer.Requests;
+using MsOptions = Microsoft.Extensions.Options.Options;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 
@@ -22,9 +27,11 @@ namespace Excalibur.EventSourcing.SqlServer.Sharding;
 /// <see cref="SqlServerEventStore"/> per shard is safe and lightweight.
 /// </para>
 /// </remarks>
-internal sealed class SqlServerTenantEventStoreResolver : ITenantStoreResolver<IEventStore>
+internal sealed class SqlServerTenantEventStoreResolver : ITenantStoreResolver<IEventStore>, ITenantShardReadinessProbe, IDisposable
 {
 	private readonly ITenantShardMap _shardMap;
+	private readonly TenantShardBindingCache _bindings = new();
+	private readonly Func<ShardInfo, ShardReadinessBinding> _bindingFactory;
 	private readonly ILoggerFactory _loggerFactory;
 	private readonly ISerializer? _serializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
@@ -35,7 +42,6 @@ internal sealed class SqlServerTenantEventStoreResolver : ITenantStoreResolver<I
 	/// this resolver builds so a sharded host is reflection-free on the same terms as a single-shard one.
 	/// </summary>
 	private readonly System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? _eventTypeInfoResolver;
-	private readonly ConcurrentDictionary<string, IEventStore> _storeCache = new(StringComparer.Ordinal);
 
 	internal SqlServerTenantEventStoreResolver(
 		ITenantShardMap shardMap,
@@ -50,6 +56,7 @@ internal sealed class SqlServerTenantEventStoreResolver : ITenantStoreResolver<I
 		ArgumentNullException.ThrowIfNull(tenantContext);
 
 		_shardMap = shardMap;
+		_bindingFactory = CreateBinding;
 		_loggerFactory = loggerFactory;
 		_serializer = serializer;
 		_payloadSerializer = payloadSerializer;
@@ -61,15 +68,33 @@ internal sealed class SqlServerTenantEventStoreResolver : ITenantStoreResolver<I
 	public IEventStore Resolve(string tenantId)
 	{
 		var shardInfo = _shardMap.GetShardInfo(tenantId);
-		return _storeCache.GetOrAdd(shardInfo.ShardId, _ => CreateStore(shardInfo));
+		return GetBinding(shardInfo).Store;
 	}
 
-	private IEventStore CreateStore(ShardInfo shardInfo)
+	/// <inheritdoc />
+	public void Dispose() => _bindings.Dispose();
+
+	/// <inheritdoc />
+	public Task ProbeShardAsync(string shardId, CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+
+		return GetBinding(_shardMap.GetShardById(shardId)).Probe(cancellationToken);
+	}
+
+	private ShardReadinessBinding GetBinding(ShardInfo shardInfo) => _bindings.Get(shardInfo, _bindingFactory);
+
+
+	private ShardReadinessBinding CreateBinding(ShardInfo shardInfo) => ShardReadinessBinding.Construct(resources =>
 	{
 		var schema = shardInfo.RequireCoordinate(shardInfo.SchemaName, nameof(ShardInfo.SchemaName));
 		var connectionString = shardInfo.ConnectionString;
+		_ = SqlTableName.Format(schema, "EventStoreEvents");
+		_ = new SqlConnectionStringBuilder(connectionString);
 
-		return new SqlServerEventStore(
+		var reader = new SqlServerGlobalStreamQuery(() => new SqlConnection(connectionString),
+			MsOptions.Create(new SqlServerEventSourcingOptions { EventStoreSchema = schema, EventStoreTable = "EventStoreEvents" }));
+		var store = new SqlServerEventStore(
 				() => new SqlConnection(connectionString),
 				_loggerFactory.CreateLogger<SqlServerEventStore>(),
 				tenantContext: _tenantContext,
@@ -77,5 +102,10 @@ internal sealed class SqlServerTenantEventStoreResolver : ITenantStoreResolver<I
 				payloadSerializer: _payloadSerializer,
 				schema: schema,
 				eventTypeInfoResolver: _eventTypeInfoResolver);
-	}
+
+		return resources.Complete(store, async token =>
+		{
+			_ = await reader.ReadAllAsync(GlobalStreamPosition.Start, 1, token).ConfigureAwait(false);
+		});
+	});
 }

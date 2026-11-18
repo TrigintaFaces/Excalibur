@@ -143,8 +143,11 @@ public static class MessageMetadataExtensions
 			_ = builder.WithSentTimestampUtc(sentTimestamp.Value);
 		}
 
-		// Copy items
-		_ = builder.AddItems(context.Items);
+		// Only the marked values: metadata is serialized and persisted, Items is request-local.
+		foreach (var item in context.GetPropagatedItems())
+		{
+			_ = builder.AddItem(item.Key, item.Value);
+		}
 
 		return builder.Build();
 	}

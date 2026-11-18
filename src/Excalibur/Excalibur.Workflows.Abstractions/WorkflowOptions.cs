@@ -41,9 +41,16 @@ public sealed class WorkflowOptions
 	/// Activity inputs/results and workflow inputs/results are arbitrary consumer types the framework cannot
 	/// source-generate. Set this to a consumer <see cref="System.Text.Json.Serialization.JsonSerializerContext"/>
 	/// (or any <see cref="IJsonTypeInfoResolver"/>) covering those payload types to serialize them without
-	/// reflection under trimming/AOT. When left <see langword="null"/>, payloads serialize with reflection-based
+	/// reflection under trimming/AOT. Prefer the AddWorkflows overload taking the resolver explicitly so the
+	/// registration is annotation-free. On that route a different non-null value here is refused rather than
+	/// silently overriding the explicit selection. On the annotated legacy parameterless registration, the
+	/// last configured resolver is honored; when left <see langword="null"/>, payloads serialize with reflection-based
 	/// <see cref="System.Text.Json.JsonSerializer"/>, which works but is not trim/AOT-safe for unknown types.
 	/// </remarks>
-	/// <value>The consumer payload resolver, or <see langword="null"/> to use the reflection default.</value>
+	/// <value>
+	/// The consumer payload resolver, or <see langword="null"/> for an unspecified options selection.
+	/// The legacy parameterless registration uses reflection when no resolver is configured; a null value
+	/// never downgrades an explicit resolver supplied to the metadata registration overload.
+	/// </value>
 	public IJsonTypeInfoResolver? PayloadTypeInfoResolver { get; set; }
 }

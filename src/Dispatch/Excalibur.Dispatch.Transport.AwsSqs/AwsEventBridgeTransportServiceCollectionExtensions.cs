@@ -42,6 +42,37 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </example>
 public static class AwsEventBridgeTransportServiceCollectionExtensions
 {
+	/// <summary>Registers a caller-owned SDK instance for a named transport and explicitly selects the default SDK client.</summary>
+	/// <param name="services">Service collection being configured before provider construction.</param>
+	/// <param name="name">Named SDK registration to replace.</param>
+	/// <param name="client">Caller-owned instance; the caller remains responsible for disposal.</param>
+	/// <returns>The same collection.</returns>
+	/// <remarks>
+	/// Replaces all matching named SDK and unkeyed SDK descriptors with implementation-instance registrations.
+	/// No factory is invoked. The last explicit call selects the default SDK client only; the default bus
+	/// still belongs to the first configured named transport and resolves its own keyed SDK client.
+	/// Call before or after transport registration, but before constructing the service provider.
+	/// </remarks>
+	public static IServiceCollection AddDefaultAwsEventBridgeSdkClientInstance(this IServiceCollection services,
+		string name, IAmazonEventBridge client)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+		ArgumentNullException.ThrowIfNull(client);
+		for (var index = services.Count - 1; index >= 0; index--)
+		{
+			var descriptor = services[index];
+			if (descriptor.ServiceType == typeof(IAmazonEventBridge)
+				&& (!descriptor.IsKeyedService || Equals(descriptor.ServiceKey, name)))
+			{
+				services.RemoveAt(index);
+			}
+		}
+		services.AddKeyedSingleton<IAmazonEventBridge>(name, client);
+		services.AddSingleton<IAmazonEventBridge>(client);
+		return services;
+	}
+
 	/// <summary>
 	/// The default transport name when none is specified.
 	/// </summary>
@@ -184,13 +215,26 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 			var options = sp.GetRequiredService<IOptionsMonitor<AwsEventBridgeOptions>>().Get(name);
 			var logger = sp.GetRequiredService<ILogger<AwsEventBridgeMessageBus>>();
 
-			return new AwsEventBridgeMessageBus(client, serializer, options, logger);
+			return new AwsEventBridgeMessageBus(client, serializer, options, logger, ownsClient: false);
 		});
 
 		// Unkeyed convenience registrations for the single-transport host. TryAdd*, so the
 		// first-registered named transport wins -- a multi-transport host must resolve the keyed
 		// client/bus by name instead.
-		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<IAmazonEventBridge>(name));
+		if (!services.Any(descriptor => descriptor.ServiceType == typeof(IAmazonEventBridge) && !descriptor.IsKeyedService))
+		{
+			var keyed = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(IAmazonEventBridge)
+				&& descriptor.IsKeyedService && Equals(descriptor.ServiceKey, name));
+			if (keyed?.KeyedImplementationInstance is IAmazonEventBridge instance)
+			{
+				// Constants are not captured for disposal by the default DI container.
+				services.AddSingleton<IAmazonEventBridge>(instance);
+			}
+			else
+			{
+				services.TryAddSingleton(sp => sp.GetRequiredKeyedService<IAmazonEventBridge>(name));
+			}
+		}
 		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<AwsEventBridgeMessageBus>(name));
 	}
 

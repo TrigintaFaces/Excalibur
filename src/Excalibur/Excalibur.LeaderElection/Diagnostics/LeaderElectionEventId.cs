@@ -45,8 +45,11 @@ internal static class LeaderElectionEventId
 	/// <summary>A monotonic fencing token was minted on in-memory leadership acquisition.</summary>
 	public const int InMemoryFencingTokenIssued = 180007;
 
-	/// <summary>In-memory fencing token domain exhausted; leadership relinquished (fail-closed).</summary>
-	public const int InMemoryFencingTokenExhausted = 180008;
+	/// <summary>An in-memory fencing token could not be minted; the resource was given back and leadership relinquished (fail-closed).</summary>
+	public const int InMemoryFencingTokenMintFailed = 180008;
+
+	/// <summary>A cleanup step failed while disposing the in-memory election; disposal continued.</summary>
+	public const int InMemoryDisposalCleanupFailed = 180009;
 
 	// ========================================
 	// 181000-181999: Consul
@@ -124,8 +127,8 @@ internal static class LeaderElectionEventId
 	/// <summary>A monotonic fencing token was minted on Consul leadership acquisition.</summary>
 	public const int ConsulFencingTokenIssued = 181023;
 
-	/// <summary>Consul fencing token domain exhausted; leadership relinquished (fail-closed).</summary>
-	public const int ConsulFencingTokenExhausted = 181024;
+	/// <summary>A Consul fencing token could not be minted; the lock was released and leadership relinquished (fail-closed).</summary>
+	public const int ConsulFencingTokenMintFailed = 181024;
 
 	/// <summary>Consul leadership relinquished locally after the grace period elapsed without a confirmed renewal.</summary>
 	public const int ConsulGracePeriodElapsed = 181025;
@@ -221,6 +224,9 @@ internal static class LeaderElectionEventId
 
 	/// <summary>Kubernetes Lease.spec.leaseTransitions (int32 fencing token) exhausted; leadership relinquished (fail-closed).</summary>
 	public const int KubernetesFencingTokenExhausted = 182105;
+
+	/// <summary>A Kubernetes Lease records no leadership transition, so no strictly-positive fencing token exists; the lease was given back and leadership relinquished (fail-closed).</summary>
+	public const int KubernetesUnusableFencingToken = 182106;
 
 	/// <summary>This instance became the leader.</summary>
 	public const int KubernetesServiceBecameLeader = 182102;

@@ -55,10 +55,11 @@ public sealed class ScheduledMessageReplayAdmissionShould
 		host.Clock.Advance(TimeSpan.FromMilliseconds(1));
 		await following.Task.WaitAsync(TimeSpan.FromSeconds(10));
 		attempts.ShouldBe(1);
-		host.Store.ProgressById[row.Id].ShouldBe(1);
+		host.Store.ProgressById.ContainsKey(row.Id).ShouldBeFalse();
+		host.Store.FailuresById[row.Id].ShouldBe(1);
 		var current = (await host.Store.Inner.GetAllAsync(CancellationToken.None)).Single(item => item.Id == row.Id);
 		current.LastExecutionUtc.ShouldBe(row.LastExecutionUtc);
-		current.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(host.Clock.GetUtcNow());
+		current.NextExecutionUtc.ShouldBe(row.NextExecutionUtc, "failed admitted occurrence stays due");
 		var telemetry = host.Logger.Entries.Single(entry => entry.EventId == DeliveryEventId.ScheduledMissedExecutions
 			&& entry.Values.TryGetValue("MessageId", out var id) && Equals(id, row.Id));
 		telemetry.Values["Count"].ShouldBe(1);
@@ -271,9 +272,12 @@ public sealed class ScheduledMessageReplayAdmissionShould
 		await host.Service.StartAsync(CancellationToken.None);
 		await host.Store.Released.Task.WaitAsync(TimeSpan.FromSeconds(10));
 		host.Store.Acquisitions.ShouldBe(1);
-		host.Store.ProgressWrites.ShouldBe(1);
-		host.Store.ProgressAccepted.ShouldBe((bool?)true);
-		(await host.ReadAsync()).NextExecutionUtc.ShouldBe(host.Clock.GetUtcNow().AddMinutes(1));
+		host.Store.ProgressWrites.ShouldBe(0);
+		host.Store.FailuresById[row.Id].ShouldBe(1);
+		(await host.ReadAsync()).NextExecutionUtc.ShouldBe(row.NextExecutionUtc);
+		var failure = (await host.Store.Inner.GetOccurrenceFailureAsync(row.Id,
+			host.Store.Admitted.Single().Generation, row.NextExecutionUtc!.Value, row.TenantId, CancellationToken.None)).ShouldNotBeNull();
+		failure.Reason.ShouldBe(failedHandler ? ScheduleFailureReason.HandlerFailed : ScheduleFailureReason.UnknownType);
 	}
 
 	[Fact]
@@ -326,6 +330,7 @@ internal sealed class LegacyScheduleWorkerTestHost : IAsyncDisposable
 	public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(3000, 1, 1, 0, 0, 0, TimeSpan.Zero));
 	public LegacyScheduleWorkerTestStore Store { get; } = new();
 	public ScheduleWorkerTestHandler Handler { get; } = new();
+	private readonly ScheduleFixtureFailureAuthority _authority;
 	public ScheduledMessageService Service { get; }
 	public LegacyScheduleWorkerTestHost(int maximum, IScheduleStore? configuredStore = null)
 	{
@@ -340,7 +345,8 @@ internal sealed class LegacyScheduleWorkerTestHost : IAsyncDisposable
 		var options = Microsoft.Extensions.Options.Options.Create(new SchedulerOptions
 			{ PollInterval = TimeSpan.FromSeconds(1), EnableAdaptivePolling = false });
 		var cronOptions = Microsoft.Extensions.Options.Options.Create(new CronScheduleOptions { MaxMissedExecutions = maximum });
-		Service = new ScheduledMessageService(configuredStore ?? Store, _provider.GetRequiredService<IDispatcher>(), Serializer,
+		_authority = new ScheduleFixtureFailureAuthority(configuredStore ?? Store, Clock);
+		Service = new ScheduledMessageService(_authority.RuntimeStore, _provider.GetRequiredService<IDispatcher>(), Serializer,
 			new CronScheduler(cronOptions, NullLogger<CronScheduler>.Instance), options, cronOptions,
 			new ScheduleWorkerTestLogger(), _provider.GetRequiredService<IServiceScopeFactory>(), timeProvider: Clock);
 	}
@@ -370,6 +376,7 @@ internal sealed class LegacyScheduleWorkerTestHost : IAsyncDisposable
 	{
 		await Service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
 		Service.Dispose();
+		_authority.Dispose();
 		await _provider.DisposeAsync();
 	}
 }

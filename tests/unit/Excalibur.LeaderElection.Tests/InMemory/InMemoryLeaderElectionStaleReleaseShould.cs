@@ -132,7 +132,9 @@ public sealed class InMemoryLeaderElectionStaleReleaseShould
 		await leader.StartAsync(CancellationToken.None);
 		leader.IsLeader.ShouldBeTrue();
 
-		await leader.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(leader, relinquished: true);
+        await leader.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		leader.IsLeader.ShouldBeFalse("an unhealthy leader configured to step down must relinquish");
 		lostLeadership.ShouldBe(1, "the step-down must still announce the loss");
@@ -152,8 +154,7 @@ public sealed class InMemoryLeaderElectionStaleReleaseShould
 		await leader.StartAsync(CancellationToken.None);
 		await follower.StartAsync(CancellationToken.None);
 		follower.IsLeader.ShouldBeFalse();
-
-		await follower.StopAsync(CancellationToken.None);
+        await follower.StopAsync(CancellationToken.None);
 		follower.Dispose();
 
 		leader.IsLeader.ShouldBeTrue("a candidate that never led must not evict the incumbent on the way out");

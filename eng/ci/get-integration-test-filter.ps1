@@ -1,7 +1,34 @@
 [CmdletBinding()]
-param([AllowEmptyString()][string]$Leg = '')
+param(
+    [AllowEmptyString()][string]$Leg = '',
+    [AllowEmptyString()][string]$ReleaseVersion = '',
+    [AllowEmptyString()][string]$SolutionFilter = '',
+    [switch]$IncludeDeferredCloudChecks
+)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+function Get-Alpha22KeyVaultScope {
+    param([string]$Version, [string]$Source, [bool]$IncludeCloud, $Metadata)
+    $none = [pscustomobject]@{ suffix = ''; plannedDeferredCount = 0; deferredTests = @(); disposition = 'full-profile' }
+    if ($Version -cne '10.0.0-alpha.22' -or $Source.Replace('\', '/') -cne 'eng/ci/shards/IntegrationTests-Dispatch.slnf' -or $IncludeCloud) { return $none }
+    if ($null -eq $Metadata -or $Metadata.releaseVersion -cne $Version -or
+        $Metadata.solutionFilter -cne 'eng/ci/shards/IntegrationTests-Dispatch.slnf' -or
+        $Metadata.disposition -cne 'deferred-unverified' -or @($Metadata.tests).Count -ne 11) {
+        throw 'Invalid alpha.22 Key Vault disposition metadata.'
+    }
+    $ids = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $prefix = 'Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.'
+    foreach ($test in $Metadata.tests) {
+        $id = [guid]::Empty
+        if (-not [guid]::TryParseExact([string]$test.id, 'D', [ref]$id) -or -not $ids.Add([string]$test.id) -or
+            [string]$test.fullyQualifiedName -cnotmatch ('^' + [regex]::Escape($prefix) + '[A-Za-z_][A-Za-z0-9_]*$') -or
+            -not $names.Add([string]$test.fullyQualifiedName)) { throw 'Invalid or duplicate alpha.22 Key Vault identity.' }
+    }
+    $suffix = (@($Metadata.tests | ForEach-Object { 'FullyQualifiedName!=' + $_.fullyQualifiedName }) -join '&')
+    return [pscustomobject]@{ suffix = $suffix; plannedDeferredCount = 11; deferredTests = @($Metadata.tests); disposition = 'deferred-unverified' }
+}
 $baseFilter = '(Category=Integration|Category=EndToEnd)&Infrastructure!=CosmosEmulator'
 
 # LEG NARROWING. The excalibur suite is one assembly pinned to maxParallelThreads=1 by its
@@ -31,4 +58,17 @@ if ($leg) {
   Write-Host "Leg '$leg' narrows the filter to: $baseFilter"
 }
 
-& (Join-Path $PSScriptRoot "get-test-filter.ps1") -BaseFilter $baseFilter -Mode Exclude -AsJson
+$metadata = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'alpha22-keyvault-unverified.json') -Raw | ConvertFrom-Json
+$scope = Get-Alpha22KeyVaultScope -Version $ReleaseVersion -Source $SolutionFilter -IncludeCloud ([bool]$IncludeDeferredCloudChecks) -Metadata $metadata
+$fullInfo = & (Join-Path $PSScriptRoot 'get-test-filter.ps1') -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
+$result = [ordered]@{}
+foreach ($property in $fullInfo.PSObject.Properties) { $result[$property.Name] = $property.Value }
+$result['fullFilter'] = $fullInfo.filter
+if ($scope.plannedDeferredCount -gt 0) { $result['filter'] = '(' + $fullInfo.filter + ')&' + $scope.suffix }
+$result['releaseVersion'] = $ReleaseVersion
+$result['solutionFilter'] = $SolutionFilter
+$result['disposition'] = $scope.disposition
+$result['plannedDeferredCount'] = $scope.plannedDeferredCount
+$result['deferredTests'] = $scope.deferredTests
+# Planned selection is not an execution count: actual SDK census/result evidence must establish the partition.
+$result | ConvertTo-Json -Depth 8 -Compress

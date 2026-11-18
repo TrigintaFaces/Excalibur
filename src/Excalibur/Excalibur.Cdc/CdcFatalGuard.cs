@@ -42,7 +42,7 @@ public static class CdcFatalGuard
     /// </param>
     /// <returns>
     /// On success (<paramref name="exception"/> is <see langword="null"/>) → advance + continue.
-    /// On a fatal fault → do NOT advance, stop. On a transient fault → do NOT advance, reconnect.
+    /// On a fatal or unknown fault → do NOT advance, stop for review. On a transient fault → do NOT advance, reconnect.
     /// </returns>
     public static CdcFatalDecision Decide(Exception? exception, IMessageFailureClassifier? classifier)
     {

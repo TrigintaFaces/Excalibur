@@ -78,6 +78,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      - name: Test performance evidence reporting
+        shell: pwsh
+        run: |
+          ./eng/ci/perf-report.test.ps1 -Output "$env:RUNNER_TEMP/perf-report-controls"
+
       - name: Restore performance test shard
         shell: bash
         run: bash ./build.sh --restore --project eng/ci/shards/PerformanceTests.slnf
@@ -97,7 +102,7 @@ jobs:
         # executed zero tests, so the wrapper refuses a run with no executed count rather than letting
         # a typo'd or stale filter report success.
         run: |
-          bash eng/ci/run-filtered-tests.sh --filter "Category=Performance" -- \
+          bash eng/ci/run-filtered-tests.sh --minimum-executed-tests 1 --filter "Category=Performance" -- \
             eng/ci/shards/PerformanceTests.slnf --configuration Release --no-build \
             --blame-hang-timeout 10m --logger "trx;LogFilePrefix=performance-tests" \
             --logger "console;verbosity=minimal" \
@@ -266,6 +271,7 @@ jobs:
           & dotnet $benchmarkArgs
 
       - name: Upload benchmark results
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: hot-path-results-${{ matrix.os }}
@@ -337,6 +343,7 @@ jobs:
                --artifacts ./BenchmarkDotNet.Artifacts
 
       - name: Upload memory benchmark results
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: memory-benchmark-results
@@ -430,6 +437,7 @@ jobs:
                --artifacts ./ThroughputBenchmarks
 
       - name: Upload throughput results
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: throughput-benchmark-results
@@ -467,7 +475,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     needs: [hot-path-benchmarks, memory-benchmarks, throughput-benchmarks]
-    if: always() && needs.hot-path-benchmarks.result == 'success'
+    if: always()
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -477,158 +485,37 @@ jobs:
         with:
           path: benchmark-results
 
-      - name: Setup Python for analysis
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.11"
-
-      - name: Install analysis tools
+      - name: Report benchmark evidence
+        if: always()
+        shell: pwsh
+        env:
+          HOT_PATH_STATUS: ${{ needs.hot-path-benchmarks.result }}
+          MEMORY_STATUS: ${{ needs.memory-benchmarks.result }}
+          THROUGHPUT_STATUS: ${{ needs.throughput-benchmarks.result }}
+          SOURCE_REVISION: ${{ github.sha }}
         run: |
-          pip install pandas matplotlib seaborn numpy jinja2
-
-      - name: Analyze benchmark results
-        shell: python
-        run: |
-          import json
-          import os
-          import pandas as pd
-          import matplotlib.pyplot as plt
-          import seaborn as sns
-          from pathlib import Path
-
-          print("🔍 Analyzing benchmark results...")
-
-          results = []
-
-          # Process all JSON results
-          for root, dirs, files in os.walk("benchmark-results"):
-              for file in files:
-                  if file.endswith("-report.json") and "results" in root:
-                      with open(os.path.join(root, file), 'r') as f:
-                          try:
-                              data = json.load(f)
-                              if 'Benchmarks' in data:
-                                  for benchmark in data['Benchmarks']:
-                                      results.append({
-                                          'Method': benchmark.get('Method', 'Unknown'),
-                                          'Mean': float(benchmark['Statistics']['Mean']) if 'Statistics' in benchmark else 0,
-                                          'StdDev': float(benchmark['Statistics']['StandardDeviation']) if 'Statistics' in benchmark else 0,
-                                          'Platform': 'linux' if 'ubuntu' in root else 'windows',
-                                          'Category': 'HotPath' if 'hotpath' in file.lower() else 'Other'
-                                      })
-                          except Exception as e:
-                              print(f"Error processing {file}: {e}")
-
-          if results:
-              df = pd.DataFrame(results)
-              print(f"✅ Processed {len(results)} benchmark results")
-
-              # Generate summary report
-              summary = {
-                  'total_benchmarks': len(results),
-                  'platforms': df['Platform'].unique().tolist(),
-                  'hot_path_count': len(df[df['Category'] == 'HotPath']),
-                  'average_performance': df['Mean'].mean(),
-                  'performance_std': df['StdDev'].mean()
-              }
-
-              # Save summary
-              Path("analysis").mkdir(exist_ok=True)
-              with open("analysis/performance-summary.json", 'w') as f:
-                  json.dump(summary, f, indent=2)
-
-              print("📊 Performance Summary:")
-              print(f"  Total Benchmarks: {summary['total_benchmarks']}")
-              print(f"  Hot Path Benchmarks: {summary['hot_path_count']}")
-              print(f"  Average Performance: {summary['average_performance']:.2f} ns")
-              print(f"  Performance Std Dev: {summary['performance_std']:.2f} ns")
-          else:
-              print("⚠️ No benchmark results found")
-
-      - name: Generate performance report
-        run: |
-          echo "📈 Generating performance report..."
-
-          cat << EOF > performance-report.md
-          # 🚀 Performance Benchmark Report
-
-          ## Executive Summary
-
-          This report contains performance benchmark results for Excalibur.Dispatch.
-
-          EOF
-
-          if [ -f "analysis/performance-summary.json" ]; then
-            TOTAL=$(jq -r '.total_benchmarks' analysis/performance-summary.json)
-            HOT_PATH=$(jq -r '.hot_path_count' analysis/performance-summary.json)
-            AVG_PERF=$(jq -r '.average_performance' analysis/performance-summary.json)
-
-            cat << EOF >> performance-report.md
-          ### Key Metrics
-
-          - **Total Benchmarks Executed:** $TOTAL
-          - **Hot Path Benchmarks:** $HOT_PATH
-          - **Average Performance:** ${AVG_PERF} nanoseconds
-          - **Platforms Tested:** Linux, Windows
-
-          ### Performance Highlights
-
-          - ✅ All hot path benchmarks completed successfully
-          - 🎯 Performance targets maintained for critical operations
-          - 📊 Memory allocation patterns optimized
-          - 🚀 Throughput benchmarks validate scalability
-
-          EOF
-          fi
-
-          cat << EOF >> performance-report.md
-          ### Optimization Impact
-
-          Recent optimizations have delivered measurable improvements:
-
-          - **String Encoding Cache:** 5-8% CPU improvement in serialization paths
-          - **Dictionary Pooling:** 5-8% reduction in allocations
-          - **Batch Channel Reading:** 3-5% improvement in message processing
-          - **ArrayPool Tuning:** 2-3% reduction in memory allocations
-          - **Delegate Caching:** 2-3% reduction in boxing allocations
-
-          ### Recommendations
-
-          1. Continue monitoring hot path performance in CI/CD
-          2. Maintain memory allocation patterns below thresholds
-          3. Regular performance regression testing
-          4. Consider additional optimizations for high-throughput scenarios
-
-          ---
-          *Generated on $(date)*
-          EOF
+          ./eng/ci/perf-report.ps1 -ResultsPath benchmark-results -Output analysis `
+            -SourceRevision $env:SOURCE_REVISION -HotPathStatus $env:HOT_PATH_STATUS `
+            -MemoryStatus $env:MEMORY_STATUS -ThroughputStatus $env:THROUGHPUT_STATUS
 
       - name: Upload performance analysis
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: performance-analysis
-          path: |
-            analysis/
-            performance-report.md
+          path: analysis/
+          if-no-files-found: error
           retention-days: 90
 
       - name: Performance summary
+        if: always()
+        shell: bash
         run: |
-          echo "# 🏁 Performance Benchmark Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f "analysis/performance-summary.json" ]; then
-            TOTAL=$(jq -r '.total_benchmarks' analysis/performance-summary.json)
-            HOT_PATH=$(jq -r '.hot_path_count' analysis/performance-summary.json)
-
-            echo "## Results Overview" >> $GITHUB_STEP_SUMMARY
-            echo "- **Total Benchmarks:** $TOTAL" >> $GITHUB_STEP_SUMMARY
-            echo "- **Hot Path Tests:** $HOT_PATH" >> $GITHUB_STEP_SUMMARY
-            echo "- **Platforms:** Linux, Windows" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## Status" >> $GITHUB_STEP_SUMMARY
-            echo "✅ All benchmark suites completed successfully" >> $GITHUB_STEP_SUMMARY
+          if [ -f analysis/performance-report.md ]; then
+            cat analysis/performance-report.md >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "⚠️ Performance analysis data not available" >> $GITHUB_STEP_SUMMARY
+            echo 'Performance evidence report unavailable; no performance claim can be made.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
 
   # Update baselines (only on main branch)
@@ -651,24 +538,20 @@ jobs:
           path: current-results
 
       - name: Update baseline files
+        shell: bash
         run: |
-          echo "📊 Updating performance baselines..."
-
-          # Create baselines directory if it doesn't exist
-          mkdir -p benchmarks/baselines
-
-          # Copy current results as new baselines
-          if [ -d "current-results/results" ]; then
-            cp current-results/results/*-report.json benchmarks/baselines/ || true
-
-            # Update timestamp
-            echo "$(date -u)" > benchmarks/baselines/last-updated.txt
-
-            echo "✅ Baselines updated successfully"
-          else
-            echo "❌ No results found to use as baselines"
+          set -euo pipefail
+          pwsh -NoProfile -File ./eng/ci/perf-regression-check.ps1 \
+            -ResultsPath current-results/results -RequireResultsOnly
+          shopt -s nullglob
+          reports=(current-results/results/*-report*.json)
+          if [ "${#reports[@]}" -eq 0 ]; then
+            echo 'No validated report files available for baseline update.'
             exit 1
           fi
+          mkdir -p benchmarks/baselines
+          cp -- "${reports[@]}" benchmarks/baselines/
+          date -u > benchmarks/baselines/last-updated.txt
 
       - name: Commit baseline updates
         run: |

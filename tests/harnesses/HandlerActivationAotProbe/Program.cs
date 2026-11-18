@@ -20,7 +20,7 @@ internal static class Program
 
     public static async Task Main()
     {
-        Check(!RuntimeFeature.IsDynamicCodeSupported, "Probe must execute as actual NativeAOT");
+        Check(!RuntimeFeature.IsDynamicCodeSupported, "dynamic code must be disabled; a native result requires running the published native executable");
         var property = new PropertyHandler();
         var privateSetter = new PrivateSetterHandler();
         var inherited = new InheritedHandler();
@@ -85,9 +85,49 @@ internal static class Program
             var handler = Activate<TransientHandler>(transientProvider, context);
             Check(ReferenceEquals(handler.Context, context) && handler.SetterCalls == 1, "Concurrent transient context binding");
         });
+        VerifyPooledMetadata();
         await VerifyFullDispatchAsync().ConfigureAwait(false);
         await VerifyLateDispatchRegistrationAsync().ConfigureAwait(false);
         Console.WriteLine($"NativeAOT handler activation passed: checks={_checks}, dynamicCodeSupported={RuntimeFeature.IsDynamicCodeSupported}");
+    }
+
+    private static void VerifyPooledMetadata()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAotEventSerializer(ProbeJsonContext.Default);
+        services.AddDispatch(static _ => { });
+        using var provider = services.BuildServiceProvider();
+        var pool = provider.GetRequiredService<IMessageContextPool>();
+        var context = pool.Rent();
+        try
+        {
+            context.SetMessageType("native-query");
+            context.MarkMessageTypeAsRoutingDefault();
+            Check(context.GetMessageType() == "native-query" && context.IsMessageTypeRoutingDefault(), "Pooled native metadata");
+            context.SetMessageType(null);
+            Check(context.ContainsItem("__MessageType") && context.GetItem("__MessageType", "fallback") == "fallback", "Pooled explicit-null presence");
+            context.RemoveItem("__MessageType");
+            Check(!context.ContainsItem("__MessageType") && context.IsMessageTypeRoutingDefault(), "Independent pooled metadata removal");
+            context.SetMessageType("native-query");
+            Check((string)context.Items["__MessageType"] == "native-query", "Pooled metadata materialization");
+            context.Items["__MessageType"] = "changed";
+            Check(context.GetMessageType() == "changed", "Materialized dictionary remains authoritative");
+        }
+        finally
+        {
+            pool.ReturnToPool(context);
+        }
+        var recycled = pool.Rent();
+        try
+        {
+            Check(ReferenceEquals(context, recycled), "Pooled native context recycled");
+            Check(recycled.GetMessageType() is null && !recycled.IsMessageTypeRoutingDefault() && recycled.Items.Count == 0, "Pooled native reset clears metadata");
+        }
+        finally
+        {
+            pool.ReturnToPool(recycled);
+        }
     }
 
     private static async Task VerifyFullDispatchAsync()

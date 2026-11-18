@@ -48,27 +48,53 @@ public class OutboxBackpressureLoadTest
 	[GlobalSetup]
 	public async Task GlobalSetup()
 	{
-		_sqlContainer = new MsSqlBuilder()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")
-			.Build();
-
-		await _sqlContainer.StartAsync().ConfigureAwait(false);
-		_connectionString = _sqlContainer.GetConnectionString();
-
-		await SqlServerBenchmarkSchema.CreateOutboxAsync(_sqlContainer).ConfigureAwait(false);
-
-		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerOutboxOptions
+		try
 		{
-			ConnectionString = _connectionString,
-			Tables =
+			// Optional ownership metadata lets a bounded parent recover resources even
+			// when this process exits before its setup/cleanup logs are flushed.
+			var ownerToken = Environment.GetEnvironmentVariable("DISPATCH_BENCHMARK_OWNER_TOKEN");
+			if (ownerToken is not null && (ownerToken.Length != 32 ||
+				ownerToken.Any(character => character is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))))
 			{
-				SchemaName = "dbo",
-				OutboxTableName = "OutboxMessages",
-				TransportsTableName = "OutboxMessageTransports",
-			},
-		});
-		var logger = NullLoggerFactory.Instance.CreateLogger<SqlServerOutboxStore>();
-		_outboxStore = new SqlServerOutboxStore(options, logger);
+				throw new InvalidOperationException("DISPATCH_BENCHMARK_OWNER_TOKEN must be 32 lowercase hexadecimal characters.");
+			}
+
+			var builder = new MsSqlBuilder()
+				.WithImage("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")
+				.WithCreateParameterModifier(parameters => parameters.HostConfig.Memory = 4L * 1024 * 1024 * 1024);
+			if (ownerToken is not null)
+			{
+				builder = builder.WithLabel("dispatch.benchmark.owner", ownerToken)
+					.WithLabel("dispatch.benchmark.fixture", nameof(OutboxBackpressureLoadTest));
+			}
+
+			_sqlContainer = builder.Build();
+
+			using var startupDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+			await _sqlContainer.StartAsync(startupDeadline.Token).ConfigureAwait(false);
+			_connectionString = _sqlContainer.GetConnectionString();
+
+			await SqlServerBenchmarkSchema.CreateOutboxAsync(_sqlContainer).ConfigureAwait(false);
+
+			var options = Microsoft.Extensions.Options.Options.Create(new SqlServerOutboxOptions
+			{
+				ConnectionString = _connectionString,
+				Tables =
+				{
+					SchemaName = "dbo",
+					OutboxTableName = "OutboxMessages",
+					TransportsTableName = "OutboxMessageTransports",
+				},
+			});
+			var logger = NullLoggerFactory.Instance.CreateLogger<SqlServerOutboxStore>();
+			_outboxStore = new SqlServerOutboxStore(options, logger);
+		}
+		catch (Exception setupFailure)
+		{
+			try { await GlobalCleanup().ConfigureAwait(false); }
+			catch (Exception cleanupFailure) { setupFailure.Data["BenchmarkCleanupFailure"] = cleanupFailure; }
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -77,9 +103,13 @@ public class OutboxBackpressureLoadTest
 	[GlobalCleanup]
 	public async Task GlobalCleanup()
 	{
-		if (_sqlContainer != null)
+		var container = _sqlContainer;
+		_sqlContainer = null;
+		_outboxStore = null;
+		_connectionString = null;
+		if (container != null)
 		{
-			await _sqlContainer.DisposeAsync().ConfigureAwait(false);
+			await container.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 		}
 	}
 

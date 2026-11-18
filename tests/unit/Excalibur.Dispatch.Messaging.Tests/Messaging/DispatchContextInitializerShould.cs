@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics;
@@ -265,39 +265,45 @@ public sealed class DispatchContextInitializerShould
 	}
 
 	[Fact]
-	public void CreateFromHeaders_CopiesAllHeadersToItems()
+	public void CreateFromHeaders_CopiesNoHeaderItWasNotAskedFor()
 	{
-		// Arrange
+		// This arm asserted the opposite: that EVERY supplied header landed in Items. That was the
+		// defect. The method's name invites being handed a request's headers, and a context item is put
+		// on the wire by every remote transport and persisted by one outbox provider -- so the caller's
+		// credentials travelled with the message.
 		var headers = new Dictionary<string, string?>
 		{
 			["X-Custom-Header"] = "custom-value",
-			["X-Another-Header"] = "another-value",
+			["Authorization"] = "Bearer a-caller-token",
+			["Cookie"] = "session=a-caller-session",
 		};
 
-		// Act
 		var context = DispatchContextInitializer.CreateFromHeaders(headers);
 
-		// Assert
-		context.Items.ShouldContainKey("X-Custom-Header");
-		context.Items["X-Custom-Header"].ShouldBe("custom-value");
-		context.Items.ShouldContainKey("X-Another-Header");
-		context.Items["X-Another-Header"].ShouldBe("another-value");
+		context.Items.ShouldNotContainKey("X-Custom-Header");
+		context.Items.ShouldNotContainKey("Authorization");
+		context.Items.ShouldNotContainKey("Cookie");
 	}
 
 	[Fact]
-	public void CreateFromHeaders_WithNullHeaderValue_UsesEmptyString()
+	public void CreateFromHeaders_StillReadsTheContextFieldsItDefines()
 	{
-		// Arrange
+		// The liveness half. Every assertion above is satisfied by a factory that reads nothing at all,
+		// which would silently drop correlation and tenancy -- the fields this method exists for.
 		var headers = new Dictionary<string, string?>
 		{
-			["X-Null-Header"] = null,
+			["X-Correlation-ID"] = "corr-1",
+			["X-Causation-ID"] = "cause-1",
+			["X-Tenant-ID"] = "tenant-1",
+			["Authorization"] = "Bearer a-caller-token",
 		};
 
-		// Act
 		var context = DispatchContextInitializer.CreateFromHeaders(headers);
 
-		// Assert
-		context.Items["X-Null-Header"].ShouldBe(string.Empty);
+		context.CorrelationId.ShouldBe("corr-1");
+		context.CausationId.ShouldBe("cause-1");
+		context.GetTenantId().ShouldBe("tenant-1");
+		context.Items.ShouldNotContainKey("Authorization");
 	}
 
 	#endregion
@@ -426,8 +432,10 @@ public sealed class DispatchContextInitializerShould
 		var headerContext = DispatchContextInitializer.CreateFromHeaders(headers);
 		var metadataContext = DispatchContextInitializer.CreateFromMetadata(metadata);
 
-		// Assert
-		headerContext.Items["X-Test"].ShouldBe("header-value");
+		// Assert. The header factory no longer copies arbitrary headers; the metadata factory still
+		// restores arbitrary metadata, because that metadata is what this framework itself persisted
+		// rather than something a caller sent us.
+		headerContext.Items.ShouldNotContainKey("X-Test");
 		metadataContext.Items["TestKey"].ShouldBe("metadata-value");
 	}
 

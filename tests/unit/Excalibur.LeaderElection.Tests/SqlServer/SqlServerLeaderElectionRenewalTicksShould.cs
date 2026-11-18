@@ -1,55 +1,46 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Reflection;
-
 using Excalibur.LeaderElection.SqlServer;
-
-using Shouldly;
-
-using Xunit;
 
 namespace Excalibur.LeaderElection.Tests.SqlServer;
 
-/// <summary>
-/// Author≠impl regression lock for S850 Lane E · <c>a58yu6</c> (torn cross-thread read of the
-/// last-successful-renewal timestamp on <see cref="SqlServerLeaderElection"/>).
-/// </summary>
-/// <remarks>
-/// Authored by FrontendDeveloper (did NOT implement the fix — independence per
-/// <c>issue-remediation-protocol</c>) against the frozen GUIDE seam (msg 15508, decision #4): the renewal
-/// loop reads the timestamp lock-free while <c>BecomeLeader</c> writes it under <c>_lock</c>, so a multi-field
-/// <see cref="DateTimeOffset"/> would tear. The fix stores it as a single 64-bit <see cref="long"/> of UTC
-/// ticks accessed via <see cref="Interlocked"/>. Structural conformance lock (deterministic), mirroring the
-/// sibling <c>SqlServerLeaderElectionVolatileShould</c> — a behavioral torn-read test cannot be made
-/// deterministic. <b>RED on the pre-fix surface</b> (the <c>long</c> ticks field is absent; the
-/// <see cref="DateTimeOffset"/> field is present); GREEN on the fix.
-/// </remarks>
+/// <summary>Monotonic proof behavior replaces assertions about removed timestamp storage fields.</summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait("Component", "LeaderElection")]
+[Trait("Pattern", "Regression")]
 public sealed class SqlServerLeaderElectionRenewalTicksShould
 {
-	[Fact]
-	public void StoreLastSuccessfulRenewalAsAnInterlockedLongTicksField()
-	{
-		var ticksField = typeof(SqlServerLeaderElection)
-			.GetField("_lastSuccessfulRenewalTicks", BindingFlags.NonPublic | BindingFlags.Instance);
+    [Fact]
+    public async Task KeepTheProofBudgetIndependentOfUtcClockSteps()
+    {
+        await using var fixture = new SqlServerTenureHarness();
+        fixture.Verify = (_, _) => Task.FromResult(SqlServerSessionProof.Indeterminate);
+        var lost = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Sut.LostLeadership += (_, _) => lost.TrySetResult();
+        await fixture.StartAsync();
+        await fixture.Clock.WaitForDelayAsync(TimeSpan.FromSeconds(5), 1);
+        fixture.Clock.UtcOffset = TimeSpan.FromHours(-12);
+        fixture.Clock.Advance(TimeSpan.FromSeconds(5));
+        await fixture.Clock.WaitForDelayAsync(TimeSpan.FromSeconds(2), 1);
+        fixture.Sut.IsLeader.ShouldBeTrue();
+        fixture.Clock.Advance(TimeSpan.FromSeconds(5));
+        await lost.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        fixture.Sut.IsLeader.ShouldBeFalse();
+        fixture.Sut.CurrentLeadership.ShouldBeNull();
+    }
 
-		ticksField.ShouldNotBeNull(
-			"a58yu6: the last-successful-renewal timestamp must be a single 64-bit field accessed via " +
-			"Interlocked.Read/Exchange — a multi-field DateTimeOffset tears when the renewal loop reads it " +
-			"lock-free while BecomeLeader writes it under _lock.");
-		ticksField.FieldType.ShouldBe(typeof(long));
-	}
-
-	[Fact]
-	public void NotRetainTheTornMultiFieldDateTimeOffsetRepresentation()
-	{
-		var legacyField = typeof(SqlServerLeaderElection)
-			.GetField("_lastSuccessfulRenewal", BindingFlags.NonPublic | BindingFlags.Instance);
-
-		legacyField.ShouldBeNull(
-			"the pre-fix DateTimeOffset _lastSuccessfulRenewal (the torn representation) must be removed in " +
-			"favour of the Interlocked long ticks field.");
-	}
+    [Fact]
+    public async Task RefreshOnlyTheMonotonicProofWhileKeepingTheOriginalAcquiredSnapshot()
+    {
+        await using var fixture = new SqlServerTenureHarness();
+        await fixture.StartAsync();
+        var original = fixture.Sut.CurrentLeadership.ShouldNotBeNull();
+        await fixture.Clock.WaitForDelayAsync(TimeSpan.FromSeconds(5), 1);
+        fixture.Clock.UtcOffset = TimeSpan.FromHours(12);
+        fixture.Clock.Advance(TimeSpan.FromSeconds(5));
+        await fixture.Clock.WaitForDelayAsync(TimeSpan.FromSeconds(5), 2);
+        fixture.Sut.CurrentLeadership.ShouldNotBeNull().ShouldBe(original);
+        fixture.Sessions.Single().VerificationStarts.Count.ShouldBe(1);
+    }
 }

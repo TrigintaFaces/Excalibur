@@ -291,6 +291,8 @@ private sealed class TestShardDiEvent : IDomainEvent
 		public ShardInfo GetShardInfo(string tenantId) =>
 			_map.TryGetValue(tenantId, out var info) ? info : throw new TenantShardNotFoundException(tenantId);
 
+		public ShardInfo GetShardById(string shardId) => _map.Values.FirstOrDefault(info => string.Equals(info.ShardId, shardId, StringComparison.Ordinal)) ?? throw new KeyNotFoundException(shardId);
+
 		public IReadOnlyCollection<string> GetRegisteredShardIds() =>
 			_map.Values.Select(static s => s.ShardId).Distinct().ToList();
 	}

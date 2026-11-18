@@ -48,4 +48,25 @@ public sealed class CloudEventTransportOptions
 	/// </value>
 	public int CompressionThreshold { get; set; } = 1024 * 1024; // 1MB
 
+	/// <summary>
+	/// Gets or sets the maximum length, in bytes, that an inbound compressed CloudEvent may occupy once
+	/// decompressed, or <see langword="null"/> to opt out of the limit.
+	/// </summary>
+	/// <value>
+	/// The maximum decompressed length in bytes. Defaults to 4 MiB, matching the framework-wide inbound
+	/// payload default. Raise it for larger legitimate payloads.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// This bounds the <em>output</em> of decompression, which is a different quantity from the inbound
+	/// size the receiver already checks. The compression ratio is chosen by whoever sent the message, so a
+	/// payload small enough to accept on the wire can still declare or expand to an arbitrarily large
+	/// buffer; without an output bound, a few hundred bytes of input names the allocation.
+	/// </para>
+	/// <para>
+	/// An over-limit payload is <strong>rejected</strong>, never truncated — a partially decompressed body
+	/// would be handed to a deserializer as though it were the whole message.
+	/// </para>
+	/// </remarks>
+	public int? MaxDecompressedBytes { get; set; } = PayloadSizeGuard.DefaultMaxPayloadBytes;
 }

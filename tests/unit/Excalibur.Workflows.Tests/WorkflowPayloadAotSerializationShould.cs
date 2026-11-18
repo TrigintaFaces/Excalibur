@@ -6,7 +6,6 @@ using System.Text.Json.Serialization;
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 
-using Microsoft.Extensions.Options;
 
 namespace Excalibur.Workflows.Tests;
 
@@ -65,8 +64,7 @@ public sealed class WorkflowPayloadAotSerializationShould
         services.AddSingleton<IEventStore>(sp => sp.GetRequiredKeyedService<IEventStore>("inmemory"));
         services.AddSingleton<IEventSerializer>(new JsonEventSerializer());
 
-        services.AddWorkflows();
-        services.Configure<WorkflowOptions>(o => o.PayloadTypeInfoResolver = payloadContext);
+        services.AddWorkflows(payloadContext);
         services.AddWorkflow(WorkflowName, async (context, input, cancellationToken) =>
             await context.CallActivityAsync<EchoPayload>(ActivityName, input, cancellationToken));
         services.AddActivity<EchoActivity, EchoPayload, EchoPayload>(ActivityName);
@@ -78,42 +76,6 @@ public sealed class WorkflowPayloadAotSerializationShould
     {
         public ValueTask<EchoPayload> ExecuteAsync(EchoPayload input, CancellationToken cancellationToken) =>
             ValueTask.FromResult(input);
-    }
-}
-
-/// <summary>
-/// Regression lock for the AOT scoped-claim honesty gap (7xd0zj, S878 REVIEW_ARCH F1). The assembly declares
-/// <c>IsAotCompatible=true</c> and the reflection-default payload path carries an unconditional IL2026/IL3050
-/// suppression; that is only honest if the reflection path is unreachable under native AOT. This lock proves
-/// the reflection default fails LOUD and actionably when dynamic code is unsupported (instead of a silent /
-/// opaque deep-STJ failure), while remaining usable under JIT. The <c>dynamicCodeSupported</c> capability is
-/// injected because <see cref="System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported"/> cannot
-/// be flipped in-process.
-/// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Workflows")]
-public sealed class WorkflowPayloadAotHonestyGuardShould
-{
-    [Fact]
-    public void ThrowActionable_WhenNoResolverAndDynamicCodeUnsupported()
-    {
-        // RED on the pre-fix code: it returned bare options (silent) instead of failing loud.
-        var ex = Should.Throw<NotSupportedException>(() =>
-            WorkflowPayloadSerializer.CreateOptions(consumerPayloadResolver: null, dynamicCodeSupported: false));
-
-        ex.Message.ShouldContain("PayloadTypeInfoResolver");
-        ex.Message.ShouldContain("AOT");
-    }
-
-    [Fact]
-    public void ReturnReflectionDefault_WhenNoResolverAndDynamicCodeSupported()
-    {
-        // JIT path preserved: reflection default still available when dynamic code is supported.
-        var options = WorkflowPayloadSerializer.CreateOptions(
-            consumerPayloadResolver: null, dynamicCodeSupported: true);
-
-        options.ShouldNotBeNull();
-        WorkflowPayloadSerializer.Serialize(new EchoPayload("hi", 1), options).ShouldContain("hi");
     }
 }
 

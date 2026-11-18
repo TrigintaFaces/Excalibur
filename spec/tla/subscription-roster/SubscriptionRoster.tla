@@ -5,7 +5,7 @@
    Current lifetime/read correspondence is modelled separately in
    BindingLifetime.tla; do not cite a historical passing arm as its proof. *)
 (***************************************************************************)
-(* SCOPE -- read this before citing any result from this model.             *)
+(* SCOPE: read this before citing any result from this model.               *)
 (*                                                                          *)
 (* STATUS: a DRAFT until TLC says otherwise, and a pass here is NOT a claim  *)
 (* that R4 is discharged for the subscription-roster seam. R4 remains        *)

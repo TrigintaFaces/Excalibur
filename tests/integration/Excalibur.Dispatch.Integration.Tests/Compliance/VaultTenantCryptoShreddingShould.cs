@@ -102,13 +102,42 @@ public sealed class VaultTenantCryptoShreddingShould(VaultContainerFixture fixtu
             }, CancellationToken.None);
             var result = await scope.ServiceProvider.GetRequiredService<IErasureExecutor>()
                 .ExecuteAsync(request.RequestId, CancellationToken.None);
-            result.KeysDeleted.ShouldBe(1, $"Vault erasure failed: {result.ErrorMessage}");
+            // TWO, NOT ONE, AND THE SECOND KEY IS REAL. This subject has its personal data under two
+            // handles for tenant-a: the encrypted event field written above sits inside an AGGREGATE, so
+            // the write path scopes it to a per-obligation-class handle, and the explicit
+            // GetOrCreateKeyAsync below it asks for RetentionScope.NotInAnAggregate, which is the plain
+            // subject handle. Those are two distinct keys and the erasure destroys both.
+            //
+            // This assertion read ShouldBe(1) while the write path widened only for a DECLARED aggregate
+            // type -- then both writes landed on the plain handle and there was one key to destroy. That
+            // derivation was refuted (a retention declared later bound two obligations to one key with
+            // opposite required values), so the handle is now per-class unconditionally and the erasure
+            // enumerates a durable mint ledger to find them. Destroying 2 here is the mechanism working:
+            // under the old shape the aggregate's field shared a key with everything else this subject
+            // owned.
+            result.KeysDeleted.ShouldBe(2, $"Vault erasure failed: {result.ErrorMessage}");
             result.Success.ShouldBeTrue(result.ErrorMessage);
             var status = await erasure.GetStatusAsync(request.RequestId, CancellationToken.None);
             status.ShouldNotBeNull().Status.ShouldBe(ErasureRequestStatus.Completed);
             var certificate = await erasure.GenerateCertificateAsync(request.RequestId, CancellationToken.None);
             certificate.Payload.Verification.Verified.ShouldBeTrue();
-            certificate.Payload.Verification.DeletedKeyIds.ShouldBe([keyA.KeyId]);
+            // BOTH HANDLES, AND IGNORING ORDER BECAUSE THE CONTRACT GIVES NONE. The mint ledger's
+            // enumeration is documented as unordered, so pinning a sequence here would bind an accident of
+            // one provider's query plan. keyA.KeyId is the plain subject handle; the other is the
+            // per-obligation-class handle the encrypted event field was written under, which carries the
+            // aggregate type's 16-hex discriminator. This assertion named only the plain handle while the
+            // write path widened just for DECLARED types -- both writes shared one key then, and the
+            // certificate had one id to name.
+            certificate.Payload.Verification.DeletedKeyIds.ShouldContain(keyA.KeyId);
+            certificate.Payload.Verification.DeletedKeyIds.Count.ShouldBe(
+                2,
+                "this subject's data sits under the plain handle and under the per-class handle for the "
+                + "aggregate its encrypted event field belongs to, so an honest certificate names both. "
+                + "Naming one would report an erasure narrower than the one performed.");
+            certificate.Payload.Verification.DeletedKeyIds
+                .ShouldContain(h => h.StartsWith(keyA.KeyId + "-", StringComparison.Ordinal),
+                    "the second id must be the per-class handle derived from the plain one, not an "
+                    + "unrelated key.");
             ErasureCertificateVerifier.Verify(certificate,
                 provider.GetRequiredService<IOptions<ErasureOptions>>().Value.Retention.SigningKey)
                 .ShouldBe(ErasureCertificateVerificationResult.Verified);

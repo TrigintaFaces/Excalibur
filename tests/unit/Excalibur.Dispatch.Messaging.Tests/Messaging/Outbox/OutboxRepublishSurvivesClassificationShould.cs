@@ -48,7 +48,7 @@ public sealed class OutboxRepublishSurvivesClassificationShould
 
 	public OutboxRepublishSurvivesClassificationShould()
 	{
-		_outboxStore = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
+		_outboxStore = WorkerClaimFixture.CreateStore(o => o.Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
 		_serializer = OutboxFakeCapabilityExtensions.CreateRegisteredSerializer();
 		_messageBus = A.Fake<IMessageBusAdapter>();
 		_serviceProvider = A.Fake<IServiceProvider>();
@@ -75,8 +75,13 @@ public sealed class OutboxRepublishSurvivesClassificationShould
 	{
 		var staged = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, new byte[] { 7, 7, 7 }, "orders-queue");
 
+		OutboundMessage? acquired = null;
 		_ = A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { staged });
+			.ReturnsLazily(() =>
+			{
+				acquired = WorkerClaimFixture.Acquire(_outboxStore, [staged]).Single();
+				return new ValueTask<IEnumerable<OutboundMessage>>([acquired]);
+			});
 
 		_ = A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(MessageResult.Success());
@@ -88,8 +93,9 @@ public sealed class OutboxRepublishSurvivesClassificationShould
 			A<IMessageContext>._,
 			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 
-		_ = A.CallTo(() => _outboxStore.MarkSentAsync(staged.Id, A<CancellationToken>._))
+		_ = A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkSentAsync(staged.Id, acquired!.DispatcherId!, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => _outboxStore.MarkSentAsync(staged.Id, A<CancellationToken>._)).MustNotHaveHappened();
 
 		result.SuccessCount.ShouldBe(
 			1,
@@ -98,6 +104,7 @@ public sealed class OutboxRepublishSurvivesClassificationShould
 			+ "carries no user, and the message could never succeed on any retry");
 
 		result.FailureCount.ShouldBe(0);
+		WorkerClaimFixture.AssertNoWeakWrites(_outboxStore);
 	}
 
 	/// <summary>
@@ -117,7 +124,7 @@ public sealed class OutboxRepublishSurvivesClassificationShould
 		IDispatchMessage? delivered = null;
 
 		_ = A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { staged });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(_outboxStore, new List<OutboundMessage> { staged })));
 
 		_ = A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Invokes((IDispatchMessage m, IMessageContext _, CancellationToken _) => delivered = m)
@@ -133,5 +140,6 @@ public sealed class OutboxRepublishSurvivesClassificationShould
 		// what actually matters to a consumer — is that whatever crossed the boundary implements the
 		// dispatch contract and was produced for this republish.
 		_ = delivered.ShouldBeAssignableTo<IDispatchMessage>();
+		WorkerClaimFixture.AssertNoWeakWrites(_outboxStore);
 	}
 }

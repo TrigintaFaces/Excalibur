@@ -312,10 +312,17 @@ public static class MessageContextFeatureExtensions
 	/// <param name="requestServices">The service provider for the child context.</param>
 	/// <returns>A new <see cref="IMessageContext"/> with propagated identifiers and baggage.</returns>
 	/// <remarks>
-	/// The parent's <see cref="IMessageContext.Items"/> (idempotency keys, feature flags, custom propagation
-	/// headers, W3C baggage) are copied into the child so a child dispatch carries the same ambient
-	/// cross-cutting state that a context-reuse dispatch would keep. The copy is shallow and per-entry into a
-	/// fresh dictionary — mutating the child's <c>Items</c> does not affect the parent.
+	/// <para>
+	/// The parent's <see cref="IMessageContext.Items"/> are copied into the child so a child dispatch keeps
+	/// the same ambient request-local state a context-reuse dispatch would. The copy is per-entry into a
+	/// fresh dictionary, so adding or removing an entry on the child does not affect the parent. It does
+	/// <em>not</em> deep-copy an entry's value: a mutable object stored in <c>Items</c> is shared by both
+	/// contexts, as it would be by any two references to it.
+	/// </para>
+	/// <para>
+	/// The values marked with <see cref="MessageContextPropagationExtensions.SetPropagatedItem"/> are
+	/// copied as well, into a collection the child owns.
+	/// </para>
 	/// </remarks>
 	public static IMessageContext CreateChildContext(this IMessageContext context, IServiceProvider? requestServices = null)
 	{
@@ -341,6 +348,10 @@ public static class MessageContextFeatureExtensions
 				childItems[entry.Key] = entry.Value;
 			}
 		}
+
+		// Propagate the marked values into a fresh collection the child owns, so a write by either
+		// context is invisible to the other.
+		MessageContextPropagationExtensions.CopyPropagatedItems(context, child);
 
 		// Propagate identity feature
 		var parentIdentity = context.GetIdentityFeature();

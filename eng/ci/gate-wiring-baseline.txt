@@ -37,7 +37,6 @@ staged-secret-scan.sh
 
 # Manual pre-release orchestrator; invoking it from its own gates would duplicate
 # the complete battery rather than add a distinct safeguard.
-pre-release-gates.py
 
 # Manual evidence collection. The report dependency having a caller does not
 # establish required CI execution of this collector.

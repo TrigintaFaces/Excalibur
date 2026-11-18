@@ -3,7 +3,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$SampleAssembly,
-    [Parameter(Mandatory)][string]$ResultsDirectory
+    [Parameter(Mandatory)][string]$ResultsDirectory,
+    [switch]$QueryingConnectionRejection
 )
 $ErrorActionPreference = 'Stop'
 $assembly = (Resolve-Path -LiteralPath $SampleAssembly).Path
@@ -32,6 +33,13 @@ $cases = @(
     @{name='conflicting-modes';arguments=@('--illustrative','--real');config='{}';connection='';accepted=$false;required='Usage: dotnet run'},
     @{name='unreachable-real-endpoint';arguments=@('--real');config='{}';connection="AccountEndpoint=https://127.0.0.1:1/;AccountKey=$testKey;";accepted=$false;required='Failed to connect to Cosmos DB:'}
 )
+if ($QueryingConnectionRejection) {
+    # Run only against the separately reviewed configuration-only querying candidate and a recorded 127.0.0.1:1 refusal.
+    # The original fixed-endpoint sample ignored configuration; its unsuccessful preflight is not semantic RED.
+    $cases = @(
+        @{name='querying-connection-rejection';arguments=@();config='{}';connection='';accepted=$false;required='Connected: False'}
+    )
+}
 foreach ($case in $cases) {
     Assert-BundleUnchanged
     if ((Get-FileHash -LiteralPath $assembly).Hash -cne $assemblyHash) { throw 'Sample assembly changed during verification.' }
@@ -48,6 +56,10 @@ foreach ($case in $cases) {
     $process.StartInfo.ArgumentList.Add($assembly)
     foreach ($argument in $case.arguments) { $process.StartInfo.ArgumentList.Add($argument) }
     $process.StartInfo.Environment['CosmosDb__ConnectionString'] = $case.connection
+    if ($QueryingConnectionRejection) {
+        $process.StartInfo.Environment['CosmosDb__Client__AccountEndpoint'] = 'https://127.0.0.1:1/'
+        $process.StartInfo.Environment['CosmosDb__Client__AccountKey'] = $testKey
+    }
     $process.StartInfo.Environment['CosmosDb__DatabaseName'] = 'sample-verification'
     $process.StartInfo.Environment['CosmosDb__ContainerName'] = 'sample-verification'
     $timedOut = $false
@@ -72,7 +84,11 @@ foreach ($case in $cases) {
         $accepted = $process.ExitCode -eq 0
         $combined = $stdout + $stderr
         $valid = -not $timedOut -and $accepted -eq $case.accepted -and $combined.Contains($case.required)
-        if ($case.accepted) {
+        if ($QueryingConnectionRejection) {
+            $valid = $valid -and -not $combined.Contains('Done. All Cosmos DB capabilities demonstrated successfully.')
+            $valid = $valid -and -not $combined.Contains('Done. Cosmos DB create/read/query/delete/batch checks and owned cleanup passed.')
+            $valid = $valid -and -not $combined.Contains('2. Creating documents...')
+        } elseif ($case.accepted) {
             $valid = $valid -and $stdout.Contains('Demo Complete!') -and -not $stdout.Contains('Initializing Cosmos DB')
         } else {
             $valid = $valid -and -not $combined.Contains('Demo Complete!') -and -not $combined.Contains('Sample Complete!')
@@ -91,10 +107,10 @@ foreach ($case in $cases) {
             if (-not $process.WaitForExit(5000)) { throw 'Owned sample process remained active during cleanup.' }
         }
         $process.Dispose()
-        @{scope='CLI mode and rejection controls only; real emulator persistence unverified';assembly=$assembly;assemblySha256=$assemblyHash;bundle=$bundle;cases=@($observations.ToArray())} |
+        @{scope='Managed CLI rejection/mode controls only; real Cosmos persistence and business guards unverified';queryingConnectionRejection=[bool]$QueryingConnectionRejection;assembly=$assembly;assemblySha256=$assemblyHash;bundle=$bundle;cases=@($observations.ToArray())} |
             ConvertTo-Json -Depth 8 | Set-Content (Join-Path $results 'verification.json')
     }
 }
 Assert-BundleUnchanged
 if ((Get-FileHash -LiteralPath $assembly).Hash -cne $assemblyHash) { throw 'Sample assembly changed during verification.' }
-Write-Output "PASS: $($observations.Count) native sample mode controls; emulator persistence remains unverified."
+Write-Output "PASS: $($observations.Count) managed sample CLI controls; emulator persistence remains unverified."

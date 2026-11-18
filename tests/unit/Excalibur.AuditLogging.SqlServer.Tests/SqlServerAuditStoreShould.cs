@@ -351,7 +351,14 @@ public sealed class SqlServerAuditStoreShould
 
 		var method = typeof(SqlServerAuditStore).GetMethod(
 			"BuildQueryClauses",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+			binder: null,
+			types: [typeof(Excalibur.Compliance.AuditQuery)],
+			modifiers: null);
+
+		method.ShouldNotBeNull(
+			"SqlServerAuditStore.BuildQueryClauses(AuditQuery) was not found. The private signature "
+			+ "changed; this reflection-bound test must be updated in lockstep.");
 		var query = new Excalibur.Compliance.AuditQuery
 		{
 			StartDate = DateTimeOffset.UtcNow.AddDays(-1),
@@ -407,7 +414,14 @@ public sealed class SqlServerAuditStoreShould
 
 		var mapMethod = typeof(SqlServerAuditStore).GetMethod(
 			"MapToAuditEvent",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
+			binder: null,
+			types: [rowType],
+			modifiers: null);
+
+		mapMethod.ShouldNotBeNull(
+			$"SqlServerAuditStore.MapToAuditEvent({rowType.Name}) was not found. The private signature "
+			+ "changed; this reflection-bound test must be updated in lockstep.");
 		var mapped = (Excalibur.Compliance.AuditEvent)mapMethod.Invoke(null, [row])!;
 
 		mapped.EventId.ShouldBe("evt-map");

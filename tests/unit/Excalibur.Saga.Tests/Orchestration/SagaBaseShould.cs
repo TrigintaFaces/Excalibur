@@ -4,10 +4,13 @@
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.Abstractions;
+using Excalibur.Saga.Diagnostics;
 using Excalibur.Saga.Orchestration;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+
+using Tests.Shared.Helpers;
 
 namespace Excalibur.Saga.Tests.Orchestration;
 
@@ -127,7 +130,13 @@ public sealed class SagaBaseShould : UnitTestBase
 		// Act
 		await saga.CallMarkCompletedAsync();
 
-		// Assert
+		// Assert -- the intent is BUFFERED, not applied. Retiring every pending row before the save that
+		// records the completion can strand a saga whose reverted state still expects them all.
+		A.CallTo(() => _timeoutStore.CancelAllTimeoutsAsync(sagaId.ToString(), A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
+
 		A.CallTo(() => _timeoutStore.CancelAllTimeoutsAsync(sagaId.ToString(), A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -178,8 +187,15 @@ public sealed class SagaBaseShould : UnitTestBase
 		// Act
 		var timeoutId = await saga.CallRequestTimeoutAsync<TestTimeoutData>(delay);
 
-		// Assert
+		// Assert -- the identifier is handed back immediately, because the handler stores it in saga
+		// state, but the row is NOT written until the apply. A row written before the state that names
+		// it is one nothing can ever cancel.
 		timeoutId.ShouldNotBeNullOrWhiteSpace();
+		A.CallTo(() => _timeoutStore.ScheduleTimeoutAsync(A<SagaTimeout>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
+
 		A.CallTo(() => _timeoutStore.ScheduleTimeoutAsync(
 			A<SagaTimeout>.That.Matches(t =>
 				t.SagaId == sagaId.ToString() &&
@@ -204,8 +220,14 @@ public sealed class SagaBaseShould : UnitTestBase
 		// Act
 		var timeoutId = await saga.CallRequestTimeoutAsync(delay, timeoutData);
 
-		// Assert
+		// Assert -- buffered, as above. The payload is serialized at request time (the handler's data
+		// may not survive to the apply) and carried on the intent.
 		timeoutId.ShouldNotBeNullOrWhiteSpace();
+		A.CallTo(() => _timeoutStore.ScheduleTimeoutAsync(A<SagaTimeout>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
+
 		A.CallTo(() => _timeoutStore.ScheduleTimeoutAsync(
 			A<SagaTimeout>.That.Matches(t =>
 				t.TimeoutData != null &&
@@ -267,7 +289,13 @@ public sealed class SagaBaseShould : UnitTestBase
 		// Act
 		await saga.CallCancelTimeoutAsync(timeoutId);
 
-		// Assert
+		// Assert -- buffered. A cancellation applied before the save is the parked-forever sign: the
+		// reverted state still expects a row that is already gone, and nothing will ever deliver it.
+		A.CallTo(() => _timeoutStore.CancelTimeoutAsync(sagaId.ToString(), timeoutId, A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
+
 		A.CallTo(() => _timeoutStore.CancelTimeoutAsync(sagaId.ToString(), timeoutId, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -353,6 +381,63 @@ public sealed class SagaBaseShould : UnitTestBase
 				ctx.GetItem<string>("saga.type") == nameof(TestSaga)),
 			A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+	}
+
+	/// <summary>
+	/// The dispatcher CAN report failure, and this result used to be discarded. A saga message lost that
+	/// way is a GENUINE loss rather than a retry: the state is already committed and the triggering event
+	/// is already marked processed, so a redelivery stops at the duplicate check and never re-buffers the
+	/// message. Nothing downstream learns, which is what makes silence the defect here rather than the
+	/// failure itself.
+	/// </summary>
+	[Fact]
+	public async Task ReportAnEmittedMessageTheDispatcherCouldNotDeliver()
+	{
+		var logger = new CapturingLogger<TestSaga>();
+		var dispatcher = A.Fake<IDispatcher>();
+		A.CallTo(() => dispatcher.DispatchAsync<IDispatchMessage>(
+				A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(MessageResult.Failed("the transport refused the publish")));
+
+		var saga = new TestSaga(new TestSagaState { SagaId = Guid.NewGuid() }, dispatcher, logger);
+		await saga.CallSendCommandAsync(new TestCommand());
+
+		await saga.CallFlushPendingDispatchesAsync();
+
+		var reported = logger.Entries.Where(
+			entry => entry.EventId.Id == SagaEventId.SagaEmittedMessageNotDispatched).ToList();
+
+		reported.Count.ShouldBe(1,
+			"the dispatcher reported the message unsuccessful and the saga returned without recording it, "
+			+ "so a lost saga message reads exactly like a delivered one at every log level");
+		reported[0].Level.ShouldBe(LogLevel.Warning);
+		reported[0].Message.ShouldContain(nameof(TestCommand));
+		reported[0].Message.ShouldContain("the transport refused the publish",
+			Case.Sensitive,
+			"the dispatcher's own reason is the only clue an operator gets about why it was lost");
+	}
+
+	/// <summary>
+	/// The liveness half. A flush that reported EVERY dispatch as lost would satisfy the arm above, so
+	/// this one pins that a successful dispatch stays silent on that event id.
+	/// </summary>
+	[Fact]
+	public async Task StaySilentWhenAnEmittedMessageWasDelivered()
+	{
+		var logger = new CapturingLogger<TestSaga>();
+		var dispatcher = A.Fake<IDispatcher>();
+		A.CallTo(() => dispatcher.DispatchAsync<IDispatchMessage>(
+				A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(MessageResult.Success()));
+
+		var saga = new TestSaga(new TestSagaState { SagaId = Guid.NewGuid() }, dispatcher, logger);
+		await saga.CallSendCommandAsync(new TestCommand());
+
+		await saga.CallFlushPendingDispatchesAsync();
+
+		logger.Entries.ShouldNotContain(
+			entry => entry.EventId.Id == SagaEventId.SagaEmittedMessageNotDispatched,
+			"a delivered message must not be reported as lost, or the entry carries no signal");
 	}
 
 	#endregion

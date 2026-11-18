@@ -1,0 +1,15 @@
+<Project>
+  <!-- This console native probe intentionally does not inherit tests/Directory.Build.props,
+       which eagerly adds test SDK/xUnit packages and test-only warning exemptions. -->
+  <PropertyGroup>
+    <IsTestProject>false</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <ProjectClassification>NativeProbe</ProjectClassification>
+    <BuildExamplesAndTests>true</BuildExamplesAndTests>
+    <!-- This custom property is consumed ONLY here, before Common.props defaults the NuGet extensions path.
+         The runner never globally changes dependency BaseIntermediateOutputPath or project extensions. -->
+    <BaseIntermediateOutputPath Condition="'$(ElasticsearchOutboxProbeIntermediateDir)' != ''">$(ElasticsearchOutboxProbeIntermediateDir)</BaseIntermediateOutputPath>
+    <!-- Keep only this harness ordinary build outputs in its fresh evidence directory. -->
+    <BaseOutputPath Condition="'$(ElasticsearchOutboxProbeOutputDir)' != ''">$(ElasticsearchOutboxProbeOutputDir)</BaseOutputPath>
+  </PropertyGroup>
+</Project>

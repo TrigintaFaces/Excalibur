@@ -165,4 +165,82 @@ public sealed class DomainEventContractShould
 		public DateTimeOffset OccurredAt { get; set; }
 		public IDictionary<string, object>? Metadata { get; set; }
 	}
+
+	// ---------------------------------------------------------------------------------------------
+	// EventId must be CARRIED ON THE WIRE, and the fixtures below derive DomainEvent rather than
+	// implementing IDomainEvent directly -- which the other fixture in this file does, and which is
+	// why those arms cannot see this. The requirement lives on the record's property, so only a
+	// DomainEvent-derived type reaches it.
+	//
+	// What shipped: EventId is a non-nullable string with a property initializer, and a property
+	// initializer does NOT fire when a deserialized payload omits the field. So an omitted eventId
+	// produced a non-nullable string holding NULL, which the inbox's first identity arm then skipped
+	// (it guards on IsNullOrEmpty), silently demoting the event's own identity to whatever transport
+	// source answered next -- or to none.
+	// ---------------------------------------------------------------------------------------------
+
+	/// <summary>
+	/// SAFETY: a payload that omits eventId is REFUSED rather than yielding a null identity.
+	/// </summary>
+	[Fact]
+	public void RefuseAPayloadThatOmitsEventId()
+	{
+		const string omitted = "{\"orderNumber\":\"A-1\"}";
+
+		var thrown = Should.Throw<JsonException>(
+			() => JsonSerializer.Deserialize<WireContractEvent>(omitted, SerializerOptions),
+			"an omitted eventId used to deserialize successfully and leave a non-nullable string holding "
+			+ "null. Refusing the payload is the only outcome that cannot be mistaken for a real identity.");
+
+		thrown.Message.ShouldContain(
+			"eventId",
+			Case.Insensitive,
+			"the refusal must name the missing field, or an operator cannot tell which member was absent.");
+	}
+
+	/// <summary>
+	/// LIVENESS: a payload that carries eventId still round-trips, and the value is the producer's.
+	/// </summary>
+	/// <remarks>
+	/// Without this arm the one above is satisfied by a type that refuses every payload.
+	/// </remarks>
+	[Fact]
+	public void RoundTripAPayloadThatCarriesEventId()
+	{
+		const string supplied = "{\"eventId\":\"e-1\",\"orderNumber\":\"A-1\"}";
+
+		var restored = JsonSerializer.Deserialize<WireContractEvent>(supplied, SerializerOptions);
+
+		_ = restored.ShouldNotBeNull();
+		restored.EventId.ShouldBe("e-1", "the identity on the wire is the producer's and must survive intact.");
+		restored.OrderNumber.ShouldBe("A-1");
+	}
+
+	/// <summary>
+	/// LIVENESS, and the arm that keeps the fix from becoming a breaking change to construction:
+	/// building an event in process still mints an identity without the caller supplying one.
+	/// </summary>
+	/// <remarks>
+	/// This is why the requirement is a serialization-time one rather than the C# <c>required</c>
+	/// modifier. <c>required</c> would have closed the same hole and forced EVERY consumer
+	/// construction site to pass an EventId, losing the generated identity they get for free today.
+	/// If someone later "simplifies" this to <c>required</c>, this arm fails to compile -- which is
+	/// the intended alarm.
+	/// </remarks>
+	[Fact]
+	public void StillMintAnIdentityWhenConstructedInProcess()
+	{
+		var constructed = new WireContractEvent { OrderNumber = "A-1" };
+
+		constructed.EventId.ShouldNotBeNullOrWhiteSpace(
+			"constructing an event in process must not require the caller to invent an identity.");
+	}
+
+	/// <summary>
+	/// A concrete event over the real <see cref="DomainEvent" /> record, as a consumer would write one.
+	/// </summary>
+	private sealed record WireContractEvent : DomainEvent
+	{
+		public string? OrderNumber { get; init; }
+	}
 }

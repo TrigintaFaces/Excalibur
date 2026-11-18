@@ -33,6 +33,12 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// is the recorded high-water to report on the fencing diagnostic. The high-water lives in a table cleanup
 /// never touches, so it survives the deletion of the token-bearing message rows.
 /// </para>
+/// <para>
+/// This framework-owned request uses its fixed constructor-defined primitive input schema. Replacing a
+/// known parameter value through <c>Parameters</c> is observed at execution; parameter DbType,
+/// direction, size, templates and output callbacks are not an extensibility contract of this request.
+/// Custom <c>IDataRequest</c> implementations retain their own execution behavior.
+/// </para>
 /// </remarks>
 [NoTenantTerm(
 	TenantConfinement.EstateWide,
@@ -85,6 +91,10 @@ public sealed class EnforceOutboxFenceRequest : DataRequestBase<IDbConnection, l
 		Command = CreateCommand(sql, parameters, transaction, commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteScalarAsync<long>(Command).ConfigureAwait(false);
+			StaticDbValue.Int64(await StaticDbCommand.ScalarAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "Scope", StaticDbCommand.Input<string>(Parameters, "Scope"), DbType.String);
+				StaticDbCommand.AddParameter(command, "FencingToken", StaticDbCommand.Input<long>(Parameters, "FencingToken"), DbType.Int64);
+			}).ConfigureAwait(false));
 	}
 }

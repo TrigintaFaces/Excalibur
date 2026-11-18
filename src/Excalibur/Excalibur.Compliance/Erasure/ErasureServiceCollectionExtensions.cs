@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Encryption;
+using Excalibur.Compliance.CryptoShredding;
 using Excalibur.Compliance.Erasure;
 using Excalibur.Compliance.Erasure.DependencyInjection;
 
@@ -81,6 +82,12 @@ public static class ErasureServiceCollectionExtensions
 		// resolution must always succeed. TryAdd keeps a host's own context: the framework default is a
 		// single-tenant context, and the multi-tenancy composition replaces it with the resolver-driven one.
 		_ = services.AddDefaultTenantContext();
+
+		// The claim lapse must be decided against a clock NO CALLER CAN SUPPLY -- the SQL providers use the
+		// database's own clock inside the claiming statement, and this store needs the same property. TryAdd
+		// so a host that has registered a test clock keeps it, which is what makes the lapse arms able to
+		// advance time without waiting for it.
+		services.TryAddSingleton(TimeProvider.System);
 		services.TryAddSingleton<InMemoryErasureStore>();
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
@@ -90,6 +97,28 @@ public static class ErasureServiceCollectionExtensions
 		// with a ledger that is not the one the erasure writes to -- which would silently separate the
 		// record from the read that depends on it.
 		services.TryAddSingleton<IKeyDestructionLedger>(sp => sp.GetRequiredService<InMemoryErasureStore>());
+
+		// The MINT ledger, from the SAME store instance and for the same reason one layer over: the
+		// erasure enumerates the handles this ledger recorded, so a deployment whose mint ledger is a
+		// different object from the one the write path recorded into would have an erasure that
+		// enumerates nothing and certifies anyway. Resolving both from one instance makes that
+		// inexpressible rather than merely unlikely.
+		services.TryAddSingleton<IKeyMintLedger>(sp => sp.GetRequiredService<InMemoryErasureStore>());
+
+		// THE VOLATILITY IS ANNOUNCED BY THE NAME OF THIS CALL, so the acknowledgement is registered here
+		// rather than demanded of the caller. This store holds its mint rows in memory, so an erasure run
+		// after a restart enumerates NOTHING for a data subject -- it would destroy only the handles it can
+		// derive from declared retentions and certify over the rest. Startup refuses a NON-durable mint
+		// ledger whose volatility is not stated, and a consumer who typed AddInMemoryErasureStore() has
+		// stated it: that is the same thing UseInMemoryDatabase and AddDeveloperSigningCredential do, and a
+		// framework cannot detect production to do better.
+		//
+		// THE TRADE, stated because it is a real one and not free: this makes the refusal unreachable for
+		// the composition most likely to reach production by accident. What stands in its place is a
+		// Critical log emitted at EVERY startup naming the consequence, which is not conditional on this
+		// registration -- the guard logs first and refuses second. A durable store is one call away
+		// (AddPostgresErasureStore, AddSqlServerErasureStore) and neither logs anything.
+		services.TryAddSingleton(new NonDurableErasureLedgerAcknowledged());
 		return services;
 	}
 
@@ -464,6 +493,13 @@ public static class ErasureServiceCollectionExtensions
 		// a retention with no handle to release it.
 		services.TryAddSingleton<IErasureRetentionRegistry, ErasureRetentionRegistry>();
 
+		// SINGLETON, because recording this instance's declarations is a PER-PROCESS act and the latch
+		// that makes it happen once must outlive a scope. It is fired from the scheduler's poll rather
+		// than from the executor: fired before this instance's first ERASURE, protection for other
+		// instances would begin days after the deploy that created the hazard in a low-volume
+		// deployment, and the first post-deploy erasure would be decided by poll timing.
+		services.TryAddSingleton<ErasureRetentionAdvanceLatch>();
+
 		services.TryAddScoped<ErasureService>(sp => new ErasureService(
 			sp.GetRequiredService<IErasureStore>(),
 			sp.GetRequiredService<IKeyManagementAdmin>(),
@@ -475,7 +511,12 @@ public static class ErasureServiceCollectionExtensions
 			sp.GetService<IKeyEscrowService>(),
 			sp.GetRequiredService<IPersonalDataAnnotationSource>(),
 			sp.GetRequiredService<IErasureRetentionRegistry>(),
-			sp.GetServices<IErasureContributor>()));
+			sp.GetRequiredService<IKeyMintLedger>(),
+			sp.GetServices<IErasureContributor>(),
+			// OPTIONAL: a store with no deployment-wide retention record hands null, and the staleness
+			// gate then passes everything -- correct for a single-process deployment, where no other
+			// instance can hold a view this one is behind.
+			sp.GetService<IErasureRetentionDeclarationLedger>()));
 
 		services.TryAddScoped<IErasureService>(static sp => sp.GetRequiredService<ErasureService>());
 		services.TryAddScoped<IErasureExecutor>(static sp => sp.GetRequiredService<ErasureService>());
@@ -489,6 +530,15 @@ public static class ErasureServiceCollectionExtensions
 			sp.GetRequiredService<IErasureStore>(),
 			sp.GetService<IErasureVerificationService>(),
 			sp.GetRequiredService<ILogger<ErasureCompletionProcessor>>()));
+
+		// The revisit for requests a legal hold deferred. Registered unconditionally for the same reason as
+		// the pass above: a host with no background service calls it from its own trigger. Without it a
+		// deferral is permanent -- nothing else re-examines the hold, so releasing or letting a hold lapse
+		// would leave the request deferred forever with no signal, and the obligation to erase undischarged.
+		services.TryAddScoped<IErasureHoldReevaluationProcessor>(static sp => new ErasureHoldReevaluationProcessor(
+			sp.GetRequiredService<IErasureStore>(),
+			sp.GetRequiredService<ILegalHoldService>(),
+			sp.GetRequiredService<ILogger<ErasureHoldReevaluationProcessor>>()));
 
 		// startup fail-fast: reject an erasure registration that has no data-inventory discovery
 		// source AND no key-shred-only opt-in, so a completion certificate is never issued over unverified

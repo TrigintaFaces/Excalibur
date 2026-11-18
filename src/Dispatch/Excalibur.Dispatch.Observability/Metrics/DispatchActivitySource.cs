@@ -33,9 +33,10 @@ public static class DispatchActivitySource
 	/// Caches middleware activity names ("middleware.{TypeName}") to avoid the concatenation and its allocation per dispatch.
 	/// </summary>
 	/// <remarks>
-	/// This cache is kept because the operation it replaces allocates: composing the name costs 8.56 ns and 80 bytes,
-	/// the lookup 2.71 ns and nothing. There is deliberately no companion cache for the type name itself — that is a
-	/// read of a string the runtime already holds, so a dictionary lookup costs more than the read it would replace.
+	/// The cache avoids repeated name concatenation. Earlier observations recorded 8.56 ns and 80 bytes for
+	/// concatenation and 2.71 ns with no measured allocation for lookup. These historical figures have no
+	/// workload/runtime attribution here and are not current performance guarantees. The type name itself
+	/// is not cached separately.
 	/// </remarks>
 	private static readonly ConcurrentDictionary<Type, string> MiddlewareActivityNameCache = new();
 

@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Benchmarks.Aot;
 [SimpleJob(RuntimeMoniker.HostProcess)]
 public class AotPathSerializationBenchmarks
 {
-    private AotJsonSerializer _aotSerializer = null!;
+    private SystemTextJsonSerializer _aotSerializer = null!;
     private SystemTextJsonSerializer _jitSerializer = null!;
     private BenchmarkOrderEvent _smallMessage = null!;
     private BenchmarkBatchEvent _largeMessage = null!;
@@ -43,7 +43,8 @@ public class AotPathSerializationBenchmarks
     public void Setup()
     {
         // AOT path: source-generated context
-        _aotSerializer = new AotJsonSerializer(AotBenchmarkJsonContext.Default);
+        _aotSerializer = SystemTextJsonSerializer.CreateWithMetadata(new JsonSerializerOptions
+        { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, TypeInfoResolver = AotBenchmarkJsonContext.Default });
 
         // JIT path: reflection-based serializer
         _jitSerializer = new SystemTextJsonSerializer(new JsonSerializerOptions
@@ -80,8 +81,8 @@ public class AotPathSerializationBenchmarks
         };
 
         // Pre-serialize for deserialization benchmarks
-        _smallMessageAotBytes = _aotSerializer.Serialize(_smallMessage);
-        _largeMessageAotBytes = _aotSerializer.Serialize(_largeMessage);
+        _smallMessageAotBytes = _aotSerializer.SerializeToBytes(_smallMessage);
+        _largeMessageAotBytes = _aotSerializer.SerializeToBytes(_largeMessage);
 
         var jitBuffer = new ArrayBufferWriter<byte>(256);
         _jitSerializer.Serialize(_smallMessage, jitBuffer);
@@ -90,12 +91,6 @@ public class AotPathSerializationBenchmarks
         jitBuffer = new ArrayBufferWriter<byte>(16384);
         _jitSerializer.Serialize(_largeMessage, jitBuffer);
         _largeMessageJitBytes = jitBuffer.WrittenMemory.ToArray();
-    }
-
-    [GlobalCleanup]
-    public void Cleanup()
-    {
-        _aotSerializer.Dispose();
     }
 
     // ========================================================================
@@ -225,7 +220,7 @@ public class AotPathSerializationBenchmarks
     [BenchmarkCategory("RoundTrip", "Small")]
     public BenchmarkOrderEvent AotPath_RoundTripSmall()
     {
-        var bytes = _aotSerializer.Serialize(_smallMessage);
+        var bytes = _aotSerializer.SerializeToBytes(_smallMessage);
         return _aotSerializer.Deserialize<BenchmarkOrderEvent>(bytes.AsSpan());
     }
 

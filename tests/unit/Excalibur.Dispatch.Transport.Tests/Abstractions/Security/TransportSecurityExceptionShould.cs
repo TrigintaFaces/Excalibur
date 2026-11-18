@@ -95,8 +95,18 @@ public sealed class TransportSecurityExceptionShould
     {
         var reasons = Enum.GetValues<TransportSecurityFailureReason>();
 
-        reasons.Length.ShouldBe(2);
-        reasons.ShouldContain(TransportSecurityFailureReason.Unspecified);
-        reasons.ShouldContain(TransportSecurityFailureReason.TlsNotEnabled);
+        // The NAMED SET, not a count. `Length.ShouldBe(2)` was satisfied by any two members, so it
+        // said nothing about which exist, and it broke on an added member while a RENAMED one would
+        // have passed. These values are published and consumers switch on them: adding one is
+        // deliberate, removing or renumbering one is breaking, and this arm should distinguish those.
+        reasons.ShouldBe(
+            [
+                TransportSecurityFailureReason.Unspecified,
+                TransportSecurityFailureReason.TlsNotEnabled,
+                TransportSecurityFailureReason.DefaultCredentials,
+            ],
+            ignoreOrder: false,
+            "the published failure reasons are a contract: a consumer switching on them breaks if one "
+                + "is removed or renumbered");
     }
 }

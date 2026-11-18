@@ -9,7 +9,7 @@ namespace MemoryPackSample.Messages;
 
 /// <summary>
 /// Event published when an order is placed.
-/// Demonstrates MemoryPack serialization with zero-allocation performance.
+/// Demonstrates source-generated MemoryPack serialization.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -18,10 +18,10 @@ namespace MemoryPackSample.Messages;
 /// </para>
 /// <para>
 /// MemoryPack features:
-/// - Zero-allocation deserialization via ReadOnlySpan
+/// - Deserialization from ReadOnlySpan; object graphs may allocate
 /// - Automatic property ordering (or explicit via [MemoryPackOrder])
 /// - NativeAOT/trimming compatible
-/// - Fastest .NET binary serializer
+/// - Measure latency, allocation and payload size for the actual workload
 /// </para>
 /// </remarks>
 [MemoryPackable]

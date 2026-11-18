@@ -71,11 +71,16 @@ public sealed class SqlServerSagaTimeoutStoreContainerFixture : ContainerFixture
 		await using var connection = new SqlConnection(ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		foreach (var statement in ReadShippedSchemaStatements())
-		{
-			await ExecuteAsync(connection, statement).ConfigureAwait(false);
-		}
+		// The shipped script deliberately has no GO. Its stamp variable must stay in this batch.
+		await ExecuteShippedSchemaAsync(connection, CancellationToken.None).ConfigureAwait(false);
+	}
 
+	/// <summary>Executes the exact shipped default provisioning script on an already selected session.</summary>
+	internal static async Task ExecuteShippedSchemaAsync(SqlConnection connection, CancellationToken cancellationToken)
+	{
+		var sql = await File.ReadAllTextAsync(ResolveShippedScriptPath(), cancellationToken).ConfigureAwait(false);
+		await using var command = new SqlCommand(sql, connection);
+		await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>Removes all rows between tests.</summary>
@@ -84,31 +89,6 @@ public sealed class SqlServerSagaTimeoutStoreContainerFixture : ContainerFixture
 		await using var connection = new SqlConnection(ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
 		await ExecuteAsync(connection, $"DELETE FROM [{SchemaName}].[{TableName}]").ConfigureAwait(false);
-	}
-
-	/// <summary>
-	/// Reads the shipped DDL and splits it into statements. Comments are stripped <b>before</b> the split:
-	/// script prose contains semicolons, and splitting first tears a comment and prepends its tail to the
-	/// next statement.
-	/// </summary>
-	private static IEnumerable<string> ReadShippedSchemaStatements()
-	{
-		var sql = StripComments(File.ReadAllText(ResolveShippedScriptPath()));
-
-		return sql
-			.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-			.Where(statement => !string.IsNullOrWhiteSpace(statement))
-			.ToList();
-	}
-
-	private static string StripComments(string sql)
-	{
-		var lines = sql
-			.Split('\n')
-			.Select(line => line.Trim())
-			.Where(line => !line.StartsWith("--", StringComparison.Ordinal));
-
-		return string.Join('\n', lines);
 	}
 
 	/// <summary>

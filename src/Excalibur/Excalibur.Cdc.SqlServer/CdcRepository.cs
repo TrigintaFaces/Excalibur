@@ -6,8 +6,6 @@ using System.Data;
 using System.Data.Common;
 using System.Globalization;
 
-using Dapper;
-
 using Excalibur.Data.Validation;
 
 namespace Excalibur.Cdc.SqlServer;
@@ -55,16 +53,10 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 	{
 		const string CommandText = "SELECT sys.fn_cdc_increment_lsn(@LastProcessedLsn);";
 
-		var parameters = new DynamicParameters();
-		parameters.Add("LastProcessedLsn", lastProcessedLsn, DbType.Binary, size: 10);
+		using var command = CreateCommand(CommandText, cancellationToken);
+		AddParameter(command, "LastProcessedLsn", lastProcessedLsn, DbType.Binary, 10);
 
-		var command = new CommandDefinition(
-			CommandText,
-			parameters: parameters,
-			commandTimeout: _commandTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
-		return await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
+		return (byte[])(await ReadScalarRowAsync(command, required: true, single: true, cancellationToken).ConfigureAwait(false))!;
 	}
 
 	/// <inheritdoc />
@@ -82,16 +74,10 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		                   ORDER BY __$start_lsn;
 		                   """;
 
-		var parameters = new DynamicParameters();
-		parameters.Add("LastProcessedLsn", lastProcessedLsn, DbType.Binary, size: 10);
+		using var command = CreateCommand(commandText, cancellationToken);
+		AddParameter(command, "LastProcessedLsn", lastProcessedLsn, DbType.Binary, 10);
 
-		var command = new CommandDefinition(
-			commandText,
-			parameters: parameters,
-			commandTimeout: _commandTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
-		return await _connection.Ready().QuerySingleOrDefaultAsync<byte[]?>(command).ConfigureAwait(false);
+		return (byte[]?)await ReadScalarRowAsync(command, required: false, single: true, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -99,16 +85,10 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 	{
 		const string CommandText = "SELECT CAST(sys.fn_cdc_map_lsn_to_time(@Lsn) AS DATETIME2(3)) AS LSN_TIME;";
 
-		var parameters = new DynamicParameters();
-		parameters.Add("Lsn", lsn, DbType.Binary, size: 10);
+		using var command = CreateCommand(CommandText, cancellationToken);
+		AddParameter(command, "Lsn", lsn, DbType.Binary, 10);
 
-		var command = new CommandDefinition(
-			CommandText,
-			parameters: parameters,
-			commandTimeout: _commandTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
-		return await _connection.Ready().QuerySingleOrDefaultAsync<DateTime?>(command).ConfigureAwait(false);
+		return (DateTime?)await ReadScalarRowAsync(command, required: false, single: true, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -116,17 +96,11 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 	{
 		const string CommandText = "SELECT sys.fn_cdc_map_time_to_lsn(@RelationalOperator, @LsnDate);";
 
-		var parameters = new DynamicParameters();
-		parameters.Add("LsnDate", lsnDate);
-		parameters.Add("RelationalOperator", relationalOperator);
+		using var command = CreateCommand(CommandText, cancellationToken);
+		AddParameter(command, "LsnDate", lsnDate, null);
+		AddParameter(command, "RelationalOperator", relationalOperator, DbType.String);
 
-		var command = new CommandDefinition(
-			CommandText,
-			parameters: parameters,
-			commandTimeout: _commandTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
-		return await _connection.Ready().QuerySingleAsync<byte[]?>(command).ConfigureAwait(false);
+		return (byte[]?)await ReadScalarRowAsync(command, required: true, single: true, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -138,16 +112,10 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 
 		const string CommandText = "SELECT sys.fn_cdc_get_min_lsn(@CaptureInstance);";
 
-		var parameters = new DynamicParameters();
-		parameters.Add("CaptureInstance", normalizedCaptureInstance);
+		using var command = CreateCommand(CommandText, cancellationToken);
+		AddParameter(command, "CaptureInstance", normalizedCaptureInstance, DbType.String);
 
-		var command = new CommandDefinition(
-			CommandText,
-			parameters: parameters,
-			commandTimeout: _commandTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
-		return await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
+		return (byte[])(await ReadScalarRowAsync(command, required: true, single: true, cancellationToken).ConfigureAwait(false))!;
 	}
 
 	/// <inheritdoc />
@@ -155,12 +123,9 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 	{
 		const string CommandText = "SELECT sys.fn_cdc_get_max_lsn();";
 
-		var command = new CommandDefinition(
-			CommandText,
-			commandTimeout: _commandTimeoutSeconds,
-			cancellationToken: cancellationToken);
+		using var command = CreateCommand(CommandText, cancellationToken);
 
-		return await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
+		return (byte[])(await ReadScalarRowAsync(command, required: true, single: true, cancellationToken).ConfigureAwait(false))!;
 	}
 
 	/// <inheritdoc />
@@ -187,18 +152,12 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 			                   WHERE __$start_lsn >= @from_lsn AND __$start_lsn <= @to_lsn
 			                   """;
 
-			var parameters = new DynamicParameters();
-			parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
-			parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
+		using var command = CreateCommand(commandText, cancellationToken);
+		AddParameter(command, "from_lsn", fromPosition, DbType.Binary, 10);
+		AddParameter(command, "to_lsn", toPosition, DbType.Binary, 10);
 
-			var command = new CommandDefinition(
-				commandText,
-				parameters: parameters,
-				commandTimeout: _commandTimeoutSeconds,
-				cancellationToken: cancellationToken);
-
-			var exists = await _connection.Ready().ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
-			if (exists is > 0)
+			var exists = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+			if (exists is not null and not DBNull && Convert.ToInt32(exists, CultureInfo.InvariantCulture) > 0)
 			{
 				return true;
 			}
@@ -218,12 +177,10 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		                           ORDER BY tran_begin_lsn ASC;
 		                           """;
 
-		var parameters = new DynamicParameters();
-		parameters.Add("lastProcessedLsn", lastProcessedLsn, DbType.Binary, size: 10);
+		using var command = CreateCommand(CommandText, cancellationToken);
+		AddParameter(command, "lastProcessedLsn", lastProcessedLsn, DbType.Binary, 10);
 
-		var command = new CommandDefinition(CommandText, parameters: parameters, cancellationToken: cancellationToken);
-
-		return await _connection.Ready().QueryFirstOrDefaultAsync<byte[]>(command).ConfigureAwait(false);
+		return (byte[]?)await ReadScalarRowAsync(command, required: false, single: false, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -285,19 +242,13 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		                   __$operation
 		                   """;
 
-		var parameters = new DynamicParameters();
-		parameters.Add("@batchSize", batchSize, DbType.Int32);
-		parameters.Add("fromLsn", fromLsn, DbType.Binary, size: 10);
-		parameters.Add("toLsn", toLsn, DbType.Binary, size: 10);
-		parameters.Add("lastSequenceValue", lastSequenceValue, DbType.Binary);
-		parameters.Add("@lastOperation", (int)lastOperation, DbType.Int32);
-
-		var command = new CommandDefinition(
-			commandText,
-			parameters: parameters,
-			commandTimeout: _commandTimeoutSeconds,
-			cancellationToken: cancellationToken);
-		var reader = (DbDataReader)await _connection.Ready().ExecuteReaderAsync(command).ConfigureAwait(false);
+		using var command = CreateCommand(commandText, cancellationToken);
+		AddParameter(command, "@batchSize", batchSize, DbType.Int32);
+		AddParameter(command, "fromLsn", fromLsn, DbType.Binary, 10);
+		AddParameter(command, "toLsn", toLsn, DbType.Binary, 10);
+		AddParameter(command, "lastSequenceValue", lastSequenceValue, DbType.Binary);
+		AddParameter(command, "@lastOperation", (int)lastOperation, DbType.Int32);
+		var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 		var resultList = new List<CdcRow>();
 
 		await using (reader.ConfigureAwait(false))
@@ -396,6 +347,76 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		{
 			_connection.Dispose();
 		}
+	}
+
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities",
+		Justification = "Private callers supply fixed SQL templates; interpolated capture identifiers pass SqlIdentifierValidator, and all data values are bound parameters.")]
+	private DbCommand CreateCommand(string text, CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		var candidate = _connection.Ready().CreateCommand();
+		if (candidate is not DbCommand command)
+		{
+			candidate.Dispose();
+			throw new InvalidOperationException("CDC requires an asynchronous DbCommand.");
+		}
+		try
+		{
+			command.CommandText = text;
+			command.CommandType = CommandType.Text;
+			command.CommandTimeout = _commandTimeoutSeconds;
+			return command;
+		}
+		catch
+		{
+			command.Dispose();
+			throw;
+		}
+	}
+
+	private static void AddParameter(DbCommand command, string name, object? value, DbType? type, int? size = null)
+	{
+		var parameter = command.CreateParameter();
+		parameter.ParameterName = name;
+		if (type.HasValue && (type != DbType.String || value is not null))
+		{
+			parameter.DbType = type.Value;
+		}
+		parameter.Direction = ParameterDirection.Input;
+		parameter.Value = value ?? DBNull.Value;
+		if (size.HasValue)
+		{
+			parameter.Size = size.Value;
+		}
+		else if (value is string { Length: <= 4000 })
+		{
+			parameter.Size = 4000;
+		}
+		_ = command.Parameters.Add(parameter);
+	}
+
+	private static async Task<object?> ReadScalarRowAsync(
+		DbCommand command, bool required, bool single, CancellationToken cancellationToken)
+	{
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+		object? value = null;
+		if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+		{
+			var cell = reader.GetValue(0);
+			value = cell is DBNull ? null : cell;
+			if (single && await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+			{
+				throw new InvalidOperationException("Sequence contains more than one element");
+			}
+			while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) { }
+		}
+		else if (required)
+		{
+			throw new InvalidOperationException("Sequence contains no elements");
+		}
+		// Match the prior row-query path: surface errors and cancellation in later results.
+		while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false)) { }
+		return value;
 	}
 
 	private static CdcOperationCodes GetOperationCode(int operationCode) =>

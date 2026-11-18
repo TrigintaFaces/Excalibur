@@ -145,6 +145,11 @@ backed by a source-generated serializer.
 :::
 
 ```csharp
+// Choose how CloudEvent payloads are serialized. This is required once, and the transport
+// registration below reports it at startup if you leave it out.
+//   - with a source-generated context: reflection-free, and safe to trim or publish ahead-of-time
+//   - AddCloudEvents() with no argument: the reflective path, annotated so your build warns you
+services.AddDispatch(dispatch => dispatch.AddCloudEvents(MyPayloadContext.Default));
 services.AddCloudEventsForServiceBus(options =>
 {
     options.EnableDuplicateDetection = true;
@@ -157,6 +162,11 @@ services.AddCloudEventsForServiceBus(options =>
 Turn on session-based ordering for FIFO message processing:
 
 ```csharp
+// Choose how CloudEvent payloads are serialized. This is required once, and the transport
+// registration below reports it at startup if you leave it out.
+//   - with a source-generated context: reflection-free, and safe to trim or publish ahead-of-time
+//   - AddCloudEvents() with no argument: the reflective path, annotated so your build warns you
+services.AddDispatch(dispatch => dispatch.AddCloudEvents(MyPayloadContext.Default));
 services.AddCloudEventsForServiceBus(options =>
 {
     options.UseSessionsForOrdering = true;
@@ -331,7 +341,7 @@ services.AddOpenTelemetry()
 
 ## Production Checklist
 - [ ] Use managed identity (no connection strings in production)
-- [ ] Set `MaxConcurrentCalls` and `PrefetchCount` for throughput
+- [ ] Evaluate `MaxConcurrentCalls` and `PrefetchCount` against completed throughput, memory, lock duration and ordering requirements
 - [ ] Enable CloudEvents options for ordering and deduplication
 - [ ] Configure DLQ behavior and TTL defaults
 

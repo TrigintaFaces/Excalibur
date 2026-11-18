@@ -79,7 +79,7 @@ Health status is determined by:
 - Not suitable for production distributed scenarios
 
 ## Next Steps
-- [Kafka Transport](kafka.md) — For production high-throughput scenarios
+- [Kafka Transport](kafka.md) — For partitioned event streaming
 - [RabbitMQ Transport](rabbitmq.md) — For production messaging with routing
 
 ## See Also

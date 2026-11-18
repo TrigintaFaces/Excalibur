@@ -264,12 +264,7 @@ public sealed class CdcJobShould
 	private (CdcJob Job, IJobExecutionContext Context) CreateExecutableJob(
 		IDataChangeEventProcessor processor, bool configureTable = true)
 	{
-		var database = new DatabaseOptions
-		{
-			DatabaseName = "Recovery",
-			DatabaseConnectionIdentifier = "Source",
-			StateConnectionIdentifier = "State",
-		};
+		var database = new DatabaseOptions("Recovery", "Source", "State");
 		if (configureTable)
 		{
 			database.Tables.Add(new CdcTableConfig { TableName = "dbo.Orders" });

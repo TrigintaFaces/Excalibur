@@ -18,16 +18,22 @@ public enum OrderProcessingOutcome
 	/// <summary>The order was accepted, persisted, and its confirmation staged in the outbox.</summary>
 	Processed,
 
-	/// <summary>The inbox already held this order for this handler, so the submission was suppressed.</summary>
+	/// <summary>Matching business inputs and completed inbox processing were confirmed; the submission was suppressed.</summary>
 	Duplicate,
 
-	/// <summary>The order was rejected by business validation and the inbox entry was marked failed.</summary>
-	Failed
+	/// <summary>The attempt failed. Staging may require a bounded retry or explicit reconciliation.</summary>
+	Failed,
+	/// <summary>The same identity was submitted with different business inputs.</summary>
+	Conflict,
+	/// <summary>Another operation is pending or this caller lost its inbox term.</summary>
+	Pending,
+	/// <summary>Publication could not be established; automatic staging is stopped for this order.</summary>
+	NeedsReconciliation
 }
 
 /// <summary>
-/// Processes orders exactly once per handler using the inbox store, and stages the customer confirmation in
-/// the outbox as part of the same flow.
+/// Demonstrates volatile order admission and bounded publication recovery. Durable order submission
+/// uses the separate SQL transaction profile; this flow is not a cross-store transaction.
 /// </summary>
 public sealed partial class OrderProcessingService(
 	IInboxStore inboxStore,
@@ -58,81 +64,152 @@ public sealed partial class OrderProcessingService(
 	private readonly ILogger<OrderProcessingService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <summary>
-	/// Processes an order, suppressing a repeat submission of an order this handler has already seen.
+	/// Processes a volatile order attempt; only a matching completed identity is reported as a duplicate.
 	/// </summary>
 	public async Task<OrderProcessingOutcome> ProcessOrderAsync(OrderCreated order, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(order);
-
+		cancellationToken.ThrowIfCancellationRequested();
 		using var activity = SampleTelemetry.Orders.StartActivity("OrderProcessing.ProcessOrder");
 		_ = activity?.SetTag("order.id", order.OrderId);
 		_ = activity?.SetTag("customer.id", order.CustomerId);
-
-		var payload = JsonSerializer.SerializeToUtf8Bytes(order);
-		var metadata = new Dictionary<string, object>(StringComparer.Ordinal)
+		if (_inboxStore is not ILeasedInboxStore leased
+			|| _inboxStore is IInboxStoreCapabilities { SupportsLeasedClaim: false })
 		{
-			["customerId"] = order.CustomerId,
-			["productId"] = order.ProductId,
-			["orderDate"] = order.OrderDate.ToString("O", CultureInfo.InvariantCulture),
-			["totalAmount"] = (order.Price * order.Quantity).ToString("F2", CultureInfo.InvariantCulture)
-		};
-
-		// Creating the entry IS the claim: the store admits one (messageId, handlerType) pair and documents an
-		// InvalidOperationException for any later one. Claiming before the work runs -- rather than checking a
-		// flag first and acting on it afterwards -- is what makes the suppression hold when two submissions
-		// arrive at once.
-		try
-		{
-			_ = await _inboxStore
-				.CreateEntryAsync(order.OrderId, HandlerType, nameof(OrderCreated), payload, metadata, cancellationToken)
-				.ConfigureAwait(false);
+			throw new InvalidOperationException("The volatile order profile requires an effective leased inbox store.");
 		}
-		catch (InvalidOperationException)
+		if (!await HasMatchingAuditableInputAsync(order, cancellationToken).ConfigureAwait(false))
 		{
-			_monitor.RecordDuplicateSuppressed();
-			_ = activity?.SetTag("order.duplicate", true);
-			LogDuplicateOrderSuppressed(order.OrderId);
-			return OrderProcessingOutcome.Duplicate;
+			return OrderProcessingOutcome.Conflict;
+		}
+		var lease = await leased.TryAcquireLeaseAsync(order.OrderId, HandlerType, TimeSpan.FromSeconds(30), cancellationToken)
+			.ConfigureAwait(false);
+		if (lease is null)
+		{
+			string fingerprint;
+			try { fingerprint = OrderSubmissionPlan.FingerprintFor(order); }
+			catch (ArgumentException) { return OrderProcessingOutcome.Conflict; }
+			var retained = _orderRepository.Submission(order.OrderId);
+			if (retained is null) { return OrderProcessingOutcome.Pending; }
+			if (retained.Plan.Fingerprint != fingerprint) { return OrderProcessingOutcome.Conflict; }
+			var entry = await _inboxStore.GetEntryAsync(order.OrderId, HandlerType, cancellationToken).ConfigureAwait(false);
+			if (entry?.Status == InboxStatus.Processed && retained.Publication == PublicationState.Accepted)
+			{
+				_monitor.RecordDuplicateSuppressed();
+				_ = activity?.SetTag("order.duplicate", true);
+				LogDuplicateOrderSuppressed(order.OrderId);
+				return OrderProcessingOutcome.Duplicate;
+			}
+			return retained.Publication == PublicationState.NeedsReconciliation
+				? OrderProcessingOutcome.NeedsReconciliation : OrderProcessingOutcome.Pending;
 		}
 
 		LogClaimedOrder(order.OrderId);
-
 		try
 		{
-			var record = BuildOrderRecord(order);
-			await _orderRepository.SaveOrderAsync(record).ConfigureAwait(false);
-
-			// Staged inside the claim, so a confirmation exists for every persisted order and for no other.
-			await _notificationService.QueueOrderConfirmationAsync(record, cancellationToken).ConfigureAwait(false);
-
-			await _inboxStore.MarkProcessedAsync(order.OrderId, HandlerType, cancellationToken).ConfigureAwait(false);
-
+			var fingerprint = OrderSubmissionPlan.FingerprintFor(order);
+			var retained = _orderRepository.Submission(order.OrderId)
+				?? _orderRepository.Capture(new OrderSubmissionPlan(order));
+			if (retained.Plan.Fingerprint != fingerprint)
+			{
+				await RecordFailureAsync(leased, order.OrderId, lease.Value, "Business identity conflict").ConfigureAwait(false);
+				return OrderProcessingOutcome.Conflict;
+			}
+			if (retained.Publication == PublicationState.NeedsReconciliation)
+			{
+				await RecordFailureAsync(leased, order.OrderId, lease.Value, retained.LastError ?? "Publication requires reconciliation")
+					.ConfigureAwait(false);
+				return OrderProcessingOutcome.NeedsReconciliation;
+			}
+			if (retained.Publication != PublicationState.Accepted)
+			{
+				if (!_orderRepository.BeginPublication(retained, out var permit))
+				{
+					await RecordFailureAsync(leased, order.OrderId, lease.Value, "Publication is already in flight").ConfigureAwait(false);
+					return OrderProcessingOutcome.Pending;
+				}
+				using var staging = SampleTelemetry.Orders.StartActivity("NotificationService.StageConfirmation");
+				_ = staging?.SetTag("order.id", permit.Plan.Id);
+				_ = staging?.SetTag("email.to", permit.Plan.Order.CustomerId);
+				try
+				{
+					await _notificationService.StageCapturedAsync(permit.Plan, cancellationToken).ConfigureAwait(false);
+				}
+				catch (Exception error)
+				{
+					var applied = _orderRepository.RecordPublication(permit, accepted: false, error.Message);
+					await RecordFailureAsync(leased, order.OrderId, lease.Value, error.Message).ConfigureAwait(false);
+					if (error is OperationCanceledException && cancellationToken.IsCancellationRequested) { throw; }
+					_monitor.RecordOrderFailed();
+					_ = activity?.SetStatus(ActivityStatusCode.Error, error.Message);
+					LogFailedOrder(error, order.OrderId);
+					return !applied || permit.StageInvocations >= 2
+						? OrderProcessingOutcome.NeedsReconciliation : OrderProcessingOutcome.Failed;
+				}
+				// No callback, logging, metric or await occurs between positive acceptance and this receipt.
+				if (!_orderRepository.RecordPublication(permit, accepted: true, error: null))
+				{
+					return OrderProcessingOutcome.NeedsReconciliation;
+				}
+				_monitor.RecordNotificationStaged();
+			}
+			if (!await leased.CompleteAsync(order.OrderId, HandlerType, lease.Value, cancellationToken).ConfigureAwait(false))
+			{
+				return OrderProcessingOutcome.Pending;
+			}
 			_monitor.RecordOrderProcessed();
-			LogProcessedOrder(order.OrderId, record.FinalAmount);
 			_ = activity?.SetStatus(ActivityStatusCode.Ok);
-
+			LogProcessedOrder(order.OrderId, retained.Plan.Order.FinalAmount);
 			return OrderProcessingOutcome.Processed;
 		}
-		catch (Exception ex)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+		catch (Exception error)
 		{
-			// Recording the failure must not replace it. If the inbox write itself throws, the original
-			// error is what the operator needs, and a bookkeeping fault must not take the host down on a
-			// path whose whole job is to survive a bad order.
-			try
-			{
-				await _inboxStore.MarkFailedAsync(order.OrderId, HandlerType, ex.Message, cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception recordingFailure)
-			{
-				LogFailedToRecordFailure(recordingFailure, order.OrderId);
-			}
-
+			await RecordFailureAsync(leased, order.OrderId, lease.Value, error.Message).ConfigureAwait(false);
 			_monitor.RecordOrderFailed();
-			LogFailedOrder(ex, order.OrderId);
-			_ = activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-
+			_ = activity?.SetStatus(ActivityStatusCode.Error, error.Message);
+			LogFailedOrder(error, order.OrderId);
 			return OrderProcessingOutcome.Failed;
 		}
+	}
+
+	private async Task<bool> HasMatchingAuditableInputAsync(OrderCreated order, CancellationToken cancellationToken)
+	{
+		// Preserve the original auditable input before lease acquisition. A racing insert is resolved
+		// by reading the actual entry, never by interpreting an exception as completed processing.
+		var payload = JsonSerializer.SerializeToUtf8Bytes(order, CommerceJsonContext.Default.OrderCreated);
+		var entry = await _inboxStore.GetEntryAsync(order.OrderId, HandlerType, cancellationToken).ConfigureAwait(false);
+		if (entry is null)
+		{
+			try
+			{
+				entry = await _inboxStore.CreateEntryAsync(order.OrderId, HandlerType, nameof(OrderCreated), payload,
+					new Dictionary<string, object>(StringComparer.Ordinal)
+					{
+						["customerId"] = order.CustomerId, ["productId"] = order.ProductId,
+						["orderDate"] = order.OrderDate.ToString("O", CultureInfo.InvariantCulture),
+						["totalAmount"] = (order.Price * order.Quantity).ToString("F2", CultureInfo.InvariantCulture),
+					}, cancellationToken).ConfigureAwait(false);
+			}
+			catch (InvalidOperationException)
+			{
+				entry = await _inboxStore.GetEntryAsync(order.OrderId, HandlerType, cancellationToken).ConfigureAwait(false);
+				if (entry is null) { throw; }
+			}
+		}
+		return entry.Payload.AsSpan().SequenceEqual(payload);
+	}
+
+	private async ValueTask RecordFailureAsync(ILeasedInboxStore leased, string id, LeaseToken lease, string error)
+	{
+		try
+		{
+			if (!await leased.FailAsync(id, HandlerType, lease, error, CancellationToken.None).ConfigureAwait(false))
+			{
+				_logger.LogWarning("Order {OrderId} failure was not applied under this inbox term", id);
+			}
+		}
+		catch (Exception recordingFailure) { LogFailedToRecordFailure(recordingFailure, id); }
 	}
 
 	private static decimal DiscountFor(decimal totalAmount) =>
@@ -144,7 +221,7 @@ public sealed partial class OrderProcessingService(
 			_ => 0m
 		};
 
-	private static OrderRecord BuildOrderRecord(OrderCreated order)
+	internal static OrderRecord BuildOrderRecord(OrderCreated order)
 	{
 		if (order.Price <= 0 || order.Quantity <= 0)
 		{
@@ -202,6 +279,11 @@ public sealed partial class NotificationService(
 	private readonly IOutboxStore _outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
 	private readonly PerformanceMonitor _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
 	private readonly ILogger<NotificationService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+	// This path deliberately returns immediately after the store outcome. The caller records the
+	// conditional accepted receipt before any telemetry or other callback can fail.
+	internal ValueTask StageCapturedAsync(OrderSubmissionPlan plan, CancellationToken cancellationToken) =>
+		_outboxStore.StageMessageAsync(plan.CreateMessage(), cancellationToken);
 
 	/// <summary>Stages the order confirmation for a persisted order.</summary>
 	public async Task QueueOrderConfirmationAsync(OrderRecord order, CancellationToken cancellationToken)

@@ -9,6 +9,11 @@ namespace Excalibur.Data.DataProcessing;
 
 public abstract partial class DataProcessor<TRecord>
 {
+    [LoggerMessage(DataProcessingEventId.ProjectionsBehind, LogLevel.Warning,
+        "Projections did not catch up after {Processed} record(s): {Outcome} ({HaltReason}). Records are committed; projections may be behind.")]
+    private partial void LogProjectionsBehind(long processed, Excalibur.EventSourcing.ProjectionProcessingOutcome outcome,
+        Excalibur.EventSourcing.ProjectionHaltReason haltReason);
+
 	// Source-generated logging methods
 
 	// Core disposal methods (107100-107107)

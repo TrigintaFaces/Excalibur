@@ -157,6 +157,31 @@ reaches the wire byte-identical, so ordinary traffic is unaffected. This path ne
 ahead-of-time annotation: the envelope is written with a UTF-8 JSON writer rather than a reflection-based
 serializer.
 
+Typed extension attributes retain their CloudEvents JSON types: Boolean values become JSON booleans,
+Integer values become JSON numbers, and String values remain strings even when their text looks like
+a number. Custom attribute validators run during encoding. Set `CloudEvent.Data` for the payload;
+an extension named `data` is rejected before sending because that name belongs to the JSON payload.
+
+On receive, structured JSON extensions retain Boolean, 32-bit Integer and String values; a numeric-looking
+string remains a String. Null extension values are omitted. Extensions using an unknown object or array
+mapping remain available in the original message body, but are not materialized as SDK attributes without
+a supported mapping. Invalid primitive extension names or values produce a decode error on that message;
+they do not prevent the next message in the batch from being decoded. Use structured mode when you need
+typed extensions: the binary decoder currently reads core attributes only.
+
+For the structured payload, a `JsonElement` retains its native JSON value when `DataContentType` is absent
+or declares a supported JSON media type, such as `application/json` or `application/problem+json` (including
+parameters). Keep its owning `JsonDocument` valid until the send completes. The structured decoder clones
+non-string JSON values, so the attached event can be used after decoding and forwarded without becoming
+binary. A string payload stays a string. Explicit `byte[]` and `ReadOnlyMemory<byte>` payloads always use
+`data_base64`, even with a JSON content type; their contents are not inspected to infer JSON.
+
+For an arbitrary CLR object, serialize explicitly with consumer-provided AOT metadata before supplying a
+`JsonElement` or encoded bytes. A `JsonElement` paired with a non-JSON media type is refused before transport
+I/O. Invalid incoming structured non-string data with a non-JSON media type is isolated as a decode error
+on that message; the next healthy message remains decodable. These payload rules add no registration or
+transport option and do not certify every transport or serializer for Native AOT.
+
 ## Reaching the underlying channel
 
 For anything this transport does not expose, ask the sender or receiver for the `GrpcChannel` it is using:

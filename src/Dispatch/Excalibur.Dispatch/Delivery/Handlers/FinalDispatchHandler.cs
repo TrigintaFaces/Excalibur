@@ -52,12 +52,10 @@ public sealed partial class FinalDispatchHandler(
 	private readonly ConcurrentDictionary<string, (IMessageBus Bus, bool UseNoOpPolicy)> _resolvedBusCache =
 		new(StringComparer.OrdinalIgnoreCase);
 
-	// PERF-T4: Pre-resolved single transport bus for the common single-transport case.
-	// When exactly one non-local bus is registered, HandleSingleTargetAsync can skip the
-	// ConcurrentDictionary<string, ...> lookup entirely (~2-4us saved per dispatch).
-	// Bus instances are process-lifetime singletons (via Lazy<IMessageBus>), so caching is safe.
-	private readonly (IMessageBus Bus, bool UseNoOpPolicy, string Name)? _singleTransportBus =
-		ResolveSingleTransportBus(busProvider, busOptionsMap, retryPolicy);
+	// Discover only metadata during construction; remote bus factories may perform network I/O.
+	private readonly (bool UseNoOpPolicy, string Name)? _singleTransport =
+		DescribeSingleTransport(busProvider, busOptionsMap, retryPolicy);
+	private IMessageBus? _singleTransportBus;
 
 	/// <summary>
 	/// Publishes the provided message to the message bus determined by routing.
@@ -175,9 +173,9 @@ public sealed partial class FinalDispatchHandler(
 		if (routingDecision?.Endpoints is { Count: > 0 } endpoints)
 		{
 			var name = endpoints[0];
-			if (_singleTransportBus is { } single && string.Equals(name, single.Name, StringComparison.OrdinalIgnoreCase))
+			if (TryResolveSingleTransport(name, out bus, out _))
 			{
-				bus = single.Bus;
+				// A matching but currently absent bus reaches the existing null guard below.
 			}
 			else if (_resolvedBusCache.TryGetValue(name, out var cached))
 			{
@@ -269,10 +267,10 @@ public sealed partial class FinalDispatchHandler(
 	}
 
 	/// <summary>
-	/// Pre-resolves a single transport bus when exactly one non-local bus is registered.
+	/// Captures a single transport's name and policy without invoking its factory.
 	/// Returns null when zero or multiple non-local buses exist (fall back to string-keyed cache).
 	/// </summary>
-	private static (IMessageBus Bus, bool UseNoOpPolicy, string Name)? ResolveSingleTransportBus(
+	private static (bool UseNoOpPolicy, string Name)? DescribeSingleTransport(
 		IMessageBusProvider provider,
 		IDictionary<string, MessageBusOptions> optionsMap,
 		IRetryPolicy? configuredRetryPolicy)
@@ -287,7 +285,7 @@ public sealed partial class FinalDispatchHandler(
 
 			if (singleName is not null)
 			{
-				// More than one non-local bus -- can't pre-resolve
+				// More than one non-local bus -- use the string-keyed cache
 				return null;
 			}
 
@@ -299,14 +297,30 @@ public sealed partial class FinalDispatchHandler(
 			return null;
 		}
 
-		if (!provider.TryGet(singleName, out var bus) || bus is null)
-		{
-			return null;
-		}
-
 		_ = optionsMap.TryGetValue(singleName, out var opts);
 		var useNoOp = !(opts?.EnableRetries == true && configuredRetryPolicy is not null);
-		return (bus, useNoOp, singleName);
+		return (useNoOp, singleName);
+	}
+
+	private bool TryResolveSingleTransport(string name, out IMessageBus? bus, out bool useNoOpPolicy)
+	{
+		bus = null;
+		useNoOpPolicy = false;
+		if (_singleTransport is not { } single ||
+			!string.Equals(name, single.Name, StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
+		}
+
+		useNoOpPolicy = single.UseNoOpPolicy;
+		bus = Volatile.Read(ref _singleTransportBus);
+		if (bus is null && busProvider.TryGet(single.Name, out var resolved) && resolved is not null)
+		{
+			bus = Interlocked.CompareExchange(ref _singleTransportBus, resolved, null) ?? resolved;
+		}
+
+		// Cache only successful resolution. Absence and custom-provider faults can be retried.
+		return true;
 	}
 
 	[RequiresUnreferencedCode("This method uses reflection to create typed MessageResult instances and set properties dynamically")]
@@ -712,6 +726,7 @@ public sealed partial class FinalDispatchHandler(
 			var allFailuresKnownNonRetryable = true;
 			var hasPoisonFailure = false;
 			var hasUncertainFailure = false;
+			var hasUnknownFailure = false;
 			List<Exception>? typedFaults = null;
 
 			foreach (var target in targets)
@@ -729,6 +744,7 @@ public sealed partial class FinalDispatchHandler(
 						allFailuresKnownNonRetryable &= outcome.FailureKind is MessageFailureKind.Permanent or MessageFailureKind.Poison;
 						hasPoisonFailure |= outcome.FailureKind == MessageFailureKind.Poison;
 						hasUncertainFailure |= outcome.FailureKind == MessageFailureKind.Uncertain;
+						hasUnknownFailure |= outcome.FailureKind == MessageFailureKind.Unknown;
 						(typedFaults ??= []).Add(fault);
 						LogUnhandledExceptionDuringDispatch(_logger, message.GetType().Name, fault);
 					}
@@ -782,9 +798,10 @@ public sealed partial class FinalDispatchHandler(
 				if (retryAttempt is not null)
 				{
 					RetryOwnershipScope.ReportFanout(retryAttempt, failed, retryableFailure,
-						hasUncertainFailure ? MessageFailureKind.Uncertain
+						hasUnknownFailure ? MessageFailureKind.Unknown
+							: hasUncertainFailure ? MessageFailureKind.Uncertain
 							: allFailuresKnownNonRetryable ? hasPoisonFailure ? MessageFailureKind.Poison : MessageFailureKind.Permanent : null,
-						hasUncertainFailure || allFailuresKnownNonRetryable
+						hasUnknownFailure || hasUncertainFailure || allFailuresKnownNonRetryable
 							? typedFaults!.Count == 1 ? typedFaults[0] : new AggregateException(typedFaults)
 							: null);
 				}
@@ -1099,13 +1116,11 @@ public sealed partial class FinalDispatchHandler(
 		RoutingDecision? routingDecision,
 		CancellationToken cancellationToken)
 	{
-		// PERF-T4: Fast path for single-transport case. When exactly one non-local bus is
-		// registered, skip the ConcurrentDictionary<string, ...> lookup entirely (~2-4us saved).
+		// Reuse the successful single-transport resolution without a dictionary/provider lookup.
 		(IMessageBus Bus, bool UseNoOpPolicy) cached;
-		if (_singleTransportBus is { } single &&
-			string.Equals(busName, single.Name, StringComparison.OrdinalIgnoreCase))
+		if (TryResolveSingleTransport(busName, out var singleBus, out var singleUseNoOpPolicy))
 		{
-			cached = (single.Bus, single.UseNoOpPolicy);
+			cached = (singleBus!, singleUseNoOpPolicy);
 		}
 		else
 		{
@@ -1124,26 +1139,27 @@ public sealed partial class FinalDispatchHandler(
 				return (freshBus, isNoOp);
 			});
 
-			if (cached.Bus is null)
+		}
+
+		if (cached.Bus is null)
+		{
+			// Remove the default entry so future calls retry resolution
+			_resolvedBusCache.TryRemove(busName, out _);
+
+			LogNoMessageBusFound(_logger, busName);
+			var problemDetails = new MessageProblemDetails
 			{
-				// Remove the default entry so future calls retry resolution
-				_resolvedBusCache.TryRemove(busName, out _);
+				Type = ProblemDetailsTypes.Routing,
+				Title = "Routing failed",
+				Status = 404,
+				Detail = $"No message bus registered for '{busName}'",
+				Instance = Guid.NewGuid().ToString(),
+			};
 
-				LogNoMessageBusFound(_logger, busName);
-				var problemDetails = new MessageProblemDetails
-				{
-					Type = ProblemDetailsTypes.Routing,
-					Title = "Routing failed",
-					Status = 404,
-					Detail = $"No message bus registered for '{busName}'",
-					Instance = Guid.NewGuid().ToString(),
-				};
-
-				return new ValueTask<IMessageResult>(MR.Failed(
-					problemDetails,
-					context.ValidationResult() as IValidationResult,
-					context.AuthorizationResult() as IAuthorizationResult));
-			}
+			return new ValueTask<IMessageResult>(MR.Failed(
+				problemDetails,
+				context.ValidationResult() as IValidationResult,
+				context.AuthorizationResult() as IAuthorizationResult));
 		}
 
 		var resolvedBus = cached.Bus;

@@ -124,7 +124,6 @@ pg.DataSource(preBuiltDataSource);
 pg.DataSourceFactory(sp => NpgsqlDataSource.Create(connStr));
 ```
 :::
-```
 
 ### In-Memory (Testing)
 
@@ -523,7 +522,7 @@ This adds spans for:
 | Configure snapshots | Prevents unbounded event replay |
 | Enable migrations | Automatic schema updates |
 | Add health checks | Monitor event store availability |
-| Use connection pooling | Performance in high-throughput scenarios |
+| Use connection pooling | Evaluate connection reuse, pool contention and database limits under the actual workload |
 
 ## Troubleshooting
 

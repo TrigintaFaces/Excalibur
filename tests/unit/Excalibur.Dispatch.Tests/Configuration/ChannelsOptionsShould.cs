@@ -91,7 +91,6 @@ public sealed class ChannelsOptionsShould
 
 		// Assert
 		options.Capacity.ShouldBe(100);
-		options.FullMode.ShouldBe(BoundedChannelFullMode.Wait);
 		options.AllowSynchronousContinuations.ShouldBeFalse();
 		options.ConcurrentConsumers.ShouldBe(1);
 		options.SingleReader.ShouldBeFalse();

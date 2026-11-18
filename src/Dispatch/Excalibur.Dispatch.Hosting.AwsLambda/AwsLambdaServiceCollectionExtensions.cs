@@ -27,6 +27,8 @@ public static class AwsLambdaServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		_ = services.AddValidatedServerlessHostOptions();
+
 		// Register AWS Lambda specific services
 		services.TryAddSingleton<IServerlessHostProvider, AwsLambdaHostProvider>();
 		services.TryAddSingleton<IColdStartOptimizer, AwsLambdaColdStartOptimizer>();

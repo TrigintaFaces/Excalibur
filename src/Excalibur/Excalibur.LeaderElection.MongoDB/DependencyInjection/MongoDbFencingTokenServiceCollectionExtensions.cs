@@ -32,6 +32,7 @@ public static class MongoDbFencingTokenServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		services.TryAddSingleton<IFencingTokenProvider, MongoDbFencingTokenProvider>();
+		services.RegisterFencingIssuerProjection();
 		services.TryAddSingleton<FencingTokenMiddleware>();
 
 		return services;

@@ -22,7 +22,7 @@ namespace Excalibur.Compliance.Encryption.Decorators;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecorator
+internal sealed partial class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecorator
 {
 	/// <summary>
 	/// The capabilities forwarded to the decorated store unmediated, because no member of either -- inherited
@@ -59,6 +59,7 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		typeof(IBackoffSchedulableOutboxStore),
 		typeof(IFencedOutboxStoreDiagnostics),
 		typeof(IClaimScopedOutboxStore),
+		typeof(IClaimScopedDeadLetterableOutboxStore),
 		typeof(IFencedClaimScopedOutboxStore),
 		typeof(IFencedDeadLetterableOutboxStore),
 		typeof(IOutboxStoreCapabilities)
@@ -107,6 +108,15 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	/// </remarks>
 	protected override object? WrapCapability(Type serviceType)
 	{
+        if (serviceType == typeof(ITransactionalOutboxPreparer))
+        {
+            return Inner.GetService(typeof(ITransactionalOutboxPreparer)) is ITransactionalOutboxPreparer prepare
+                && Inner.GetService(typeof(ITransactionalOutboxPayloadTransformPreparer)) is ITransactionalOutboxPayloadTransformPreparer transform
+                ? new EncryptedTransactionalPreparation(prepare, transform, this) : null;
+        }
+        // The raw transform facet is not forwarded: that would bypass this encryption layer.
+        if (serviceType == typeof(ITransactionalOutboxPayloadTransformPreparer)) { return null; }
+
 		if (serviceType == typeof(IOutboxStoreAdmin))
 		{
 			return Inner.GetService(typeof(IOutboxStoreAdmin)) is IOutboxStoreAdmin admin
@@ -150,9 +160,17 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		message.Payload = await EncryptForWriteAsync(message.Payload, message.TenantId, cancellationToken).ConfigureAwait(false);
+		var mode = GetWriteMode();
+		if (mode is EncryptionMode.Disabled or EncryptionMode.DecryptOnlyWritePlaintext)
+		{
+			await Inner.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
+			return;
+		}
 
-		await Inner.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
+		// Encrypt an owned snapshot, never a payload temporarily installed on the caller's envelope.
+		var owned = SnapshotMessage(message);
+		owned.Payload = await EncryptPayloadAsync(owned.Payload, owned.TenantId, cancellationToken).ConfigureAwait(false);
+		await Inner.StageMessageAsync(owned, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -160,21 +178,26 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public override async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
-		var mode = _options.Value.Mode;
-
-		if (mode == EncryptionMode.DecryptOnlyReadOnly)
+		ArgumentNullException.ThrowIfNull(message);
+		ArgumentNullException.ThrowIfNull(context);
+		var mode = GetWriteMode();
+		if (mode is EncryptionMode.Disabled or EncryptionMode.DecryptOnlyWritePlaintext)
 		{
-			throw new InvalidOperationException(
-				Resources.EncryptingOutboxStoreDecorator_ReadOnlyMode);
+			await Inner.EnqueueAsync(message, context, cancellationToken).ConfigureAwait(false);
+			return;
 		}
 
-		// Encryption of the message payload happens at serialization time, not here
-		await Inner.EnqueueAsync(message, context, cancellationToken).ConfigureAwait(false);
+		var transform = Inner.GetService(typeof(IOutboxPayloadTransformStore)) as IOutboxPayloadTransformStore
+			?? throw new InvalidOperationException(
+				"Encrypted legacy EnqueueAsync requires the owning outbox provider's IOutboxPayloadTransformStore capability. "
+				+ "Use a supporting provider or serialize with the provider's contract and call StageMessageAsync; plaintext fallback is refused.");
+		await transform.EnqueueWithPayloadTransformAsync(message, context, EncryptEnqueuePayloadAsync, cancellationToken).ConfigureAwait(false);
 	}
 
+	private ValueTask<byte[]> EncryptEnqueuePayloadAsync(ReadOnlyMemory<byte> payload, string? tenantId, CancellationToken cancellationToken) =>
+		EncryptPayloadAsync(payload.ToArray(), tenantId, cancellationToken);
+
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public override async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		var messages = await Inner.GetUnsentMessagesAsync(batchSize, cancellationToken).ConfigureAwait(false);
@@ -238,9 +261,15 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		{
 			ArgumentNullException.ThrowIfNull(inboxEntry);
 
-			inboxEntry.Payload = await owner.EncryptForWriteAsync(inboxEntry.Payload, inboxEntry.TenantId, cancellationToken).ConfigureAwait(false);
+			var mode = owner.GetWriteMode();
+			if (mode is EncryptionMode.Disabled or EncryptionMode.DecryptOnlyWritePlaintext)
+			{
+				return await inner.TryMarkSentAndReceivedAsync(messageId, inboxEntry, cancellationToken).ConfigureAwait(false);
+			}
 
-			return await inner.TryMarkSentAndReceivedAsync(messageId, inboxEntry, cancellationToken).ConfigureAwait(false);
+			var owned = SnapshotInboxEntry(inboxEntry);
+			owned.Payload = await owner.EncryptPayloadAsync(owned.Payload, owned.TenantId, cancellationToken).ConfigureAwait(false);
+			return await inner.TryMarkSentAndReceivedAsync(messageId, owned, cancellationToken).ConfigureAwait(false);
 		}
 	}
 
@@ -258,9 +287,18 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		{
 			ArgumentNullException.ThrowIfNull(message);
 
-			message.Payload = await owner.EncryptForWriteAsync(message.Payload, message.TenantId, cancellationToken).ConfigureAwait(false);
+			var mode = owner.GetWriteMode();
+			if (mode is EncryptionMode.Disabled or EncryptionMode.DecryptOnlyWritePlaintext)
+			{
+				await inner.StageMessageWithTransportsAsync(message, transports, cancellationToken).ConfigureAwait(false);
+				return;
+			}
 
-			await inner.StageMessageWithTransportsAsync(message, transports, cancellationToken).ConfigureAwait(false);
+			// Both the embedded deliveries and this independent sequence are fixed before encryption awaits.
+			var owned = SnapshotMessage(message);
+			var ownedTransports = transports.Select(SnapshotTransport).ToArray();
+			owned.Payload = await owner.EncryptPayloadAsync(owned.Payload, owned.TenantId, cancellationToken).ConfigureAwait(false);
+			await inner.StageMessageWithTransportsAsync(owned, ownedTransports, cancellationToken).ConfigureAwait(false);
 		}
 
 		// Carries transport identity and status, never a payload.
@@ -284,8 +322,6 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
 			owner.EnqueueAsync(message, context, cancellationToken);
 
-		[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-		[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 			owner.GetUnsentMessagesAsync(batchSize, cancellationToken);
 
@@ -342,8 +378,6 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	/// </summary>
 	private sealed class DecryptingFencedStore(IFencedOutboxStore inner, EncryptingOutboxStoreDecorator owner) : IFencedOutboxStore
 	{
-		[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-		[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 			int batchSize,
 			long fencingToken,
@@ -353,7 +387,7 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 			return await owner.DecryptMessagesAsync(messages, cancellationToken).ConfigureAwait(false);
 		}
 
-		public ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken) =>
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken) =>
 			inner.MarkSentAsync(messageId, fencingToken, cancellationToken);
 
 		public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken) =>
@@ -364,8 +398,6 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
 			owner.EnqueueAsync(message, context, cancellationToken);
 
-		[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-		[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 			owner.GetUnsentMessagesAsync(batchSize, cancellationToken);
 
@@ -376,24 +408,91 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 			owner.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken);
 	}
 
-	/// <summary>
-	/// Encrypts a payload on its way to the decorated store, honouring the configured <see cref="EncryptionMode"/>.
-	/// </summary>
-	/// <exception cref="InvalidOperationException"> Thrown when the store is configured read-only. </exception>
-	private async ValueTask<byte[]> EncryptForWriteAsync(byte[] payload, string? tenantId, CancellationToken cancellationToken)
+	/// <summary>Captures and validates one write's mode before touching mutable caller data.</summary>
+	private EncryptionMode GetWriteMode()
 	{
 		var mode = _options.Value.Mode;
-
-		if (mode == EncryptionMode.DecryptOnlyReadOnly)
+		return mode switch
 		{
-			throw new InvalidOperationException(
-				Resources.EncryptingOutboxStoreDecorator_ReadOnlyMode);
-		}
-
-		return mode is EncryptionMode.EncryptAndDecrypt or EncryptionMode.EncryptNewDecryptAll
-			? await EncryptPayloadAsync(payload, tenantId, cancellationToken).ConfigureAwait(false)
-			: payload;
+			EncryptionMode.EncryptAndDecrypt or EncryptionMode.EncryptNewDecryptAll
+				or EncryptionMode.DecryptOnlyWritePlaintext or EncryptionMode.Disabled => mode,
+			EncryptionMode.DecryptOnlyReadOnly => throw new InvalidOperationException(Resources.EncryptingOutboxStoreDecorator_ReadOnlyMode),
+			_ => throw new InvalidOperationException(
+				$"Unsupported outbox encryption mode '{(int)mode}'. Configure a declared EncryptionMode before writing."),
+		};
 	}
+
+	// Copy containers and payload bytes, retaining arbitrary nested metadata values and serializer semantics.
+	// Direct assignment preserves IDs/status/explicit correlation values; convenience constructors or
+	// AddTransport would derive fields rather than snapshot the caller's current values.
+	private static OutboundMessage SnapshotMessage(OutboundMessage message)
+	{
+		var owned = new OutboundMessage
+		{
+			Id = message.Id,
+			MessageType = message.MessageType,
+			Payload = (byte[])message.Payload.Clone(),
+			Headers = new Dictionary<string, object>(message.Headers, StringComparer.Ordinal),
+			Destination = message.Destination,
+			CreatedAt = message.CreatedAt,
+			ScheduledAt = message.ScheduledAt,
+			SentAt = message.SentAt,
+			Status = message.Status,
+			RetryCount = message.RetryCount,
+			LastError = message.LastError,
+			LastAttemptAt = message.LastAttemptAt,
+			DispatcherId = message.DispatcherId,
+			CorrelationId = message.CorrelationId,
+			CausationId = message.CausationId,
+			TenantId = message.TenantId,
+			Priority = message.Priority,
+			PartitionKey = message.PartitionKey,
+			GroupKey = message.GroupKey,
+			SequenceNumber = message.SequenceNumber,
+			TargetTransports = message.TargetTransports,
+			IsMultiTransport = message.IsMultiTransport,
+		};
+		foreach (var delivery in message.TransportDeliveries)
+		{
+			owned.TransportDeliveries.Add(SnapshotTransport(delivery));
+		}
+		return owned;
+	}
+
+	private static InboxEntry SnapshotInboxEntry(InboxEntry entry) => new()
+	{
+		MessageId = entry.MessageId,
+		HandlerType = entry.HandlerType,
+		MessageType = entry.MessageType,
+		Payload = (byte[])entry.Payload.Clone(),
+		Metadata = new Dictionary<string, object>(entry.Metadata, StringComparer.Ordinal),
+		ReceivedAt = entry.ReceivedAt,
+		ProcessedAt = entry.ProcessedAt,
+		Status = entry.Status,
+		LastError = entry.LastError,
+		RetryCount = entry.RetryCount,
+		LastAttemptAt = entry.LastAttemptAt,
+		NextAttemptAt = entry.NextAttemptAt,
+		CorrelationId = entry.CorrelationId,
+		CausationId = entry.CausationId,
+		TenantId = entry.TenantId,
+		Source = entry.Source,
+	};
+
+	private static OutboundMessageTransport SnapshotTransport(OutboundMessageTransport delivery) => new()
+	{
+		Id = delivery.Id,
+		MessageId = delivery.MessageId,
+		TransportName = delivery.TransportName,
+		Destination = delivery.Destination,
+		Status = delivery.Status,
+		CreatedAt = delivery.CreatedAt,
+		AttemptedAt = delivery.AttemptedAt,
+		SentAt = delivery.SentAt,
+		RetryCount = delivery.RetryCount,
+		LastError = delivery.LastError,
+		TransportMetadata = delivery.TransportMetadata,
+	};
 
 	private async ValueTask<OutboundMessage> DecryptMessageAsync(OutboundMessage message, CancellationToken cancellationToken)
 	{

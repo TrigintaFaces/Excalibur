@@ -98,12 +98,64 @@ public interface IDeadLetterStore : IServiceProvider
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Marks a dead letter message as replayed.
+	/// Claims a dead letter message for replay by marking it replayed, and reports whether this caller won
+	/// the claim.
 	/// </summary>
-	/// <param name="messageId"> The ID of the message that was replayed. </param>
+	/// <param name="messageId"> The ID of the message to claim. </param>
+	/// <param name="cancellationToken"> The cancellation token. </param>
+	/// <returns>
+	/// <see cref="DeadLetterReplayOutcome.Claimed"/> when this caller moved the message from not-replayed to
+	/// replayed and may now replay it; <see cref="DeadLetterReplayOutcome.AlreadyReplayed"/> when it was
+	/// already marked; <see cref="DeadLetterReplayOutcome.MessageNotFound"/> when no such message exists in
+	/// the caller's tenant.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>Implementations MUST make this a conditional write whose row count is the decision</b> — the
+	/// not-replayed condition belongs in the statement, not in a prior read. A read-then-write, however
+	/// carefully guarded, lets two callers both observe an unmarked message and both proceed.
+	/// </para>
+	/// <para>
+	/// <b>Callers claim BEFORE the replay, never after it</b>, and release the claim with
+	/// <see cref="ReleaseReplayClaimAsync"/> when the replay does not succeed. Marking after the dispatch
+	/// makes the flag a record of a replay rather than a claim on one, which is what leaves the duplicate
+	/// window open.
+	/// </para>
+	/// <para>
+	/// <b>This is not idempotent and must not be, which is a deliberate reversal.</b> Calling it twice
+	/// returns <see cref="DeadLetterReplayOutcome.Claimed"/> then
+	/// <see cref="DeadLetterReplayOutcome.AlreadyReplayed"/>; a second call that reported success would make
+	/// the claim worthless. Absence of a throw is not the contract — the returned outcome is.
+	/// </para>
+	/// </remarks>
+	Task<DeadLetterReplayOutcome> MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Returns a claimed message to the not-replayed state, so a replay that did not succeed can be
+	/// attempted again.
+	/// </summary>
+	/// <param name="messageId"> The ID of the message whose claim is being released. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
-	Task MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken);
+	/// <remarks>
+	/// <para>
+	/// <b>Without this, claiming before the replay would silently remove a behaviour consumers have.</b> A
+	/// replay whose dispatch fails must stay replayable; a claim that is never released would mark it
+	/// replayed although nothing was delivered, and the row would then be indistinguishable from a replay
+	/// that succeeded.
+	/// </para>
+	/// <para>
+	/// <b>The residual exposure is a process ending between a failed replay and this release</b>, which
+	/// leaves one message marked replayed that was never delivered. That is bounded at one and the state
+	/// converges; the ordering it replaces was unbounded, re-delivering on every subsequent attempt. No
+	/// claim identity is needed to make the release safe, because the caller releasing it is the only one
+	/// that holds it.
+	/// </para>
+	/// <para>
+	/// Releasing a message that is not marked, or that does not exist, is a no-op rather than an error.
+	/// </para>
+	/// </remarks>
+	Task ReleaseReplayClaimAsync(string messageId, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Deletes a dead letter message.

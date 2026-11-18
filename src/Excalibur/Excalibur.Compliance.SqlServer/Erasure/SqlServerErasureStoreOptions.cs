@@ -60,6 +60,66 @@ public sealed class SqlServerErasureStoreOptions
 	public string DestructionIntentsTableName { get; set; } = "ErasureDestructionIntents";
 
 	/// <summary>
+	/// Gets or sets the MINT ledger table: the key handles this framework has intended to mint for a data
+	/// subject, written ahead of each mint.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Its primary key is the HANDLE ALONE, and the asymmetry with the destruction ledger above is the
+	/// design rather than an inconsistency. Existence is a per-HANDLE fact here, where a destruction is a
+	/// per-GENERATION one: a handle minted, destroyed and minted again has one row throughout, and that row
+	/// stays true. A generation column would have to be updated after a re-mint, which makes the row mutable
+	/// and rebuilds a create-or-rotate race one layer down.
+	/// </para>
+	/// <para>
+	/// <b>The POLARITY is inverted from the destruction ledger, which is why this table may not be
+	/// volatile.</b> The destruction ledger needs row =&gt; destroyed, so it is written AFTER the act and a
+	/// lost write under-reports coverage. This one needs minted =&gt; row, so it is written BEFORE the act and
+	/// a lost write produces a key no erasure will ever enumerate -- a subject reported erased whose personal
+	/// data is still readable, with nothing downstream able to learn otherwise.
+	/// </para>
+	/// </remarks>
+	public string MintedKeysTableName { get; set; } = "ErasureMintedKeys";
+
+	/// <summary>
+	/// Gets or sets the table recording which data-subject token function produced this database's
+	/// pseudonymisation tokens.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// It holds at most one row, for the whole database, and the row is write-once. Changing the hashing
+	/// key changes every token this store is keyed by, so without this record an erasure enumerates no
+	/// handles and certifies over what it missed, a legal-hold lookup finds nothing and the erasure
+	/// proceeds over data the law required kept, and already-encrypted data stops being decryptable —
+	/// none of it raising and none of it logged.
+	/// </para>
+	/// <para>
+	/// <b>Its table carries NO tenant column, deliberately.</b> The token function is a property of the
+	/// process, not of a tenant; a per-tenant fingerprint would record a rotated key as correct for a
+	/// newly onboarded tenant while every earlier tenant was already orphaned.
+	/// </para>
+	/// </remarks>
+	public string TokenFingerprintTableName { get; set; } = "ErasureTokenFingerprint";
+
+	/// <summary>
+	/// Gets or sets the table name for the deployment-wide record of declared retention declarations.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// One row per declared (tenant, aggregate type) pair, inserted if absent and never updated. A
+	/// retention declaration lives in the consumer's code, so each instance holds only its own view; this
+	/// table is what lets an instance discover that the deployment has recorded declarations it does not
+	/// hold, and withhold a destruction it cannot perform correctly.
+	/// </para>
+	/// <para>
+	/// <b>Its tenant lives in the PRIMARY KEY and nowhere else.</b> The pair is the identity of a row, so
+	/// the key addresses it completely, and a tenant predicate added to a statement the key already
+	/// addresses can only ever turn the correct row into zero rows.
+	/// </para>
+	/// </remarks>
+	public string RetentionDeclarationsTableName { get; set; } = "ErasureRetentionDeclarations";
+
+	/// <summary>
 	/// Gets or sets the command timeout in seconds.
 	/// </summary>
 	public int CommandTimeoutSeconds { get; set; } = 30;
@@ -92,6 +152,22 @@ public sealed class SqlServerErasureStoreOptions
 	/// Gets the full destruction-intents table name including schema.
 	/// </summary>
 	public string FullDestructionIntentsTableName => $"[{SchemaName}].[{DestructionIntentsTableName}]";
+
+	/// <summary>
+	/// Gets the full minted-keys table name including schema.
+	/// </summary>
+	public string FullMintedKeysTableName => $"[{SchemaName}].[{MintedKeysTableName}]";
+
+	/// <summary>
+	/// Gets the full token-fingerprint table name including schema.
+	/// </summary>
+	public string FullTokenFingerprintTableName => $"[{SchemaName}].[{TokenFingerprintTableName}]";
+
+	/// <summary>
+	/// Gets the full retention-declarations table name including schema.
+	/// </summary>
+	public string FullRetentionDeclarationsTableName =>
+		$"[{SchemaName}].[{RetentionDeclarationsTableName}]";
 
 	/// <summary>
 	/// Validates the options.

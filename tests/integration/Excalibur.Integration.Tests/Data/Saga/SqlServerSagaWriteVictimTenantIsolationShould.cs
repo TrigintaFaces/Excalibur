@@ -26,9 +26,9 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// SQL Server's MERGE binds its tenant term unconditionally in the ON clause
 /// (<c>SaveSagaRequest{TSagaState}</c>: <c>const string onTenant = " AND target.TenantId = @TenantId";</c>),
 /// so the match — and therefore both the UPDATE and INSERT branches — can never address another tenant's
-/// row. This lock proves that property against the real MERGE rather than the source comment describing
-/// it, and pins it against regression: RED on the mutant that makes <c>onTenant</c> conditional again
-/// (the exact shape the fragment's own history comment says it used to be).
+/// row. This lock proves combined tenant and incarnation isolation against the real MERGE. The current
+/// incarnation guard independently protects each saga lifetime, so this is not an isolated tenant-term
+/// mutation proof.
 /// </para>
 /// <para>
 /// Both directions are asserted because either alone is satisfiable by a broken store: that the victim
@@ -65,7 +65,7 @@ public sealed class SqlServerSagaWriteVictimTenantIsolationShould(SqlServerSagaS
 		// Both tenants save TWICE. The first save inserts (@ExpectedVersion = 0 takes the INSERT branch,
 		// whose ON is target.SagaId = source.SagaId AND target.TenantId = @TenantId — a WRITE match, so it
 		// cannot address another tenant's row). The second save takes the version-gated UPDATE branch,
-		// which is the branch a dropped tenant term would let cross tenants.
+		// while preserving the loaded saga's incarnation as well as its version.
 		ambient.TenantId = VictimTenant;
 		var victimState = await SaveTwiceAsync(store, sagaId, "victim-state").ConfigureAwait(false);
 
@@ -84,12 +84,17 @@ public sealed class SqlServerSagaWriteVictimTenantIsolationShould(SqlServerSagaS
 			"the victim must be at a non-zero version, or the writer's next save takes the INSERT branch "
 			+ "and never reaches the predicate under test");
 
-		// The overwrite attempt: an UPDATE naming saga_id and a version the victim's row also carries.
+		// The overwrite attempt names a version both rows carry, using only the writer's loaded authority.
 		ambient.TenantId = WriterTenant;
-		await SaveAsync(store, sagaId, "writer-state", beforeOverwrite.Version).ConfigureAwait(false);
+		var writerUpdate = await store.LoadAsync<WriteVictimSagaState>(sagaId, CancellationToken.None)
+			.ConfigureAwait(false);
+		writerUpdate.ShouldNotBeNull("the writer must update its own loaded saga authority");
+		writerUpdate.Version.ShouldBe(beforeOverwrite.Version, "both tenant rows must name the same UPDATE version");
+		writerUpdate.Payload = "writer-state";
+		await store.SaveAsync(writerUpdate, CancellationToken.None).ConfigureAwait(false);
 
-		// SAFETY — the victim still reads its own state. A save whose predicate omits the tenant term
-		// updated this row in place, and this reads "writer-state".
+		// SAFETY — the victim still reads its own state. Tenant and incarnation guards both protect
+		// this write; the assertion does not isolate a tenant-predicate-only mutant.
 		ambient.TenantId = VictimTenant;
 		var victim = await store.LoadAsync<WriteVictimSagaState>(sagaId, CancellationToken.None)
 			.ConfigureAwait(false);
@@ -125,9 +130,9 @@ public sealed class SqlServerSagaWriteVictimTenantIsolationShould(SqlServerSagaS
 			new DispatchJsonSerializer(),
 			ambientTenant);
 
-	private static Task SaveAsync(SqlServerSagaStore store, Guid sagaId, string payload, long version = 0) =>
+	private static Task SaveAsync(SqlServerSagaStore store, Guid sagaId, string payload) =>
 		store.SaveAsync(
-			new WriteVictimSagaState { SagaId = sagaId, Payload = payload, Version = version },
+			new WriteVictimSagaState { SagaId = sagaId, Payload = payload },
 			CancellationToken.None);
 
 	/// <summary>
@@ -144,7 +149,8 @@ public sealed class SqlServerSagaWriteVictimTenantIsolationShould(SqlServerSagaS
 			.ConfigureAwait(false);
 		inserted.ShouldNotBeNull("the first save must insert the row");
 
-		await SaveAsync(store, sagaId, payload, inserted.Version).ConfigureAwait(false);
+		// Preserve the loaded incarnation as well as its version; a fresh object is a different saga lifetime.
+		await store.SaveAsync(inserted, CancellationToken.None).ConfigureAwait(false);
 
 		var updated = await store.LoadAsync<WriteVictimSagaState>(sagaId, CancellationToken.None)
 			.ConfigureAwait(false);

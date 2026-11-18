@@ -3,6 +3,7 @@
 
 
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization.Metadata;
 
 using CloudNative.CloudEvents;
 

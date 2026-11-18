@@ -9,6 +9,8 @@ using System.Diagnostics.Metrics;
 
 using Excalibur.LeaderElection.Diagnostics;
 
+using Microsoft.Extensions.Time.Testing;
+
 namespace Excalibur.LeaderElection.Tests.Diagnostics;
 
 /// <summary>
@@ -35,6 +37,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 	public TelemetryLeaderElectionShould()
 	{
 		_innerFake = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(_innerFake);
 		A.CallTo(() => _innerFake.CandidateId).Returns("node-1");
 		A.CallTo(() => _innerFake.IsLeader).Returns(false);
 		A.CallTo(() => _innerFake.CurrentLeaderId).Returns(null as string);
@@ -69,6 +72,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 		{
 			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 			_sut.DisposeAsync().AsTask().GetAwaiter().GetResult();
+			_sut.NotificationsCompleted.GetAwaiter().GetResult();
 			#pragma warning restore RS0030
 			_meterListener.Dispose();
 			_meter.Dispose();
@@ -240,6 +244,32 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 		durations.ShouldBeEmpty();
 	}
 
+	[Fact]
+	public async Task Record_Lease_Duration_From_The_Injected_Clock()
+	{
+		// The recorded duration must come from the INJECTED clock, not the ambient monotonic one. A test
+		// can advance a fake TimeProvider; it cannot advance Stopwatch.GetTimestamp, so a lease measured
+		// on the ambient clock is the one leader-election clock reading nothing here can drive.
+		// THE mutant discriminator: measure the lease with ValueStopwatch/Stopwatch.GetTimestamp again
+		// and this arm reads ~0s instead of the fake's 42s -- RED.
+		var time = new FakeTimeProvider();
+		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
+		A.CallTo(() => inner.CandidateId).Returns("node-1");
+
+		await using var sut = new TelemetryLeaderElection(inner, _meter, _activitySource, "sqlserver", time);
+
+		inner.BecameLeader += Raise.With(new LeaderElectionEventArgs("node-1", "test-resource"));
+		time.Advance(TimeSpan.FromSeconds(42));
+		inner.LostLeadership += Raise.With(new LeaderElectionEventArgs("node-1", "test-resource"));
+
+		var durations = _histogramRecordings
+			.Where(r => r.Name == LeaderElectionTelemetryConstants.MetricNames.LeaseDuration)
+			.ToList();
+		var duration = durations.ShouldHaveSingleItem();
+		duration.Value.ShouldBe(42d, tolerance: 0.001d);
+	}
+
 	// --- Event forwarding ---
 
 	[Fact]
@@ -314,6 +344,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 		localListener.Start();
 
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		A.CallTo(() => inner.CandidateId).Returns("candidate-0");
 		A.CallTo(() => inner.IsLeader).Returns(false);
 
@@ -340,6 +371,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 		otherTags.ShouldNotBeEmpty();
 
 		await sut.DisposeAsync();
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 	}
 
 	// --- Dispose ---
@@ -349,6 +381,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 	{
 		// Arrange
 		var disposableInner = A.Fake<ILeaderElection>(x => x.Implements<IAsyncDisposable>());
+		SynchronousElectionFakeNotifications.Configure(disposableInner);
 		A.CallTo(() => disposableInner.CandidateId).Returns("test");
 		A.CallTo(() => disposableInner.IsLeader).Returns(false);
 		using var localMeter = new Meter("LE.DisposeTest." + Guid.NewGuid().ToString("N")[..8]);
@@ -357,6 +390,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 
 		// Act
 		await telemetry.DisposeAsync();
+		await telemetry.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		A.CallTo(() => ((IAsyncDisposable)disposableInner).DisposeAsync()).MustHaveHappenedOnceExactly();
@@ -367,6 +401,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 	{
 		// Arrange — ILeaderElection : IAsyncDisposable, so IAsyncDisposable path always takes priority
 		var disposableInner = A.Fake<ILeaderElection>(x => x.Implements<IDisposable>());
+		SynchronousElectionFakeNotifications.Configure(disposableInner);
 		A.CallTo(() => disposableInner.CandidateId).Returns("test");
 		A.CallTo(() => disposableInner.IsLeader).Returns(false);
 		using var localMeter = new Meter("LE.DisposeTest2." + Guid.NewGuid().ToString("N")[..8]);
@@ -375,6 +410,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 
 		// Act
 		await telemetry.DisposeAsync();
+		await telemetry.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert — DisposeAsync preferred over Dispose when both are available
 		A.CallTo(() => disposableInner.DisposeAsync()).MustHaveHappenedOnceExactly();
@@ -385,7 +421,9 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 	{
 		// Act — dispose twice
 		await _sut.DisposeAsync();
+		await _sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 		await _sut.DisposeAsync();
+		await _sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert — no exception thrown
 	}

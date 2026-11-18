@@ -131,6 +131,16 @@ public sealed class TenantContextResolvedWithoutSeamShould
 		// ITenantContext only to bind it as AES-GCM associated data. No store is hand-constructed here.
 		"src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventSourcingUtilitiesServiceCollectionExtensions.cs",
 
+		// Runtime orchestration, not store registration: captures the current tenant in the immutable
+		// atomic invocation, then resolves the capability through the already-selected ISagaStore.
+		// Per-call outer facades/kernel revalidate tenant authority; this file constructs no store.
+		"src/Excalibur/Excalibur.Saga/Orchestration/SagaAtomicAttemptExecutor.cs",
+
+		// Runtime recovery, not store registration: pairs the current tenant/state with the actual
+		// selected timeout-store facet, whose receiver validates that explicit tenant on each call.
+		// It constructs only invocation/journal carriers, never an unattested persistence store.
+		"src/Excalibur/Excalibur.Saga/Orchestration/SagaOrdinaryTimerRecovery.cs",
+
 		// Conformance test-kit harness code: reads the ambient tenant from an already-built provider to
 		// verify the harness itself is wired correctly, not a production registration.
 		"src/Excalibur/Excalibur.Testing.Conformance/Conformance/EventStoreConformanceTestKit.cs",

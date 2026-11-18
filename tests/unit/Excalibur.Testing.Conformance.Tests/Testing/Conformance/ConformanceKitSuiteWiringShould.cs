@@ -497,6 +497,7 @@ public sealed class ConformanceKitSuiteWiringShould
 			throw new NotSupportedException(NeverResolved);
 
 		public Task StartAsync_ShouldInitiateParticipation_Test() => StartAsync_ShouldInitiateParticipation();
+		public Task StartAsync_ShouldCompeteUnderTheConfiguredIdentity_Test() => StartAsync_ShouldCompeteUnderTheConfiguredIdentity();
 		public Task StopAsync_ShouldRelinquishLeadership_Test() => StopAsync_ShouldRelinquishLeadership();
 		public Task StartAsync_AfterStop_ShouldRestartElection_Test() => StartAsync_AfterStop_ShouldRestartElection();
 		public Task StartAsync_SingleCandidate_ShouldBecomeLeader_Test() => StartAsync_SingleCandidate_ShouldBecomeLeader();
@@ -511,6 +512,8 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task LeaderChanged_ShouldFireOnLeadershipChange_Test() => LeaderChanged_ShouldFireOnLeadershipChange();
 		public Task CandidateId_ShouldBeUniquePerInstance_Test() => CandidateId_ShouldBeUniquePerInstance();
 		public Task CurrentLeadership_AfterStop_ShouldBeNull_Test() => CurrentLeadership_AfterStop_ShouldBeNull();
+
+		public Task IsLeader_AfterDispose_ShouldBeFalse_Test() => IsLeader_AfterDispose_ShouldBeFalse();
 	}
 
 	private sealed class PartiallyWiredLeaderElectionProbe : LeaderElectionConformanceTestKit
@@ -518,6 +521,7 @@ public sealed class ConformanceKitSuiteWiringShould
 		protected override ILeaderElection CreateElection(string resourceName, string? candidateId) =>
 			throw new NotSupportedException(NeverResolved);
 
+		public Task StartAsync_ShouldCompeteUnderTheConfiguredIdentity_Test() => StartAsync_ShouldCompeteUnderTheConfiguredIdentity();
 		public Task StopAsync_ShouldRelinquishLeadership_Test() => StopAsync_ShouldRelinquishLeadership();
 		public Task StartAsync_AfterStop_ShouldRestartElection_Test() => StartAsync_AfterStop_ShouldRestartElection();
 		public Task StartAsync_SingleCandidate_ShouldBecomeLeader_Test() => StartAsync_SingleCandidate_ShouldBecomeLeader();
@@ -532,6 +536,8 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task LeaderChanged_ShouldFireOnLeadershipChange_Test() => LeaderChanged_ShouldFireOnLeadershipChange();
 		public Task CandidateId_ShouldBeUniquePerInstance_Test() => CandidateId_ShouldBeUniquePerInstance();
 		public Task CurrentLeadership_AfterStop_ShouldBeNull_Test() => CurrentLeadership_AfterStop_ShouldBeNull();
+
+		public Task IsLeader_AfterDispose_ShouldBeFalse_Test() => IsLeader_AfterDispose_ShouldBeFalse();
 	}
 
 	private sealed class FullyWiredDeadLetterStoreProbe : DeadLetterStoreConformanceTestKit
@@ -548,8 +554,9 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task GetMessagesAsync_FilterByMessageType_ShouldFilter_Test() => GetMessagesAsync_FilterByMessageType_ShouldFilter();
 		public Task GetMessagesAsync_Pagination_ShouldRespectMaxResults_Test() => GetMessagesAsync_Pagination_ShouldRespectMaxResults();
 		public Task MarkAsReplayedAsync_ShouldSetIsReplayedTrue_Test() => MarkAsReplayedAsync_ShouldSetIsReplayedTrue();
-		public Task MarkAsReplayedAsync_NonExistent_ShouldBeIdempotent_Test() => MarkAsReplayedAsync_NonExistent_ShouldBeIdempotent();
-		public Task MarkAsReplayedAsync_AlreadyReplayed_ShouldBeIdempotent_Test() => MarkAsReplayedAsync_AlreadyReplayed_ShouldBeIdempotent();
+		public Task MarkAsReplayedAsync_NonExistent_ShouldReportMessageNotFound_Test() => MarkAsReplayedAsync_NonExistent_ShouldReportMessageNotFound();
+		public Task MarkAsReplayedAsync_AlreadyReplayed_ShouldBeRefused_Test() => MarkAsReplayedAsync_AlreadyReplayed_ShouldBeRefused();
+		public Task ReleaseReplayClaimAsync_WithoutAClaim_ShouldBeANoOp_Test() => ReleaseReplayClaimAsync_WithoutAClaim_ShouldBeANoOp();
 		public Task DeleteAsync_ShouldRemoveAndReturnTrue_Test() => DeleteAsync_ShouldRemoveAndReturnTrue();
 		public Task DeleteAsync_NonExistent_ShouldReturnFalse_Test() => DeleteAsync_NonExistent_ShouldReturnFalse();
 		public Task DeleteAsync_ShouldDecreaseCount_Test() => DeleteAsync_ShouldDecreaseCount();
@@ -577,8 +584,9 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task GetMessagesAsync_FilterByMessageType_ShouldFilter_Test() => GetMessagesAsync_FilterByMessageType_ShouldFilter();
 		public Task GetMessagesAsync_Pagination_ShouldRespectMaxResults_Test() => GetMessagesAsync_Pagination_ShouldRespectMaxResults();
 		public Task MarkAsReplayedAsync_ShouldSetIsReplayedTrue_Test() => MarkAsReplayedAsync_ShouldSetIsReplayedTrue();
-		public Task MarkAsReplayedAsync_NonExistent_ShouldBeIdempotent_Test() => MarkAsReplayedAsync_NonExistent_ShouldBeIdempotent();
-		public Task MarkAsReplayedAsync_AlreadyReplayed_ShouldBeIdempotent_Test() => MarkAsReplayedAsync_AlreadyReplayed_ShouldBeIdempotent();
+		public Task MarkAsReplayedAsync_NonExistent_ShouldReportMessageNotFound_Test() => MarkAsReplayedAsync_NonExistent_ShouldReportMessageNotFound();
+		public Task MarkAsReplayedAsync_AlreadyReplayed_ShouldBeRefused_Test() => MarkAsReplayedAsync_AlreadyReplayed_ShouldBeRefused();
+		public Task ReleaseReplayClaimAsync_WithoutAClaim_ShouldBeANoOp_Test() => ReleaseReplayClaimAsync_WithoutAClaim_ShouldBeANoOp();
 		public Task DeleteAsync_ShouldRemoveAndReturnTrue_Test() => DeleteAsync_ShouldRemoveAndReturnTrue();
 		public Task DeleteAsync_NonExistent_ShouldReturnFalse_Test() => DeleteAsync_NonExistent_ShouldReturnFalse();
 		public Task DeleteAsync_ShouldDecreaseCount_Test() => DeleteAsync_ShouldDecreaseCount();
@@ -1117,6 +1125,9 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller_Test() => GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller();
 		public Task GetActiveHoldsForTenantAsync_NullTenantId_ShouldThrowArgumentException_Test() => GetActiveHoldsForTenantAsync_NullTenantId_ShouldThrowArgumentException();
 		public Task ListActiveHoldsAsync_AllActive_ShouldReturnNonExpiredOrderedByCreatedAtDesc_Test() => ListActiveHoldsAsync_AllActive_ShouldReturnNonExpiredOrderedByCreatedAtDesc();
+		public Task ActiveHoldQueries_ShouldExcludeALapsedHoldAndStillReturnIndefiniteAndFutureOnes_Test() => ActiveHoldQueries_ShouldExcludeALapsedHoldAndStillReturnIndefiniteAndFutureOnes();
+
+		public Task ActiveHoldQueries_ShouldDeriveInForceAgainstTheGivenInstant_Test() => ActiveHoldQueries_ShouldDeriveInForceAgainstTheGivenInstant();
 		public Task ListActiveHoldsAsync_WithTenantFilter_ShouldFilterCorrectly_Test() => ListActiveHoldsAsync_WithTenantFilter_ShouldFilterCorrectly();
 		public Task ListAllHoldsAsync_IncludesReleasedHolds_ShouldReturnAll_Test() => ListAllHoldsAsync_IncludesReleasedHolds_ShouldReturnAll();
 		public Task ListAllHoldsAsync_DateRangeFilters_ShouldFilterCorrectly_Test() => ListAllHoldsAsync_DateRangeFilters_ShouldFilterCorrectly();
@@ -1149,6 +1160,9 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller_Test() => GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller();
 		public Task GetActiveHoldsForTenantAsync_NullTenantId_ShouldThrowArgumentException_Test() => GetActiveHoldsForTenantAsync_NullTenantId_ShouldThrowArgumentException();
 		public Task ListActiveHoldsAsync_AllActive_ShouldReturnNonExpiredOrderedByCreatedAtDesc_Test() => ListActiveHoldsAsync_AllActive_ShouldReturnNonExpiredOrderedByCreatedAtDesc();
+		public Task ActiveHoldQueries_ShouldExcludeALapsedHoldAndStillReturnIndefiniteAndFutureOnes_Test() => ActiveHoldQueries_ShouldExcludeALapsedHoldAndStillReturnIndefiniteAndFutureOnes();
+
+		public Task ActiveHoldQueries_ShouldDeriveInForceAgainstTheGivenInstant_Test() => ActiveHoldQueries_ShouldDeriveInForceAgainstTheGivenInstant();
 		public Task ListActiveHoldsAsync_WithTenantFilter_ShouldFilterCorrectly_Test() => ListActiveHoldsAsync_WithTenantFilter_ShouldFilterCorrectly();
 		public Task ListAllHoldsAsync_IncludesReleasedHolds_ShouldReturnAll_Test() => ListAllHoldsAsync_IncludesReleasedHolds_ShouldReturnAll();
 		public Task ListAllHoldsAsync_DateRangeFilters_ShouldFilterCorrectly_Test() => ListAllHoldsAsync_DateRangeFilters_ShouldFilterCorrectly();

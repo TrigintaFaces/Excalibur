@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Collections.Frozen;
+
 namespace Excalibur.EventSourcing.Decorators;
 
 /// <summary>
@@ -36,7 +38,14 @@ namespace Excalibur.EventSourcing.Decorators;
 /// <param name="inner">The event store being decorated.</param>
 public abstract class IsolatingEventStoreDecorator(IEventStore inner) : DelegatingEventStore(inner)
 {
-	private static readonly IReadOnlySet<Type> EmptyCapabilities = new HashSet<Type>();
+	// FrozenSet.Empty, never a HashSet. This instance is shared by every decorator that does not
+	// override ForwardableCapabilities, and the set is read at the forwarding decision below --
+	// .Contains(serviceType) decides whether a capability request reaches the INNER store, bypassing
+	// this decorator. HashSet<T> implements ISet<T>, so returning one behind IReadOnlySet publishes a
+	// mutable collection: one cast from any assembly could add a Type that every such decorator then
+	// forwards, for the life of the process. A read-only annotation over a mutable runtime type is a
+	// comment, not a guarantee.
+	private static readonly IReadOnlySet<Type> EmptyCapabilities = FrozenSet<Type>.Empty;
 
 	/// <summary>
 	/// Gets the capabilities this decorator permits to be resolved directly from the decorated store,

@@ -33,7 +33,7 @@ Every entry is re-checked against the code before each update. **This page lists
 |---|---|---|
 | [Authorization and multi-tenancy](#authorization-and-multi-tenancy) | 1 | A startup guard that cannot fire, so a mis-ordered pipeline is accepted. |
 | [Secrets and data protection](#secrets-and-data-protection) | 2 | Credentials that persist where you did not expect, and an attribute that protects nothing. |
-| [Compliance: GDPR and SOC 2](#compliance-gdpr-and-soc-2) | 4 | Reports and certificates that claim more than the framework checked — and one erasure that irreversibly destroys another tenant's data. |
+| [Compliance: GDPR and SOC 2](#compliance-gdpr-and-soc-2) | 5 | Reports and certificates that claim more than the framework checked, erasures that leave personal data readable, and a rotated hashing key that voids your erasure records and can destroy data you were required to keep. |
 | [Event sourcing, outbox and projections](#event-sourcing-outbox-and-projections) | 5 | Writes reported as succeeding when they did not, or vice versa. |
 | [Transports](#transports) | 4 | Messages reported as sent, or acknowledged, when they were neither. |
 | [Data access](#data-access) | 1 | A shipped table definition that cannot store the identifiers its own columns accept. |
@@ -169,12 +169,33 @@ affected readers they are safe.
    among them — API keys and persistent session cookies in particular. Short-lived bearer tokens expire on
    their own, but may still be readable wherever they were stored.
 
-**Is it fixed?** **Not in any released version.** The repair copies a request header into the message
-context only when you have named it, and never copies `Authorization`, `Proxy-Authorization`, `Cookie` or
-`Set-Cookie` even if named — the same allow-list model as ASP.NET Core header propagation. Because it filters
-at the source, it closes all three paths. **That is a behaviour change for you:** if your handlers read
-request headers from the message context, they will only see the headers you allow-list. When a release
-carries the fix, this entry will name it.
+**Is it fixed?** **Not in any released version**, but the repair is now in the source tree and this is
+what it does — stated in detail because two parts of it will change your code, and because an earlier
+version of this paragraph described a fix that differs from the one built.
+
+A request header is copied into the message context **only when you name it**, through
+`AddDispatchRequestHeaderCapture`. Capturing nothing is the default, and no registration is treated
+the same as an empty allow-list. Because it filters at the source, it closes all three paths above at
+once.
+
+Naming `Authorization`, `Cookie` or `Proxy-Authorization` **fails at startup** rather than being skipped
+quietly. A silent skip would leave a configuration that reads as though it were in effect, and nothing
+would say otherwise on any message. (An earlier description of this fix said those headers would never
+be copied "even if named", which is a weaker control, and it also listed `Set-Cookie` — a response
+header that cannot arrive on a request, so refusing it would be configuration that could never fire.)
+
+**Two behaviour changes to expect.** A captured header now appears under a `header.` prefix — so
+`Items["X-Request-Id"]` becomes `Items["header.X-Request-Id"]`. And a header you have not named is
+absent entirely. If your handlers read request headers out of the message context, both apply.
+
+**A second entry point was fixed in the same pass**, and it is worth knowing about if you call it: the
+public `DispatchContextInitializer.CreateFromHeaders` also copied every entry of the dictionary you
+handed it into the context. It now reads only the correlation, causation, trace, user and tenant headers
+it defines. If you relied on it to carry other headers, set them on `Items` yourself after the call.
+
+**Fixing the source does not clean what is already stored.** The remediation steps above still apply in
+full: existing outbox rows, backups, broker retention and recorded traces keep whatever was written
+before you upgrade. When a release carries the fix, this entry will name it.
 
 #### The `[Sensitive]` attribute does not encrypt anything — its own documentation says it does
 
@@ -191,11 +212,38 @@ encryption and implies the framework provides it, and the value is written to yo
 The failure is silent: masked output in your logs looks exactly like the protection working, because
 masking *is* working — it is the other half that never existed.
 
-**What to do.** Treat `[Sensitive]` as a masking and classification marker only. For encryption at rest,
-use `[PersonalData]` on a record that also carries `[DataSubjectId]`, with crypto-shredding registered —
-that combination is the one the framework actually encrypts — or `[EncryptedField]`, subject to the entry
-below. Audit any property you annotated `[Sensitive]` expecting encryption, and check the stored value
-directly rather than the log output.
+**What to do.** Treat `[Sensitive]` as a masking and classification marker only.
+
+**`[PersonalData]` is the annotation encryption selects on, but the annotation alone does not encrypt
+anything either, and the conditions it depends on are not all loud.** All four of these must hold before a
+value is encrypted at rest:
+
+1. the property carries `[PersonalData]`, and the record also carries `[DataSubjectId]` on the property that
+   identifies the subject — that identifier is what the per-subject key is derived from; **and**
+2. the property is a **readable and writable `string` or `byte[]`**. Any other type, and any property with
+   no setter, is skipped — **silently, with no diagnostic at build time and no error at run time**. A
+   `[PersonalData]` annotation on an `int`, a `DateTime`, a `Guid` or a `{ get; }`-only `string` is
+   classification metadata only; **and**
+3. crypto-shredding is registered, so a key exists to derive; **and**
+4. the record is persisted through a store the framework wraps with its encrypting decorator — the event
+   store, the projection store, the inbox store or the outbox store. **`[PersonalData]` on a type you
+   persist yourself — your own repository, your own Dapper call, your own table — encrypts nothing**, because
+   the annotation is read on the way into one of those four stores and nowhere else.
+
+**Which failures are loud, and which are not.** If a record carries `[DataSubjectId]` and the framework
+resolves *no* encryptable `[PersonalData]` property on it at all, it refuses to write rather than persist
+plaintext, and you get an error naming the type. That guard cannot see a *partial* result: a record with
+three annotated properties where one of them is an `int` or has no setter writes the two it can encrypt and
+stores the third in cleartext, with nothing reported. **Condition 2 is therefore the one to check by hand**,
+per property, on anything you believe is protected.
+
+For a single value where you want encryption independent of subject keys, `[EncryptedField]` is the other
+option, subject to the entry below — and unlike `[PersonalData]`, an `[EncryptedField]` the framework cannot
+honour is reported to you as a build diagnostic.
+
+**Audit any property you annotated `[Sensitive]` expecting encryption** — and check the stored value in your
+database directly rather than the log output, because masked output looks identical whether or not the
+stored value was ever encrypted.
 
 **If you have already told an assessor that `[Sensitive]` fields are encrypted at rest, check what those
 properties also carry before you act.** `[Sensitive]` has never caused encryption in any version we have
@@ -208,16 +256,16 @@ checklist supplied the wording for the assertion, so if you assembled your evide
 may be carrying the claim without having written it yourself.
 
 **Is it fixed? The wording is. What the attribute does is unchanged, and that is why this entry stays
-here.** The attribute's summary, the checklist claim and the attestation wording are corrected in the
-release this page accompanies, so your IDE no longer tells you `[Sensitive]` requires encryption the
+here.** The attribute's summary, the checklist claim and the attestation wording are corrected in
+`10.0.0-alpha.12`, so your IDE no longer tells you `[Sensitive]` requires encryption the
 framework will provide. **`[Sensitive]` still drives masking and still encrypts nothing**, on this release
 as on every earlier one.
 
-**Two inert properties are removed in this release, and that is a breaking change to act on.** A
+**Two inert properties are removed in `10.0.0-alpha.12`, and that is a breaking change to act on.** A
 key-purpose selector and a flag claiming annotated values are withheld from exception details shipped in
 **every earlier version** and did nothing there: they defaulted to protective-sounding values, and no code
 read either of them. If your code sets `EncryptionKeyPurpose` or `ExcludeFromErrors`, it will **not
-compile** against this release. Neither property ever did anything, so deleting the assignment is the
+compile** against `10.0.0-alpha.12` or later. Neither property ever did anything, so deleting the assignment is the
 whole of the change — there is no replacement to adopt and no behaviour to preserve. `MaskInLogs`, the
 neighbouring property on both attributes, is **not** affected and **is** honoured.
 
@@ -227,116 +275,85 @@ migrates them; an attestation you have already given an assessor stays given unt
 are yours to close — which, together with the attribute's unchanged behaviour, is why this entry stays
 here rather than moving to [Resolved issues](resolved-issues.md).
 
+#### Publishing a CloudEvent is not compatible with Native AOT or trimming in any released version
+
+**If you are evaluating this framework for a trimmed or AOT-published deployment and you need
+CloudEvents, read this before you adopt.** Both capabilities are priorities for us. In every version
+you can install today they conflict: a build that publishes CloudEvents cannot be published with
+`PublishAot=true`.
+
+**What happens.** Every CloudEvents adapter serializes through a reflection-based JSON path. At
+`dotnet publish -p:PublishAot=true` you get `IL2026` and `IL3050` warnings against the serialization
+call, and under a trimmed or AOT runtime the payload serialization can fail at run time for types the
+trimmer removed metadata for. This is on the default configuration of every transport that supports
+outbound CloudEvents, and in a released version there is no setting that avoids it.
+
+**Why it was not simply a missing switch.** There are two halves and only one was ours to close. The
+CloudEvents **envelope** — the event itself and its context attributes — is handled without reflection
+on both the read and the write side. The **payload** is your type, and no serializer metadata we
+generate can describe a type we have never seen. Closing it properly meant giving you a seam to supply
+a source-generated resolver for your own payload types.
+
+**What to do on a released version**, in order of preference:
+
+1. **If you do not AOT-publish or trim**, nothing here affects you. The reflection path is correct and
+   fully supported, and this entry is not a defect on your deployment.
+2. **If you AOT-publish and can defer CloudEvents**, use the transport's native serialization and adopt
+   CloudEvents when the fix below ships.
+3. **If you need both now**, encode the CloudEvent yourself with your own source-generated serializer
+   and publish the result as an ordinary message, setting the content type and application properties
+   on the transport message directly. Our senders carry both to the wire.
+
+**Is it fixed?** **Not in any released version** — the repair is written and is not yet published. When
+it ships, you register CloudEvents with a resolver and the payload path is reflection-free:
+
+```csharp
+// Reflection-free: your source-generated context covers the types you publish as CloudEvent data.
+builder.AddCloudEvents(MyPayloadContext.Default);
+
+// The parameterless overload is the reflective path, and it is annotated so your own build tells you.
+builder.AddCloudEvents();
+```
+
+The two overloads are deliberately separate rather than one method that picks a strategy from whether
+a resolver happens to be configured. That way the warning reaches the consumer who chose reflection and
+nobody else, and an ahead-of-time build fails at *your* compile step instead of on your users' machines.
+If nothing configured serialization at all, the transport reports it at startup and names what to call.
+
+**Three limits on that fix, so you can plan against it rather than around it.** First, two transport
+packages remain unsuitable for an ahead-of-time publish for reasons that have nothing to do with
+CloudEvents: `Excalibur.Dispatch.Transport.GooglePubSub` because the Google Cloud SDK reflects, and
+`Excalibur.Dispatch.Transport.Kafka` because Confluent's schema registry uses `Activator.CreateInstance`.
+The resolver does not change either. Second, MQTT now supports outbound binary and structured
+CloudEvents through the named transport sender. The NativeAOT sample verifies both modes against a real
+local broker with generated payload metadata and reflection-based JSON disabled; this verifies that
+send path, not every MQTT operation. Third, earlier SDK-formatter native publications recorded four
+member-specific `IL2026`/`IL3050` diagnostics against
+`CloudNative.CloudEvents.SystemTextJson.JsonEventFormatter.EncodeStructuredModeData`, whose implementation
+calls an options-only `JsonSerializer.Serialize<Object>` overload. Those logs and their member-specific
+baselines describe that earlier path and remain historical evidence. The revised resolver registration
+selects the framework's metadata-aware formatter; direct consumers select it with
+`CloudEventSerializer.CreateWithMetadata(CloudEventPayloadSerialization.CreateOptions(MyPayloadContext.Default))`.
+The legacy constructor retains the SDK formatter. Verify the revised publication and executable
+separately; changing formatter does not certify arbitrary consumer converters or remove unrelated
+provider limitations. The generated resolver must cover every payload type.
+
+**Earlier repair evidence:** the prior verification recorded 753 passing CloudEvents unit cases, a published native
+sample exercising the core structured round trip, and the MQTT binary and structured send path observed
+at a real local broker. The [public NativeAOT sample overview](https://github.com/TrigintaFaces/Excalibur/blob/main/samples/10-aot/Excalibur.Dispatch.Aot.Sample/README.md)
+is a general sample reference; the checked public mirror does not describe those CloudEvents/MQTT controls.
+Their descriptions are in the current source `samples/10-aot/Excalibur.Dispatch.Aot.Sample/README.md`
+(`--mqtt-cloud-events-smoke` and the Native CloudEvents section); verify the selected source and executable separately. These results do not certify other transport adapters or every MQTT
+operation. They also do not mean the repair is available in a released NuGet package: the release
+prerequisite above remains unmet. Other framework paths retain their own AOT annotations and limitations.
+
 ### Compliance: GDPR and SOC 2
-
-#### One tenant's erasure destroys another tenant's data when they share a data-subject id, and the victim's read reports it as lawfully erased
-
-:::danger This destroys data irreversibly, and nothing reports it
-Two tenants holding the same data-subject id share one encryption key. Either tenant's erasure destroys
-it for both. The other tenant's personal data was never subject to an erasure request, is now permanently
-unrecoverable, and reads back as `null` — which this framework defines as the assertion that the data
-*was* lawfully erased. Nothing throws, no certificate records a problem, and no log marks which tenant
-was affected.
-:::
-
-**What happens.** A per-subject encryption key is named by a value derived from the `[DataSubjectId]`
-value alone. **The tenant is not part of that name.** A data-subject identifier comes from your own
-entity — a customer number, an employee identifier, an e-mail address — and those values repeat across
-tenants in ordinary multi-tenant use. Where two tenants hold the same value, both tenants' personal data
-is encrypted under one key.
-
-Erasing that subject for either tenant destroys the key. The other tenant's fields then cannot be
-decrypted, and the read path returns `null` for each of them. In this framework a `null` from a
-crypto-shredded field asserts that the data was lawfully erased, so the second tenant's data is reported
-as erased when no erasure was ever requested for it, over data that is now unrecoverable.
-
-**It takes no race and no fault to reach.** Two ordinary writes under two tenants, then one ordinary
-erasure. Nothing is concurrent, nothing times out, and nothing throws.
-
-**There is no second control that catches it.** You might reasonably expect the authenticated data bound
-into each encrypted field to separate the two tenants, so that a cross-tenant read would at least fail
-loudly. On this path it does not: that binding carries no tenant either, so the read produces the erasure
-tombstone rather than an authentication failure. Neither the key's name nor the authenticated data
-distinguishes the two tenants.
-
-**Are you affected? Three checks, in this order.**
-
-| Check | What it means |
-|---|---|
-| **1. Did you call `AddCryptoShredding()`, `AddCryptoShreddingWithoutErasure()` or `AddEventSourcingCryptoShredding()`?** | If none of them, this does not reach you. |
-| **2. Is your `[DataSubjectId]` value unique across your whole deployment, or only within a tenant?** | Unique deployment-wide: not affected by this mechanism. Unique only within a tenant, and two tenants have ever held the same value: **you are exposed.** |
-| **3. Has any erasure completed?** | Each completed erasure destroyed the key for **every** tenant sharing that subject id. That data is already unrecoverable, and you cannot tell from the framework which tenants those were. |
-
-A single-tenant deployment is not exposed by this mechanism — there is no second tenant to collide with.
-
-**How to tell whether it has already happened to you.** This is answerable from your own data, and the
-framework cannot answer it for you — no record it keeps distinguishes the two tenants:
-
-1. In each store holding `[PersonalData]`, find every `[DataSubjectId]` value that appears under more than
-   one tenant. That is your collision set. **If it is empty, no erasure of yours can have crossed a tenant
-   boundary.**
-2. For each value in that set, look for a **completed** erasure filed by any one of those tenants.
-3. Where you find one, **every other tenant holding that value has lost that data.** Its `[PersonalData]`
-   fields now read `null` and no erasure was ever requested for it.
-
-Step 3 identifies the affected tenants exactly. It does not recover anything, and the reads will not start
-failing to tell you — they will keep reporting a lawful erasure.
-
-**What that exposes.** For every tenant that shared an erased subject id: personal data that no one asked
-to erase is permanently unreadable, and your application, your erasure certificates and your audit trail
-all report it as lawfully erased. Nothing can be reconciled afterwards — the key is gone, and no record
-distinguishes the tenant who requested the erasure from the tenant who merely shared the identifier.
-
-**What to do now.** Make the `[DataSubjectId]` value globally unique by embedding your tenant identifier
-in it — for example `"{tenantId}:{customerId}"` in place of `"{customerId}"`. The key's name is derived
-from that value exactly as you supply it, so a value that already carries the tenant gives each tenant
-its own key and the collision cannot arise. Per-tenant erasure keeps working unchanged, because the
-erasure path derives its target from the same string.
-
-**Apply it at both paths, consistently** — the write path that encrypts the fields, and the
-erasure-request path that sets `DataSubjectId` on an erasure request. A value that differs between the two
-yields two different keys, so the erasure would destroy nothing while reporting that it completed.
-
-**Three things this mitigation does not do.** All three matter before you rely on it:
-
-- **It protects only data written after you change the value.** Anything already written stays under the
-  old shared key.
-- **It repairs nothing already written.** Nothing re-keys existing data onto the new identifier for you.
-  To move it, read each record, decrypt it under the old identifier, then re-encrypt and store it under
-  the new one — in every store holding those fields, and before any erasure runs.
-- **Where a collision has already been erased, there is no recovery.** The key is destroyed and that data
-  is gone. This mitigation prevents the next occurrence; it cannot undo one.
-
-**And a cost that is not a footnote.** Changing your subject-id values makes your own existing legal
-holds, registered data locations and retention rows unmatchable: they were recorded against the old value.
-**Re-place every legal hold and re-register every data location under the new identifier before you rely
-on either.** A legal hold that no longer matches the identifier does not block the erasure it was placed
-to block.
-
-**Which versions are affected.** `Excalibur.Compliance` **`10.0.0-alpha.4` through `10.0.0-alpha.13`** —
-ten versions. The whole of the older **3.x line is not affected by this mechanism**: it ends at
-`3.0.0-alpha.216`, published before per-subject crypto-shredding existed. We measured the two endpoint
-versions by reading the shipped assembly inside each package; the eight between them are inferred from the
-derivation being present at both ends with no fix in between. **What that establishes is that the affected
-key derivation ships in those packages — not a behavioural assessment of any individual build.**
-
-**Is there a fixed version?** **A fixed published version has not been verified by this assessment.**
-The version assessment above covers `10.0.0-alpha.4` through `10.0.0-alpha.13`.
-Later versions, including the published [alpha.14 and alpha.15 packages](https://www.nuget.org/packages/Excalibur.Compliance/10.0.0-alpha.15),
-have not been verified here for this behavior: do not infer that they are fixed or affected from this entry.
-Current source uses tenant-qualified keys, but source verification does not establish the behavior of a
-published package. The mitigation above applies to implementations with the shared-key defect; this entry
-will identify a fixed release when its package behavior is verified.
-
-**Current-source compatibility.** Current source uses tenant-qualified key identities and requires an independently trusted owning tenant when decrypting an encrypted field. This is a breaking contract; compatibility with legacy ownerless envelopes or the earlier shared-key derivation is not established. Do not assume an upgrade preserves access to existing encrypted data or erases data written under an earlier key identity. No automatic migration is provided.
-
----
 
 #### An erasure certificate covers only the locations you registered, and reports `Completed` without mentioning the ones you did not
 
 :::note Two related defects on the same document are fixed; this one is not
 A `Completed` the framework could not substantiate, and a signature that did not cover what the
-certificate said, are both fixed in the release this page accompanies — see [Resolved
+certificate said, are both fixed in `10.0.0-alpha.12` — see [Resolved
 issues](resolved-issues.md). This entry is about **what the certificate was ever looking at**, which is
 unchanged: all three are independent, and fixing the other two leaves this one in place.
 :::
@@ -605,7 +622,119 @@ explicit `FulfillRequestAsync` call that records an act you actually performed. 
 
 ---
 
+#### A rolling deploy that adds a retention declaration can irreversibly destroy the data it declares retained
+
+**What you see.** An erasure certified `Completed`, for an aggregate type you had just declared retained
+through `AddErasureRetention`. The type's key, its escrow and its recovery tokens are destroyed, so the
+`[PersonalData]` fields no longer decrypt and cannot be made to. Nothing on the request or the certificate
+says the executing instance did not know about the declaration.
+
+**Why.** Each instance builds its retention registry **in its own constructor, from declarations written in
+your code**. Nothing compares one instance's set against another's, and there is no deployment-wide record
+of which declarations exist. So during a deploy that ADDS a declaration, an instance running the previous
+version holds a smaller set — and by its own view it is erasing a type with no retention, which is what it
+does. The erasure scheduler runs in every instance by default, so any of them can be the one that executes.
+
+**Who is affected.**
+
+| your deployment | affected? |
+| --- | --- |
+| adds a retention declaration and deploys it as a rolling update across more than one instance | **yes, for the window of that deploy** |
+| runs a single instance | no — there is no other view to be behind |
+| adds no retention declarations | no |
+| has retention declarations but is not mid-deploy | no — every live instance holds the same set |
+
+**The loss is bounded, and irreversible inside the bound.** Only types declared in that deploy, only
+subjects erased inside that window. Restoring a key does not recover it: the escrow and the recovery
+tokens are destroyed with it.
+
+**What to do.** **Quiesce erasure execution across any deploy that adds a retention declaration** — stop
+the erasure scheduler, or deploy the declaration while no erasure can run — or ensure every instance holds
+the new declaration before any instance begins serving. Adding a declaration is the only trigger; removing
+one, or deploying anything else, is not.
+
+**How to tell whether it already happened.** For each type you have declared retained, check whether any
+erasure certificate issued during a deploy of that declaration covers a subject whose data in that type no
+longer decrypts. A certificate issued by a stale instance names no retention for the type, so the absence
+of the type on a certificate dated inside such a window is the signal.
+
+**Status.** A deployment-wide record of declared pairs is now implemented: each instance records its own
+declarations, and before any destruction the executing instance refuses when the record holds a declaration
+it does not hold. It **narrows** this window rather than closing it — before any instance has recorded its
+declarations there is nothing to compare against — so the remedy above remains the way to close the
+remainder, and it survives the mechanism.
+
+**Two obligations come with it, and the first is easy to trip.**
+
+- **Remove a retention declaration by withdrawing it first, then deploying.** Deleting one from your code
+  alone leaves the record holding it, so every instance holds fewer declarations than the record and **all
+  erasure for that tenant stops permanently** — the record only grows, so no later deploy fixes it.
+- **Never re-declare a pair you have withdrawn.** The tombstone occupies the key, so the re-declaration is
+  silently dropped. A new obligation over the same data needs a new aggregate type name.
+
+#### Changing the data-subject hashing key voids every compliance record keyed by it, and can destroy data under legal hold
+
+**Who this affects.** Anyone who has configured `DataSubjectHashingOptions.Pepper` — which is everyone
+using GDPR erasure, legal holds or the data inventory, because the framework requires it and refuses to
+start without it — **and has since changed that value, for any reason, including ordinary scheduled
+secret rotation.** It applies equally if you replaced the registered `IDataSubjectHasher` with your own
+implementation, because what matters is the token the hasher produces, not the setting it reads.
+
+It reaches you only if your compliance records are **durable**. A purely in-memory store's records do not
+outlive the process, so there is nothing for a later process to lose.
+
+**Affected versions: every published version.** The check that detects this is in none of them. It is
+fixed in the source tree and will ship in the next release; there is no released version to upgrade to
+yet, so the remedy below is a configuration action rather than an upgrade.
+
+**What you see.** Nothing. No exception, no warning, no log entry, on any of the paths below.
+
+**What it costs you, stated precisely.** Every durable compliance record is keyed by a pseudonymisation
+token derived from the data-subject identifier under that key. Change the key and every one of those keys
+changes at once:
+
+- **An erasure stops finding the keys it is supposed to destroy.** The ledger of minted key handles is
+  enumerated by the token, so the enumeration returns empty. The erasure destroys only what it can derive
+  from your declared retentions, and then **signs a completion certificate** covering everything it
+  missed. You are left holding a signed attestation for personal data that is still readable.
+- **A legal hold stops being found, so an erasure proceeds through it.** Holds are looked up by the same
+  token. An absent hold is indistinguishable from no hold, so the erasure is not blocked — and data you
+  were legally required to retain is destroyed.
+- **Existing erasure requests and destruction records become unfindable** under the subject's new token,
+  so a subject's completed erasure can no longer be reported or evidenced.
+- **Personal data already encrypted stops being decryptable.** Per-subject encryption keys are named by a
+  handle derived from the same token, so the old handles can no longer be derived. **This part is not
+  recoverable by restoring the key for data written after the change** — see the obligation below.
+
+**How to tell whether this has happened to you.** Ask whether the pepper, or the registered hasher, has
+ever changed in a deployment with a durable compliance store. If you cannot rule that out, the tell is an
+erasure that reports `Completed` while enumerating no key handles for a subject you know has encrypted
+personal fields. Treat any erasure certificate issued after such a change as unverified, and re-run the
+erasure once the key is restored.
+
+**What to do — and this is a precondition, not a recommendation.** Treat the data-subject hashing key as
+a **permanent derivation parameter for the life of the data it protects**, not as a credential on a
+rotation schedule. Exclude it from automated secret rotation. If you have already changed it, restore the
+original value: the old tokens cannot be recomputed from anything that remains, so restoring the key is
+the only way to make the existing records findable again. If it must change — a suspected compromise, say
+— every token-keyed record has to be migrated to the new value **before** the change, because afterwards
+the mapping is gone.
+
+**What the next release does about it.** The durable erasure store records a non-reversible fingerprint of
+the token function the first time it is used, and **refuses to start** if a later process computes a
+different one, naming the setting to restore. That converts this from a silent, unrecoverable fault into
+a startup failure you cannot miss. Two limits will remain and are worth knowing now: it covers stored
+**records**, not encryption **key names** (a key vault has nowhere to keep a fingerprint beside a
+handle), so data already encrypted under an old handle stays undecryptable; and the legal-hold and
+data-inventory stores do not yet carry the record, so a deployment that puts them on a **different
+database** from the erasure store is only partly covered.
+
 ### Event sourcing, outbox and projections
+
+If you used older outbox certification packages against persistent infrastructure, also read
+[the historical fencing high-water warning](resolved-issues.md#older-outbox-certification-tests-could-leave-later-leaders-unable-to-claim-messages).
+It explains the affected certification versions and why a fence must not be reset on a magnitude check
+alone. The kit correction does not automatically repair a mark advanced by an earlier run.
 
 #### The outbox failure report is required to check an owner it is never given
 
@@ -711,7 +840,7 @@ absences above.
 there with the same four parameters, and its shipped documentation states no owner guard at all. It never
 asked anyone for a check it could not support.
 
-**Is it fixed?** **Substantially, in the pre-release this page accompanies — and the remaining gap is
+**Is it fixed?** **Substantially, and no later than `10.0.0-alpha.11` -- we could not narrow it further than that bound — and the remaining gap is
 narrower and differently shaped, so read which case you are in.**
 
 The claim-carrying members now exist and are implemented: a failure report can be made against the claim
@@ -724,12 +853,16 @@ members whenever the store offers them.
 it."* It does now. On those three stores a report from a lost claim is refused by the statement performing
 the write, and a report from a superseded tenure is refused by the fence.
 
-**What is still true, and is the residual:** the base `IOutboxStore.MarkFailedAsync` is unchanged and still
-takes no claim, because changing it would break every store anyone has written. **A custom store that
-implements only that interface still has the gap in full** — nothing about this release repairs a store
-that does not offer the claim-scoped member, and the documentation shipped inside earlier packages still
-cannot be recalled. If you wrote your own store, implementing `IClaimScopedOutboxStore` is what closes it
-for you.
+**Current worker composition and the remaining direct-use boundary:** the base
+`IOutboxStore.MarkFailedAsync` remains an ID-only direct operation; it cannot identify an acquisition.
+Current framework workers require acquisition-scoped completion and fail closed when it is absent,
+rather than silently falling back to that method. `OutboxProcessor` additionally requires the appropriate
+claim-scoped dead-letter capability, including with an explicitly selected null queue; a publisher that
+does not invoke the store terminal operation does not require that extra capability. Fenced routes carry
+the positive tenure and acquisition together. `AsSingleWriter()` does not waive acquisition ownership.
+Custom stores and decorators must expose the capabilities used by their worker through `GetService`.
+Direct callers of legacy ID-only or token-only operations still retain those weaker contracts. The
+earlier-version history above remains historical evidence, not the current worker's fallback policy.
 
 **And one new refusal you should know about:** a host that configures a leader election on a store that
 cannot fence the completion path now **fails at startup** rather than draining unfenced. The stores that
@@ -810,7 +943,7 @@ rebuild from the same stream produces a different — correct — answer, so the
 indication of which is right.
 
 **What to do now.** If you can, serialise appends so only one transaction writes at a time; that removes
-the interleaving entirely, at a cost in throughput. Otherwise treat a projection built from the global
+the interleaving entirely, with serialized writer concurrency; measure the throughput impact. Otherwise treat a projection built from the global
 stream as reconstructible and rebuild it periodically rather than trusting its incremental state. A
 rebuild reads committed data and is not exposed to the in-flight window.
 
@@ -1368,6 +1501,12 @@ The endpoint option was established by execution against the emulator, using cli
 ## Unverified areas
 
 Nothing in this section is a report of broken behaviour. Each entry marks a place where our testing does not reach, so that you do not read our test totals as covering it.
+
+### Azure Key Vault cloud checks are unverified for alpha.22
+
+For the intended `10.0.0-alpha.22` cut, eleven credentialed Azure Key Vault integration checks are explicitly deferred and remain **UNVERIFIED**. The current local Dispatch integration run recorded 2,396 Passed and these eleven NotExecuted; the strict required-test gate refused the run. The checks did not contact a configured real vault, so these results establish neither cloud success nor a provider defect.
+
+The missing coverage includes key creation and retrieval, active-key selection, rotation, suspension and deletion, listing, purpose metadata, cryptography-client access and metadata caching. Validate the operations you depend on against your own authorized Azure Key Vault before relying on them. This deferral applies only to alpha.22; it does not mark the checks passed, remove them from the strict profile, defer other credentialed checks or certify a later release.
 
 ### The Record-of-Processing-Activities data map has no executing test coverage
 

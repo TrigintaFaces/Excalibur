@@ -4,10 +4,12 @@
 
 #pragma warning disable IDE0270 // Null check can be simplified
 
+using System.Globalization;
 using System.Text;
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Testing.Conformance;
 
@@ -115,6 +117,62 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
+	/// Establishes <paramref name="tenantId"/> as the owner that saves made inside the returned scope will
+	/// record, or returns <see langword="null"/> when this suite's store cannot resolve a named tenant.
+	/// </summary>
+	/// <param name="tenantId">The tenant that saves inside the scope must record as their owner.</param>
+	/// <returns>
+	/// A scope that restores the previous owner on disposal, or <see langword="null"/> when the store under
+	/// test resolves no named tenant and the cross-owner arms therefore cannot run.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>A store's owner term is not supplied by the caller, so the kit cannot name it on a request.</b>
+	/// The owner an erasure records is resolved by the HOST, and a request naming a different tenant is
+	/// refused — which is what makes the per-subject key the erasure destroys the same key the write path
+	/// minted. So an arm that needs two rows under two owners cannot get them by setting a property; it
+	/// needs the deployment's own resolution to answer differently for each save, which is what this scope
+	/// is for.
+	/// </para>
+	/// <para>
+	/// Override it when your store resolves its tenant from ambient context — the shipped stores accept an
+	/// <c>ITenantContext</c>, and the framework's ambient holder exposes a scoped setter for exactly this
+	/// purpose, so the override is one line. The default returns <see langword="null"/>, and the arms that
+	/// need it then report through <see cref="ConformanceTestKit.OnArmSkipped"/> rather than passing
+	/// silently: an arm that did not run and an arm that ran clean must not be the same result.
+	/// </para>
+	/// <para>
+	/// <b>Returning a scope that does NOT change the recorded owner is worse than returning
+	/// <see langword="null"/>.</b> The arms assert that two saves recorded two different owners and fail
+	/// the suite when they did not, so a no-op scope is reported as a defect in the store rather than
+	/// quietly weakening the check — but the message will name the wrong cause. If your store cannot
+	/// resolve a named tenant, leave this unoverridden.
+	/// </para>
+	/// </remarks>
+	protected virtual IDisposable? BeginOwnerScope(string tenantId) => null;
+
+	/// <summary>
+	/// Creates the same store this suite tests, but configured so a tenant is REQUIRED, or returns
+	/// <see langword="null"/> when the suite does not supply one.
+	/// </summary>
+	/// <returns>A tenancy-requiring store, or <see langword="null"/>.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>One arm needs this and it cannot be faked by a scope.</b> Estate-wide background discovery must
+	/// carry no ambient-tenant term, and the realistic way that defect arrives is an author copying the
+	/// nearest sibling statement -- which applies the term ONLY when tenancy is required. Under optional
+	/// tenancy that copied term compiles to nothing, so an arm running against the ordinary store cannot
+	/// tell the defect from the fix. Measured: with the suite's default store, planting the term exactly
+	/// as the sibling writes it left the arm GREEN on both SQL providers.
+	/// </para>
+	/// <para>
+	/// A suite that returns <see langword="null"/> gets an honest skip rather than a silent pass, because
+	/// the arm would be unable to fail.
+	/// </para>
+	/// </remarks>
+	protected virtual IErasureStore? CreateTenantRequiringStore() => null;
+
+	/// <summary>
 	/// Creates a test erasure request with the given parameters.
 	/// </summary>
 	/// <param name="requestId">Optional request identifier. If not provided, a new GUID is generated.</param>
@@ -216,6 +274,80 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 	/// </summary>
 	/// <returns>A unique request identifier.</returns>
 	protected virtual Guid GenerateRequestId() => Guid.NewGuid();
+
+	// A tenant no deployment under test is expected to resolve. The arms that use it assert it differs from
+	// the owner the store actually recorded rather than trusting that, so a suite whose host does resolve
+	// this term fails with a message saying so instead of asserting that a tenant does not match itself.
+	private const string ForeignTenant = "conformance-tenant-the-host-does-not-resolve";
+
+	// FirstOwner is a strict PREFIX of SecondOwner, and that is load-bearing rather than cosmetic: a filter
+	// applied as a prefix or "starts with" match returns both rows when asked for the shorter term, which an
+	// equality comparison does not. Two unrelated names would make that mutant invisible.
+	private const string FirstOwner = "conformance-owner";
+	private const string SecondOwner = "conformance-owner-second";
+
+	// Carries a case distinction so a folding comparison has something to fold. The arm asserts the
+	// distinction survived into the recorded owner before it relies on it.
+	private const string MixedCaseOwner = "Conformance-Ordinal-Owner";
+
+	/// <summary>
+	/// The same three owners as OWNER IDENTITIES rather than as raw strings, for the mint-ledger arms.
+	/// </summary>
+	/// <remarks>
+	/// The mint ledger takes a <see cref="TenantId"/> and not a string, deliberately: this subsystem carries
+	/// an owner and a storage partition as two tenant-shaped values that are UNEQUAL in the default
+	/// single-tenant deployment, and binding the partition where the owner belongs enumerates the empty set.
+	/// The type is what makes that substitution fail to compile rather than fail silently at run time.
+	/// </remarks>
+	private static readonly TenantId FirstOwnerId = new(FirstOwner);
+
+	/// <inheritdoc cref="FirstOwnerId"/>
+	private static readonly TenantId SecondOwnerId = new(SecondOwner);
+
+	/// <inheritdoc cref="FirstOwnerId"/>
+	private static readonly TenantId MixedCaseOwnerId = new(MixedCaseOwner);
+
+	/// <summary>Reads back the owner the store itself recorded for a request.</summary>
+	/// <param name="store">The store under test.</param>
+	/// <param name="requestId">The request whose recorded owner is wanted.</param>
+	/// <returns>The owner term the store persisted, never null or empty.</returns>
+	/// <remarks>
+	/// The owner is READ rather than computed from a constant, and the difference is the whole reason these
+	/// arms exist. A constant is a second derivation of a fact the store already decided; when the two
+	/// disagree, the arm asserts against a term the store never used and reports a pass. Reading it back
+	/// also means one arm covers a single-tenant host, a host with an explicit default identity, and a
+	/// tenant-resolving host, without the kit having to know which it is looking at.
+	/// </remarks>
+	private static async Task<string> RecordedOwnerAsync(IErasureStore store, Guid requestId)
+	{
+		var status = await store.GetStatusAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+		if (status is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"Request {requestId} was saved but is not readable, so the owner the store recorded for it "
+				+ "cannot be established.");
+		}
+
+		if (string.IsNullOrWhiteSpace(status.TenantId))
+		{
+			throw new TestFixtureAssertionException(
+				$"Request {requestId} was saved with no recorded owner. The owner decides which per-subject "
+				+ "key an erasure destroys, so a request that carries none has no key to destroy and would "
+				+ "report a completed erasure having destroyed nothing. Resolve an owner on the save path.");
+		}
+
+		return status.TenantId;
+	}
+
+	private static Task<IReadOnlyList<ErasureStatus>> ListByTenantAsync(IErasureStore store, string? tenantId) =>
+		GetQueryStore(store).ListRequestsAsync(
+			status: null,
+			tenantId: tenantId,
+			fromDate: null,
+			toDate: null,
+			pageNumber: 1,
+			pageSize: 100,
+			CancellationToken.None);
 
 	private static IErasureQueryStore GetQueryStore(IErasureStore store) =>
 		(IErasureQueryStore?)store.GetService(typeof(IErasureQueryStore))
@@ -372,8 +504,13 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 	#region Status Update Tests
 
 	/// <summary>
-	/// Verifies that UpdateStatusAsync changes the status.
+	/// Verifies that the general status member applies a write presented by the holder of the claim.
 	/// </summary>
+	/// <remarks>
+	/// The request is claimed first because the write is FENCED: a status write that advances the
+	/// attestation is applied only for the identity the request currently carries. An arm that wrote
+	/// without claiming would be measuring the refusal rather than the write.
+	/// </remarks>
 	public virtual async Task UpdateStatusAsync_ShouldUpdateStatus()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
@@ -382,16 +519,20 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 
 		await store.SaveRequestAsync(request, scheduledTime, CancellationToken.None).ConfigureAwait(false);
 
+		var identity = await ClaimForArmAsync(store, request.RequestId).ConfigureAwait(false);
+
 		var updated = await store.UpdateStatusAsync(
 			request.RequestId,
-			ErasureRequestStatus.InProgress,
-			null,
+			ErasureRequestStatus.Failed,
+			expectedStatus: null,
+			"conformance",
+			identity,
 			CancellationToken.None).ConfigureAwait(false);
 
-		if (!updated)
+		if (updated != ErasureWriteOutcome.Applied)
 		{
 			throw new TestFixtureAssertionException(
-				"UpdateStatusAsync should return true for existing request");
+				$"UpdateStatusAsync must apply a terminal write presented by the claim holder. Actual: {updated}");
 		}
 
 		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
@@ -402,17 +543,23 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 				"Request should be found after update");
 		}
 
-		if (status.Status != ErasureRequestStatus.InProgress)
+		if (status.Status != ErasureRequestStatus.Failed)
 		{
 			throw new TestFixtureAssertionException(
-				$"Status should be InProgress after update. Actual: {status.Status}");
+				$"Status should be Failed after update. Actual: {status.Status}");
 		}
 	}
 
 	/// <summary>
-	/// Verifies that UpdateStatusAsync sets ExecutedAt when status changes to InProgress.
+	/// Verifies that taking execution custody stamps ExecutedAt.
 	/// </summary>
-	public virtual async Task UpdateStatusAsync_ToInProgress_ShouldSetExecutedAt()
+	/// <remarks>
+	/// ExecutedAt is the only record of WHEN an erasure began, and a store that leaves it null gives an
+	/// operator no way to tell a request that started an hour ago from one that started last week -- so
+	/// a stalled erasure becomes indistinguishable from a fresh one. It is stamped by the claim rather
+	/// than by a status write because the claim is the moment execution begins.
+	/// </remarks>
+	public virtual async Task ClaimForExecutionAsync_ShouldSetExecutedAt()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var request = CreateErasureRequest();
@@ -425,14 +572,10 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		if (initialStatus?.ExecutedAt is not null)
 		{
 			throw new TestFixtureAssertionException(
-				"ExecutedAt should be null before status update to InProgress");
+				"ExecutedAt should be null before the request is claimed for execution");
 		}
 
-		_ = await store.UpdateStatusAsync(
-			request.RequestId,
-			ErasureRequestStatus.InProgress,
-			null,
-			CancellationToken.None).ConfigureAwait(false);
+		_ = await ClaimForArmAsync(store, request.RequestId).ConfigureAwait(false);
 
 		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
 
@@ -445,13 +588,18 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		if (status.ExecutedAt is null)
 		{
 			throw new TestFixtureAssertionException(
-				"ExecutedAt should be set when status changes to InProgress");
+				"ExecutedAt should be stamped when execution custody is taken");
 		}
 	}
 
 	/// <summary>
-	/// Verifies that UpdateStatusAsync returns false for non-existent request.
+	/// Verifies that the general status member reports NOT FOUND for a request that does not exist.
 	/// </summary>
+	/// <remarks>
+	/// A terminal status is written rather than the claimed one, deliberately: taking custody has its
+	/// own member, so this arm would otherwise be refused for the wrong reason and would pass against a
+	/// store that never looks the request up at all.
+	/// </remarks>
 	public virtual async Task UpdateStatusAsync_NonExistent_ShouldReturnFalse()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
@@ -459,11 +607,13 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 
 		var updated = await store.UpdateStatusAsync(
 			nonExistentId,
-			ErasureRequestStatus.InProgress,
-			null,
+			ErasureRequestStatus.Failed,
+			expectedStatus: null,
+			"conformance",
+			claimIdentity: null,
 			CancellationToken.None).ConfigureAwait(false);
 
-		if (updated)
+		if (updated == ErasureWriteOutcome.Applied)
 		{
 			throw new TestFixtureAssertionException(
 				"UpdateStatusAsync should return false for non-existent RequestId");
@@ -471,16 +621,20 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that the transition to InProgress is a CLAIM: of two callers that both try to claim the
-	/// same scheduled request, exactly one is told it succeeded.
+	/// Verifies that custody is EXCLUSIVE: of two callers that both try to claim the same scheduled
+	/// request, exactly one is granted it.
 	/// </summary>
 	/// <remarks>
-	/// This is the SAFETY half. A store that updates the row unconditionally passes every other arm in
+	/// This is the SAFETY half. A store that grants the claim unconditionally passes every other arm in
 	/// this region and fails here, because both callers are told they own the request — and each then
 	/// erases the same subject and writes its own completion certificate, one of which attests to
 	/// destroying keys that the other had already destroyed.
+	/// <para>
+	/// The arm also binds WHICH refusal the loser is given, because the two refusals oblige opposite
+	/// behaviour of the caller and the wrong one strands the erasure. See the comments at the assertion.
+	/// </para>
 	/// </remarks>
-	public virtual async Task UpdateStatusAsync_SecondClaimOfTheSameRequest_ShouldBeRefused()
+	public virtual async Task ClaimForExecutionAsync_SecondClaimOfTheSameRequest_ShouldBeRefused()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var request = CreateErasureRequest();
@@ -488,27 +642,276 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
 			.ConfigureAwait(false);
 
-		var first = await store.UpdateStatusAsync(
-			request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None)
+		var first = await store.ClaimForExecutionAsync(
+			request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Asserted here rather than left to a sibling arm: without it, a store that refuses EVERY claim
 		// passes the refusal below while being entirely inert.
-		if (!first)
+		if (first.Outcome != ErasureClaimOutcome.Granted)
 		{
 			throw new TestFixtureAssertionException(
-				"The first claim of a Scheduled request must succeed; the store refused it.");
+				$"The first claim of a Scheduled request must be granted; the store answered {first.Outcome}.");
 		}
 
-		var second = await store.UpdateStatusAsync(
-			request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None)
+		var second = await store.ClaimForExecutionAsync(
+			request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
 			.ConfigureAwait(false);
 
-		if (second)
+		if (second.Outcome == ErasureClaimOutcome.Granted)
 		{
 			throw new TestFixtureAssertionException(
 				"The second claim of an already-claimed request must be refused. This store granted it, "
 				+ "so two concurrent callers would both execute the erasure and both write a certificate.");
+		}
+
+		// THE REFUSAL MUST BE ALREADY-CLAIMED, NOT WRONG-STATUS, and the difference is not cosmetic: the
+		// two oblige opposite behaviour of the caller. Already-claimed means another instance holds the
+		// request and it is COMING BACK when that lease elapses, so the caller should keep offering it.
+		// A status mismatch means the request has moved on and the caller should STOP. A store that
+		// reports the mismatch -- which is tempting, because granting the claim advances the status --
+		// tells the second contender to abandon a request that is still live. That strands the erasure,
+		// which is the exact defect the lease exists to remove, reintroduced one level up.
+		if (second.Outcome != ErasureClaimOutcome.AlreadyClaimed)
+		{
+			throw new TestFixtureAssertionException(
+				$"The second claim must be refused as AlreadyClaimed; this store answered {second.Outcome}. "
+				+ "A status mismatch tells the caller to stop offering a request that is still coming back.");
+		}
+
+		if (second.ClaimIdentity is not null)
+		{
+			throw new TestFixtureAssertionException(
+				"A refused claim must carry no identity. This store handed one to a caller it refused, "
+				+ "and the fence would then accept it as proof of custody.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a request another caller has CLAIMED cannot be put back to
+	/// <see cref="ErasureRequestStatus.Scheduled" />.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// THE ARM ABOVE GUARDS THE CLAIM. THIS ONE GUARDS THE CLAIM'S ENABLING STATE, and without it the
+	/// pair is defeated from the other side. <c>Scheduled</c> is the single state the claim succeeds
+	/// from, so a store that writes it unconditionally does not record an outcome -- it hands the claim
+	/// to the next caller. The second claim is then refused by nobody, because it is not a second claim
+	/// at all: it is a first claim of a request that was silently re-offered while its owner was still
+	/// erasing.
+	/// </para>
+	/// <para>
+	/// The consequence is the one the arm above already names, reached by a different route: two callers
+	/// erase the same subject and each writes its own completion certificate, one of them attesting that
+	/// keys were destroyed when its own pass found nothing left to destroy. A signed certificate is
+	/// evidence a consumer hands an auditor, so the false one is an authenticated false statement.
+	/// </para>
+	/// <para>
+	/// A READ-THEN-WRITE GUARD IN THE CALLER DOES NOT DISCHARGE THIS. The scheduler's retry path reads
+	/// the current status and declines to reset a claimed request, which narrows the window and cannot
+	/// close it: the claim may land between that read and the write. The refusal has to be the store's,
+	/// in one indivisible operation, which is why this arm belongs here and not beside the caller.
+	/// </para>
+	/// <para>
+	/// Its liveness twin is <see cref="UpdateStatusAsync_ResetToScheduledOfAFailedRequest_ShouldSucceed" />.
+	/// Without that twin a store could pass this arm by refusing every reset, which would break the
+	/// retry path completely and leave every transient failure terminal.
+	/// </para>
+	/// </remarks>
+	public virtual async Task UpdateStatusAsync_ResetToScheduledOfAClaimedRequest_ShouldBeRefused()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var identity = await ClaimForArmAsync(store, request.RequestId).ConfigureAwait(false);
+
+		// THE HOLDER'S OWN IDENTITY IS PRESENTED, DELIBERATELY. Omitting it would also be refused, but by
+		// the CLAIM FENCE rather than by the transition partition -- so the arm would pass against a store
+		// whose partition permits the reset, which is the property it exists to bind. Presenting the
+		// identity takes the fence out of the question and leaves only the partition to answer it.
+		var reset = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.Scheduled, expectedStatus: null, "retry", identity, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// The status is checked as well as the return value, and deliberately: a store that returns false
+		// and writes anyway is the worst of the three outcomes, because the caller is told it was refused.
+		if (reset == ErasureWriteOutcome.Applied || status?.Status != ErasureRequestStatus.InProgress)
+		{
+			throw new TestFixtureAssertionException(
+				"Putting a CLAIMED request back to Scheduled must be refused and must leave the status "
+				+ $"InProgress. This store returned {reset} and left the status {status?.Status}. "
+				+ "Scheduled is the state the claim succeeds from, so writing it over InProgress offers "
+				+ "the request to a second caller while the first is still erasing the subject: both "
+				+ "complete, and both sign a certificate.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a CANCELLED request cannot be moved to
+	/// <see cref="ErasureRequestStatus.AwaitingKeyDestruction" />.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <c>AwaitingKeyDestruction</c> is the completion pass's DISCOVERY predicate, so writing it does not
+	/// record an outcome -- it enrolls the request in a pass that asks the key-management provider to
+	/// confirm that keys are irrecoverable, and that completes and CERTIFIES the request. Writing it over
+	/// a cancelled request therefore feeds a cancelled erasure into the destruction pipeline and can
+	/// produce a signed certificate for an erasure the consumer called off.
+	/// </para>
+	/// <para>
+	/// The status's own documentation already says this cannot happen -- a request awaiting key
+	/// destruction is not cancellable -- and nothing enforced the converse: that a cancelled request
+	/// cannot come to be awaiting key destruction.
+	/// </para>
+	/// <para>
+	/// Its liveness twin is
+	/// <see cref="UpdateStatusAsync_AwaitingKeyDestructionFromTheClaimedWindow_ShouldSucceed" />. Both
+	/// legitimate writers sit in the permitted source set: the execution path records this status from
+	/// the claimed window, and the completion pass REWRITES it with a fresh detail message when it
+	/// cannot yet complete -- so a store that permitted only <c>InProgress</c> would break that second
+	/// writer, which is why the permitted set includes the target itself.
+	/// </para>
+	/// </remarks>
+	public virtual async Task UpdateStatusAsync_ResetToAwaitingKeyDestructionOfACancelledRequest_ShouldBeRefused()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var cancelled = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.Cancelled, expectedStatus: null, "called off", claimIdentity: null, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// Asserted rather than assumed: a store that refused the cancellation would leave the request
+		// Scheduled, where this transition is also refused, and the arm would pass while never reaching
+		// the cancelled state it exists to test.
+		if (cancelled != ErasureWriteOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				"Cancelling a Scheduled request must succeed; the store refused it, so this arm never "
+				+ "reached the cancelled state it exists to test.");
+		}
+
+		var enrolled = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, expectedStatus: null, "awaiting provider", claimIdentity: null,
+			CancellationToken.None).ConfigureAwait(false);
+
+		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (enrolled == ErasureWriteOutcome.Applied || status?.Status != ErasureRequestStatus.Cancelled)
+		{
+			throw new TestFixtureAssertionException(
+				"Moving a CANCELLED request to AwaitingKeyDestruction must be refused and must leave the "
+				+ $"status Cancelled. This store returned {enrolled} and left the status {status?.Status}. "
+				+ "AwaitingKeyDestruction is the completion pass's discovery predicate, so the cancelled "
+				+ "request would be enrolled in key destruction and could be certified as erased.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a claimed request CAN be recorded as awaiting key destruction, and that the record
+	/// can be rewritten while it waits.
+	/// </summary>
+	/// <remarks>
+	/// The LIVENESS twin of
+	/// <see cref="UpdateStatusAsync_ResetToAwaitingKeyDestructionOfACancelledRequest_ShouldBeRefused" />.
+	/// A store that refused every write of this status would satisfy the safety arm and strand every
+	/// executed erasure whose keys the provider has only scheduled -- it could never be recorded as
+	/// waiting, never discovered by the completion pass, and never completed. The second write in this
+	/// arm is the completion pass's own rewrite, which a "from InProgress only" rule would refuse.
+	/// </remarks>
+	public virtual async Task UpdateStatusAsync_AwaitingKeyDestructionFromTheClaimedWindow_ShouldSucceed()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var identity = await ClaimForArmAsync(store, request.RequestId).ConfigureAwait(false);
+
+		var recorded = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, expectedStatus: null, "awaiting provider", identity,
+			CancellationToken.None).ConfigureAwait(false);
+
+		if (recorded != ErasureWriteOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				"A claimed request must be recordable as awaiting key destruction; this store refused it, "
+				+ "so an executed erasure whose keys are only scheduled can never be completed.");
+		}
+
+		// The completion pass rewrites the detail while the provider still holds the keys.
+		var rewritten = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, expectedStatus: null, "still awaiting provider", claimIdentity: null,
+			CancellationToken.None).ConfigureAwait(false);
+
+		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (rewritten != ErasureWriteOutcome.Applied || status?.Status != ErasureRequestStatus.AwaitingKeyDestruction)
+		{
+			throw new TestFixtureAssertionException(
+				"A request already awaiting key destruction must accept a rewritten detail while it "
+				+ $"waits. This store returned {rewritten} and left the status {status?.Status}, so the "
+				+ "completion pass cannot report why a request is still waiting.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a FAILED request can still be put back to
+	/// <see cref="ErasureRequestStatus.Scheduled" /> for another attempt.
+	/// </summary>
+	/// <remarks>
+	/// The LIVENESS twin of <see cref="UpdateStatusAsync_ResetToScheduledOfAClaimedRequest_ShouldBeRefused" />.
+	/// Retrying a transient failure is the one legitimate reason to write <c>Scheduled</c> after
+	/// creation, and it is how a request that failed on a store outage or a provider timeout is ever
+	/// attempted again. A store that refuses every reset satisfies the safety arm completely while
+	/// making every transient failure permanent, and nothing else in this kit would notice.
+	/// </remarks>
+	public virtual async Task UpdateStatusAsync_ResetToScheduledOfAFailedRequest_ShouldSucceed()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var identity = await ClaimForArmAsync(store, request.RequestId).ConfigureAwait(false);
+		// ASSERTED, NOT ASSUMED. This is the arm's precondition: if the store refuses it the request is
+		// still claimed rather than Failed, and the reset below is then a reset of the wrong state, which
+		// a provider could pass for a reason this arm is not about.
+		if (await store.UpdateStatusAsync(
+				request.RequestId, ErasureRequestStatus.Failed, expectedStatus: null, "transient", identity, CancellationToken.None)
+				.ConfigureAwait(false) != ErasureWriteOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				"A terminal write by the claim holder must be applied; without it this arm never reaches "
+				+ "the failed state whose reset it exists to test.");
+		}
+
+		var reset = await store.UpdateStatusAsync(
+			request.RequestId, ErasureRequestStatus.Scheduled, expectedStatus: null, "retry 1/3", claimIdentity: null, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (reset != ErasureWriteOutcome.Applied || status?.Status != ErasureRequestStatus.Scheduled)
+		{
+			throw new TestFixtureAssertionException(
+				"A FAILED request must be resettable to Scheduled so it can be retried. This store "
+				+ $"returned {reset} and left the status {status?.Status}, so a request that failed on a "
+				+ "transient fault can never be attempted again.");
 		}
 	}
 
@@ -529,15 +932,13 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
 			.ConfigureAwait(false);
 
-		_ = await store.UpdateStatusAsync(
-			request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None)
-			.ConfigureAwait(false);
+		var identity = await ClaimForArmAsync(store, request.RequestId).ConfigureAwait(false);
 
 		var recorded = await store.UpdateStatusAsync(
-			request.RequestId, ErasureRequestStatus.Failed, "erasure failed", CancellationToken.None)
+			request.RequestId, ErasureRequestStatus.Failed, expectedStatus: null, "erasure failed", identity, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		if (!recorded)
+		if (recorded != ErasureWriteOutcome.Applied)
 		{
 			throw new TestFixtureAssertionException(
 				"A terminal transition from InProgress must succeed; the claim guard is over-refusing "
@@ -573,13 +974,12 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		// Due now, so the scheduled-execution query WOULD return it if it only looked at the time.
 		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddMinutes(-5), CancellationToken.None)
 			.ConfigureAwait(false);
-		_ = await store.UpdateStatusAsync(
-			request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None).ConfigureAwait(false);
+		var identity = await ClaimForArmAsync(store, request.RequestId).ConfigureAwait(false);
 
 		var recorded = await store.UpdateStatusAsync(
-			request.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, "awaiting provider", CancellationToken.None)
+			request.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, expectedStatus: null, "awaiting provider", identity, CancellationToken.None)
 			.ConfigureAwait(false);
-		if (!recorded)
+		if (recorded != ErasureWriteOutcome.Applied)
 		{
 			throw new TestFixtureAssertionException("The transition to AwaitingKeyDestruction must succeed.");
 		}
@@ -619,9 +1019,493 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		}
 	}
 
+	/// <summary>
+	/// Verifies that estate-wide background discovery returns EVERY row of its own status, under every
+	/// owner, while the caller holds no ambient tenant scope -- and that its page boundary is stable when
+	/// requested times tie.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This one arm binds BOTH background discovery members</b>, by being parameterised over the member
+	/// and run twice. The members are not one operation with a different constant -- each is a named
+	/// discovery predicate owned by one background worker -- but what drifts between two hand-copied
+	/// discovery statements is the paging, the ordering and the tenancy rather than the predicate. So the
+	/// test is parameterised where the interface is not.
+	/// </para>
+	/// <para>
+	/// <b>THE AMBIENT TERM IS WHAT THIS ARM EXISTS FOR, and its failure mode is the worst kind.</b> The
+	/// nearest sibling statements in each provider DO apply an ambient-tenant match; these members must
+	/// NOT. A provider author who copies the sibling gets the term, and under multi-tenancy the ambient
+	/// scope then either throws or resolves to a tenant matching nothing -- so discovery returns an EMPTY
+	/// SET, the background work is silently never done, and nothing anywhere reports it. An in-memory
+	/// reference store cannot catch this, because its ambient match short-circuits to true under single
+	/// tenancy, which is how most callers exercise it. Hence: two owners, and both rows asserted present
+	/// under NO scope.
+	/// </para>
+	/// <para>
+	/// <b>THE FIXTURE REACHES EACH STATUS THROUGH THE REAL TRANSITIONS.</b> Writing the status directly
+	/// would succeed against a store whose conditional write is broken, so the fixture claims the request
+	/// first and is therefore blind to nothing. The requested times are seeded EQUAL across the rows on
+	/// purpose: without a tie, a dropped unique tie-breaker in the ORDER BY leaves the page boundary
+	/// stable by accident and the paging half of this arm passes vacuously.
+	/// </para>
+	/// <para>
+	/// <b>Mutants, RUN rather than recorded -- and two of the three first written here were FALSE.</b>
+	/// RED: an ambient-tenant term added to either member, in both the unguarded form and the form the
+	/// nearest sibling writes (which is why this arm requires tenancy -- under optional tenancy the
+	/// sibling's guarded form compiles to nothing and the arm stayed GREEN on both SQL providers).
+	/// RED: pointing either member at the other member's status.
+	/// <b>NOT detected, stated rather than implied:</b> dropping the unique tie-breaker from the ORDER BY
+	/// left this arm GREEN on real PostgreSQL and real SQL Server. A non-unique ordering PERMITS an
+	/// unstable page boundary without requiring one, so no assertion can reliably redden on it. The
+	/// paging assertions below are kept because they do catch a broken OFFSET or LIMIT, but they are NOT
+	/// evidence that the tie-breaker is present -- reading the ORDER BY is.
+	/// </para>
+	/// </remarks>
+	public virtual async Task BackgroundDiscovery_AcrossOwners_ShouldReturnEveryRowOfItsOwnStatusUnscoped()
+	{
+		// Deliberately NOT CreateStoreForArmAsync: this arm needs tenancy REQUIRED, because the realistic
+		// form of the defect it detects is inert under optional tenancy. ResetDataAsync is still called so
+		// a deriver's cleanup runs for this arm as it does for every other.
+		_ = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var store = CreateTenantRequiringStore();
+
+		if (store is null)
+		{
+			SkipArm(
+				nameof(BackgroundDiscovery_AcrossOwners_ShouldReturnEveryRowOfItsOwnStatusUnscoped),
+				capability: null,
+				"the suite does not override CreateTenantRequiringStore, so this arm cannot run with tenancy "
+				+ "required -- and under optional tenancy the ambient-tenant term it exists to detect "
+				+ "compiles to nothing, so the arm could not fail. Estate-wide background discovery across "
+				+ "owners is UNVERIFIED for this store.");
+			return;
+		}
+
+		using (var probeScope = BeginOwnerScope(FirstOwner))
+		{
+			if (probeScope is null)
+			{
+				SkipArm(
+					nameof(BackgroundDiscovery_AcrossOwners_ShouldReturnEveryRowOfItsOwnStatusUnscoped),
+					capability: null,
+					"the suite does not override BeginOwnerScope, so this store resolves no named tenant and "
+					+ "two rows under two owners cannot be created. Estate-wide background discovery across "
+					+ "owners is UNVERIFIED for this store, and the ambient-term defect it detects would not "
+					+ "be visible under a single tenant.");
+				return;
+			}
+		}
+
+		RecordArmExecuted(nameof(BackgroundDiscovery_AcrossOwners_ShouldReturnEveryRowOfItsOwnStatusUnscoped));
+
+		var queryStore = (IErasureBackgroundQueryStore?)store.GetService(typeof(IErasureBackgroundQueryStore))
+			?? throw new TestFixtureAssertionException(
+				"The store must expose IErasureBackgroundQueryStore. Background workers run under no tenant "
+				+ "scope, and ordinary tenant-scoped listing cannot substitute for estate-wide discovery.");
+
+		await AssertBackgroundDiscoveryAsync(
+			store,
+			queryStore.GetAwaitingKeyDestructionRequestsAsync,
+			ErasureRequestStatus.AwaitingKeyDestruction,
+			ErasureRequestStatus.BlockedByLegalHold,
+			nameof(IErasureBackgroundQueryStore.GetAwaitingKeyDestructionRequestsAsync)).ConfigureAwait(false);
+
+		await AssertBackgroundDiscoveryAsync(
+			store,
+			queryStore.GetHoldDeferredRequestsAsync,
+			ErasureRequestStatus.BlockedByLegalHold,
+			ErasureRequestStatus.AwaitingKeyDestruction,
+			nameof(IErasureBackgroundQueryStore.GetHoldDeferredRequestsAsync)).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// The body both background discovery members are asserted with.
+	/// </summary>
+	/// <param name="store">The store under test.</param>
+	/// <param name="discover">The member being bound, as a page reader.</param>
+	/// <param name="discovered">The status this member must return.</param>
+	/// <param name="excluded">A status it must NOT return, used as the cross-status control.</param>
+	/// <param name="memberName">The member's name, for the failure messages.</param>
+	private async Task AssertBackgroundDiscoveryAsync(
+		IErasureStore store,
+		Func<int, int, CancellationToken, Task<IReadOnlyList<ErasureStatus>>> discover,
+		ErasureRequestStatus discovered,
+		ErasureRequestStatus excluded,
+		string memberName)
+	{
+		// EQUAL on purpose: a tie is what makes the unique tie-breaker in the ORDER BY load-bearing, so
+		// dropping it reddens the page-boundary assertions below instead of passing by accident.
+		var requestedAt = DateTimeOffset.UtcNow.AddMinutes(-30);
+
+		var owners = new[] { FirstOwner, SecondOwner };
+		var ids = new Guid[owners.Length];
+		var recordedOwners = new string[owners.Length];
+
+		for (var i = 0; i < owners.Length; i++)
+		{
+			using var scope = BeginOwnerScope(owners[i])
+				?? throw new TestFixtureAssertionException(
+					"BeginOwnerScope returned a scope for one tenant and null for another. It must either "
+					+ "support every tenant it is asked for or none, or the arms cannot tell an unsupported "
+					+ "suite from a partially wired one.");
+
+			var request = CreateErasureRequest() with { RequestedAt = requestedAt };
+			await store.SaveRequestAsync(request, requestedAt, CancellationToken.None).ConfigureAwait(false);
+			await MoveToAsync(store, request.RequestId, discovered).ConfigureAwait(false);
+
+			ids[i] = request.RequestId;
+			recordedOwners[i] = await RecordedOwnerAsync(store, request.RequestId).ConfigureAwait(false);
+		}
+
+		// The fixture's own precondition, asserted rather than assumed. With both owners equal this arm
+		// would measure one tenant twice and the ambient-term defect would be invisible to it.
+		if (string.Equals(recordedOwners[0], recordedOwners[1], StringComparison.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				$"Two saves made under two different owner scopes both recorded '{recordedOwners[0]}'. Until "
+				+ "they differ this arm cannot detect an ambient-tenant term in " + memberName + ", which is "
+				+ "the defect it exists to catch.");
+		}
+
+		// A row in the OTHER background status, so the arm fails against a member that ignores its own
+		// predicate or is pointed at the sibling's status.
+		Guid excludedId;
+		using (var scope = BeginOwnerScope(FirstOwner))
+		{
+			_ = scope;
+			var other = CreateErasureRequest() with { RequestedAt = requestedAt };
+			await store.SaveRequestAsync(other, requestedAt, CancellationToken.None).ConfigureAwait(false);
+			await MoveToAsync(store, other.RequestId, excluded).ConfigureAwait(false);
+			excludedId = other.RequestId;
+		}
+
+		// EVERY read below happens with NO ambient scope established, which is how a background worker
+		// actually calls these members.
+		var all = await discover(1, 100, CancellationToken.None).ConfigureAwait(false);
+
+		for (var i = 0; i < ids.Length; i++)
+		{
+			if (!all.Any(row => row.RequestId == ids[i]))
+			{
+				throw new TestFixtureAssertionException(
+					$"{memberName} did not return the request owned by '{recordedOwners[i]}' while the caller "
+					+ "held no ambient tenant scope. This member is estate-wide and must carry no "
+					+ "ambient-tenant term: with one, discovery returns an empty set under multi-tenancy and "
+					+ "the background work is silently never done.");
+			}
+		}
+
+		if (all.Any(row => row.RequestId == excludedId))
+		{
+			throw new TestFixtureAssertionException(
+				$"{memberName} returned a request in {excluded}, which is not its predicate. Each background "
+				+ "member discovers for one worker; returning another status hands that worker rows it has no "
+				+ "business acting on.");
+		}
+
+		// PAGE BOUNDARY, with the requested times tied. Two single-row pages must together cover both
+		// owners' rows exactly once. A non-unique ORDER BY can repeat one row and omit the other while
+		// each page looks perfectly well formed on its own.
+		var firstPage = await discover(1, 1, CancellationToken.None).ConfigureAwait(false);
+		var secondPage = await discover(2, 1, CancellationToken.None).ConfigureAwait(false);
+
+		if (firstPage.Count != 1 || secondPage.Count != 1)
+		{
+			throw new TestFixtureAssertionException(
+				$"{memberName} must return exactly one row per page when asked for a page size of one and at "
+				+ $"least two rows match. Page 1 returned {firstPage.Count} and page 2 returned "
+				+ $"{secondPage.Count}.");
+		}
+
+		if (firstPage[0].RequestId == secondPage[0].RequestId)
+		{
+			throw new TestFixtureAssertionException(
+				$"{memberName} returned the SAME request on page 1 and page 2 while three rows had identical "
+				+ "requested times. The ORDER BY needs a unique tie-breaker; without one a tie makes the page "
+				+ "boundary arbitrary, so a row is served twice and another is never served at all -- and "
+				+ "every individual page still looks well formed.");
+		}
+	}
+
+	/// <summary>
+	/// Takes execution custody of a freshly scheduled request and returns the identity the store minted.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// CUSTODY HAS EXACTLY ONE DOOR. <see cref="IErasureStore.ClaimForExecutionAsync" /> is the only
+	/// member that mints the identity a fenced write presents, so an arm needing a request in the
+	/// claimed state claims it here. Writing that status through the general status member is refused
+	/// outright, because a second door would advance a request into the claimed state for a caller
+	/// holding no identity, and every fenced write it then made would compare against nothing.
+	/// </para>
+	/// <para>
+	/// The identity is RETURNED rather than discarded because every later write that advances the
+	/// attestation must present it. An arm that dropped it would be refused at its next write, and the
+	/// failure would read as a broken provider rather than a fixture that lost its claim.
+	/// </para>
+	/// <para>
+	/// The grant is asserted rather than assumed: a store that refuses every claim would otherwise
+	/// reach the arm's real assertion with the request still scheduled, where most transitions
+	/// legitimately behave differently, and the arm would pass while measuring nothing.
+	/// </para>
+	/// </remarks>
+	private static async Task<string> ClaimForArmAsync(IErasureStore store, Guid requestId)
+	{
+		var claim = await store.ClaimForExecutionAsync(
+			requestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (claim.Outcome != ErasureClaimOutcome.Granted)
+		{
+			throw new TestFixtureAssertionException(
+				$"The first claim of a Scheduled request must be granted; the store answered {claim.Outcome}. "
+				+ "Without the claim the fixture cannot reach the claimed state the way production does.");
+		}
+
+		if (string.IsNullOrEmpty(claim.ClaimIdentity))
+		{
+			throw new TestFixtureAssertionException(
+				"A granted claim must carry the identity it minted. This store granted custody and "
+				+ "returned no identity, so no later write could ever present one and the fence would "
+				+ "refuse every attestation the holder makes.");
+		}
+
+		return claim.ClaimIdentity;
+	}
+
+	/// <summary>
+	/// Moves a freshly saved request into a background-discoverable status through the real transitions.
+	/// </summary>
+	/// <remarks>
+	/// Custody is taken first rather than the status written directly. A direct write succeeds even
+	/// against a store whose conditional write is broken -- so a fixture that took the shortcut would be
+	/// blind to a provider that refuses the transition in production, and would still be green. It is
+	/// also no longer expressible: the claimed status may only be written by the claim member.
+	/// </remarks>
+	private static async Task MoveToAsync(IErasureStore store, Guid requestId, ErasureRequestStatus status)
+	{
+		var identity = await ClaimForArmAsync(store, requestId).ConfigureAwait(false);
+
+		if (ErasureWriteOutcome.Applied != await store.UpdateStatusAsync(requestId, status, expectedStatus: null, "conformance", identity, CancellationToken.None)
+			.ConfigureAwait(false))
+		{
+			throw new TestFixtureAssertionException(
+				$"Recording {status} on request {requestId} from the claimed window must succeed. That is the "
+				+ "only path production reaches it by.");
+		}
+	}
+
 	#endregion
 
 	#region Completion Tests
+
+	/// <summary>
+	/// REFUSE A COMPLETION PRESENTING A SUPERSEDED CLAIM, and apply the current holder's.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the fence itself, and it is the arm a provider is most likely to pass by accident. A
+	/// store that ignores the identity entirely satisfies every other arm in this region: the happy path
+	/// still completes, the claim is still exclusive, and the status still moves. Only a SECOND claim
+	/// existing makes the two implementations diverge, and then the divergence is a signed full-coverage
+	/// certificate sitting beside a partial status -- the artifact a regulated consumer hands an auditor.
+	/// </para>
+	/// <para>
+	/// BOTH HALVES ARE ASSERTED. A store that refused EVERY completion would pass the refusal and leave
+	/// every erasure permanently unattested, so the current holder's completion must also apply.
+	/// </para>
+	/// <para>
+	/// The fixture state that discriminates is a claim duration of ZERO, which the contract admits for
+	/// exactly this purpose: it yields a claim that has already lapsed, so the request is re-claimable
+	/// without waiting. A fresh request per arm only ever produces "nothing is claimed", and in that
+	/// state the fenced and unfenced implementations agree.
+	/// </para>
+	/// </remarks>
+	public virtual async Task RecordCompletionAsync_PresentingASupersededClaim_ShouldBeRefused()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var superseded = await store.ClaimForExecutionAsync(
+				request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.Zero, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (superseded.Outcome != ErasureClaimOutcome.Granted || string.IsNullOrEmpty(superseded.ClaimIdentity))
+		{
+			throw new TestFixtureAssertionException(
+				$"The first claim must be granted with an identity; the store answered {superseded.Outcome}. "
+				+ "A zero claim duration is legal and yields an already-lapsed claim.");
+		}
+
+		var holder = await store.ClaimForExecutionAsync(
+				request.RequestId, ErasureRequestStatus.InProgress, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (holder.Outcome != ErasureClaimOutcome.Granted || string.IsNullOrEmpty(holder.ClaimIdentity))
+		{
+			throw new TestFixtureAssertionException(
+				"A request whose claim has LAPSED must be re-claimable; the store answered "
+				+ $"{holder.Outcome}. Without this the arm never reaches the superseded state it tests.");
+		}
+
+		if (string.Equals(superseded.ClaimIdentity, holder.ClaimIdentity, StringComparison.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A re-claim must mint a FRESH identity. This store reused the first one, which leaves the "
+				+ "fence structurally present and semantically inert: a superseded writer still compares equal.");
+		}
+
+		var refused = await store.RecordCompletionAsync(
+				request.RequestId, keysDeleted: 1, recordsAffected: 1, Guid.NewGuid(),
+				superseded.ClaimIdentity!, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (refused == ErasureWriteOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				"A completion presenting a SUPERSEDED claim must not be applied. This store applied it, so "
+				+ "two executors can each sign a certificate over coverage neither established.");
+		}
+
+		var applied = await store.RecordCompletionAsync(
+				request.RequestId, keysDeleted: 7, recordsAffected: 70, Guid.NewGuid(),
+				holder.ClaimIdentity!, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (applied != ErasureWriteOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				$"The CURRENT holder's completion must be applied; the store answered {applied}. A store "
+				+ "that refuses every completion passes the refusal above and attests nothing, ever.");
+		}
+
+		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
+
+		if (status?.Status != ErasureRequestStatus.Completed || status.KeysDeleted != 7)
+		{
+			throw new TestFixtureAssertionException(
+				"After the holder's completion the request must be Completed and carry the HOLDER'S counts. "
+				+ $"Actual status {status?.Status}, keysDeleted {status?.KeysDeleted} (expected 7). A store "
+				+ "recording the superseded writer's counts has applied the write it reported as refused.");
+		}
+	}
+
+	/// <summary>
+	/// APPLY A COMPLETION FROM A HOLDER WHOSE LEASE ELAPSED BUT WHOM NOBODY SUPERSEDED.
+	/// </summary>
+	/// <remarks>
+	/// A LAPSE DOES NOT REVOKE; only a re-claim does. This is the arm that stops a provider from
+	/// implementing the fence as an expiry check, which is the obvious reading and the dangerous one: an
+	/// executor that had already destroyed a subject's keys would be refused its own completion, leaving
+	/// the erasure performed and no certificate able to attest it. The keys cannot come back, so the
+	/// request becomes permanently uncertifiable.
+	/// </remarks>
+	public virtual async Task RecordCompletionAsync_FromALapsedButUnsupersededHolder_ShouldSucceed()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var claim = await store.ClaimForExecutionAsync(
+				request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.Zero, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (claim.Outcome != ErasureClaimOutcome.Granted || string.IsNullOrEmpty(claim.ClaimIdentity))
+		{
+			throw new TestFixtureAssertionException(
+				$"The claim must be granted with an identity; the store answered {claim.Outcome}.");
+		}
+
+		var applied = await store.RecordCompletionAsync(
+				request.RequestId, keysDeleted: 3, recordsAffected: 30, Guid.NewGuid(),
+				claim.ClaimIdentity!, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (applied != ErasureWriteOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				"A holder whose lease elapsed, but whom nobody superseded, must still be able to complete. "
+				+ $"The store answered {applied}, so it is comparing the EXPIRY rather than the IDENTITY -- "
+				+ "which refuses an executor that has already destroyed the subject's keys.");
+		}
+	}
+
+	/// <summary>
+	/// ADMIT A LEGAL HOLD REGARDLESS OF CUSTODY, and release custody when it lands.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A hold is a superior authority and the one write that is deliberately OUTSIDE the fence. Refusing
+	/// it would drop it silently and let the run complete over data the controller has asserted a legal
+	/// basis to retain. The asymmetry is this subsystem's own: withholding an erasure is recoverable by
+	/// releasing the hold, and destroying held records is not.
+	/// </para>
+	/// <para>
+	/// The worst a stale actor can do through this door is DENY an erasure another instance owns, which
+	/// is visible in the status and reversible.
+	/// </para>
+	/// </remarks>
+	public virtual async Task UpdateStatusAsync_ALegalHoldUnderALiveClaim_ShouldBeAdmitted()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var request = CreateErasureRequest();
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var claim = await store.ClaimForExecutionAsync(
+				request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (claim.Outcome != ErasureClaimOutcome.Granted)
+		{
+			throw new TestFixtureAssertionException(
+				$"The claim must be granted; the store answered {claim.Outcome}. Without a LIVE claim this "
+				+ "arm does not reach the state it exists to test.");
+		}
+
+		// NO identity is presented, which is the stricter argument everywhere else: it asserts that
+		// nobody holds the request. Here it must be admitted anyway.
+		var held = await store.UpdateStatusAsync(
+				request.RequestId, ErasureRequestStatus.BlockedByLegalHold, expectedStatus: null,
+				"Legal hold active", claimIdentity: null, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (held != ErasureWriteOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				$"A legal hold must be admitted regardless of custody; the store answered {held}. A fence "
+				+ "here drops the hold silently and the run completes over retained data.");
+		}
+
+		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
+
+		if (status?.Status != ErasureRequestStatus.BlockedByLegalHold)
+		{
+			throw new TestFixtureAssertionException(
+				$"The request must be blocked after the hold write. Actual: {status?.Status}.");
+		}
+
+		// Custody is released by the write, so the request is claimable again once the hold is lifted.
+		// Without this the hold would strand the request for a whole claim duration.
+		var afterHold = await store.ClaimForExecutionAsync(
+				request.RequestId, ErasureRequestStatus.BlockedByLegalHold, TimeSpan.FromMinutes(5),
+				CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (afterHold.Outcome == ErasureClaimOutcome.AlreadyClaimed)
+		{
+			throw new TestFixtureAssertionException(
+				"The hold write must RELEASE custody. This store still reports the request as claimed, so "
+				+ "the executor's lease outlives a hold it did not write and nothing can act until it lapses.");
+		}
+	}
 
 	/// <summary>
 	/// Verifies that RecordCompletionAsync marks request as completed.
@@ -635,11 +1519,26 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 
 		await store.SaveRequestAsync(request, scheduledTime, CancellationToken.None).ConfigureAwait(false);
 
+		// A completion is a FENCED write: the run takes custody first and presents the identity the store
+		// granted it. Nothing else can obtain one, which is what makes the fence a property of the design
+		// rather than a convention every provider has to remember.
+		var claim = await store.ClaimForExecutionAsync(
+				request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (claim.Outcome != ErasureClaimOutcome.Granted)
+		{
+			throw new TestFixtureAssertionException(
+				"ClaimForExecutionAsync must grant a freshly scheduled request; it answered "
+				+ claim.Outcome);
+		}
+
 		await store.RecordCompletionAsync(
 			request.RequestId,
 			keysDeleted: 10,
 			recordsAffected: 500,
 			certificateId,
+			claim.ClaimIdentity!,
 			CancellationToken.None).ConfigureAwait(false);
 
 		var status = await store.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
@@ -1102,6 +2001,620 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 			+ "crypto-shredded field can report an erasure this store recorded, so the destruction records it "
 			+ "writes are unreachable by the only consumer that needs them.");
 
+	/// <summary>
+	/// Resolves the mint ledger from the store under test, or <see langword="null"/> when the store has none.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A conforming erasure store MUST supply this: the mint ledger is the enumeration an erasure destroys
+	/// from, so a store that cannot answer it leaves every handle beyond the data subject's own one
+	/// undiscoverable — a key nothing looks for, under a certificate reporting the subject erased.
+	/// </para>
+	/// <para>
+	/// It returns null rather than throwing so the arms can record a VISIBLE SKIP against a store that does
+	/// not yet supply one. That is deliberately not the same as passing: a skip says the property is
+	/// UNVERIFIED for that store and keeps the gap in the suite's own output, where a throw would make the
+	/// whole suite red for a capability the store has not claimed yet and a silent pass would hide it.
+	/// </para>
+	/// </remarks>
+	private static IKeyMintLedger? TryGetMintLedger(IErasureStore store) =>
+		store as IKeyMintLedger
+		?? store.GetService(typeof(IKeyMintLedger)) as IKeyMintLedger;
+
+	/// <summary>
+	/// Verifies that every handle recorded for one data subject is enumerated for them — all of them, not
+	/// just the first.
+	/// </summary>
+	/// <returns>A task that completes when the arm has asserted the enumeration.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>LIVENESS, and it is the arm the erasure's correctness rests on.</b> A data subject's fields are
+	/// placed under one handle per obligation class they appear in, so a subject in two classes has two
+	/// handles. The erasure destroys what this enumeration returns; a store returning one row where two
+	/// exist leaves a live key for a subject reported erased, and nothing downstream learns.
+	/// </para>
+	/// <para>
+	/// RED input: return only the first matching row, or cap the result. The count assertion fails.
+	/// </para>
+	/// <para>
+	/// <b>Scope — this arm does NOT establish that a paging store fails.</b> It records two handles, and any
+	/// realistic page size exceeds two, so a provider that pages internally passes here. The contract requires
+	/// every continuation to be drained; binding that would need an arm large enough to cross a real page
+	/// boundary, and there is none. Paging behaviour is UNVERIFIED by this suite.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MintLedger_ShouldEnumerateEveryHandleRecordedForTheSubject()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = TryGetMintLedger(store);
+		if (ledger is null)
+		{
+			SkipArm(
+				nameof(MintLedger_ShouldEnumerateEveryHandleRecordedForTheSubject),
+				capability: typeof(IKeyMintLedger),
+				"this store does not supply a mint ledger, so the complete enumeration of one subject's handles is UNVERIFIED for this store. A conforming erasure "
+				+ "store must supply one: without it an erasure cannot enumerate the handles holding "
+				+ "a subject's personal fields.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MintLedger_ShouldEnumerateEveryHandleRecordedForTheSubject));
+
+		var subject = NewSubjectHash();
+		var plainHandle = NewHandle();
+		var classHandle = NewHandle();
+
+		await ledger.RecordMintIntentAsync(plainHandle, FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+		await ledger.RecordMintIntentAsync(classHandle, FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+
+		// CONFIRMED, exactly as the write path confirms after the key is created. Without this the rows
+		// stay PENDING, which is a different property with its own arm below -- this arm is about whether
+		// the enumeration is complete.
+		await ledger.MarkMintedAsync(plainHandle, CancellationToken.None).ConfigureAwait(false);
+		await ledger.MarkMintedAsync(classHandle, CancellationToken.None).ConfigureAwait(false);
+
+		var handles = await ledger.ListHandlesAsync(FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+
+		if (handles is null || handles.Minted.Count != 2 || !handles.Minted.Contains(plainHandle) || !handles.Minted.Contains(classHandle))
+		{
+			throw new TestFixtureAssertionException(
+				$"Two handles were recorded for one data subject and the enumeration returned "
+				+ $"{handles?.Minted.Count.ToString(CultureInfo.InvariantCulture) ?? "null"}. A subject appearing "
+				+ "in two obligation classes has two handles, and the erasure destroys exactly what this "
+				+ "returns -- so one row where two exist is a live key for a subject whose certificate "
+				+ "reports them erased, and nothing downstream can tell.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a handle recorded for one owner is never enumerated for another.
+	/// </summary>
+	/// <returns>A task that completes when the arm has asserted both halves.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>SAFETY, and it needs two owners to be expressible at all.</b> This enumeration is addressed by
+	/// (owner, subject) rather than by the ledger's own key, so unlike every other read on this store the
+	/// owner term is load-bearing rather than redundant: without it the enumeration returns every subject's
+	/// handles, and one owner's erasure would destroy another owner's keys.
+	/// </para>
+	/// <para>
+	/// The two owners are chosen so the first is a strict PREFIX of the second, so a store matching by
+	/// prefix or "starts with" fails here rather than looking correct.
+	/// </para>
+	/// <para>
+	/// <b>Both halves, because the safety half alone is satisfied by a store that enumerates nothing.</b>
+	/// The liveness assertion is what fails if the owner term is tightened into a filter that can never
+	/// match.
+	/// </para>
+	/// <para>
+	/// RED input: drop the owner term from the enumeration, or match it by prefix. The cross-owner
+	/// assertion fails.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MintLedger_ShouldNotEnumerateAnotherOwnersHandle()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = TryGetMintLedger(store);
+		if (ledger is null)
+		{
+			SkipArm(
+				nameof(MintLedger_ShouldNotEnumerateAnotherOwnersHandle),
+				capability: typeof(IKeyMintLedger),
+				"this store does not supply a mint ledger, so cross-owner isolation of the mint ledger is UNVERIFIED for this store. A conforming erasure "
+				+ "store must supply one: without it an erasure cannot enumerate the handles holding "
+				+ "a subject's personal fields.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MintLedger_ShouldNotEnumerateAnotherOwnersHandle));
+
+		// ONE subject token under TWO owners, which is the reachable case rather than a contrived one:
+		// data-subject identifiers are consumer-supplied from their own entities, so a customer number or
+		// an e-mail address repeats across tenants in ordinary multi-tenant deployments.
+		var subject = NewSubjectHash();
+		var firstOwnersHandle = NewHandle();
+		var secondOwnersHandle = NewHandle();
+
+		await ledger.RecordMintIntentAsync(firstOwnersHandle, FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+		await ledger.RecordMintIntentAsync(secondOwnersHandle, SecondOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+
+		await ledger.MarkMintedAsync(firstOwnersHandle, CancellationToken.None).ConfigureAwait(false);
+		await ledger.MarkMintedAsync(secondOwnersHandle, CancellationToken.None).ConfigureAwait(false);
+
+		var firstOwnersHandles = await ledger.ListHandlesAsync(FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+
+		// THE LIVENESS HALF FIRST, because the isolation assertion below is satisfied by a store that
+		// enumerates nothing at all -- which is safe, useless, and indistinguishable from correct.
+		if (firstOwnersHandles is null || !firstOwnersHandles.Minted.Contains(firstOwnersHandle))
+		{
+			throw new TestFixtureAssertionException(
+				"An owner's enumeration did not return their OWN handle. A store that enumerates nothing "
+				+ "satisfies every isolation assertion while leaving every key alive, so this half is what "
+				+ "distinguishes isolation from inaction.");
+		}
+
+		if (firstOwnersHandles.Minted.Contains(secondOwnersHandle))
+		{
+			throw new TestFixtureAssertionException(
+				"An enumeration for one owner returned a handle recorded for ANOTHER owner. The owner term "
+				+ "is what stops one owner's erasure destroying keys in a partition they do not hold. The "
+				+ "first owner is a strict PREFIX of the second, so a store matching by prefix or "
+				+ "'starts with' fails here rather than looking correct.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that the owner and subject terms are matched ORDINALLY — no case folding, no trimming, no
+	/// prefix.
+	/// </summary>
+    /// <returns>A task that completes when the arm has asserted the ordinal match.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>SAFETY.</b> A key-vault object name is case-insensitive, which is why the handle is a digest
+	/// rather than a readable composition — but the OWNER recorded beside it is consumer-supplied text, and
+	/// a database whose default collation folds case would let one owner's handles be enumerated for
+	/// another. That is the cross-tenant direction this subsystem has already shipped once.
+	/// </para>
+	/// <para>
+	/// RED input: compare the owner with a culture-aware or case-insensitive comparison, or declare the
+	/// column without a binary collation. This arm reddens and the cross-owner arm above does not, which is
+	/// what makes the two separable rather than one assertion written twice.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MintLedger_ShouldMatchTheOwnerOrdinally()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = TryGetMintLedger(store);
+		if (ledger is null)
+		{
+			SkipArm(
+				nameof(MintLedger_ShouldMatchTheOwnerOrdinally),
+				capability: typeof(IKeyMintLedger),
+				"this store does not supply a mint ledger, so ordinal matching of the owner and subject terms is UNVERIFIED for this store. A conforming erasure "
+				+ "store must supply one: without it an erasure cannot enumerate the handles holding "
+				+ "a subject's personal fields.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MintLedger_ShouldMatchTheOwnerOrdinally));
+
+		var subject = NewSubjectHash();
+		var handle = NewHandle();
+
+		await ledger.RecordMintIntentAsync(handle, MixedCaseOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+		await ledger.MarkMintedAsync(handle, CancellationToken.None).ConfigureAwait(false);
+
+		var asRecorded = await ledger.ListHandlesAsync(
+			MixedCaseOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+
+		if (asRecorded is null || !asRecorded.Minted.Contains(handle))
+		{
+			throw new TestFixtureAssertionException(
+				"The handle was not enumerable under the owner it was recorded with, so the two ordinal "
+				+ "assertions below would hold vacuously against a store that enumerates nothing.");
+		}
+
+		var underADifferentCase = await ledger.ListHandlesAsync(
+			new TenantId(MixedCaseOwner.ToUpperInvariant()), subject, CancellationToken.None).ConfigureAwait(false);
+
+		if (underADifferentCase is not null && underADifferentCase.Minted.Contains(handle))
+		{
+			throw new TestFixtureAssertionException(
+				"A handle recorded for one owner was enumerated for an owner differing only in CASE. An "
+				+ "owner is consumer-supplied text and two spellings are two owners; folding the "
+				+ "distinction lets one owner's erasure enumerate -- and destroy -- another's keys. A "
+				+ "column declared without a binary collation fails here.");
+		}
+
+		// THE PADDED OWNER, which is the case the earlier revision of this arm left untested while its name
+		// and its two preceding assertions were all about the owner. It is the one that matters most on SQL
+		// Server: the ANSI trailing-blank rule applies to `=` on NVARCHAR, so whether a binary collation
+		// suppresses it is a behavioural question no schema can answer by inspection.
+		var underAPaddedOwner = await ledger.ListHandlesAsync(
+			new TenantId(MixedCaseOwner + " "), subject, CancellationToken.None).ConfigureAwait(false);
+
+		if (underAPaddedOwner is not null && underAPaddedOwner.Minted.Contains(handle))
+		{
+			throw new TestFixtureAssertionException(
+				"A handle was enumerated for an OWNER with a trailing space. A padded owner is a different "
+				+ "owner, and on several collations a padded comparison is the DEFAULT -- so a store that "
+				+ "pads enumerates, and an erasure then destroys, handles belonging to somebody else.");
+		}
+
+		var underAPaddedToken = await ledger.ListHandlesAsync(
+			MixedCaseOwnerId, subject + " ", CancellationToken.None).ConfigureAwait(false);
+
+		if (underAPaddedToken is not null && underAPaddedToken.Minted.Contains(handle))
+		{
+			throw new TestFixtureAssertionException(
+				"A handle was enumerated for a subject token with a trailing space. A padded token is a "
+				+ "different token, and on several collations a padded comparison is the DEFAULT -- so a "
+				+ "store that trims enumerates handles for a subject nobody asked about.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that recording a handle already on file is a no-op rather than an error or a duplicate.
+	/// </summary>
+	/// <returns>A task that completes when the arm has asserted the idempotence.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>The first write per subject and obligation class races with every other, so this is the ordinary
+	/// path rather than an edge case.</b> The row carries nothing a later call could legitimately change,
+	/// so a second record must insert nothing and must not throw: a throw here would fail a perfectly good
+	/// personal-data write, and this ledger is on the write path and fails closed.
+	/// </para>
+	/// <para>
+	/// RED input: insert unconditionally, or raise a duplicate-key error. The count assertion fails on the
+	/// first, the call throws on the second.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MintLedger_RecordingTheSameHandleTwice_ShouldBeANoOp()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = TryGetMintLedger(store);
+		if (ledger is null)
+		{
+			SkipArm(
+				nameof(MintLedger_RecordingTheSameHandleTwice_ShouldBeANoOp),
+				capability: typeof(IKeyMintLedger),
+				"this store does not supply a mint ledger, so idempotent recording is UNVERIFIED for this store. A conforming erasure "
+				+ "store must supply one: without it an erasure cannot enumerate the handles holding "
+				+ "a subject's personal fields.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MintLedger_RecordingTheSameHandleTwice_ShouldBeANoOp));
+
+		var subject = NewSubjectHash();
+		var handle = NewHandle();
+
+		await ledger.RecordMintIntentAsync(handle, FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+		await ledger.RecordMintIntentAsync(handle, FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+		await ledger.MarkMintedAsync(handle, CancellationToken.None).ConfigureAwait(false);
+
+		var handles = await ledger.ListHandlesAsync(FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+
+		if (handles is null || handles.Minted.Count != 1)
+		{
+			throw new TestFixtureAssertionException(
+				$"Recording one handle twice left {handles?.Minted.Count.ToString(CultureInfo.InvariantCulture) ?? "null"} "
+				+ "rows. The entry is keyed by the handle and is immutable once written, so a second record "
+				+ "inserts nothing. A duplicate makes the erasure destroy one handle twice and report a "
+				+ "coverage count it did not achieve; a throw would fail a perfectly good personal-data "
+				+ "write, and the first write per subject and obligation class races with every other.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that re-recording one handle under a DIFFERENT owner is refused loudly, rather than silently
+	/// keeping the first spelling.
+	/// </summary>
+	/// <returns>A task that completes when the arm has asserted the refusal and the survivor.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>SAFETY, and it is the arm that binds the row to the HANDLE ALONE.</b> The idempotence arm records
+	/// one handle under one owner twice, so it is satisfied by a store keyed on the whole triple — which
+	/// would admit two rows for one handle under two owners, exactly what the handle-only primary key exists
+	/// to forbid. This arm is what makes that keying observable through the interface.
+	/// </para>
+	/// <para>
+	/// <b>Silently keeping the first spelling is worse than having no row.</b> The handle would be recorded
+	/// while the enumeration for the owner whose data it actually holds returned nothing — so the erasure
+	/// destroys what it found and certifies. A handle is derived from the owner and the subject, so a
+	/// collision between two of them is a derivation defect or a hash collision, and both must be loud.
+	/// </para>
+	/// <para>
+	/// RED input: use an unconditional insert-if-absent and drop the comparison. The refusal never happens.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MintLedger_RerecordingAHandleUnderAnotherOwner_ShouldBeRefused()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = TryGetMintLedger(store);
+		if (ledger is null)
+		{
+			SkipArm(
+				nameof(MintLedger_RerecordingAHandleUnderAnotherOwner_ShouldBeRefused),
+				capability: typeof(IKeyMintLedger),
+				"this store does not supply a mint ledger, so the disagreeing-enumeration-key refusal is UNVERIFIED for this store. A conforming erasure "
+				+ "store must supply one: without it an erasure cannot enumerate the handles holding "
+				+ "a subject's personal fields.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MintLedger_RerecordingAHandleUnderAnotherOwner_ShouldBeRefused));
+
+		var subject = NewSubjectHash();
+		var handle = NewHandle();
+
+		await ledger.RecordMintIntentAsync(handle, FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+		await ledger.MarkMintedAsync(handle, CancellationToken.None).ConfigureAwait(false);
+
+		var refused = false;
+		try
+		{
+			await ledger.RecordMintIntentAsync(handle, SecondOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (InvalidOperationException)
+		{
+			refused = true;
+		}
+
+		if (!refused)
+		{
+			throw new TestFixtureAssertionException(
+				"Re-recording one handle under a DIFFERENT owner was accepted. Either the store kept the "
+				+ "first spelling silently -- leaving the handle unenumerable for the owner whose data it "
+				+ "holds, so that owner's erasure destroys what it found and certifies -- or it admitted a "
+				+ "second row for one handle, which the handle-only primary key forbids.");
+		}
+
+		// THE LIVENESS HALF: the refusal must not have destroyed the row that was already correct.
+		var firstOwnersHandles = await ledger.ListHandlesAsync(FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+
+		if (firstOwnersHandles is null || !firstOwnersHandles.Minted.Contains(handle))
+		{
+			throw new TestFixtureAssertionException(
+				"The refused second record removed or altered the first owner's row. Rows are insert-only "
+				+ "and permanent, so a refusal must leave the existing row exactly as it was -- otherwise "
+				+ "the refusal itself is the omission from the enumeration.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a subject with no recorded handles enumerates empty rather than failing.
+	/// </summary>
+	/// <returns>A task that completes when the arm has asserted the empty enumeration.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>LIVENESS for the commonest case there is.</b> Most erasure requests name a subject who never had
+	/// an annotated field written, and such a request must still reach a terminal state. An enumeration
+	/// that threw on an unknown subject would make every one of those requests fail.
+	/// </para>
+	/// <para>
+	/// The empty answer is NOT evidence that the subject's data was covered — it also describes a subject
+	/// whose fields predate this ledger — and the contract says so. This arm binds only that the answer is
+	/// empty rather than an error.
+	/// </para>
+	/// <para>
+	/// RED input: throw, or return null, when no row matches.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MintLedger_UnknownSubject_ShouldEnumerateEmpty()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = TryGetMintLedger(store);
+		if (ledger is null)
+		{
+			SkipArm(
+				nameof(MintLedger_UnknownSubject_ShouldEnumerateEmpty),
+				capability: typeof(IKeyMintLedger),
+				"this store does not supply a mint ledger, so the empty enumeration for an unknown subject is UNVERIFIED for this store. A conforming erasure "
+				+ "store must supply one: without it an erasure cannot enumerate the handles holding "
+				+ "a subject's personal fields.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MintLedger_UnknownSubject_ShouldEnumerateEmpty));
+
+		var handles = await ledger.ListHandlesAsync(
+			FirstOwnerId, NewSubjectHash(), CancellationToken.None).ConfigureAwait(false);
+
+		if (handles is null || handles.Minted.Count != 0)
+		{
+			throw new TestFixtureAssertionException(
+				"A subject with no recorded handles did not enumerate empty. Most erasure requests name a "
+				+ "subject who never had an annotated field written, and every one of those must still "
+				+ "reach a terminal state -- so an unknown subject answers an empty list, never null and "
+				+ "never an error.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a handle whose key creation has NOT been confirmed is reported as PENDING and not as
+	/// minted.
+	/// </summary>
+	/// <returns>A task that completes when the arm has asserted the pending state.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>SAFETY, and it is the arm the concurrent-write property rests on.</b> A mint-ledger row is
+	/// written BEFORE the key is created, so between those two moments a write is invisible to both
+	/// observables an erasure has: the handle set has not changed since the erasure read it, and the key
+	/// material reads absent because it genuinely is not there yet. That state is observationally
+	/// identical to a writer that crashed between its row and its mint -- which is SAFE and correctly
+	/// ignored -- and the two diverge only after the certificate is signed.
+	/// </para>
+	/// <para>
+	/// So no re-reading of the handle set and no number of material probes can separate them. The row has
+	/// to say which side of the mint it is on, and this arm is what binds that it does. A store that
+	/// reports a pending row as minted lets an erasure sign a clean completion over personal data that is
+	/// about to become readable.
+	/// </para>
+	/// <para>
+	/// RED input: mark a row minted on insert, or report the pending set as empty, or fold both sets into
+	/// one. Any of the three makes a pending row indistinguishable from a confirmed one, which is the
+	/// whole defect.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MintLedger_AnUnconfirmedHandle_ShouldBeReportedAsPending()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = TryGetMintLedger(store);
+		if (ledger is null)
+		{
+			SkipArm(
+				nameof(MintLedger_AnUnconfirmedHandle_ShouldBeReportedAsPending),
+				capability: typeof(IKeyMintLedger),
+				"this store does not supply a mint ledger, so the pending state of an unconfirmed mint is UNVERIFIED for this store. A conforming erasure "
+				+ "store must supply one: without it an erasure cannot tell a write in flight from a write "
+				+ "that was abandoned.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MintLedger_AnUnconfirmedHandle_ShouldBeReportedAsPending));
+
+		var subject = NewSubjectHash();
+		var pendingHandle = NewHandle();
+		var confirmedHandle = NewHandle();
+
+		await ledger.RecordMintIntentAsync(pendingHandle, FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+		await ledger.RecordMintIntentAsync(confirmedHandle, FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+
+		// Only one of the two is confirmed, so the arm binds the SPLIT rather than merely that both sets
+		// are populated -- a store that put every row in one set would otherwise pass.
+		await ledger.MarkMintedAsync(confirmedHandle, CancellationToken.None).ConfigureAwait(false);
+
+		var snapshot = await ledger.ListHandlesAsync(
+			FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+
+		if (snapshot is null)
+		{
+			throw new TestFixtureAssertionException(
+				"The enumeration returned null. A conforming store answers with a snapshot, always.");
+		}
+
+		if (!snapshot.PendingMint.Contains(pendingHandle, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A handle recorded but never confirmed was NOT reported as pending. The row is written "
+				+ "before the key is created, so an unconfirmed row is the only evidence that a write is "
+				+ "in flight -- and an erasure that cannot see it signs a clean completion over personal "
+				+ "data that is about to become readable.");
+		}
+
+		if (snapshot.Minted.Contains(pendingHandle, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A handle recorded but never confirmed was reported as MINTED. That is the catastrophic "
+				+ "direction: an erasure reads the minted set as the set it must cover, destroys it, and "
+				+ "certifies -- while the key behind this handle is still about to be created.");
+		}
+
+		if (!snapshot.Minted.Contains(confirmedHandle, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A handle whose mint WAS confirmed is missing from the minted set. Without it the erasure "
+				+ "does not destroy a handle that genuinely holds this subject's personal data.");
+		}
+
+		if (snapshot.PendingMint.Contains(confirmedHandle, StringComparer.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"A confirmed handle is still reported as pending. Confirming a mint must move the row, or "
+				+ "every erasure for this subject reports a concurrent write forever and never completes.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that confirming a mint is idempotent and that confirming a handle with no row is refused.
+	/// </summary>
+	/// <returns>A task that completes when the arm has asserted both.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>The idempotence half is LIVENESS:</b> the confirmation is fail-open and therefore retried, so a
+	/// second confirmation must be a no-op rather than an error. The refusal half is SAFETY: the row is
+	/// written before the key, always, so confirming a handle with NO row means the caller skipped the
+	/// intent step -- and a key may then exist at a handle no erasure can enumerate. Inserting a row at
+	/// that point would paper over it and would have no owner or subject to record.
+	/// </para>
+	/// <para>
+	/// RED input: throw on the second confirmation, or silently insert a row when none exists.
+	/// </para>
+	/// </remarks>
+	public virtual async Task MintLedger_ConfirmingAMint_ShouldBeIdempotentAndRefuseAnAbsentRow()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var ledger = TryGetMintLedger(store);
+		if (ledger is null)
+		{
+			SkipArm(
+				nameof(MintLedger_ConfirmingAMint_ShouldBeIdempotentAndRefuseAnAbsentRow),
+				capability: typeof(IKeyMintLedger),
+				"this store does not supply a mint ledger, so the idempotence of a mint confirmation is UNVERIFIED for this store. A conforming erasure "
+				+ "store must supply one.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(MintLedger_ConfirmingAMint_ShouldBeIdempotentAndRefuseAnAbsentRow));
+
+		var subject = NewSubjectHash();
+		var handle = NewHandle();
+
+		await ledger.RecordMintIntentAsync(handle, FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+		await ledger.MarkMintedAsync(handle, CancellationToken.None).ConfigureAwait(false);
+		await ledger.MarkMintedAsync(handle, CancellationToken.None).ConfigureAwait(false);
+
+		var snapshot = await ledger.ListHandlesAsync(
+			FirstOwnerId, subject, CancellationToken.None).ConfigureAwait(false);
+
+		if (snapshot.Minted.Count != 1 || snapshot.PendingMint.Count != 0)
+		{
+			throw new TestFixtureAssertionException(
+				"Confirming one mint twice did not leave exactly one minted row and no pending row. The "
+				+ "confirmation is fail-open and therefore retried, so a second confirmation must be a "
+				+ "no-op.");
+		}
+
+		var refused = false;
+
+		try
+		{
+			await ledger.MarkMintedAsync(NewHandle(), CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (InvalidOperationException)
+		{
+			refused = true;
+		}
+
+		if (!refused)
+		{
+			throw new TestFixtureAssertionException(
+				"Confirming a mint for a handle with NO row was accepted. The row is written before the "
+				+ "key, always, so its absence means the intent step was skipped -- and a key may exist at "
+				+ "a handle no erasure can enumerate. Accepting it silently loses the only signal that "
+				+ "happened.");
+		}
+	}
+
+	/// <summary>
+	/// Produces a handle value unique to this arm, shaped like the digest the derivation actually produces.
+	/// </summary>
+	/// <remarks>
+	/// Unique per call so the arms share a store without colliding, and <b>81 characters</b> because that is
+	/// the real maximum the shipped derivation produces — a 64-character digest, a separator, and a
+	/// 16-character obligation-class discriminator. A 64-character fixture would leave a store whose column
+	/// is too narrow for a RETAINED handle passing here and failing in a consumer's deployment, on the write
+	/// path, fail-closed.
+	/// </remarks>
+	private static string NewHandle() =>
+		Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N") + "-" + Guid.NewGuid().ToString("N")[..16];
+
+	/// <summary>
+	/// Produces a data-subject pseudonymisation token unique to this arm.
+	/// </summary>
+	private static string NewSubjectHash() => "conformance-subject-" + Guid.NewGuid().ToString("N");
+
 	/// <inheritdoc cref="RecordCompletionAsync_ShouldMarkCompleted"/>
 	public virtual async Task RecordCompletionAsync_NonExistent_ShouldThrowKeyNotFoundException()
 	{
@@ -1116,6 +2629,9 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 				keysDeleted: 0,
 				recordsAffected: 0,
 				certificateId,
+				// Any identity: there is no row to carry one, and "no such request" must be reported
+				// ahead of any claim comparison -- a caller has to tell it from a lost claim.
+				"an-identity-no-request-carries",
 				CancellationToken.None).ConfigureAwait(false);
 
 			throw new TestFixtureAssertionException(
@@ -1199,12 +2715,21 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 
 		await store.SaveRequestAsync(request, scheduledTime, CancellationToken.None).ConfigureAwait(false);
 
-		// Change status to Pending first (SaveRequest sets Scheduled)
-		_ = await store.UpdateStatusAsync(
-			request.RequestId,
-			ErasureRequestStatus.Pending,
-			null,
-			CancellationToken.None).ConfigureAwait(false);
+		// Change status to Pending first (SaveRequest sets Scheduled), and ASSERT it: a refused
+		// precondition leaves the request Scheduled, which is also cancellable, so the arm would pass
+		// while testing a state it did not mean to construct.
+		if (await store.UpdateStatusAsync(
+				request.RequestId,
+				ErasureRequestStatus.Pending,
+				expectedStatus: null,
+				null,
+				claimIdentity: null,
+				CancellationToken.None).ConfigureAwait(false) != ErasureWriteOutcome.Applied)
+		{
+			throw new TestFixtureAssertionException(
+				"Moving a freshly saved request to Pending must be applied; this arm tests cancellation "
+				+ "FROM Pending and cannot construct that state otherwise.");
+		}
 
 		var cancelled = await store.RecordCancellationAsync(
 			request.RequestId,
@@ -1238,12 +2763,8 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 
 		await store.SaveRequestAsync(request, scheduledTime, CancellationToken.None).ConfigureAwait(false);
 
-		// Change status to InProgress
-		_ = await store.UpdateStatusAsync(
-			request.RequestId,
-			ErasureRequestStatus.InProgress,
-			null,
-			CancellationToken.None).ConfigureAwait(false);
+		// Take execution custody, which is the only way production reaches the claimed state
+		_ = await ClaimForArmAsync(store, request.RequestId).ConfigureAwait(false);
 
 		// Attempt to cancel - should fail (state machine)
 		var cancelled = await store.RecordCancellationAsync(
@@ -1391,7 +2912,12 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 
 		var completedRequest = CreateErasureRequest();
 		await store.SaveRequestAsync(completedRequest, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None).ConfigureAwait(false);
-		await store.RecordCompletionAsync(completedRequest.RequestId, 0, 0, Guid.NewGuid(), CancellationToken.None).ConfigureAwait(false);
+
+		var completedClaim = await store.ClaimForExecutionAsync(
+				completedRequest.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		await store.RecordCompletionAsync(completedRequest.RequestId, 0, 0, Guid.NewGuid(), completedClaim.ClaimIdentity!, CancellationToken.None).ConfigureAwait(false);
 
 		var results = await GetQueryStore(store).ListRequestsAsync(
 			status: ErasureRequestStatus.Completed,
@@ -1416,37 +2942,255 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that ListRequestsAsync filters by tenant.
+	/// Verifies that a supplied tenant filter narrows the result: it is neither ignored nor inverted.
 	/// </summary>
+	/// <returns>A task that completes when the arm has asserted both halves.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>The request names no tenant, deliberately, and this arm previously named two.</b> A request's
+	/// owning tenant is resolved by the host and a request naming a different one is refused, so the
+	/// earlier shape of this arm — two requests carrying two caller-supplied tenants — asserted a
+	/// behaviour that no correct store can produce. It certified, as a published requirement, the very
+	/// defect that let an erasure destroy a key the write path never minted and still report completion.
+	/// A store that passes the old shape has that defect; a correct store failed our own kit.
+	/// </para>
+	/// <para>
+	/// So the owner is read back from the store rather than assumed. This arm then asserts the two halves
+	/// that make the argument load-bearing: naming the recorded owner still returns the row, and naming
+	/// any other tenant returns nothing. The first half is what fails against a store that returns the
+	/// empty set to everybody; the second is what fails against a store that drops the argument, or
+	/// inverts it. Neither half can be satisfied by the other.
+	/// </para>
+	/// <para>
+	/// <b>Scope — what this arm does NOT establish.</b> It uses one row, so it cannot see a filter that
+	/// matches too widely across rows: prefix matching, or a comparison that folds case. Those are
+	/// covered by <see cref="ListRequestsAsync_AcrossOwners_ShouldNotReturnAnotherOwnersRequest"/> and
+	/// <see cref="ListRequestsAsync_TenantFilterIsOrdinal_ShouldNotFoldCaseOrPadding"/>, both of which
+	/// need <see cref="BeginOwnerScope"/> and report a skip when a suite cannot supply it.
+	/// </para>
+	/// </remarks>
 	public virtual async Task ListRequestsAsync_WithTenantFilter_ShouldFilterByTenant()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
-		var tenantARequest = CreateErasureRequest(tenantId: "tenant-A");
-		await store.SaveRequestAsync(tenantARequest, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None).ConfigureAwait(false);
+		var request = CreateErasureRequest();
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None).ConfigureAwait(false);
 
-		var tenantBRequest = CreateErasureRequest(tenantId: "tenant-B");
-		await store.SaveRequestAsync(tenantBRequest, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None).ConfigureAwait(false);
+		var owner = await RecordedOwnerAsync(store, request.RequestId).ConfigureAwait(false);
 
-		var results = await GetQueryStore(store).ListRequestsAsync(
-			status: null,
-			tenantId: "tenant-A",
-			fromDate: null,
-			toDate: null,
-			pageNumber: 1,
-			pageSize: 100,
-			CancellationToken.None).ConfigureAwait(false);
-
-		if (!results.Any(r => r.RequestId == tenantARequest.RequestId))
+		if (string.Equals(owner, ForeignTenant, StringComparison.Ordinal))
 		{
 			throw new TestFixtureAssertionException(
-				"Tenant-A request should be returned when filtering by tenant-A");
+				$"This suite's store resolved '{owner}' as its owner, which is the value this arm uses as the "
+				+ "tenant it must NOT match. Override CreateStore to resolve a different tenant; with these "
+				+ "two equal, the arm's safety half would be asserting that a tenant does not match itself.");
 		}
 
-		if (results.Any(r => r.RequestId == tenantBRequest.RequestId))
+		// LIVENESS. Without this half the safety assertion below is satisfied by a store that returns the
+		// empty set to every caller, which is the cheapest way to never return another tenant's row.
+		var byOwner = await ListByTenantAsync(store, owner).ConfigureAwait(false);
+		if (!byOwner.Any(r => r.RequestId == request.RequestId))
 		{
 			throw new TestFixtureAssertionException(
-				"Tenant-B request should NOT be returned when filtering by tenant-A");
+				$"A request whose recorded owner is '{owner}' must be returned when listing is filtered by "
+				+ $"'{owner}'. A supplied tenant filter narrows the result; it must not exclude the rows that "
+				+ "own it, or no caller can list their own erasure requests.");
+		}
+
+		// SAFETY. Fails against a store that ignores the argument (the row comes back for any tenant) and
+		// against one that inverts it (the row comes back for every tenant except its owner).
+		var byForeignTenant = await ListByTenantAsync(store, ForeignTenant).ConfigureAwait(false);
+		if (byForeignTenant.Any(r => r.RequestId == request.RequestId))
+		{
+			throw new TestFixtureAssertionException(
+				$"A request whose recorded owner is '{owner}' must NOT be returned when listing is filtered "
+				+ $"by '{ForeignTenant}'. A supplied tenant filter that is ignored, or applied as an "
+				+ "inequality, hands one tenant's erasure requests to another.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a request owned by one tenant never reaches a listing made for another.
+	/// </summary>
+	/// <returns>A task that completes when the arm has asserted both halves, or reported a skip.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the isolation property the tenant filter exists for, and it needs two owners.</b> The
+	/// owner decides which per-subject key protects a data subject's fields, so a listing that returned
+	/// another owner's request would offer an operator a request whose execution destroys a key in a
+	/// partition they do not hold. One row cannot establish it: a filter that matches too widely — by
+	/// prefix, or by folding a distinction — looks correct until a second owner exists to be matched
+	/// wrongly.
+	/// </para>
+	/// <para>
+	/// The two owners are chosen so that the first is a strict PREFIX of the second. Filtering by the
+	/// shorter one then fails against a store that matches by prefix or by "starts with", which an
+	/// equality comparison and this arm agree must return one row rather than two.
+	/// </para>
+	/// <para>
+	/// <b>Scope — what this arm does NOT establish.</b> It lists from inside the first owner's own scope,
+	/// so that it works against a store that applies an ambient tenant term as well as the argument. On
+	/// such a store the exclusion may be the ambient term's work rather than the argument's; the argument
+	/// itself is bound by <see cref="ListRequestsAsync_WithTenantFilter_ShouldFilterByTenant"/>, which
+	/// runs for every suite. Read the two together: this arm establishes the isolation property, that one
+	/// establishes that the argument is what carries it.
+	/// </para>
+	/// </remarks>
+	public virtual async Task ListRequestsAsync_AcrossOwners_ShouldNotReturnAnotherOwnersRequest()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+
+		using var firstScope = BeginOwnerScope(FirstOwner);
+		if (firstScope is null)
+		{
+			SkipArm(
+				nameof(ListRequestsAsync_AcrossOwners_ShouldNotReturnAnotherOwnersRequest),
+				capability: null,
+				"the suite does not override BeginOwnerScope, so this store resolves no named tenant and two "
+				+ "requests under two owners cannot be created. Cross-owner list isolation is UNVERIFIED for "
+				+ "this store.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(ListRequestsAsync_AcrossOwners_ShouldNotReturnAnotherOwnersRequest));
+
+		var firstRequest = CreateErasureRequest();
+		await store.SaveRequestAsync(firstRequest, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None).ConfigureAwait(false);
+		var firstOwner = await RecordedOwnerAsync(store, firstRequest.RequestId).ConfigureAwait(false);
+
+		Guid secondRequestId;
+		string secondOwner;
+		using (var secondScope = BeginOwnerScope(SecondOwner))
+		{
+			if (secondScope is null)
+			{
+				throw new TestFixtureAssertionException(
+					"BeginOwnerScope returned a scope for one tenant and null for another. It must either "
+					+ "support every tenant it is asked for or none, or the arms cannot tell an unsupported "
+					+ "suite from a partially wired one.");
+			}
+
+			var secondRequest = CreateErasureRequest();
+			await store.SaveRequestAsync(secondRequest, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None).ConfigureAwait(false);
+			secondRequestId = secondRequest.RequestId;
+			secondOwner = await RecordedOwnerAsync(store, secondRequest.RequestId).ConfigureAwait(false);
+		}
+
+		// The fixture's own precondition, asserted rather than assumed: a scope that did not change the
+		// recorded owner would make both assertions below pass while measuring one tenant twice.
+		if (string.Equals(firstOwner, secondOwner, StringComparison.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				$"Two saves made under two different owner scopes both recorded '{firstOwner}'. Either the "
+				+ "store does not resolve its owner from the scope BeginOwnerScope establishes, or it takes "
+				+ "the owner from somewhere the scope does not reach. Until they differ this arm compares a "
+				+ "tenant with itself.");
+		}
+
+		var forFirstOwner = await ListByTenantAsync(store, firstOwner).ConfigureAwait(false);
+
+		// LIVENESS: the owner's own request is still reachable. A store that returned nothing would satisfy
+		// the isolation assertion below and serve no caller at all.
+		if (!forFirstOwner.Any(r => r.RequestId == firstRequest.RequestId))
+		{
+			throw new TestFixtureAssertionException(
+				$"A listing filtered by '{firstOwner}' must return that owner's own request.");
+		}
+
+		// SAFETY: the other owner's request is not reachable. Fails against a prefix or "starts with" match,
+		// and against any comparison that treats the two owners as one.
+		if (forFirstOwner.Any(r => r.RequestId == secondRequestId))
+		{
+			throw new TestFixtureAssertionException(
+				$"A listing filtered by '{firstOwner}' returned a request owned by '{secondOwner}'. The owner "
+				+ "decides which per-subject key an erasure destroys, so a cross-owner listing offers an "
+				+ "operator a request whose execution reaches a partition they do not hold. Note that "
+				+ $"'{firstOwner}' is a prefix of '{secondOwner}': a filter applied as a prefix or "
+				+ "\"starts with\" match, rather than as equality, fails here and passes a single-row check.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that the tenant filter compares ordinally: it folds neither case nor surrounding padding.
+	/// </summary>
+	/// <returns>A task that completes when the arm has asserted every probe, or reported a skip.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>Two tenant identifiers that differ only in case are two tenants.</b> The per-subject key handle
+	/// is derived from the owner term, so a comparison that folded case would let a listing for one tenant
+	/// return a request owned by another — and the key that request's execution destroys belongs to the
+	/// other. The same holds for surrounding whitespace: a padded identifier is not the identifier.
+	/// </para>
+	/// <para>
+	/// <b>This is a database-configuration trap as much as a code one, which is why it is a conformance
+	/// arm rather than a unit test.</b> A store whose comparison is delegated to a database compares under
+	/// that column's collation. A case-insensitive or otherwise non-deterministic collation folds the two
+	/// identifiers inside the engine, with correct-looking code above it, so the divergence appears only
+	/// on the deployment that configured it that way. Pin a binary or deterministic collation on the
+	/// column that holds the owner, and this arm will tell you whether you did.
+	/// </para>
+	/// </remarks>
+	public virtual async Task ListRequestsAsync_TenantFilterIsOrdinal_ShouldNotFoldCaseOrPadding()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+
+		using var scope = BeginOwnerScope(MixedCaseOwner);
+		if (scope is null)
+		{
+			SkipArm(
+				nameof(ListRequestsAsync_TenantFilterIsOrdinal_ShouldNotFoldCaseOrPadding),
+				capability: null,
+				"the suite does not override BeginOwnerScope, so this store resolves no named tenant and no "
+				+ "owner with a case distinction can be recorded. Ordinal comparison of the tenant filter is "
+				+ "UNVERIFIED for this store.");
+			return;
+		}
+
+		RecordArmExecuted(nameof(ListRequestsAsync_TenantFilterIsOrdinal_ShouldNotFoldCaseOrPadding));
+
+		var request = CreateErasureRequest();
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None).ConfigureAwait(false);
+		var owner = await RecordedOwnerAsync(store, request.RequestId).ConfigureAwait(false);
+
+		if (string.Equals(owner, owner.ToUpperInvariant(), StringComparison.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				$"The store recorded '{owner}' as the owner, which carries no case distinction, so the case "
+				+ "probe below cannot discriminate. BeginOwnerScope must establish the tenant it is given "
+				+ "rather than canonicalising it.");
+		}
+
+		// LIVENESS first: the exact term matches. Every probe below asserts a NON-match, and all of them are
+		// satisfied by a store that matches nothing.
+		var exact = await ListByTenantAsync(store, owner).ConfigureAwait(false);
+		if (!exact.Any(r => r.RequestId == request.RequestId))
+		{
+			throw new TestFixtureAssertionException(
+				$"A listing filtered by the exact recorded owner '{owner}' must return its request.");
+		}
+
+		// TRAILING-ONLY PADDING IS A SEPARATE PROBE AND IT IS THE ONE THAT BITES. SQL Server follows the
+		// ANSI rule that TRAILING blanks are insignificant in a character comparison, and says nothing
+		// about leading ones -- so the both-sides probe below differs for a reason the server honours
+		// anyway (the leading space) and passes without ever testing the dangerous case. A store can
+		// therefore fold a trailing space and satisfy this arm. Measured on real SQL Server.
+		foreach (var probe in new[] { owner.ToUpperInvariant(), $" {owner} ", $"{owner} " })
+		{
+			if (string.Equals(probe, owner, StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			var results = await ListByTenantAsync(store, probe).ConfigureAwait(false);
+			if (results.Any(r => r.RequestId == request.RequestId))
+			{
+				throw new TestFixtureAssertionException(
+					$"A listing filtered by '{probe}' returned a request owned by '{owner}'. These are two "
+					+ "different tenants: the owner term is composed into the per-subject key handle exactly "
+					+ "as stored, so folding case or padding here hands one tenant's erasure requests to "
+					+ "another. If the comparison runs in a database, check the collation on the column "
+					+ "holding the owner.");
+			}
 		}
 	}
 

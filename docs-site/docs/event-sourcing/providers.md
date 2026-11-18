@@ -36,6 +36,22 @@ Each `AddXxxEventSourcing()` call registers `IEventStore` and `ISnapshotStore` f
 
 Every provider stores the same identity: each event's declared `[MessageName]` -- not its CLR type name -- is written to the store's event-type column or field, and resolved back to a CLR type through the registered event-type registry on read. See [Stable Message Names](domain-events.md#stable-message-names).
 
+## Choose the ordering and transaction scope
+
+Provider selection does not by itself choose a read-model or deployment profile:
+
+| Requirement | Current composition and its boundary |
+| --- | --- |
+| Strict global-feed processing in one SQL Server event store | Use the provider's registered global reader and its checkpoint contract. Counter allocation alone does not make an arbitrary SQL scan safe. See [ordering and reader visibility](event-store.md#database-schema) and [global projection processing](global-stream-projection-host.md). |
+| Tenant-partitioned or dedicated tenant databases | Use [tenant sharding](tenant-sharding.md) when tenants need independently selected stores. A shard map does not supply a single cross-shard position or an atomic transaction across databases. Bind progress to the selected source; do not reuse a checkpoint as though all stores shared one feed. |
+| Read models committed with aggregate events | [TransactionalInline](transactional-inline.md) uses dedicated model tables and the same supported provider database/tenant partition. Ordinary Inline and Async models have their own consistency and checkpoint behavior; choosing a database does not make them atomic with an append. |
+
+These are supported composition boundaries, not interchangeable guarantees attached
+to the words "strict", "partitioned" or "dedicated". Do not deploy a proposed allocation
+or feed profile as an existing capability. For setup use [Event Store Setup](../configuration/event-store-setup.md);
+for schema changes use [Migrations](migrations.md). Provider-specific recovery and
+upgrade instructions still apply, including the SQL Server package README's operation-receipt and restore-coordination requirements.
+
 ## Before You Start
 
 - **.NET 10.0**

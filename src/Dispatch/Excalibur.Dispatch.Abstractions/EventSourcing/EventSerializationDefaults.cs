@@ -31,11 +31,19 @@ public static class EventSerializationDefaults
 	/// <returns>The canonical serializer options for event payloads and metadata.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "The non-generic string-enum converter is the reflection-based event serialization path; the AOT opt-in is enforced where the reflection serializer is constructed.")]
-	public static JsonSerializerOptions CreateCanonicalOptions() => new()
+	public static JsonSerializerOptions CreateCanonicalOptions()
+	{
+		var options = CreateCanonicalOptionsForSourceGeneration();
+		options.Converters.Add(new JsonStringEnumConverter());
+		return options;
+	}
+
+	// Generated enum metadata supplies the string representation. Do not instantiate the dynamic
+	// nongeneric enum converter on this path, or attach a reflection resolver here.
+	internal static JsonSerializerOptions CreateCanonicalOptionsForSourceGeneration() => new()
 	{
 		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
 		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-		Converters = { new JsonStringEnumConverter() },
 	};
 
 	/// <summary>
@@ -49,7 +57,7 @@ public static class EventSerializationDefaults
 	/// extension accessor at adoption sites.
 	/// </remarks>
 	/// <value>The frozen canonical serializer options for event payloads and metadata.</value>
-	public static JsonSerializerOptions Canonical { get; } = CreateFrozenCanonicalOptions();
+	public static JsonSerializerOptions Canonical => LegacyCanonicalHolder.Value;
 
 
 	/// <summary>
@@ -129,8 +137,9 @@ public static class EventSerializationDefaults
 	/// the very values it appeared to cover.
 	/// </para>
 	/// <para>
-	/// The output is byte-identical to the reflection path. Keys are written verbatim (no dictionary key
-	/// policy is configured), the writer inherits the encoder and indentation from the same options, and a
+	/// With canonical value metadata the output matches the reflection path. A forwarding resolver may
+	/// return metadata bound to a child context: that metadata owns each value's nested representation.
+	/// Keys are written verbatim, the outer writer inherits the encoder and indentation from the supplied options, and a
 	/// null value is written as an explicit <c>null</c> -- <see cref="JsonIgnoreCondition.WhenWritingNull"/>
 	/// governs object properties, not dictionary entries, so the reflection path emits it too.
 	/// </para>
@@ -168,7 +177,17 @@ public static class EventSerializationDefaults
 					continue;
 				}
 
-				JsonSerializer.Serialize(writer, entry.Value, jsonOptions.GetTypeInfo(entry.Value.GetType()));
+				var valueType = entry.Value.GetType();
+				var typeInfo = jsonOptions.TypeInfoResolver?.GetTypeInfo(valueType, jsonOptions)
+					?? throw new NotSupportedException($"No generated JSON metadata is configured for metadata value type '{valueType.FullName}'.");
+				if (typeInfo.Type != valueType)
+				{
+					throw new InvalidOperationException($"The JSON metadata resolver returned '{typeInfo.Type.FullName}' for metadata value type '{valueType.FullName}'.");
+				}
+
+				// The explicit metadata overload accepts valid forwarding metadata whose options belong
+				// to a child context. JsonSerializerOptions.GetTypeInfo would reject that composition.
+				JsonSerializer.Serialize(writer, entry.Value, typeInfo);
 			}
 
 			writer.WriteEndObject();
@@ -197,4 +216,11 @@ public static class EventSerializationDefaults
 		options.MakeReadOnly();
 		return options;
 	}
+
+	// Merely invoking the generated writer must not initialize the legacy reflection singleton.
+	private static class LegacyCanonicalHolder
+	{
+		internal static readonly JsonSerializerOptions Value = CreateFrozenCanonicalOptions();
+	}
+
 }

@@ -48,7 +48,7 @@ internal static class InMemoryElectionRegistration
 		// single-process by construction, so an in-process monotonic counter (InMemoryFencingTokenProvider)
 		// is a genuinely correct arbitrated fencing source here, not a weaker stand-in — see its remarks.
 		// WithoutFencingTokens() opts out.
-		services.TryAddDefaultFencingTokenProvider(sp =>
+		services.TryAddDefaultFencingTokenIssuer(sp =>
 			ActivatorUtilities.CreateInstance<InMemoryFencingTokenProvider>(sp));
 	}
 }

@@ -61,6 +61,11 @@ internal sealed class SetOutboxMessageBackoff : DataRequest<ClaimMutationResult>
 	/// The update targets the globally-unique outbox <c>message_id</c>, which addresses exactly one row, so no
 	/// tenant predicate is applied: the drain is cross-tenant infrastructure and must always be able to update
 	/// the row it claimed, regardless of any ambient tenant context.
+	/// <para>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </para>
 	/// </remarks>
 	public SetOutboxMessageBackoff(
 		string messageId,
@@ -156,6 +161,24 @@ internal sealed class SetOutboxMessageBackoff : DataRequest<ClaimMutationResult>
 		parameters.Add("FloorSeconds", (double)floorSeconds, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QuerySingleAsync<ClaimMutationResult>(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.SingleAsync(conn, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				if (Parameters.ParameterNames.Contains("ProcessPrefix", StringComparer.Ordinal))
+				{
+					StaticDbCommand.AddParameter(command, "ProcessPrefix", StaticDbCommand.Input<string>(Parameters, "ProcessPrefix"), DbType.String);
+				}
+				if (Parameters.ParameterNames.Contains("ProcessPrefixLength", StringComparer.Ordinal))
+				{
+					StaticDbCommand.AddParameter(command, "ProcessPrefixLength", StaticDbCommand.Input<int>(Parameters, "ProcessPrefixLength"), DbType.Int32);
+				}
+				StaticDbCommand.AddParameter(command, "ErrorMessage", StaticDbCommand.Input<string>(Parameters, "ErrorMessage"), DbType.String);
+				StaticDbCommand.AddParameter(command, "NextAttemptDelaySeconds", StaticDbCommand.Input<double>(Parameters, "NextAttemptDelaySeconds"), DbType.Double);
+				if (Parameters.ParameterNames.Contains("DispatcherId", StringComparer.Ordinal))
+				{
+					StaticDbCommand.AddParameter(command, "DispatcherId", StaticDbCommand.Input<string>(Parameters, "DispatcherId"), DbType.String);
+				}
+				StaticDbCommand.AddParameter(command, "FloorSeconds", StaticDbCommand.Input<double>(Parameters, "FloorSeconds"), DbType.Double);
+			}, static reader => new ClaimMutationResult { UpdatedCount = StaticDbValue.Int32(reader, 0), RowExists = StaticDbValue.Boolean(reader, 1) }).ConfigureAwait(false);
 	}
 }

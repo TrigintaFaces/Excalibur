@@ -18,6 +18,12 @@ public sealed class ScheduledMessage : IScheduledMessage
 	/// <inheritdoc />
 	public string? TimeZoneId { get; set; }
 
+    /// <inheritdoc />
+    public string? CronRecurrenceProfileId { get; set; }
+
+    /// <inheritdoc />
+    public int? CronRecurrenceProfileVersion { get; set; }
+
 	/// <inheritdoc />
 	public TimeSpan? Interval { get; set; }
 

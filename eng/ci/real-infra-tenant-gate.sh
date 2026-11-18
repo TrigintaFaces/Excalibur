@@ -129,7 +129,7 @@ _GATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # zero-match question is already answered; asking it through a passing-summaries helper would turn
 # that answer into a REFUSE.
 if [ "${failed_total:-0}" -eq 0 ] &&
-   ! printf '%s' "$output" | bash "${_GATE_DIR}/assert-tests-executed.sh" --filter "${FILTER}"; then
+   ! printf '%s' "$output" | bash "${_GATE_DIR}/assert-tests-executed.sh" --minimum-executed-tests 1 --filter "${FILTER}"; then
     err "REFUSE: the trait filter '${FILTER}' matched ZERO tests across the whole run (no project reported Total >= 1). The curated set is empty (trait not stamped, or the tests were removed). A gate that matches nothing must NOT pass."
     exit $EXIT_REFUSE
 fi

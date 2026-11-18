@@ -66,7 +66,8 @@ public sealed class OracleOutboxMarkFailedIncrementingRetryCountShould
 			MaxAttempts = 10,
 		});
 
-		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance);
+		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance,
+			workerConnections: OracleWorkerConnectionSource.FromConnectionString(_fixture.ConnectionString));
 	}
 
 	/// <summary>

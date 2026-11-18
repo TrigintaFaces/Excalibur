@@ -7,6 +7,7 @@ using Excalibur.AuditLogging.SqlServer;
 using Excalibur.Compliance.SqlServer;
 using Excalibur.Compliance.SqlServer.Erasure;
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Hosting.Builders;
 using Excalibur.Inbox.SqlServer;
 using Excalibur.LeaderElection.SqlServer;
 using Excalibur.Saga.SqlServer;
@@ -72,6 +73,39 @@ public sealed class ExcaliburSqlServerOptions
 	/// Gets or sets a value indicating whether to register compliance (GDPR/erasure) services (default: <see langword="true"/>).
 	/// </summary>
 	public bool UseCompliance { get; set; } = true;
+
+	/// <summary>
+	/// Configures the framework's own composition seam, for anything this preset does not expose.
+	/// </summary>
+	/// <param name="configure">A delegate to configure the Excalibur builder.</param>
+	/// <returns>This options instance for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// The members on this type are a CURATED SUBSET, not the whole framework. They cover the subsystems a
+	/// SQL Server backend implements, which leaves several of the builder's capabilities with no expression
+	/// here at all: change-data capture, jobs, the identity map, data processing, assembly scanning, tenancy
+	/// and the local client address. Tenancy is the one most likely to be wanted and missed.
+	/// </para>
+	/// <para>
+	/// Two further subsystems are REGISTERED by this entry point but not configurable through it — event
+	/// sourcing and the outbox, the latter staging messages durably while starting no delivery loop. Turning
+	/// background delivery on is therefore a thing this preset registers for you and gives you no way to
+	/// adjust.
+	/// </para>
+	/// <para>
+	/// Without this member the only route to any of that was a SECOND <c>AddExcalibur</c> call beside this
+	/// one, which works and is what the composition does internally, but leaves the consumer composing two
+	/// surfaces with no stated ordering. This runs LAST, after everything the preset declares, so a
+	/// declaration made here wins over the preset's — which is the same precedence a separate later call
+	/// already had, now written down and reachable from inside the entry point.
+	/// </para>
+	/// </remarks>
+	public ExcaliburSqlServerOptions ConfigureExcalibur(Action<IExcaliburBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(configure);
+		ExcaliburConfiguration = configure;
+		return this;
+	}
 
 	/// <summary>
 	/// Configures the Dispatch pipeline (middleware, behaviors, handler registration).
@@ -156,6 +190,8 @@ public sealed class ExcaliburSqlServerOptions
 		ErasureConfiguration = configure;
 		return this;
 	}
+
+	internal Action<IExcaliburBuilder>? ExcaliburConfiguration { get; private set; }
 
 	internal Action<IDispatchBuilder>? DispatchConfiguration { get; private set; }
 

@@ -142,4 +142,29 @@ internal sealed class CosmosDbSagaDocument
 	/// <param name="sagaId">The saga identifier.</param>
 	/// <returns>The document ID string.</returns>
 	public static string CreateId(string tenantId, Guid sagaId) => TenantScopedKey.Compose(tenantId, sagaId.ToString());
+    /// <summary>Gets or sets explicit ordinary timer recovery row metadata.</summary>
+    [JsonPropertyName("timerRecoveryIncarnation")]
+    [Newtonsoft.Json.JsonProperty("timerRecoveryIncarnation")]
+    public string? TimerRecoveryIncarnation { get; set; }
+
+    /// <summary>Gets or sets explicit ordinary timer recovery row metadata.</summary>
+    [JsonPropertyName("timerRecoveryTracked")]
+    [Newtonsoft.Json.JsonProperty("timerRecoveryTracked")]
+    public bool TimerRecoveryTracked { get; set; }
+
+    /// <summary>Gets or sets explicit ordinary timer recovery row metadata.</summary>
+    [JsonPropertyName("timerRecoveryPendingBatch")]
+    [Newtonsoft.Json.JsonProperty("timerRecoveryPendingBatch")]
+    public string? TimerRecoveryPendingBatch { get; set; }
+
+    /// <summary>Gets or sets explicit ordinary timer recovery row metadata.</summary>
+    [JsonPropertyName("timerRecoveryPendingDigest")]
+    [Newtonsoft.Json.JsonProperty("timerRecoveryPendingDigest")]
+    public string? TimerRecoveryPendingDigest { get; set; }
+
+    [JsonPropertyName("ttl")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Newtonsoft.Json.JsonProperty("ttl", NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+    public int? TimeToLive { get; set; }
+
 }

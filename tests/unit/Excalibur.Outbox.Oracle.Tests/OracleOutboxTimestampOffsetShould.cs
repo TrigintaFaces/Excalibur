@@ -18,14 +18,10 @@ using Xunit;
 namespace Excalibur.Outbox.Oracle.Tests;
 
 /// <summary>
-/// eg3gz8 — the remaining two arms (of four) against the REAL <see cref="OracleOutboxStore"/> path:
-/// (3) backward-compatibility — a row written before this code ran is still readable, and (4) liveness —
-/// the scheduled-sweep comparison predicate selects the correct rows across an offset boundary, not merely
-/// stores everything. Arms (1) and (2) — non-zero-offset and offset-zero round-trip — are measured at the
-/// Dapper/ODP.NET layer in isolation by <see cref="OracleDapperDateTimeOffsetDefaultBehaviorShould"/>
-/// (production registers no custom DateTimeOffset type handler; that class runs without one to measure
-/// exactly what shipped code gets). Both there and here: PASS. BackendDeveloper's "Oracle is unaffected"
-/// claim is confirmed as MEASURED, not merely reasoned.
+/// Real OracleOutboxStore timestamp controls: reads a row inserted outside the store and verifies
+/// scheduled-sweep selection by true instant across opposite offset boundaries. These execute the
+/// current provider static-reader path. OracleDapperDateTimeOffsetDefaultBehaviorShould separately
+/// measures direct Dapper dependency mapping in an isolated process; it is not this provider path.
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
@@ -153,6 +149,7 @@ public sealed class OracleOutboxTimestampOffsetShould
 			MaxAttempts = 3,
 		});
 
-		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance);
+		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance,
+			workerConnections: OracleWorkerConnectionSource.FromConnectionString(_fixture.ConnectionString));
 	}
 }

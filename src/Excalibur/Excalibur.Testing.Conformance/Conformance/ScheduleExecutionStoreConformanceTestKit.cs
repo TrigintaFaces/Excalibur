@@ -176,7 +176,7 @@ public abstract class ScheduleExecutionStoreConformanceTestKit : ScheduleStoreCo
 		try
 		{
 			Require(!await store.ReleaseExecutionAsync(lease, CancellationToken.None).ConfigureAwait(false), "Stale token released newer ownership.");
-			var foreign = new ScheduleExecutionLease(Guid.NewGuid(), newer.ScheduleId, newer.Generation, newer.OccurrenceUtc, newer.OwnerToken);
+			var foreign = new ScheduleExecutionLease(Guid.NewGuid(), newer.ScheduleId, newer.Generation, newer.OccurrenceUtc, newer.OwnerToken) { AdmissionAttempt = newer.AdmissionAttempt };
 			Require(!await store.TryUpdateProgressAsync(foreign, new(null, null, true), CancellationToken.None).ConfigureAwait(false),
 				"Foreign logical-store authority committed progress.");
 			Require(!await store.ReleaseExecutionAsync(foreign, CancellationToken.None).ConfigureAwait(false), "Foreign authority released ownership.");
@@ -208,6 +208,73 @@ public abstract class ScheduleExecutionStoreConformanceTestKit : ScheduleStoreCo
 		Require(await store.TryUpdateProgressAsync(lease, new(message.NextExecutionUtc, null, true), CancellationToken.None).ConfigureAwait(false),
 			"Canceled progress consumed the valid ownership.");
 		Require(await store.ReleaseExecutionAsync(lease, CancellationToken.None).ConfigureAwait(false), "Canceled release consumed ownership.");
+	}
+
+	/// <summary>Verifies the admission count rises per unsettled admission and resets only on a committed settlement.</summary>
+	/// <remarks>
+	/// <para>
+	/// An occurrence whose settlement is never committed is admitted again by the next poll, legitimately:
+	/// the fence makes a late write safe, so a lapsed holder must be able to be succeeded. Nothing in that
+	/// loop retires the occurrence, so the count reported by the admission is the ONLY thing a caller can
+	/// bound it with, and a store that does not keep it durably leaves the repeat unbounded.
+	/// </para>
+	/// <para>
+	/// <b>The reset point is the load-bearing half, and it is the one a provider gets wrong.</b> Keying the
+	/// count to the admitted-occurrence column looks equivalent and is not: releasing a lease clears that
+	/// column, and releasing is exactly what happens on the path being counted — so such a store reports a
+	/// first attempt forever while passing every arm about a healthy schedule. This arm therefore releases
+	/// between admissions, which is what a real host does, and requires the count to survive it.
+	/// </para>
+	/// <para>
+	/// Both halves are required. Without the rising half a store that always reports 1 passes; without the
+	/// reset half a store that only ever increments passes, and it would retire every healthy schedule once
+	/// enough occurrences had run.
+	/// </para>
+	/// </remarks>
+	/// <returns>The arm.</returns>
+	public virtual async Task AdmissionCountRisesUntilSettlementCommits()
+	{
+		var store = await StoreForArmAsync().ConfigureAwait(false);
+		var message = DueMessage();
+		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
+
+		var snapshot = await SnapshotAsync(store, message.Id).ConfigureAwait(false);
+		var first = await AcquireAsync(store, snapshot).ConfigureAwait(false);
+		Require(first.AdmissionAttempt == 1,
+			$"First admission of an occurrence reported attempt {first.AdmissionAttempt}, not 1.");
+
+		// What a host does when its settlement is refused: it gives the authority back without advancing
+		// the occurrence. The count must not be reset by this.
+		Require(await store.ReleaseExecutionAsync(first, CancellationToken.None).ConfigureAwait(false),
+			"The admitted occurrence could not be released.");
+
+		var second = await AcquireAsync(store, snapshot).ConfigureAwait(false);
+		Require(second.AdmissionAttempt == 2,
+			$"Re-admission after an uncommitted settlement reported attempt {second.AdmissionAttempt}, not 2. "
+			+ "A count that a release resets can never reach a bound on the path that needs one.");
+
+		Require(await store.ReleaseExecutionAsync(second, CancellationToken.None).ConfigureAwait(false),
+			"The re-admitted occurrence could not be released.");
+
+		var third = await AcquireAsync(store, snapshot).ConfigureAwait(false);
+		Require(third.AdmissionAttempt == 3,
+			$"A third unsettled admission reported attempt {third.AdmissionAttempt}, not 3. The count must "
+			+ "keep rising for as long as no settlement commits, which is what lets a caller bound it.");
+
+		// A COMMITTED settlement retires the occurrence, so the next one starts over.
+		var advanced = snapshot.Message.NextExecutionUtc!.Value.AddMinutes(1);
+		Require(await store.TryUpdateProgressAsync(third, new(snapshot.Message.NextExecutionUtc, advanced, false), CancellationToken.None).ConfigureAwait(false),
+			"The current authority could not commit progress.");
+		Require(await store.ReleaseExecutionAsync(third, CancellationToken.None).ConfigureAwait(false),
+			"The settled authority could not be released.");
+
+		var settled = await SnapshotAsync(store, message.Id).ConfigureAwait(false);
+		var next = await AcquireAsync(store, settled).ConfigureAwait(false);
+		Require(next.AdmissionAttempt == 1,
+			$"The first admission after a committed settlement reported attempt {next.AdmissionAttempt}, not 1. "
+			+ "A count that only ever rises would retire a healthy schedule.");
+		Require(await store.ReleaseExecutionAsync(next, CancellationToken.None).ConfigureAwait(false),
+			"The final authority could not be released.");
 	}
 
 	private static async Task ExpectCancellationAsync(Func<Task> operation)

@@ -5,8 +5,6 @@ using System.Data;
 using System.Data.Common;
 using System.Runtime.CompilerServices;
 
-using Dapper;
-
 using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Options;
@@ -81,18 +79,18 @@ public class CdcStateStore : ISqlServerCdcStateStore
 		                        MessageId DESC
 		                   """;
 
-		var parameters = new DynamicParameters();
-		parameters.Add("databaseConnectionIdentifier", databaseConnectionIdentifier);
-		parameters.Add("databaseName", databaseName);
-
-		var command = new CommandDefinition(
-			commandText,
-			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
 		using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-		return await connection.QueryAsync<CdcProcessingState>(command).ConfigureAwait(false);
+		using var command = CreateCommand(connection, commandText);
+		AddParameter(command, "databaseConnectionIdentifier", databaseConnectionIdentifier, databaseConnectionIdentifier is null ? null : DbType.String);
+		AddParameter(command, "databaseName", databaseName, databaseName is null ? null : DbType.String);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var rows = new List<CdcProcessingState>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rows.Add(ReadState(reader));
+        }
+        while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false)) { }
+        return rows;
 	}
 
 	/// <inheritdoc />
@@ -147,23 +145,16 @@ public class CdcStateStore : ISqlServerCdcStateStore
 		                       VALUES (source.DatabaseConnectionIdentifier, source.DatabaseName, source.TableName, source.LastProcessedLsn, source.LastProcessedSequenceValue, source.LastCommitTime, @fencingToken, GETUTCDATE());
 		                   """;
 
-		var parameters = new DynamicParameters();
-		parameters.Add("databaseConnectionIdentifier", databaseConnectionIdentifier, DbType.String);
-		parameters.Add("databaseName", databaseName, DbType.String);
-		parameters.Add("tableName", tableName, DbType.String);
-		parameters.Add("position", position, DbType.Binary, size: 10);
-		parameters.Add("sequenceValue", sequenceValue, DbType.Binary, size: 10);
-		parameters.Add("commitTime", commitTime, DbType.DateTime2);
-		parameters.Add("fencingToken", fencingToken, DbType.Int64);
-
-		var command = new CommandDefinition(
-			commandText,
-			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
 		using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-		return await connection.ExecuteAsync(command).ConfigureAwait(false);
+		using var command = CreateCommand(connection, commandText);
+		AddParameter(command, "databaseConnectionIdentifier", databaseConnectionIdentifier, DbType.String);
+		AddParameter(command, "databaseName", databaseName, DbType.String);
+		AddParameter(command, "tableName", tableName, DbType.String);
+		AddParameter(command, "position", position, DbType.Binary, 10);
+		AddParameter(command, "sequenceValue", sequenceValue, DbType.Binary, 10);
+		AddParameter(command, "commitTime", commitTime, DbType.DateTime2);
+		AddParameter(command, "fencingToken", fencingToken, DbType.Int64);
+		return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	// --- Generic ICdcStateStore adapter -------------------------------------------------------
@@ -188,27 +179,24 @@ public class CdcStateStore : ISqlServerCdcStateStore
 		                   ORDER BY MessageId DESC
 		                   """;
 
-		var parameters = new DynamicParameters();
-		parameters.Add("consumerId", consumerId, DbType.String);
-		parameters.Add("discriminator", GenericDiscriminator, DbType.String);
-
-		var command = new CommandDefinition(
-			commandText,
-			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
 		using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-		var row = await connection
-			.QuerySingleOrDefaultAsync<(byte[] LastProcessedLsn, byte[]? LastProcessedSequenceValue)?>(command)
-			.ConfigureAwait(false);
-
-		if (row is null)
-		{
-			return null;
-		}
-
-		var position = new CdcPosition(row.Value.LastProcessedLsn, row.Value.LastProcessedSequenceValue);
+		using var command = CreateCommand(connection, commandText);
+		AddParameter(command, "consumerId", consumerId, DbType.String);
+		AddParameter(command, "discriminator", GenericDiscriminator, DbType.String);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false)) { }
+            return null;
+        }
+        var lsn = await reader.IsDBNullAsync(0, cancellationToken).ConfigureAwait(false) ? null : await reader.GetFieldValueAsync<byte[]>(0, cancellationToken).ConfigureAwait(false);
+        var sequence = await reader.IsDBNullAsync(1, cancellationToken).ConfigureAwait(false) ? null : await reader.GetFieldValueAsync<byte[]>(1, cancellationToken).ConfigureAwait(false);
+        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("Sequence contains more than one element");
+        }
+        while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false)) { }
+        var position = new CdcPosition(lsn!, sequence);
 		return position.IsValid ? position.ToChangePosition() : null;
 	}
 
@@ -250,18 +238,11 @@ public class CdcStateStore : ISqlServerCdcStateStore
 		                         AND TableName = @discriminator
 		                   """;
 
-		var parameters = new DynamicParameters();
-		parameters.Add("consumerId", consumerId, DbType.String);
-		parameters.Add("discriminator", GenericDiscriminator, DbType.String);
-
-		var command = new CommandDefinition(
-			commandText,
-			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
 		using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-		var affected = await connection.ExecuteAsync(command).ConfigureAwait(false);
+		using var command = CreateCommand(connection, commandText);
+		AddParameter(command, "consumerId", consumerId, DbType.String);
+		AddParameter(command, "discriminator", GenericDiscriminator, DbType.String);
+		var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 		return affected > 0;
 	}
 
@@ -276,22 +257,21 @@ public class CdcStateStore : ISqlServerCdcStateStore
 		                   ORDER BY DatabaseConnectionIdentifier
 		                   """;
 
-		var parameters = new DynamicParameters();
-		parameters.Add("discriminator", GenericDiscriminator, DbType.String);
-
-		var command = new CommandDefinition(
-			commandText,
-			parameters: parameters,
-			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-			cancellationToken: cancellationToken);
-
-		IEnumerable<(string DatabaseConnectionIdentifier, byte[] LastProcessedLsn, byte[]? LastProcessedSequenceValue)> rows;
-		using (var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false))
-		{
-			rows = await connection
-				.QueryAsync<(string DatabaseConnectionIdentifier, byte[] LastProcessedLsn, byte[]? LastProcessedSequenceValue)>(command)
-				.ConfigureAwait(false);
-		}
+        // Buffer before yielding: a paused consumer must not retain the operation's SQL session.
+        var rows = new List<(string DatabaseConnectionIdentifier, byte[] LastProcessedLsn, byte[]? LastProcessedSequenceValue)>();
+        using (var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false))
+        using (var command = CreateCommand(connection, commandText))
+        {
+            AddParameter(command, "discriminator", GenericDiscriminator, DbType.String);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                rows.Add((await reader.IsDBNullAsync(0, cancellationToken).ConfigureAwait(false) ? null! : reader.GetString(0),
+                    await reader.IsDBNullAsync(1, cancellationToken).ConfigureAwait(false) ? null! : await reader.GetFieldValueAsync<byte[]>(1, cancellationToken).ConfigureAwait(false),
+                    await reader.IsDBNullAsync(2, cancellationToken).ConfigureAwait(false) ? null : await reader.GetFieldValueAsync<byte[]>(2, cancellationToken).ConfigureAwait(false)));
+            }
+            while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false)) { }
+        }
 
 		foreach (var row in rows)
 		{
@@ -302,6 +282,53 @@ public class CdcStateStore : ISqlServerCdcStateStore
 			}
 		}
 	}
+
+    private static CdcProcessingState ReadState(DbDataReader reader) => new()
+    {
+        DatabaseConnectionIdentifier = reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+        DatabaseName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+        TableName = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+        LastProcessedLsn = reader.IsDBNull(3) ? new byte[10] : reader.GetFieldValue<byte[]>(3),
+        LastProcessedSequenceValue = reader.IsDBNull(4) ? null : reader.GetFieldValue<byte[]>(4),
+        LastCommitTime = reader.IsDBNull(5) ? default : reader.GetDateTime(5),
+        ProcessedAt = reader.IsDBNull(6) ? default : reader.GetFieldValue<DateTimeOffset>(6),
+    };
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities",
+        Justification = "Private callers supply fixed checkpoint SQL and a validated QualifiedTableName; all identifier values and positions are bound parameters.")]
+    private static DbCommand CreateCommand(IDbConnection connection, string sql)
+    {
+        var candidate = connection.CreateCommand();
+        if (candidate is not DbCommand command)
+        {
+            candidate.Dispose();
+            throw new InvalidOperationException("CDC state operations require an asynchronous DbCommand.");
+        }
+        try
+        {
+            command.CommandText = sql;
+            command.CommandType = CommandType.Text;
+            command.CommandTimeout = DbTimeouts.RegularTimeoutSeconds;
+            return command;
+        }
+        catch
+        {
+            command.Dispose();
+            throw;
+        }
+    }
+
+    private static void AddParameter(DbCommand command, string name, object? value, DbType? type, int? size = null)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Direction = ParameterDirection.Input;
+        parameter.Value = value ?? DBNull.Value;
+        if (type.HasValue) { parameter.DbType = type.Value; }
+        if (value is string { Length: <= 4000 }) { parameter.Size = 4000; }
+        if (size.HasValue) { parameter.Size = size.Value; }
+        command.Parameters.Add(parameter);
+    }
 
 	/// <summary>
 	/// Asynchronously releases the unmanaged resources used by the <see cref="CdcStateStore" />.

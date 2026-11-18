@@ -28,12 +28,15 @@ namespace Excalibur.Benchmarks.Saga;
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
+    Justification = "BenchmarkDotNet invokes GlobalCleanup, which disposes the fixture-owned serializer independently of schema cleanup.")]
 public partial class SqlServerSagaStoreBenchmarks
 {
     private static readonly string? ConnectionString =
         Environment.GetEnvironmentVariable("BENCHMARK_SQL_CONNECTIONSTRING");
 
     private SqlServerSagaStore? _sagaStore;
+    private DispatchJsonSerializer? _ownedSerializer;
     private Guid _preloadedSagaId;
     private Guid _iterationSagaId;
     private string _correlationId = null!;
@@ -49,7 +52,7 @@ public partial class SqlServerSagaStoreBenchmarks
     [GlobalSetup]
     public void GlobalSetup()
     {
-        if (_ownsSchema)
+        if (_ownsSchema || _ownedSerializer is not null || _sagaStore is not null)
         {
             throw new InvalidOperationException("Saga benchmark already owns a schema; clean it up before setup.");
         }
@@ -68,11 +71,12 @@ public partial class SqlServerSagaStoreBenchmarks
         try
         {
             EnsureSchemaAsync().GetAwaiter().GetResult();
+            _ownedSerializer = new DispatchJsonSerializer();
             _sagaStore = new SqlServerSagaStore(
                 ConnectionString!,
                 Options.Create(new SqlServerSagaStoreOptions { SchemaName = _ownedSchema, TableName = "sagas" }),
                 NullLogger<SqlServerSagaStore>.Instance,
-                new DispatchJsonSerializer(),
+                _ownedSerializer,
                 BenchmarkTenantContext.SingleTenant);
 
             _preloadedSagaId = Guid.NewGuid();
@@ -92,7 +96,7 @@ public partial class SqlServerSagaStoreBenchmarks
         {
             try
             {
-                CleanupOwnedSchemaAsync().GetAwaiter().GetResult();
+                GlobalCleanup();
             }
             catch (Exception cleanupFailure)
             {
@@ -103,7 +107,42 @@ public partial class SqlServerSagaStoreBenchmarks
     }
 
     [GlobalCleanup]
-    public void GlobalCleanup() => CleanupOwnedSchemaAsync().GetAwaiter().GetResult();
+    public void GlobalCleanup()
+    {
+        var failures = new List<Exception>();
+        try
+        {
+            CleanupOwnedSchemaAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+        }
+
+        try
+        {
+            _ownedSerializer?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+        }
+        finally
+        {
+            _ownedSerializer = null;
+            _sagaStore = null;
+        }
+
+        if (failures.Count == 1)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        }
+
+        if (failures.Count > 1)
+        {
+            throw new AggregateException("Saga benchmark resource cleanup failed.", failures);
+        }
+    }
 
     [IterationSetup]
     public void IterationSetup()
@@ -345,7 +384,8 @@ public partial class SqlServerSagaStoreBenchmarks
 public sealed class BenchmarkSagaState : SagaState
 {
     public string OrderId { get; set; } = string.Empty;
-    public string CorrelationId { get; set; } = string.Empty;
+    // CorrelationId is inherited from SagaState, which now carries the business key the saga was
+    // correlated on. Declaring it again here hid the base member.
     public string CurrentStep { get; set; } = string.Empty;
 }
 

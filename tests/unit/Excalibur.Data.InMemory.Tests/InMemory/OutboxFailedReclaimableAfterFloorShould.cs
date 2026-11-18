@@ -164,7 +164,7 @@ public sealed class OutboxFailedReclaimableAfterFloorShould
 		await store.MarkFailedAsync(msg.Id, "attempt-3", 3, CancellationToken.None);
 		await store.MarkFailedAsync(msg.Id, "stale-1", 1, CancellationToken.None);
 
-		msg.RetryCount.ShouldBe(3);
+		(await store.GetAllTenantsFailedMessagesAsync(0, null, 1, CancellationToken.None)).Single().RetryCount.ShouldBe(3);
 	}
 
 	// Observability: a failed (retryable) message is surfaced via GetFailedMessages (Status == Failed).

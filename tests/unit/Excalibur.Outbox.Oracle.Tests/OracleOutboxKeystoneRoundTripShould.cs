@@ -143,6 +143,7 @@ public sealed class OracleOutboxKeystoneRoundTripShould
 			MaxAttempts = 3,
 		});
 
-		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance);
+		return new OracleOutboxStore(db, options, NullLogger<OracleOutboxStore>.Instance,
+			workerConnections: OracleWorkerConnectionSource.FromConnectionString(_fixture.ConnectionString));
 	}
 }

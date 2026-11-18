@@ -16,6 +16,12 @@ namespace Excalibur.Outbox.Postgres;
 /// <summary>
 /// Represents a data request to reserve outbox messages for processing in the Postgres database.
 /// </summary>
+/// <remarks>
+/// This framework-owned request uses its fixed constructor-defined primitive input schema. Replacing a
+/// known parameter value through <c>Parameters</c> is observed at execution; parameter DbType,
+/// direction, size, templates and output callbacks are not an extensibility contract of this request.
+/// Custom <c>IDataRequest</c> implementations retain their own execution behavior.
+/// </remarks>
 [NoTenantTerm(
 	TenantConfinement.EstateWide,
 	"the outbox drain is cross-tenant by design: one dispatcher serves every tenant, and each claimed row carries its own tenant_id so the processor can re-establish the owning tenant per message. Scoping this claim to a single tenant would stall delivery for every other tenant in the store")]
@@ -117,6 +123,10 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds,
 			cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QueryAsync<OutboxMessage>(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.QueryAsync(conn, Command, command =>
+		{
+			StaticDbCommand.AddParameter(command, "DispatcherId", StaticDbCommand.Input<string>(Parameters, "DispatcherId"), DbType.String);
+			StaticDbCommand.AddParameter(command, "ReservationTimeout", StaticDbCommand.Input<int>(Parameters, "ReservationTimeout"), DbType.Int32);
+		}, PostgresOutboxRowReader.Read).ConfigureAwait(false);
 	}
 }

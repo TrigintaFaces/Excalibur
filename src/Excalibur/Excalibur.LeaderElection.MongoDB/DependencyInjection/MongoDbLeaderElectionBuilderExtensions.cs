@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.LeaderElection.Fencing;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
@@ -132,16 +131,13 @@ public static class MongoDbLeaderElectionBuilderExtensions
 			var logger = sp.GetRequiredService<ILogger<MongoDbLeaderElection>>();
 			// Optional: flows through only when the consumer registered a fencing token provider
 			// (AddMongoDbFencingTokenProvider + WithFencingTokens()). Null = fencing not enabled.
-			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			var fencingTokenProvider = sp.GetService<IFencingTokenIssuer>();
 			return new MongoDbLeaderElection(client, resourceName, mongoOptions, electionOptions, logger, fencingTokenProvider);
 		});
 		builder.Services.AddKeyedSingleton<ILeaderElection>("mongodb", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<MongoDbLeaderElection>();
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElection(inner, meter, activitySource, "MongoDB");
+			return TelemetryLeaderElection.CreateOwned(inner, sp.GetService<IMeterFactory>(), "MongoDB");
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("mongodb"));
@@ -150,7 +146,7 @@ public static class MongoDbLeaderElectionBuilderExtensions
 		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
 		// provider rather than requiring a second, easily-forgotten AddMongoDbFencingTokenProvider() +
 		// WithFencingTokens() call. WithoutFencingTokens() opts out.
-		builder.Services.TryAddDefaultFencingTokenProvider(sp =>
+		builder.Services.TryAddDefaultFencingTokenIssuer(sp =>
 			ActivatorUtilities.CreateInstance<MongoDbFencingTokenProvider>(sp));
 
 		// Matches Consul/Kubernetes/InMemory/Postgres/SqlServer, all of which register this here. Without

@@ -63,6 +63,7 @@ public sealed class OutboxPublisherReportsFailureUnderItsClaimShould
 		_ = A.CallTo(() => claimScoped.MarkFailedAsync(
 				message.Id, A<string>._, A<int>._, StampedClaim, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+		WorkerClaimFixture.AssertNoWeakWrites(store);
 	}
 
 	/// <summary>
@@ -83,6 +84,7 @@ public sealed class OutboxPublisherReportsFailureUnderItsClaimShould
 		A.CallTo(() => store.MarkFailedAsync(
 				message.Id, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
+		WorkerClaimFixture.AssertNoWeakWrites(store);
 	}
 
 	private static (MessageBusOutboxPublisher Publisher, IOutboxStore Store,
@@ -91,7 +93,7 @@ public sealed class OutboxPublisherReportsFailureUnderItsClaimShould
 		// The store answers the capability probe the way a real one does: itself for what it implements,
 		// null otherwise. A bare fake answers with a non-null dummy that is not the requested interface,
 		// which reports an implemented capability ABSENT and turns a correct drain red.
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IClaimScopedOutboxStore>())
+		var store = WorkerClaimFixture.CreateStore()
 			.WithHonestCapabilities();
 		var claimScoped = store.ShouldBeAssignableTo<IClaimScopedOutboxStore>();
 
@@ -101,13 +103,13 @@ public sealed class OutboxPublisherReportsFailureUnderItsClaimShould
 		};
 
 		_ = A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new ValueTask<IEnumerable<OutboundMessage>>([message]))
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.AcquireStampedForRouting(store, message, StampedClaim)))
 			.Once()
 			.Then
 			.Returns(new ValueTask<IEnumerable<OutboundMessage>>([]));
 
 		_ = A.CallTo(() => claimScoped.MarkFailedAsync(
-				A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._))
+				message.Id, A<string>._, A<int>._, StampedClaim, A<CancellationToken>._))
 			.Returns(new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied));
 
 		// Any dispatch fault routes to the same catch; which one it is does not matter to the routing

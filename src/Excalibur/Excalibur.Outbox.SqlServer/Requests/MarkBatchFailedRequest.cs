@@ -83,9 +83,21 @@ internal sealed class MarkBatchFailedRequest : DataRequestBase<IDbConnection, in
 		parameters.Add("@LastAttemptAt", DateTimeOffset.UtcNow);
 		parameters.Add("@FloorSeconds", floorSeconds);
 
-		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+		SqlServerAffectedRows.Declare(parameters);
+		Command = CreateCommand(sql + SqlServerAffectedRows.Capture, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			await StaticDbCommand.ExecuteOutputsAsync(connection, Command, command =>
+			{
+				SqlServerOutboxIdList.Bind(command, StaticDbCommand.RequiredInput<IReadOnlyList<string>>(Parameters, "Ids"));
+				StaticDbCommand.AddParameter(command, "ErrorMessage", StaticDbCommand.RequiredInput<string>(Parameters, "ErrorMessage"), DbType.String);
+				StaticDbCommand.AddParameter(command, "RetryCount", StaticDbCommand.Input<int>(Parameters, "RetryCount"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "LeasedBy", StaticDbCommand.RequiredInput<string>(Parameters, "LeasedBy"), DbType.String);
+				StaticDbCommand.AddParameter(command, "LeasedByPrefix", StaticDbCommand.RequiredInput<string>(Parameters, "LeasedByPrefix"), DbType.String);
+				StaticDbCommand.AddParameter(command, "LeasedByPrefixLength", StaticDbCommand.Input<int>(Parameters, "LeasedByPrefixLength"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "LastAttemptAt", StaticDbCommand.Input<DateTimeOffset>(Parameters, "LastAttemptAt"), DbType.DateTimeOffset);
+				StaticDbCommand.AddParameter(command, "FloorSeconds", StaticDbCommand.Input<int>(Parameters, "FloorSeconds"), DbType.Int32);
+				SqlServerAffectedRows.Bind(command);
+			}, command => SqlServerAffectedRows.Read(command, Parameters)).ConfigureAwait(false);
 	}
 }

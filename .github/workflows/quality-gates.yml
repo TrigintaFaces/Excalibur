@@ -165,7 +165,8 @@ jobs:
           import pathlib, xml.etree.ElementTree as ET
           results = [node for path in pathlib.Path('artifacts/xml-documentation').glob('*.trx')
                      for node in ET.parse(path).iter() if node.tag.endswith('}UnitTestResult')]
-          assert results and all(node.attrib['outcome'] == 'Passed' for node in results), 'Documentation tests did not all execute successfully'
+          minimum_executed_tests = 1  # lane-defined result-count minimum; not an independent identity census
+          assert len(results) >= minimum_executed_tests and all(node.attrib['outcome'] == 'Passed' for node in results), 'Documentation tests did not all execute successfully'
           assert any(node.attrib['testName'].endswith('.PreserveEachProductionDocumentationBlockWithoutDuplicateContractTags') for node in results), 'Production documentation population was not verified'
           print(f'Documentation validation: {len(results)} passed.')
           PY
@@ -226,7 +227,7 @@ jobs:
           # This comment sits ABOVE the command, not between its continued lines: a backslash
           # joins the lines before comments are processed, so a `#` inside the continuation would
           # swallow every flag after it.
-          bash eng/ci/run-filtered-tests.sh \
+          bash eng/ci/run-filtered-tests.sh --minimum-executed-tests 1 \
             --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" -- \
             eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-build \
             --blame-hang-timeout 5m \
@@ -341,7 +342,7 @@ jobs:
             --results-directory ./transport-conformance-results \
             -- RunConfiguration.TestSessionTimeout=900000
           TEST_EXIT=$?
-          pwsh -File eng/ci/assert-declared-skips-only.ps1 -TrxDir ./transport-conformance-results
+          pwsh -File eng/ci/assert-declared-skips-only.ps1 -MinimumExecutedTests 1 -TrxDir ./transport-conformance-results
           GATE_EXIT=$?
           set -e
           # The runner's own exit still wins. A TRX that looks complete cannot see a runner that died

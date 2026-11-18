@@ -14,17 +14,12 @@ using DispatchMessageContext = Excalibur.Dispatch.Messaging.MessageContext;
 namespace Excalibur.Dispatch.Benchmarks.Optimization;
 
 /// <summary>
-/// Benchmarks validating allocation reduction optimizations.
+/// Measures complete dispatch and collection-allocation workloads.
 /// </summary>
 /// <remarks>
-/// <para>
-/// These benchmarks measure allocation reduction from:
-/// </para>
-/// <list type="bullet">
-/// <item>Cached reflection for handler resolution - Zero reflection in hot path</item>
-/// <item>LINQ elimination in dispatch hot path - No iterator allocations</item>
-/// <item>Collection capacity hints - Fewer list resize allocations</item>
-/// </list>
+/// Fresh dispatch contexts are not returned; these are not pooled rent/return measurements.
+/// Collection methods include their enumeration work and do not isolate capacity-hint cost.
+/// Timing alone does not establish reflection elimination or a production improvement.
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -48,9 +43,9 @@ public class AllocationOptimizationBenchmarks
 		_ = services.AddDispatch();
 
 		// Add middleware to exercise the optimized filtering
-		_ = services.AddMiddleware<PassthroughMiddleware>();
-		_ = services.AddMiddleware<SecondPassthroughMiddleware>();
-		_ = services.AddMiddleware<ThirdPassthroughMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, PassthroughMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, SecondPassthroughMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, ThirdPassthroughMiddleware>();
 
 		_serviceProvider = services.BuildServiceProvider();
 		_dispatcher = _serviceProvider.GetRequiredService<IDispatcher>();
@@ -152,7 +147,7 @@ public class AllocationOptimizationBenchmarks
 	}
 
 	/// <summary>
-	/// Concurrent dispatches (10 parallel) to validate thread-safety of cached delegates.
+	/// Ten submitted dispatch tasks; completion does not prove overlap or thread safety.
 	/// </summary>
 	[Benchmark]
 	public async Task<int> ConcurrentDispatches()

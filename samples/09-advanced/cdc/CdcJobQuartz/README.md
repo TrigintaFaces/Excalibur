@@ -359,7 +359,7 @@ See troubleshooting in the `CdcEventStoreElasticsearch` sample.
 
 | Use Case | Recommended Approach |
 |----------|---------------------|
-| Real-time CDC (< 5 second latency) | Background Service |
+| Continuous CDC processing | Evaluate a background service; measure end-to-end lag |
 | Batch processing (hourly/daily) | CdcJob with Quartz.NET |
 | Multiple databases | CdcJob (built-in support) |
 | Production monitoring | CdcJob (health checks) |

@@ -41,7 +41,7 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventEncoder<PubsubM
 	private const string CeTimeoutAttribute = "ce-timeout";
 	private const string TimeoutExtensionName = "timeout";
 
-	private readonly JsonEventFormatter _jsonFormatter = new();
+	private readonly CloudEventSerializer _serializer;
 	private readonly ILogger<GooglePubSubCloudEventAdapter> _logger;
 	private readonly GooglePubSubCloudEventOptions _pubSubOptions;
 
@@ -49,14 +49,19 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventEncoder<PubsubM
 	/// Initializes a new instance of the <see cref="GooglePubSubCloudEventAdapter" /> class.
 	/// </summary>
 	/// <param name="options"> CloudEvent serialization options. </param>
+	/// <param name="serializer"> The decided CloudEvents serializer, carrying the resolver the consumer configured. </param>
 	/// <param name="pubSubOptions"> Google Pub/Sub specific options. </param>
 	/// <param name="logger"> Logger for diagnostics. </param>
 	public GooglePubSubCloudEventAdapter(
 		IOptions<CloudEventOptions> options,
+		CloudEventSerializer serializer,
 		GooglePubSubCloudEventOptions pubSubOptions,
 		ILogger<GooglePubSubCloudEventAdapter> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
+
+		_serializer = serializer;
 		ArgumentNullException.ThrowIfNull(pubSubOptions);
 		ArgumentNullException.ThrowIfNull(logger);
 
@@ -86,15 +91,18 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventEncoder<PubsubM
 		ArgumentNullException.ThrowIfNull(transportMessage);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var (_, mode) = DetectModeWithDecodedMessage(transportMessage, cancellationToken);
+		// This is the static probe on the encoder contract, so it has no access to the configured
+		// options and bounds decompression at the framework-wide inbound default instead. The
+		// authoritative decode on the instance path below uses the consumer's configured limit; a
+		// consumer who raised that limit and calls this probe directly is refused at the default.
+		var (_, mode) = DetectModeWithDecodedMessage(
+			transportMessage,
+			PayloadSizeGuard.DefaultMaxPayloadBytes,
+			cancellationToken);
 		return ValueTask.FromResult(mode);
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode(
-		"Serializes the CloudEvent payload with the reflection-based System.Text.Json serializer: binary mode falls back to it for any payload that is not already bytes or a string, and structured mode encodes through the CloudNative.CloudEvents JSON formatter. Neither payload type graph is statically analyzable. Set CloudEvent.Data to a byte[], ReadOnlyMemory<byte>, ByteString, or string before publishing to stay off the reflective path.")]
-	[RequiresDynamicCode(
-		"Binary-mode payload serialization falls back to the reflection-based System.Text.Json serializer, which generates converter code at run time for the payload type. Set CloudEvent.Data to a byte[], ReadOnlyMemory<byte>, ByteString, or string before publishing to stay off that path.")]
 	public Task<PubsubMessage> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -155,13 +163,22 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventEncoder<PubsubM
 		return cloudEvent;
 	}
 
+	private (PubsubMessage Message, CloudEventMode? Mode) DetectModeWithDecodedMessage(
+		PubsubMessage transportMessage,
+		CancellationToken cancellationToken) =>
+		DetectModeWithDecodedMessage(
+			transportMessage,
+			_pubSubOptions.Transport.MaxDecompressedBytes,
+			cancellationToken);
+
 	private static (PubsubMessage Message, CloudEventMode? Mode) DetectModeWithDecodedMessage(
 		PubsubMessage transportMessage,
+		int? maxDecompressedBytes,
 		CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var decodedMessage = GetDecodedMessage(transportMessage);
+		var decodedMessage = GetDecodedMessage(transportMessage, maxDecompressedBytes);
 
 		if (IsStructuredMode(decodedMessage))
 		{
@@ -176,9 +193,13 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventEncoder<PubsubM
 		return (decodedMessage, null);
 	}
 
-	private static PubsubMessage GetDecodedMessage(PubsubMessage message)
+	private static PubsubMessage GetDecodedMessage(PubsubMessage message, int? maxDecompressedBytes)
 	{
-		if (!GooglePubSubMessageBodyCodec.TryDecodeBody(message, out var decodedBody, out _))
+		if (!GooglePubSubMessageBodyCodec.TryDecodeBody(
+				message,
+				maxDecompressedBytes,
+				out var decodedBody,
+				out _))
 		{
 			return message;
 		}
@@ -232,16 +253,14 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventEncoder<PubsubM
 																   && message.Attributes.ContainsKey(CeSourceAttribute)
 																   && message.Attributes.ContainsKey(CeIdAttribute);
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
-	private static ByteString ConvertToByteString(object? data) => data switch
+	private ByteString ConvertToByteString(object? data) => data switch
 	{
 		null => ByteString.Empty,
 		ByteString byteString => byteString,
 		byte[] bytes => ByteString.CopyFrom(bytes),
 		ReadOnlyMemory<byte> memory => ByteString.CopyFrom(memory.Span),
 		string text => ByteString.CopyFromUtf8(text),
-		_ => ByteString.CopyFrom(JsonSerializer.SerializeToUtf8Bytes(data)),
+		_ => ByteString.CopyFrom(_serializer.SerializePayloadToUtf8Bytes(data)),
 	};
 
 	private static object DeserializeMessageData(ByteString data, string? contentType)
@@ -309,7 +328,7 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventEncoder<PubsubM
 
 	private PubsubMessage CreateStructuredMessage(CloudEvent cloudEvent)
 	{
-		var encoded = _jsonFormatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
+		var encoded = _serializer.Formatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
 		var message = new PubsubMessage { Data = ByteString.CopyFrom(encoded.ToArray()) };
 
 		message.Attributes[StructuredContentTypeAttribute] = contentType?.ToString() ?? CloudEventsStructuredContentType;
@@ -317,8 +336,6 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventEncoder<PubsubM
 		return message;
 	}
 
-	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventAdapter.ConvertToByteString(Object)")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventAdapter.ConvertToByteString(Object)")]
 	private PubsubMessage CreateBinaryMessage(CloudEvent cloudEvent)
 	{
 		var message = new PubsubMessage { Data = ConvertToByteString(cloudEvent.Data) };
@@ -415,7 +432,7 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventEncoder<PubsubM
 			? value
 			: CloudEventsStructuredContentType);
 
-		return await _jsonFormatter
+		return await _serializer.Formatter
 			.DecodeStructuredModeMessageAsync(stream, contentType, null)
 			.ConfigureAwait(false);
 	}

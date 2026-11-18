@@ -1,7 +1,7 @@
 ---
 sidebar_position: 16
 title: Crypto-Shredding Takes a Retention Scope
-description: Four compile errors for anyone who implements ISubjectKeyManager or IFieldEncryptor, calls SubjectFieldCryptor, or constructs EventStoreErasureContributor by hand.
+description: Current tenant-qualified subject-key and retention-scope contracts for crypto-shredding consumers and implementors.
 ---
 
 # Crypto-Shredding Takes a Retention Scope
@@ -12,19 +12,21 @@ data it holds to be kept — see
 Keeping a record readable after its data subject is erased means its personal fields cannot share the key
 the erasure destroys, so **the key lookup now takes the scope the value sits in.**
 
-**This page matters to you only if you write code against those types.** If you register through
-`AddCryptoShredding()` and `AddGdprErasure(...)` and let the framework do the encrypting, nothing here
-affects you: the framework passes the scope on your behalf, and a deployment that declares no retention
-behaves exactly as before.
+**This page matters to you if you call or implement these contracts directly.** With
+`AddCryptoShredding()` and `AddGdprErasure(...)`, the framework supplies the registered subject-key
+manager and carries the actual aggregate scope on your behalf. Configure a resolved tenant and the
+required key provider and mint/destruction ledgers; registration is not a substitute for durable stores.
+The signatures below reflect the current tenant-qualified, generation-bearing contract, not only the
+original retention-scope change.
 
 ## What changed
 
-Four members. **Each is a compile error, not a silent behaviour change** — your build tells you, which is
-the failure mode we would choose for something whose wrong answer is destroyed data.
+These members changed from the earlier retention-free surface. **Signature changes require consumer
+updates**, while the ownership and key-lifecycle obligations below also need behavioral verification.
 
 | Member | Before | After |
 |---|---|---|
-| `ISubjectKeyManager.GetOrCreateKeyAsync` | `(string subjectId, CancellationToken)` | `(string subjectId, RetentionScope retentionScope, CancellationToken)` |
+| `ISubjectKeyManager.GetOrCreateKeyAsync` | `(string subjectId, CancellationToken)` | `(TenantId tenant, string subjectId, RetentionScope retentionScope, CancellationToken)` returning `ValueTask<SubjectKey>` |
 | `IFieldEncryptor.EncryptAsync` | `(string subjectId, ReadOnlyMemory<byte> plaintext, CancellationToken)` | `(string subjectId, RetentionScope retentionScope, ReadOnlyMemory<byte> plaintext, CancellationToken)` |
 | `SubjectFieldCryptor.EncryptFieldsAsync` | `(object record, CancellationToken)` | `(object record, string? aggregateType, CancellationToken)` |
 | `EventStoreErasureContributor` | two constructors, the shorter with defaulted parameters | one constructor, ending in a required `IErasureRetentionRegistry?` |
@@ -72,49 +74,77 @@ travels:
 Add the aggregate type the record is stored inside, or `null` when it is not inside an aggregate:
 
 ```csharp
-// Not stored inside an aggregate
-await cryptor.EncryptFieldsAsync(record, aggregateType: null, ct);
+using System.Threading;
+using System.Threading.Tasks;
+using Excalibur.Compliance.CryptoShredding;
 
-// Stored inside an aggregate — required if "SalesRecord" is under a declared retention
-await cryptor.EncryptFieldsAsync(record, aggregateType: "SalesRecord", ct);
-```
-
-Passing `null` reproduces the old behaviour exactly. **It is the wrong answer only where the aggregate
-type is under a declared retention**, and there it is the answer that destroys the record: the fields go
-under the subject's own key, the erasure destroys that key, and the retained record survives with its
-personal fields no longer decryptable.
-
-## If you implement `ISubjectKeyManager` or `IFieldEncryptor`
-
-Accept the scope and **use it to select the key**. A conforming implementation resolves a *distinct*
-handle per `(subject, scope)` pair, so that destroying the subject's own handle leaves data written under
-a retention scope readable.
-
-```csharp
-public async ValueTask<string> GetOrCreateKeyAsync(
-    string subjectId,
-    RetentionScope retentionScope,
-    CancellationToken cancellationToken)
+public static class FieldEncryptionExamples
 {
-    var subjectHandle = _hasher.HashDataSubjectId(subjectId);
+    // Alternative A: the record is NOT stored inside an aggregate.
+    public static ValueTask EncryptDetachedAsync(SubjectFieldCryptor cryptor, object record, CancellationToken ct) =>
+        cryptor.EncryptFieldsAsync(record, aggregateType: null, ct);
 
-    // A scope naming an aggregate gets its own handle; everything else uses the
-    // subject's own handle, which is the one an erasure destroys.
-    var handle = retentionScope.IsInAnAggregate
-        ? $"{subjectHandle}:{retentionScope.AggregateType}"
-        : subjectHandle;
-
-    return await _keys.GetOrCreateAsync(handle, cancellationToken);
+    // Alternative B: this record is stored inside the actual recorded SalesRecord aggregate.
+    // Choose the matching alternative once; do not encrypt the same fields twice.
+    public static ValueTask EncryptSalesRecordAsync(SubjectFieldCryptor cryptor, object record, CancellationToken ct) =>
+        cryptor.EncryptFieldsAsync(record, aggregateType: "SalesRecord", ct);
 }
 ```
 
-:::danger Ignoring the parameter compiles, and it is the failure this change exists to prevent
+Pass `null` only when the record is not inside an aggregate. For aggregate data, always pass its actual
+recorded aggregate type, even when no retention is currently declared. Current writes give every
+aggregate obligation class its own key; the erasure, not the write, decides which declared obligations
+must be retained. Omitting the actual scope can put retained data under a key the erasure destroys.
 
-An implementation that accepts `retentionScope` and resolves the same handle regardless satisfies the
-compiler and passes any test that does not erase. The defect appears only at the erasure: the retained
-record's key is destroyed along with the subject's, and a record the law required you to keep survives as
-ciphertext nobody can open. Where you compose the handle from strings, compose it **injectively** — a
-subject identifier containing your separator must not be able to produce another pair's handle.
+## If you call or implement `ISubjectKeyManager` or `IFieldEncryptor`
+
+Prefer the framework's registered `ISubjectKeyManager` rather than reimplementing its key derivation.
+Pass the owner captured from an authorized request or trusted stored-record metadata, not from a supplied
+ciphertext envelope. The same owner and subject must identify the same key namespace on write and erasure;
+two tenants with the same subject string must remain independent.
+
+This example calls the public contract and returns its complete result unchanged:
+
+```csharp
+using System.Threading;
+using System.Threading.Tasks;
+using Excalibur.Compliance;
+using Excalibur.Dispatch;
+
+public static class SubjectKeyExample
+{
+    public static ValueTask<SubjectKey> ResolveAsync(
+        ISubjectKeyManager keyManager,
+        TenantId capturedOwner,
+        string subjectId,
+        CancellationToken cancellationToken) =>
+        keyManager.GetOrCreateKeyAsync(
+            capturedOwner, subjectId, RetentionScope.For("SalesRecord"), cancellationToken);
+}
+```
+
+`SubjectKey` carries both `KeyId` and the material's `Generation`. Do not return only a handle or look up
+the generation in a later operation: the material can change between calls. A missing generation is not
+proof that a subject was erased; callers needing crypto-shred tombstones must fail closed. The framework
+field encryptor applies these checks and binds the captured tenant into the ciphertext envelope.
+
+Keep the deployment's keyed `IDataSubjectHasher` and secret pepper stable across services, restarts and
+restores. Replacing that identity function or rotating its pepper does not re-key existing records; it
+makes their persisted identities and handles unreachable. Do not replace the framework's qualified
+handle with `HashDataSubjectId(subjectId)` or concatenate tenant/scope strings yourself.
+
+A custom implementation must honor the same resolved-owner, obligation-class, write-ahead mint-ledger
+and key/generation contract. Record mint intent durably before creating key material, and preserve the
+handle/generation pair in destruction evidence and envelope reads. The erasure uses its persisted request
+owner; it must not substitute whatever tenant happens to be ambient in a background worker.
+
+:::danger Ignoring ownership or scope compiles, but destroys the isolation guarantee
+
+Accepting `tenant` and `retentionScope` while ignoring either can still satisfy the method signature.
+Verify both provisioning orders for two tenants sharing one subject: the survivor's fields must decrypt
+after the other's erasure, and the erasing tenant's own fields must tombstone. Also verify retained and
+non-retained obligation classes independently. Distinct handles alone do not prove an erasure reached
+the right keys. These obligations apply to custom implementations as well as framework composition.
 :::
 
 ## If you construct `EventStoreErasureContributor` by hand
@@ -143,10 +173,10 @@ injection supplies all six arguments and you have nothing to change.
 
 ## After upgrading
 
-A deployment that declares no retention behaves exactly as it did: one key handle per subject, and every
-aggregate the mapping returns is tombstoned. The scope parameter changes nothing until an aggregate type
-is declared retained.
+Current writes partition key handles by owner, subject and obligation class, whether or not a retention
+is already declared. With no applicable retention, erasure can destroy every recorded class for that
+owner; it must preserve another owner's keys and classes covered by that owner's legal obligations.
 
-**Where you do declare one, declare it before the data is written.** The scope is applied at encryption
-time, so fields already written under the subject's own handle are destroyed with it. There is no backfill
-and none is possible once the key is gone.
+Supply the correct scope when encrypting and follow the [retention declaration guidance](../compliance/gdpr-erasure.md#when-the-law-requires-you-to-keep-the-record-declare-a-retention)
+before erasure. A declaration cannot repair fields written under an incorrect scope or restore material
+already destroyed. This page promises no migration or backfill for unsupported earlier envelope formats.

@@ -321,9 +321,12 @@ Excalibur.Data.DataRequestBase<TConnection, TModel>.CorrelationId.set -> void
 Excalibur.Data.DataRequestBase<TConnection, TModel>.CreateCommand(string! commandText, Dapper.DynamicParameters? parameters = null, System.Data.IDbTransaction? transaction = null, int? commandTimeout = null, System.Data.CommandType? commandType = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Dapper.CommandDefinition
 Excalibur.Data.DataRequestBase<TConnection, TModel>.CreatedAt.get -> System.DateTimeOffset
 Excalibur.Data.DataRequestBase<TConnection, TModel>.DataRequestBase() -> void
+Excalibur.Data.DataRequestBase<TConnection, TModel>.ExecuteNonQueryAsync(System.Data.IDbConnection! connection, System.Action<System.Data.Common.DbCommand!>! bind) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.DataRequestBase<TConnection, TModel>.ExecuteScalarAsync(System.Data.IDbConnection! connection, System.Action<System.Data.Common.DbCommand!>! bind) -> System.Threading.Tasks.Task<object?>!
 Excalibur.Data.DataRequestBase<TConnection, TModel>.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
 Excalibur.Data.DataRequestBase<TConnection, TModel>.Metadata.set -> void
 Excalibur.Data.DataRequestBase<TConnection, TModel>.Parameters.get -> Dapper.DynamicParameters!
+Excalibur.Data.DataRequestBase<TConnection, TModel>.ReadRowsAsync<TRow>(System.Data.IDbConnection! connection, System.Action<System.Data.Common.DbCommand!>! bind, System.Func<System.Data.Common.DbDataReader!, TRow>! materialize) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<TRow>!>!
 Excalibur.Data.DataRequestBase<TConnection, TModel>.RequestId.get -> string!
 Excalibur.Data.DataRequestBase<TConnection, TModel>.RequestType.get -> string!
 Excalibur.Data.DataRequestBase<TConnection, TModel>.ResolveAsync.get -> System.Func<TConnection, System.Threading.Tasks.Task<TModel>!>!
@@ -538,6 +541,7 @@ Excalibur.Data.Sharding.IAmbientTenantStoreResolver<TStore>
 Excalibur.Data.Sharding.IAmbientTenantStoreResolver<TStore>.ResolveCurrent() -> TStore
 Excalibur.Data.Sharding.ITenantShardMap
 Excalibur.Data.Sharding.ITenantShardMap.GetRegisteredShardIds() -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Excalibur.Data.Sharding.ITenantShardMap.GetShardById(string! shardId) -> Excalibur.Data.Sharding.ShardInfo!
 Excalibur.Data.Sharding.ITenantShardMap.GetShardInfo(string! tenantId) -> Excalibur.Data.Sharding.ShardInfo!
 Excalibur.Data.Sharding.ShardInfo
 Excalibur.Data.Sharding.ShardInfo.ConnectionString.get -> string!

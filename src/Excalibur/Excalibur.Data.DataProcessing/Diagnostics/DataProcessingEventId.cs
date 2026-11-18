@@ -163,4 +163,7 @@ internal static class DataProcessingEventId
 
 	/// <summary>Background service drain timeout exceeded during shutdown.</summary>
 	public const int BackgroundServiceDrainTimeout = 107405;
+
+    /// <summary>Bulk records completed without confirmed projection catch-up.</summary>
+    public const int ProjectionsBehind = 107406;
 }

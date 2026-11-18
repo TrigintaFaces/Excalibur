@@ -40,6 +40,8 @@ namespace Excalibur.Dispatch.Aot.Sample.Serialization;
 [JsonSerializable(typeof(IReadOnlyList<OrderItem>))]
 // S3: Transport scenario types
 [JsonSerializable(typeof(InventoryUpdatedEvent))]
+[JsonSerializable(typeof(OutboxAuthorityMessage))]
+[JsonSerializable(typeof(MqttInventoryPayload))]
 // S2: Event Sourcing types
 [JsonSerializable(typeof(AccountOpenedEvent))]
 [JsonSerializable(typeof(FundsDepositedEvent))]

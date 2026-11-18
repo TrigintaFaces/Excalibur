@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 
 namespace Excalibur.Dispatch.Benchmarks;
@@ -25,6 +27,10 @@ public class Program
 			return;
 		}
 
-		_ = BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+		// Preserve each declared job while leaving the machine's power plan unchanged.
+		var config = DefaultConfig.Instance.AddJob(Job.Default.DontEnforcePowerPlan()
+			.WithArguments([new MsBuildArgument("-m:1"), new MsBuildArgument("/p:BuildExamplesAndTests=true")])
+			.AsMutator());
+		_ = BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args, config);
 	}
 }

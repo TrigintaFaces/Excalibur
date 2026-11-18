@@ -263,11 +263,21 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 			// only enough surface for that one, which is what makes it a probe rather than a suite.
 			[(AppendPositionProbePath, "Excalibur.Tests.Testing.Conformance::EventStoreAppendPositionArmShould+Probe")] = "EventStoreConformanceTestKit",
 
-			// CapabilityResolutionShould externally drives these helpers through seven regressions:
+			// CapabilityResolutionShould externally drives these helpers through nine regression rows:
 			// hidden direct facets and invalid raw results fail; adapters and intentional declines pass.
 			// They are mutation instruments and cannot exercise a complete provider contract.
 			[(CapabilityProbePath, "Excalibur.Tests.Testing.Conformance::CapabilityResolutionShould+Probe")] = "ConformanceTestKit",
 			[(CapabilityProbePath, "Excalibur.Tests.Testing.Conformance::CapabilityResolutionShould+DeadLetterProbe")] = "DeadLetterStoreConformanceTestKit",
+
+			// Two externally attributed OutboxProbe rows exercise the raw fencing-diagnostics lookup:
+			// incompatible results fail, an absent optional facet passes, and both retain the exact
+			// stage/fenced-mutation/lookup/reset call counts. This fake-backed arm probe is not a provider suite.
+			[(CapabilityProbePath, "Excalibur.Tests.Testing.Conformance::CapabilityResolutionShould+OutboxProbe")] = "OutboxStoreConformanceTestKit",
+
+			// Three externally attributed mutant rows drive selected failure arms and require
+			// budget widening, premature quarantine and duplicate recovery to be rejected.
+			// This exact private helper is not a provider suite; the public InMemory suite wires all arms.
+			[(FailureProbePath, "Excalibur.Tests.Testing.Conformance::ScheduleFailureConformanceMutantsShould+Probe")] = "ScheduleFailureStoreConformanceTestKit",
 		};
 
 	private static bool IsVerifiedMutationProbe(SourceFile file, ClassDeclarationSyntax declaration)
@@ -803,6 +813,8 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 		"tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/EventStoreAppendPositionArmShould.cs";
 	private const string CapabilityProbePath =
 		"tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/CapabilityResolutionShould.cs";
+	private const string FailureProbePath =
+		"tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ScheduleFailureStoreConformanceShould.cs";
 
 	[Theory]
 	[InlineData(ExecutionProbePath, "ScheduleExecutionConformanceWiringShould", "FullyWiredProbe", "ScheduleExecutionStoreConformanceTestKit")]
@@ -811,6 +823,8 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 	[InlineData(AppendPositionProbePath, "EventStoreAppendPositionArmShould", "Probe", "EventStoreConformanceTestKit")]
 	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "Probe", "ConformanceTestKit")]
 	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "DeadLetterProbe", "DeadLetterStoreConformanceTestKit")]
+	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "OutboxProbe", "OutboxStoreConformanceTestKit")]
+	[InlineData(FailureProbePath, "ScheduleFailureConformanceMutantsShould", "Probe", "ScheduleFailureStoreConformanceTestKit")]
 	public void Exempt_exact_verified_execution_renewal_and_snapshot_mutation_probes(string path, string outer, string name, string kit)
 	{
 		SurveyUnwiredPaths([AdditionalProbeSource(path, outer, name, kit, "")]).ShouldBeEmpty();
@@ -825,6 +839,16 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 	[InlineData(CapabilityProbePath, "AnotherContainer", "DeadLetterProbe", "DeadLetterStoreConformanceTestKit", "")]
 	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "DeadLetterProbe", "OutboxStoreConformanceTestKit", "")]
 	[InlineData("tests/unit/Probe/Provider.cs", "CapabilityResolutionShould", "DeadLetterProbe", "DeadLetterStoreConformanceTestKit", "")]
+	[InlineData("tests/unit/Probe/Provider.cs", "ScheduleFailureConformanceMutantsShould", "Probe", "ScheduleFailureStoreConformanceTestKit", "")]
+	[InlineData(FailureProbePath, "AnotherContainer", "Probe", "ScheduleFailureStoreConformanceTestKit", "")]
+	[InlineData(FailureProbePath, "ScheduleFailureConformanceMutantsShould", "Probe", "ScheduleStoreConformanceTestKit", "")]
+	[InlineData(FailureProbePath, "ScheduleFailureConformanceMutantsShould", "AnotherProbe", "ScheduleFailureStoreConformanceTestKit", "")]
+	[InlineData(FailureProbePath, "ScheduleFailureConformanceMutantsShould", "Probe", "ScheduleFailureStoreConformanceTestKit", "[Fact] public void Arm() { }")]
+	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "OutboxProbe", "OutboxStoreConformanceTestKit", "[Fact] public void Arm() { }")]
+	[InlineData(CapabilityProbePath, "AnotherContainer", "OutboxProbe", "OutboxStoreConformanceTestKit", "")]
+	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "OutboxProbe", "DeadLetterStoreConformanceTestKit", "")]
+	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "AnotherOutboxProbe", "OutboxStoreConformanceTestKit", "")]
+	[InlineData("tests/unit/Probe/Provider.cs", "CapabilityResolutionShould", "OutboxProbe", "OutboxStoreConformanceTestKit", "")]
 	public void Refuse_an_unverified_execution_renewal_or_snapshot_probe(string path, string outer, string name, string kit, string member)
 	{
 		SurveyUnwiredPaths([AdditionalProbeSource(path, outer, name, kit, member)]).ShouldBe([path]);
@@ -843,6 +867,26 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 	{
 		var source = AdditionalProbeSource(CapabilityProbePath, "CapabilityResolutionShould", "DeadLetterProbe", "DeadLetterStoreConformanceTestKit", "");
 		SurveyUnwiredPaths([source with { Text = source.Text.Replace("private sealed", modifiers, StringComparison.Ordinal) }]).ShouldBe([CapabilityProbePath]);
+	}
+
+	[Theory]
+	[InlineData("public sealed")]
+	[InlineData("private")]
+	[InlineData("[Trait(\"Category\", \"Unit\")] private sealed")]
+	public void Refuse_outbox_probe_when_visibility_or_class_attributes_change(string modifiers)
+	{
+		var source = AdditionalProbeSource(CapabilityProbePath, "CapabilityResolutionShould", "OutboxProbe", "OutboxStoreConformanceTestKit", "");
+		SurveyUnwiredPaths([source with { Text = source.Text.Replace("private sealed", modifiers, StringComparison.Ordinal) }]).ShouldBe([CapabilityProbePath]);
+	}
+
+	[Theory]
+	[InlineData("public sealed")]
+	[InlineData("private")]
+	[InlineData("[Fact] private sealed")]
+	public void Refuse_failure_probe_when_visibility_or_class_attributes_change(string modifiers)
+	{
+		var source = AdditionalProbeSource(FailureProbePath, "ScheduleFailureConformanceMutantsShould", "Probe", "ScheduleFailureStoreConformanceTestKit", "");
+		SurveyUnwiredPaths([source with { Text = source.Text.Replace("private sealed", modifiers, StringComparison.Ordinal) }]).ShouldBe([FailureProbePath]);
 	}
 
 	[Fact]

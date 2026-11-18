@@ -23,7 +23,7 @@ public sealed class ScheduleRenewalConformanceWiringShould
 	{
 		var error = await Should.ThrowAsync<TestFixtureAssertionException>(() => new MissingRenewalArmProbe().ConformanceSuite_ShouldWireEveryArm());
 		error.Message.ShouldContain(nameof(ScheduleExecutionLeaseRenewalConformanceTestKit.RenewalExtendsCurrentOwnership));
-		error.Message.ShouldContain("1 of the 24 arms");
+		error.Message.ShouldContain("1 of the 25 arms");
 	}
 
 	private sealed class FullyWiredRenewalProbe : ScheduleExecutionLeaseRenewalConformanceTestKit
@@ -65,6 +65,7 @@ public sealed class ScheduleRenewalConformanceWiringShould
 		public override Task ProgressAndReleaseRespectCurrentAuthority() => base.ProgressAndReleaseRespectCurrentAuthority();
 
 		public override Task CanceledOperationsLeaveAuthorityUnchanged() => base.CanceledOperationsLeaveAuthorityUnchanged();
+		public override Task AdmissionCountRisesUntilSettlementCommits() => base.AdmissionCountRisesUntilSettlementCommits();
 
 		public override Task ConformanceSuite_ShouldWireEveryArm() => base.ConformanceSuite_ShouldWireEveryArm();
 		public override Task RenewalExtendsCurrentOwnership() => base.RenewalExtendsCurrentOwnership();
@@ -120,6 +121,7 @@ public sealed class ScheduleRenewalConformanceWiringShould
 		public override Task ProgressAndReleaseRespectCurrentAuthority() => base.ProgressAndReleaseRespectCurrentAuthority();
 
 		public override Task CanceledOperationsLeaveAuthorityUnchanged() => base.CanceledOperationsLeaveAuthorityUnchanged();
+		public override Task AdmissionCountRisesUntilSettlementCommits() => base.AdmissionCountRisesUntilSettlementCommits();
 
 		public override Task ConformanceSuite_ShouldWireEveryArm() => base.ConformanceSuite_ShouldWireEveryArm();
 		public override Task ExpiredAuthorityCannotRenewOrProgress() => base.ExpiredAuthorityCannotRenewOrProgress();

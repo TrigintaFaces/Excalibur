@@ -190,6 +190,13 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 			// version embedded in stateJson (serialized before the store-owns-increment write-back, so it
 			// carries the stale pre-save version). Apply it so load-modify-save gates against the real value.
 			result.Version = snapshot.TryGetValue<long>("version", out var persistedVersion) ? persistedVersion : 0L;
+                result.TimerRecoveryIncarnationId = snapshot.TryGetValue<string>("timerRecoveryIncarnation", out var incarnation) && incarnation is not null
+                    ? Guid.ParseExact(incarnation, "N") : Guid.Empty;
+                snapshot.TryGetValue<string>("timerRecoveryPendingBatch", out var pendingBatch);
+                snapshot.TryGetValue<string>("timerRecoveryPendingDigest", out var pendingDigest);
+                if (result.PendingTimerRecovery?.BatchId.ToString("N") != pendingBatch
+                    || (result.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null) != pendingDigest)
+                { throw new InvalidOperationException("The selected saga serializer cannot restore the persisted ordinary timer journal."); }
 		}
 
 		LogSagaLoaded(typeof(TSagaState).Name, sagaId);
@@ -259,7 +266,31 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var now = DateTimeOffset.UtcNow;
-		var stateJson = _serializer.Serialize(sagaState);
+		if (sagaState.TimerRecoveryIncarnationId == Guid.Empty)
+        {
+            if (sagaState.Version < 1) { throw new InvalidOperationException("A new saga must have a nonempty timer recovery incarnation."); }
+            // The conditional write below, not this observation, decides whether legacy initialization is still current.
+            sagaState.TimerRecoveryIncarnationId = Guid.NewGuid();
+        }
+        var stateJson = _serializer.Serialize(sagaState);
+        var recoveryIncarnation = sagaState.TimerRecoveryIncarnationId.ToString("N");
+        var recoveryBatch = sagaState.PendingTimerRecovery?.BatchId.ToString("N");
+        var recoveryDigest = sagaState.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null;
+        var recoveryTracked = recoveryBatch is not null || sagaState.LastTimerRecoveryBatchId != Guid.Empty;
+        if (sagaState.PendingTimerRecovery is { } owned
+            && (owned.Scope.SagaId != sagaState.SagaId || owned.Scope.StateType != typeof(TSagaState).Name
+                || !string.Equals(owned.Scope.TenantId, KeyedTenantPartition.FromScope(CurrentTenantScope).TenantId, StringComparison.Ordinal)
+                || owned.IncarnationId != sagaState.TimerRecoveryIncarnationId || owned.Sequence != sagaState.TimerRecoverySequence))
+        { throw new InvalidOperationException("Timer journal differs from the state store's exact authority."); }
+
+        if (recoveryTracked)
+        {
+            var restored = _serializer.Deserialize<TSagaState>(stateJson);
+            if (restored is null || restored.TimerRecoveryIncarnationId != sagaState.TimerRecoveryIncarnationId
+                || restored.TimerRecoverySequence != sagaState.TimerRecoverySequence || restored.LastTimerRecoveryBatchId != sagaState.LastTimerRecoveryBatchId
+                || (restored.PendingTimerRecovery is { } copy ? Convert.ToHexString(copy.GetAuthorityDigest()) : null) != recoveryDigest)
+            { throw new InvalidOperationException("The selected saga serializer does not preserve ordinary timer recovery authority."); }
+        }
 		var sagaType = typeof(TSagaState).Name;
 		var docId = GetDocumentId(sagaState.SagaId, sagaType);
 		var docRef = _collection!.Document(docId);
@@ -311,7 +342,14 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 					throw new TenantIsolationViolationException(nameof(SagaState), sagaState.SagaId.ToString());
 				}
 
-				if (currentVersion != expectedVersion)
+				var recoveryExistingIncarnation = existingSnapshot.Exists && existingSnapshot.TryGetValue<string>("timerRecoveryIncarnation", out var priorIncarnation) ? priorIncarnation : null;
+                var recoveryExistingBatch = existingSnapshot.Exists && existingSnapshot.TryGetValue<string>("timerRecoveryPendingBatch", out var priorBatch) ? priorBatch : null;
+                var recoveryExistingDigest = existingSnapshot.Exists && existingSnapshot.TryGetValue<string>("timerRecoveryPendingDigest", out var priorDigest) ? priorDigest : null;
+                var recoveryExistingTracked = existingSnapshot.Exists && existingSnapshot.TryGetValue<bool>("timerRecoveryTracked", out var priorTracked) && priorTracked;
+                if (currentVersion != expectedVersion
+                    || (recoveryExistingIncarnation is not null && recoveryExistingIncarnation != recoveryIncarnation)
+                    || (recoveryExistingBatch is not null && !((recoveryExistingBatch == recoveryBatch && recoveryExistingDigest == recoveryDigest)
+                        || (recoveryBatch is null && recoveryExistingBatch == sagaState.LastTimerRecoveryBatchId.ToString("N")))))
 				{
 					throw new ConcurrencyException(
 						nameof(SagaState),
@@ -332,6 +370,8 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 					["sagaId"] = sagaState.SagaId.ToString(),
 					["sagaType"] = sagaType,
 					["stateJson"] = stateJson,
+                    ["timerRecoveryIncarnation"] = recoveryIncarnation,
+                    ["timerRecoveryTracked"] = recoveryExistingTracked || recoveryTracked,
 					["isCompleted"] = sagaState.Completed,
 					["version"] = expectedVersion + 1,
 					["createdUtc"] = Timestamp.FromDateTimeOffset(createdUtc),
@@ -356,7 +396,12 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 					data["tenantId"] = owner;
 				}
 
-				transaction.Set(docRef, data);
+				if (recoveryBatch is not null)
+                {
+                    data["timerRecoveryPendingBatch"] = recoveryBatch;
+                    data["timerRecoveryPendingDigest"] = recoveryDigest!;
+                }
+                transaction.Set(docRef, data);
 			},
 			options: null,
 			cancellationToken).ConfigureAwait(false);
@@ -414,32 +459,24 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 		var snapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
 		var removed = 0;
-		// Firestore write batches cap at 500 operations; chunk the deletes to stay within the limit.
-		const int maxBatchSize = 500;
-		WriteBatch? batch = null;
-		var batched = 0;
-
-		foreach (var document in snapshot.Documents)
-		{
-			cancellationToken.ThrowIfCancellationRequested();
-
-			batch ??= _db!.StartBatch();
-			batch.Delete(document.Reference);
-			removed++;
-			batched++;
-
-			if (batched == maxBatchSize)
-			{
-				await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
-				batch = null;
-				batched = 0;
-			}
-		}
-
-		if (batch is not null && batched > 0)
-		{
-			await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
-		}
+        // A transaction re-reads each candidate: pending journal and completion predicates cannot
+        // change between the check and delete. Query snapshots alone are not deletion authority.
+        foreach (var document in snapshot.Documents)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var deleted = await _db!.RunTransactionAsync(async transaction =>
+            {
+                var current = await transaction.GetSnapshotAsync(document.Reference, cancellationToken).ConfigureAwait(false);
+                if (!current.Exists || (current.TryGetValue<string>("timerRecoveryPendingBatch", out var pendingBatch) && pendingBatch is not null)
+                    || !current.TryGetValue<Timestamp>("completedAt", out var completedAt)
+                    || completedAt.CompareTo(cutoff) >= 0
+                    || (tenantId is not null && (!current.TryGetValue<string>("tenantId", out var owner)
+                        || !string.Equals(owner, tenantId, StringComparison.Ordinal)))) { return false; }
+                transaction.Delete(document.Reference);
+                return true;
+            }, options: null, cancellationToken).ConfigureAwait(false);
+            if (deleted) { removed++; }
+        }
 
 		LogSagasPurged(removed, threshold);
 		return removed;

@@ -1,252 +1,95 @@
-# Excalibur BenchmarkDotNet Validation Suite
+# Running Dispatch benchmarks
 
-## Overview
+Benchmark inclusion is not a measured pass. Record the exact expanded methods,
+parameters and jobs, then reconcile completed measurements with that selection.
+Failures, zero-match invocations, no-op cases and unavailable infrastructure remain
+separate outcomes. Published observations in `docs/performance/` retain their own
+source epoch, runtime and verification scope.
 
-A BenchmarkDotNet suite for measuring the dispatch hot path and establishing baselines for regression testing. Published figures live in `docs/performance/`; this document describes how to run the suite and read its output, and deliberately quotes no results of its own.
+## Build and select a bounded subset
 
-## DoD Requirements Validation
-
-This benchmark suite addresses the following Department of Defense (DoD) requirements:
-
-1. **BenchmarkDotNet Performance Validation** ✅
-2. **Establish Performance Baselines** ✅  
-3. **Validate Zero-Allocation Claims** ✅
-4. **Performance Regression Tests** ✅
-5. **Benchmark the 11 Envelope Propagation Message Flows** ✅
-
-## Running the Benchmarks
-
-### Quick Start
+Run from the benchmark project directory so BenchmarkDotNet selects its local
+solution rather than unrelated projects with duplicate names elsewhere in the repository.
+Build before measurement, under the repository's serialized build/test reservations.
+The switcher can prompt for selection when no filters are supplied. A census of
+available default-config cases is not evidence that an unfiltered invocation ran
+the entire suite. CLI jobs can also add to attribute-defined jobs: inspect the
+expanded selection instead of assuming `--job short` shortens every selected job.
 
 ```powershell
-# Run all benchmarks
-dotnet run -c Release --project benchmarks/Dispatch.Benchmarks
-
-# Run specific benchmark category
-dotnet run -c Release --project benchmarks/Dispatch.Benchmarks -- envelope
-dotnet run -c Release --project benchmarks/Dispatch.Benchmarks -- memory
-dotnet run -c Release --project benchmarks/Dispatch.Benchmarks -- validation
+Push-Location benchmarks/Excalibur.Dispatch.Benchmarks
+try {
+    dotnet build -c Release -m:1 -p:BuildExamplesAndTests=true -p:UseSharedCompilation=false -nodeReuse:false
+    if ($LASTEXITCODE -ne 0) { throw "Benchmark build failed." }
+    dotnet bin/Release/net10.0/Excalibur.Dispatch.Benchmarks.dll --list flat
+    if ($LASTEXITCODE -ne 0) { throw "Benchmark discovery failed." }
+    $runId = [Guid]::NewGuid().ToString("N")
+    $artifacts = "BenchmarkDotNet.Artifacts/notification-$runId"
+    dotnet bin/Release/net10.0/Excalibur.Dispatch.Benchmarks.dll --filter "Excalibur.Dispatch.Benchmarks.Comparative.MediatRWarmPathComparisonBenchmarks.Dispatch_NotificationMultipleHandlers" --exporters fulljson --artifacts $artifacts
+    if ($LASTEXITCODE -ne 0) { throw "Benchmark process failed; preserve its artifacts." }
+}
+finally {
+    Pop-Location
+}
 ```
 
-### Available Benchmark Categories
+The example measures the original managed WarmPath fixture with three empty
+notification handlers. It does not measure actual NativeAOT, cold start, broker
+throughput or application work. Validate handler effects separately before drawing
+semantic comparisons.
 
-#### Core Framework Benchmarks
-- `envelope` - Message envelope serialization/deserialization performance
-- `cloudevents` - CloudEvents conversion (structured/binary modes)
-- `routing` - Message routing performance (LINQ vs non-LINQ)
-- `channels` - High-performance channel operations
-- `dispatch` - Message dispatch pipeline performance
+Use compiled discovery to choose other exact names. A class filter can expand to
+many parameter/job cases; split it into small sequential selections without
+changing the workload. The former positional aliases (`envelope`, `memory`,
+`validation`, `all`, and similar names) and `benchmarks/Dispatch.Benchmarks` path
+are obsolete instructions, not supported selections for this entrypoint.
 
-#### Memory & Performance Benchmarks
-- `memory` - Memory allocation patterns and pooling
-- `stopwatch` - ValueStopwatch vs DateTime.UtcNow timing
-- `hotpath` - Hot path optimizations and zero-allocation patterns
+## Evidence and interpretation
 
-#### Cloud Provider Benchmarks
-- `aws` - AWS SQS batch processing optimizations
-- `propagation` - Envelope propagation across providers (11 flows)
+Method names and descriptions such as `NoAllocation`, `no alloc`, and `fast path`
+identify scenarios or historical hypotheses; they are not measured guarantees.
+For example, `MessageContextLazyInitBenchmarks` includes context construction and
+simulated property access, not calls through `IDispatcher`. Its absent-key and
+unused-result cases need separate interpretation from application dispatch.
+`MiddlewareChainBuilderBenchmarks` also includes direct-handler and empty-chain
+controls; frozen execution includes lookup while unfrozen execution uses an
+already selected executor, so their difference does not isolate freezing alone.
 
-#### Benchmark Suites
-- `core` - All core framework benchmarks
-- `providers` - All cloud provider benchmarks
-- `validation` - Zero-allocation validation suite
-- `all` - Run all benchmarks (comprehensive)
+Preserve commands, source revision and dirty-input hashes, binary hashes, SDK,
+runtime, package versions, configuration, environment, exits and raw full JSON.
+Freeze inputs and avoid concurrent builds, tests, profiling, source edits and other
+benchmarks. Use bounded process-tree execution and logs; verify bounded memory
+before running fixtures with retention or background work. Do not change machine
+power/security settings to obtain a number.
 
-## Benchmark Details
+Report allocations, GC counts, retained and excluded iterations, distribution
+warnings and independent-process variation. BenchmarkDotNet's error describes
+within-process uncertainty; it does not establish between-process reproducibility.
+An exit code of zero or an exported report alone does not establish completion.
 
-### 1. Message Envelope Benchmarks (`MessageEnvelopeBenchmarks`)
+Keep managed hot-path, cold-path and actual native execution separate. A class
+whose name contains `Aot` can still execute under the managed JIT. Compare peers
+only with equivalent completed work and disclosed versions/settings. A small timing
+difference inside observed variation is inconclusive.
 
-Validates the performance of message envelope serialization and deserialization:
-- Standard JSON serialization vs optimized paths
-- Array pooling effectiveness
-- Zero-allocation UTF8 JSON writing
-- Span-based operations
-- Round-trip performance
-- Header iteration with and without LINQ
+The repository matrix runners select fixture families and record their own
+configuration. `CiSmoke` is a selection subset, not a promise of `Job.Dry` duration.
+CLI job selections can add jobs alongside attribute-defined jobs; discover the
+resulting population before estimating coverage or runtime.
 
-**Key Metrics:**
-- Allocations per operation
-- Throughput (ops/second)
-- Memory bandwidth utilization
+## Historical targets
 
-### 2. CloudEvents Benchmarks (`CloudEventsBenchmarks`)
+These retained targets are aspirations, not measurements or universal acceptance
+thresholds. In particular, current dispatch semantics can require allocations.
 
-Tests CloudEvents conversion performance:
-- Structured mode serialization/deserialization
-- Binary mode with headers
-- Envelope to CloudEvent conversion
-- Extension attribute handling
-- Batch processing performance
+| Metric | Historical target |
+|---|---:|
+| Hot-path allocations | 0 B |
+| Message throughput | > 1M messages/s |
+| Routing latency P99 | < 1 ms |
+| Memory-pool hit rate | > 95% |
+| Cross-provider round trip | < 10 ms |
 
-**Key Metrics:**
-- Conversion overhead
-- Header preservation accuracy
-- Format transformation cost
-
-### 3. Message Router Benchmarks (`MessageRouterBenchmarks`)
-
-Compares routing implementations:
-- LINQ-based routing vs manual iteration
-- Indexed routing with dictionaries
-- Compiled expression predicates
-- Parallel evaluation strategies
-- Complex vs simple routing conditions
-
-**Key Metrics:**
-- Routing decision latency
-- Memory allocations per route
-- Predicate evaluation cost
-
-### 4. AWS SQS Benchmarks (`AwsSqsBenchmarks`)
-
-Validates AWS SQS optimizations:
-- Single message vs batch processing
-- Array pool utilization
-- Memory pool for serialization
-- FIFO deduplication strategies
-- Batch delete operations
-
-**Key Metrics:**
-- Batch processing improvement
-- Memory reuse effectiveness
-- Deduplication overhead
-
-### 5. Envelope Propagation Benchmarks (`EnvelopePropagationBenchmarks`)
-
-Tests the 11 critical message flows:
-1. AWS SQS → Azure Service Bus
-2. AWS SQS → Google Pub/Sub
-3. Azure Service Bus → Google Pub/Sub
-4. CloudEvents structured mode propagation
-5. CloudEvents binary mode propagation
-6. Multi-hop propagation (AWS → Azure → Google)
-7. Parallel cross-provider routing
-8. Header preservation across providers
-9. Correlation ID tracking
-10. FIFO ordering preservation
-11. Dead letter queue routing
-
-**Key Metrics:**
-- Round-trip integrity
-- Header preservation rate
-- Cross-provider latency
-
-### 6. Hot Path Optimization Benchmarks (`HotPathOptimizationBenchmarks`)
-
-Validates zero-allocation patterns:
-- String concatenation strategies
-- Span vs array processing
-- LINQ vs manual iteration
-- Stack allocation patterns
-- Struct vs class allocations
-- Boxing/unboxing overhead
-
-**Key Metrics:**
-- Allocations in hot paths (should be 0)
-- CPU cache efficiency
-- Branch prediction impact
-
-## Interpreting Results
-
-### Memory Allocation Validation
-
-The output has this shape. The values below are placeholders, not measurements -- read your own run:
-
-```
-| Method                          | Mean     | Allocated |
-|-------------------------------- |---------:|----------:|
-| HotPath_ZeroAllocation         |  <ns>    |       0 B |
-| HotPath_StandardAllocation     |  <ns>    |    <bytes>|
-```
-
-### Performance Baselines
-
-Baseline shape for regression testing. Again, placeholders -- the ratio column is what you track:
-
-```
-| Method                          | Mean      | Ratio | 
-|-------------------------------- |----------:|------:|
-| Envelope_Serialize_Standard    |   <ns>    |  1.00 |
-| Envelope_Serialize_Optimized   |   <ns>    | <ratio>|
-```
-
-### Key Performance Indicators
-
-1. **Zero Allocations**: Hot path methods should show 0 B allocated
-2. **Throughput**: Operations per second for message processing
-3. **Latency**: P95/P99 response times for routing decisions
-4. **Memory Efficiency**: Array pool hit rates and reuse patterns
-5. **CPU Efficiency**: Branch mispredictions and cache misses
-
-## Regression Testing
-
-To establish baselines for regression testing:
-
-1. Run the full benchmark suite in Release mode
-2. Save the results from `benchmarks/runs/BenchmarkDotNet.Artifacts/`
-3. Compare future runs using the CSV exports
-4. Alert on performance degradation > 10%
-
-### Continuous Integration
-
-Add to CI/CD pipeline:
-
-```yaml
-- name: Run Performance Benchmarks
-  run: |
-    dotnet run -c Release --project benchmarks/Dispatch.Benchmarks -- validation
-    # Parse results and compare with baseline
-    # Fail build if regression detected
-```
-
-## Performance Goals
-
-Based on DoD requirements for "the fastest, cleanest, most dependable .NET messaging framework":
-
-| Metric | Target | Current |
-|--------|--------|---------|
-| Hot Path Allocations | 0 B | Measured per run; see `docs/performance/` |
-| Message Throughput | > 1M msg/sec | Benchmark dependent |
-| Routing Latency P99 | < 1ms | Benchmark dependent |
-| Memory Pool Hit Rate | > 95% | Benchmark dependent |
-| Cross-Provider Round-trip | < 10ms | Benchmark dependent |
-
-## Troubleshooting
-
-### High Allocations in Hot Paths
-
-If seeing allocations where none are expected:
-1. Check for hidden boxing (value types in object fields)
-2. Verify LINQ isn't being used in hot paths
-3. Ensure string interpolation is avoided
-4. Check for closure captures in lambdas
-
-### Inconsistent Results
-
-For stable benchmarking:
-1. Run in Release mode only
-2. Close other applications
-3. Disable CPU throttling
-4. Use consistent power settings
-5. Run multiple iterations
-
-## Contributing
-
-When adding new benchmarks:
-1. Include `[MemoryDiagnoser]` attribute
-2. Add baseline comparison methods
-3. Document what is being validated
-4. Include in appropriate category
-5. Update this documentation
-
-## Summary
-
-This suite provides:
-- baseline measurements for the dispatch hot path
-- allocation measurement on the paths that target zero
-- cross-provider flow coverage
-- a basis for regression detection between runs
-
-Running it produces measurements. It does not by itself establish that any target is met --
-that verdict belongs to the published figures in `docs/performance/`, which state their own
-hardware, runtime and run-to-run variance.
+Microbenchmark means do not establish production P99 or sustainable throughput.
+Use the actual workload and a predeclared comparison protocol for regression
+claims; preserve historical targets without presenting them as achieved results.

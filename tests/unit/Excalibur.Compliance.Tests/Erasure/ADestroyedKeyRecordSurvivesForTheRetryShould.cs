@@ -164,7 +164,7 @@ public sealed class ADestroyedKeyRecordSurvivesForTheRetryShould
 		new(
 			TestDataSubjectHasher.Instance,
 			UntenantedContext.Instance,
-			Options.Create(new TenantContextOptions { RequireTenant = false }));
+			Options.Create(new TenantContextOptions { RequireTenant = false }), TimeProvider.System);
 
 	private static async Task<Guid> SubmitAsync(InMemoryErasureStore store)
 	{

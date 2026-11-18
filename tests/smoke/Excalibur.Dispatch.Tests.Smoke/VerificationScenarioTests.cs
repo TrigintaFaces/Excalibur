@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Middleware;
@@ -386,6 +387,17 @@ public sealed class VerificationScenarioTests
 		// it does not swallow an exception thrown by a registered service's factory. Storeless outbox is a
 		// configuration the framework deliberately refuses (that is what OutboxPrerequisiteValidator is
 		// for), so the old expectation was asserting the absence of a guard that now exists.
+		// A DEAD-LETTER DESTINATION IS CHOSEN HERE, EXPLICITLY, and discard is a legitimate choice to make
+		// in a smoke composition that publishes nothing. The framework refuses to supply a default: a
+		// message that exhausts its retries has to go somewhere, and silently dropping it is the one
+		// outcome nothing downstream can detect afterwards. So the processor's factory demands that the
+		// consumer state the destination by name rather than inheriting one.
+		//
+		// NullDeadLetterQueue.Instance is that statement for this scenario. Registering it is not a
+		// workaround for the guard; it is the guard working -- the choice is now recorded in the
+		// composition instead of being made by whoever wrote the default.
+		services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
+
 		var regException = Record.Exception(() =>
 		{
 			services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox.UseInMemory()));
@@ -412,6 +424,13 @@ public sealed class VerificationScenarioTests
 		// everything, and the liveness arm above would keep passing.
 		var storeless = new ServiceCollection();
 		storeless.AddLogging();
+
+		// The dead-letter choice is made HERE TOO, and leaving it out would have made this arm pass for
+		// the wrong reason. Two prerequisites now guard the processor -- a store and a dead-letter
+		// destination -- and both refuse with InvalidOperationException. Omitting the queue here would
+		// satisfy the assertion below on the QUEUE's refusal while saying nothing about the STORE, which
+		// is the only thing this arm claims to establish.
+		storeless.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
 		storeless.AddExcalibur(excalibur => excalibur.AddOutbox(_ => { }));
 		await using var storelessProvider = storeless.BuildServiceProvider();
 

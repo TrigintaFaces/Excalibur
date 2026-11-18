@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.LeaderElection;
@@ -139,23 +138,34 @@ public static class PostgresLeaderElectionBuilderExtensions
 
 	private static ILeaderElectionBuilder UsePostgresCore(this ILeaderElectionBuilder builder)
 	{
-		builder.Services.TryAddSingleton(sp =>
+		builder.Services.TryAddSingleton(sp => new PostgresLeaderElectionContext
+        {
+            FailureClassifier = sp.GetService<Excalibur.Dispatch.IMessageFailureClassifier>(),
+        });
+
+        // Explicit construction preserves optional fencing and context policy even when no
+        // IFencingTokenIssuer service exists; no constructor-selection ambiguity is required.
+        builder.Services.TryAddSingleton(sp => new PostgresLeaderElectionFactory(
+            sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>(),
+            sp.GetRequiredService<IOptions<LeaderElectionOptions>>(),
+            sp.GetRequiredService<ILoggerFactory>(), sp.GetService<IFencingTokenIssuer>(),
+            sp.GetService<PostgresLeaderElectionContext>()));
+
+        builder.Services.TryAddSingleton(sp =>
 		{
 			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
 			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
 			// optional fencing-token provider (fencing is on by default; null only when the consumer
-			// called WithoutFencingTokens() → no fencing).
-			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
-			return new PostgresLeaderElection(pgOptions, electionOptions, logger, fencingTokenProvider);
+			// called WithoutFencingTokens() â†’ no fencing).
+			var fencingTokenProvider = sp.GetService<IFencingTokenIssuer>();
+			return new PostgresLeaderElection(pgOptions, electionOptions, logger, fencingTokenProvider, sp.GetService<TimeProvider>(),
+                sp.GetService<PostgresLeaderElectionContext>());
 		});
 		builder.Services.AddKeyedSingleton<ILeaderElection>("postgres", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<PostgresLeaderElection>();
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElection(inner, meter, activitySource, "Postgres");
+			return TelemetryLeaderElection.CreateOwned(inner, sp.GetService<IMeterFactory>(), "Postgres");
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("postgres"));
@@ -167,7 +177,7 @@ public static class PostgresLeaderElectionBuilderExtensions
 		// the standalone Add*PostgresLeaderElection() entry points are wired separately. The connection
 		// string is resolved lazily from options (same as PostgresLeaderElection above) because
 		// DataSource/DataSourceFactory/ConnectionStringName only finalize it via PostConfigure.
-		builder.Services.TryAddDefaultFencingTokenProvider(sp =>
+		builder.Services.TryAddDefaultFencingTokenIssuer(sp =>
 			new PostgresFencingTokenProvider(sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>().Value.ConnectionString));
 
 		return builder;

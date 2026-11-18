@@ -11,20 +11,16 @@ namespace Excalibur.Dispatch.LeaderElection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Timing invariant (enforced by <see cref="LeaderElectionOptionsValidator"/>):</b> the effective
-/// self-demotion deadline — roughly <see cref="RenewInterval"/> + <see cref="GracePeriod"/> plus a small
-/// clock-skew margin — MUST be strictly less than <see cref="LeaseDuration"/>. The renewal loop waits one
-/// <see cref="RenewInterval"/>, attempts a renewal, and self-demotes only after <see cref="GracePeriod"/>
-/// has elapsed without a successful renewal; meanwhile the lease expires at <see cref="LeaseDuration"/>.
-/// If self-demotion can occur at or after lease expiry, another node may acquire the lease while this node
-/// still believes it leads — a split-brain overlap window.
+/// <b>Configuration invariant (enforced by <see cref="LeaderElectionOptionsValidator"/>):</b> all timing
+/// values are positive, and <see cref="RenewInterval"/> + <see cref="GracePeriod"/> plus reserved headroom
+/// must be strictly less than <see cref="LeaseDuration"/>. Validation alone does not enforce a runtime
+/// deadline, bound network operations or prove exclusive ownership.
 /// </para>
 /// <para>
-/// <b>Effective failover window (with the shipped defaults):</b> Lease = 15s, Renew = 5s, Grace = 5s →
-/// self-demotion at ~10s (+1s skew margin = 11s), a positive ~4s margin before the 15s lease expiry. A new
-/// leader can therefore be elected within roughly one <see cref="LeaseDuration"/> of an ungraceful leader
-/// loss. Tighten <see cref="LeaseDuration"/> for faster failover at the cost of more renewal traffic and
-/// less tolerance for transient latency.
+/// Runtime failover and renewal behavior are provider-specific. PostgreSQL and SQL Server use
+/// session-owned locks rather than a server lease with this duration; Consul has a separate session TTL.
+/// Fencing is required for stale-worker safety: process-local timing cannot establish mutual exclusion
+/// through arbitrary pauses or network partitions.
 /// </para>
 /// </remarks>
 public class LeaderElectionOptions
@@ -54,20 +50,37 @@ public class LeaderElectionOptions
 	public TimeSpan RetryInterval { get; set; } = TimeSpan.FromSeconds(2);
 
 	/// <summary>
-	/// Gets or sets the instance identifier.
+	/// Gets or sets the identity this instance competes under, or <see langword="null" /> to let it be
+	/// resolved from the environment.
 	/// </summary>
 	/// <value>
-	/// The instance identifier.
+	/// The configured instance identifier, or <see langword="null" /> when none was configured.
 	/// </value>
-	[Required]
-	public string InstanceId { get; set; } = $"{Environment.MachineName}-{Guid.NewGuid():N}"[..24];
+	/// <remarks>
+	/// <para>
+	/// <b>Leave this unset unless you have a stable identity to supply.</b> When it is null the identity
+	/// is taken from the container's own name for the process, which is stable across a restart; only
+	/// when the environment supplies nothing is an identifier generated, and a generated one is unique
+	/// but NOT stable across a restart, so such an instance cannot recognise its own prior tenure.
+	/// </para>
+	/// <para>
+	/// This property is nullable <em>so that "nobody configured one" is expressible</em>. A non-null
+	/// default would make a generated identity indistinguishable from a chosen one, and every provider
+	/// would have to assume the value was deliberate. Resolution happens in exactly one place, so every
+	/// provider competes under an identity of the same shape.
+	/// </para>
+	/// </remarks>
+	public string? InstanceId { get; set; }
 
 	/// <summary>
-	/// Gets or sets the grace period before considering a leader dead.
+	/// Gets or sets the additional interval in the local ownership-proof budget.
 	/// </summary>
-	/// <value>
-	/// The grace period before considering a leader dead.
-	/// </value>
+	/// <remarks>
+	/// Redis, SQL Server, PostgreSQL and Consul use a monotonic local deadline of
+	/// <see cref="RenewInterval"/> plus this interval from the latest successful ownership request's start.
+	/// This is not a remote-candidate death timeout or a server-side lock expiration guarantee.
+	/// </remarks>
+	/// <value>The additional local proof interval.</value>
 	public TimeSpan GracePeriod { get; set; } = TimeSpan.FromSeconds(5);
 
 	/// <summary>

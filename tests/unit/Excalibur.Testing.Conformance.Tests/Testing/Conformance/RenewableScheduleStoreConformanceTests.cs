@@ -52,6 +52,7 @@ public sealed class RenewableScheduleStoreConformanceTests : ScheduleExecutionLe
 	[Fact] public override Task AdministrativeChangesInvalidateOldAuthority() => base.AdministrativeChangesInvalidateOldAuthority();
 	[Fact] public override Task ProgressAndReleaseRespectCurrentAuthority() => base.ProgressAndReleaseRespectCurrentAuthority();
 	[Fact] public override Task CanceledOperationsLeaveAuthorityUnchanged() => base.CanceledOperationsLeaveAuthorityUnchanged();
+	[Fact] public override Task AdmissionCountRisesUntilSettlementCommits() => base.AdmissionCountRisesUntilSettlementCommits();
 	[Fact] public override Task RenewalExtendsCurrentOwnership() => base.RenewalExtendsCurrentOwnership();
 	[Fact] public override Task ExpiredAuthorityCannotRenewOrProgress() => base.ExpiredAuthorityCannotRenewOrProgress();
 	[Fact] public override Task ReleasedAndForeignAuthorityCannotRenewSuccessor() => base.ReleasedAndForeignAuthorityCannotRenewSuccessor();
@@ -115,8 +116,11 @@ public sealed class RenewableScheduleStoreConformanceTests : ScheduleExecutionLe
 
 	private sealed class ExpiringAuthority : IScheduleExecutionLeaseRenewal
 	{
+		// Attempts counts admissions of the current occurrence since the last COMMITTED settlement,
+		// modelling both shipped stores. A double that left it at 1 could not satisfy the admission-count
+		// arm, and a double that reset it on release would satisfy the arm's rising half and not its point.
 		private sealed record Entry(IScheduledMessage Message, Guid Generation, ScheduleExecutionLease? Owner = null,
-			long Expiry = 0, bool Committed = false);
+			long Expiry = 0, bool Committed = false, int Attempts = 0);
 		private readonly System.Threading.Lock _gate = new();
 		private readonly Guid _storeId = Guid.NewGuid();
 		private readonly Dictionary<Guid, Entry> _entries = [];
@@ -199,8 +203,12 @@ public sealed class RenewableScheduleStoreConformanceTests : ScheduleExecutionLe
 				{
 					return Task.FromResult<ScheduleExecutionLease?>(null);
 				}
-				var lease = new ScheduleExecutionLease(_storeId, scheduleId, generation, occurrenceUtc, Guid.NewGuid());
-				_entries[scheduleId] = entry with { Owner = lease, Expiry = _ticks + LeaseDuration.Ticks, Committed = false };
+				var attempt = entry.Attempts + 1;
+				var lease = new ScheduleExecutionLease(_storeId, scheduleId, generation, occurrenceUtc, Guid.NewGuid())
+				{
+					AdmissionAttempt = attempt,
+				};
+				_entries[scheduleId] = entry with { Owner = lease, Expiry = _ticks + LeaseDuration.Ticks, Committed = false, Attempts = attempt };
 				return Task.FromResult<ScheduleExecutionLease?>(lease);
 			}
 		}
@@ -234,7 +242,7 @@ public sealed class RenewableScheduleStoreConformanceTests : ScheduleExecutionLe
 				message.LastExecutionUtc = result.LastExecutionUtc;
 				message.NextExecutionUtc = result.NextExecutionUtc;
 				if (result.Disable) { message.Enabled = false; }
-				_entries[entry.Message.Id] = entry with { Message = message, Committed = true };
+				_entries[entry.Message.Id] = entry with { Message = message, Committed = true, Attempts = 0 };
 				return Task.FromResult(true);
 			}
 		}

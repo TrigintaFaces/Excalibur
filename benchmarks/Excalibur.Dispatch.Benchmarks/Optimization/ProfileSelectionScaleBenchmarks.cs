@@ -9,22 +9,13 @@ using Excalibur.Dispatch.Configuration;
 namespace Excalibur.Dispatch.Benchmarks.Optimization;
 
 /// <summary>
-/// Measures the warm profile-selection cache hit cost as the number of registered message types grows.
+/// Measures repeated profile selection across a rotating set of concrete message types.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Excalibur_Dispatch-zvcdsf: this class used to compare a plain warm <c>ConcurrentDictionary</c>
-/// cache against a <c>FrozenDictionary</c> produced by freezing the cache. That comparison is gone
-/// because the freeze mechanism is gone -- it measured slower than the plain dictionary at every N
-/// tested (1: +27%, 10: +86%, 100: +81%) and, on top of that, disabled the cache's fall-through for
-/// any message type first seen after the freeze, so that type re-ran the full profile scan on every
-/// subsequent dispatch forever. <see cref="PipelineProfileRegistry"/> now has only one selection
-/// cache, always mutable, so a miss is always cached and never pays the scan twice.
-/// </para>
-/// <para>
-/// What remains worth measuring is whether the warm hit stays cheap as the number of distinct
-/// registered message types grows, since that count varies per consumer application.
-/// </para>
+/// The current registry scans its captured profile-membership array on each selection.
+/// Message-kind classification caching is distinct from selection-result caching.
+/// Earlier dictionary/freeze comparisons belong to their historical source epoch.
+/// This fixture varies message types, not registered profile count.
 /// </remarks>
 [MemoryDiagnoser]
 [Config(typeof(WarmPathBenchmarkConfig))]
@@ -40,7 +31,7 @@ public class ProfileSelectionScaleBenchmarks
 	private IDispatchMessage[] _messages = null!;
 	private int _index;
 
-	/// <summary>Gets or sets how many distinct message types the selection cache holds.</summary>
+	/// <summary>Gets or sets the number of distinct rotating message types; the identifier is retained for historical case identity.</summary>
 	[Params(1, 10, 100)]
 	public int CachedTypeCount { get; set; }
 
@@ -84,13 +75,13 @@ public class ProfileSelectionScaleBenchmarks
 	}
 
 	/// <summary>
-	/// The rotation alone. The cached arm pays this too, so it is the floor to read it against.
+	/// The rotation alone. The selection arm includes this work; separate timings do not isolate an exclusive selection cost.
 	/// </summary>
 	[Benchmark(Baseline = true, Description = "Control: rotation only (no lookup)")]
 	public IDispatchMessage Control_RotationOnly() => Next();
 
-	/// <summary>Warm path: a <c>ConcurrentDictionary</c> hit, rotating across all cached types.</summary>
-	[Benchmark(Description = "ProfileSelect: warm (ConcurrentDictionary)")]
+	/// <summary>Repeated profile selection, rotating across all message types; membership is scanned on each call.</summary>
+	[Benchmark(Description = "ProfileSelect: repeated selection (rotating types)")]
 	public IPipelineProfile? ProfileSelect_Warm() => _registry.SelectProfile(Next());
 
 	private IDispatchMessage Next()

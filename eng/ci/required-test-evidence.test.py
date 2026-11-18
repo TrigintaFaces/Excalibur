@@ -19,7 +19,7 @@ class EvidenceTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="required-evidence-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.context = dict(candidateSha="a" * 40, runId="12", runAttempt="2", job="unit", shard="core", os="Linux", provider="none",
+        self.context = dict(minimumExecutedTests=1, candidateSha="a" * 40, runId="12", runAttempt="2", job="unit", shard="core", os="Linux", provider="none",
                             source="tests.slnf", sourceSha256="d" * 64, filter="")
         self.ids = [str(uuid.uuid4()), str(uuid.uuid4())]
         self.plan = {"schemaVersion": 1, "context": self.context, "invocations": [], "nonTestProjects": []}
@@ -67,6 +67,52 @@ class EvidenceTests(unittest.TestCase):
 
     def verify(self):
         return gate.verify(self.root / "plan.json", self.context)
+
+    def set_minimum(self, minimum):
+        self.context["minimumExecutedTests"] = minimum
+        for invocation, receipt in zip(self.plan["invocations"], self.receipts):
+            path = self.root / invocation["census"]["path"]
+            census = json.loads(path.read_text())
+            census["context"]["minimumExecutedTests"] = minimum
+            invocation["census"] = self.write(invocation["census"]["path"], census)
+            receipt["censusSha256"] = invocation["census"]["sha256"]
+        self.flush()
+
+    def test_workflow_minimum_is_external_canonical_and_not_last_wins(self):
+        self.assertEqual(gate.declared_lane_minimum("          minimum-executed-tests: '2'\n"), 2)
+        for value in ["", "0", "01", "+1", "1.0", "2147483648", "true", "${{ matrix.minimum }}"]:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                gate.declared_lane_minimum("          minimum-executed-tests: " + value + "\n")
+        with self.assertRaises(ValueError): gate.declared_lane_minimum("")
+        with self.assertRaises(ValueError):
+            gate.declared_lane_minimum("          minimum-executed-tests: 5\n          minimum-executed-tests: 1\n")
+
+    def test_lane_minimum_equal_and_above_observed_identity_count(self):
+        self.set_minimum(2)
+        self.assertEqual(self.verify()["minimumExecutedTests"], 2)
+        self.set_minimum(3)
+        with self.assertRaisesRegex(ValueError, "below minimumExecutedTests=3"):
+            self.verify()
+
+    def test_invalid_or_missing_minimum_refuses_instead_of_defaulting(self):
+        for value in [None, True, False, "1", 0, -1, 1.0, 2147483648]:
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "positive JSON integer"):
+                gate.minimum_executed(value)
+        self.flush()
+        expected = dict(self.context); del expected["minimumExecutedTests"]
+        with self.assertRaisesRegex(ValueError, "positive JSON integer"):
+            gate.verify(self.root / "plan.json", expected)
+
+    def test_external_minimum_cannot_be_lowered_by_consistent_internal_evidence(self):
+        self.flush()
+        with self.assertRaisesRegex(ValueError, "minimumExecutedTests"):
+            gate.verify(self.root / "plan.json", dict(self.context, minimumExecutedTests=3))
+
+    def test_duplicate_minimum_json_members_are_rejected(self):
+        path = self.root / "duplicate-minimum.json"
+        path.write_text('{"minimumExecutedTests":5,"minimumExecutedTests":1}')
+        with self.assertRaisesRegex(ValueError, "Duplicate JSON field"):
+            gate.read_json(path)
 
     def test_complete_pass(self):
         self.flush()
@@ -267,7 +313,7 @@ class EvidenceTests(unittest.TestCase):
             path = repo / source
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps({"solution": {"path": "../../../Excalibur.sln", "projects": ["first.csproj"]}}))
-            self.context = dict(candidateSha="a"*40, runId="12", runAttempt="2", job=job,
+            self.context = dict(minimumExecutedTests=1, candidateSha="a"*40, runId="12", runAttempt="2", job=job,
                                 shard=f"unit-tests-{suffix}", os=os_name, provider="in-process",
                                 source=source, sourceSha256=gate.digest(path).upper(), filter="")
             self.root = artifacts / f"test-results-unit-{suffix}" / "evidence.required"
@@ -280,10 +326,79 @@ class EvidenceTests(unittest.TestCase):
         self.root = original_root
         result = gate.verify_unit_artifacts(artifacts, repo, "a"*40, "12", "2", "")
         self.assertEqual(result, {"jobs": 12, "executed": 24})
+        # Mutate ONLY the externally checked workflow. All 12 artifact plans/censuses/receipts
+        # remain internally consistent with minimum1 and independently pass their existing checks.
+        workflow_path = repo / ".github/workflows/ci.yml"
+        original_workflow = workflow_path.read_text(encoding="utf-8-sig")
+        match = re.search(r"(?ms)^  unit-tests:\n.*?(?=^  [A-Za-z0-9_-]+:|\Z)", original_workflow)
+        self.assertIsNotNone(match)
+        body = match.group(0)
+        declaration = "          minimum-executed-tests: '1'\n"
+        self.assertIn(declaration, body)
+        changes = {
+            "raised": (declaration.replace("'1'", "'5'"), "minimumExecutedTests"),
+            "missing": ("", "explicit executed minimum"),
+            "duplicate-last-wins": (declaration.replace("'1'", "'5'") + declaration, "explicit executed minimum"),
+        }
+        for name, (replacement, reason) in changes.items():
+            changed_body = body.replace(declaration, replacement, 1)
+            workflow_path.write_text(original_workflow[:match.start()] + changed_body + original_workflow[match.end():], encoding="utf-8")
+            with self.subTest(workflowMutation=name), self.assertRaisesRegex(ValueError, reason):
+                gate.verify_unit_artifacts(artifacts, repo, "a"*40, "12", "2", "")
+        workflow_path.write_text(original_workflow, encoding="utf-8")
+        self.assertEqual(gate.verify_unit_artifacts(artifacts, repo, "a"*40, "12", "2", ""),
+                         {"jobs": 12, "executed": 24})
         missing = artifacts / "test-results-unit-core"
         missing.rename(self.root / "withheld-core")
         with self.assertRaisesRegex(ValueError, "Missing or unexpected unit artifact context"):
             gate.verify_unit_artifacts(artifacts, repo, "a"*40, "12", "2", "")
+
+
+class LaneMinimumWiringTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.root = Path(__file__).resolve().parents[2]
+
+    def check_wrapped_callers(self, workflows):
+        count = 0
+        for name, text in workflows.items():
+            for line in text.splitlines():
+                if re.match(r"^\s*bash (?:\.\./)?eng/ci/run-filtered-tests\.sh\b", line):
+                    values = re.findall(r"--minimum-executed-tests ([1-9][0-9]*)\b", line)
+                    if len(values) != 1 or line.count('--minimum-executed-tests') != 1:
+                        raise ValueError('Filtered workflow lacks one explicit executed minimum: ' + name)
+                    gate.minimum_executed(int(values[0])); count += 1
+        if count != 10: raise ValueError('Reviewed filtered-wrapper lane population changed')
+
+    def test_all_ten_filtered_wrapper_statements_declare_their_minimum(self):
+        workflows = {p.name: p.read_text(encoding="utf-8-sig") for p in (self.root / '.github/workflows').glob('*.yml')}
+        self.check_wrapped_callers(workflows)
+        mutated = dict(workflows)
+        mutated['ci.yml'] = mutated['ci.yml'].replace('--minimum-executed-tests 1 ', '', 1)
+        with self.assertRaisesRegex(ValueError, 'explicit executed minimum'):
+            self.check_wrapped_callers(mutated)
+
+    def test_composite_caller_definitions_bind_the_required_context_minimum(self):
+        workflow = (self.root / '.github/workflows/ci.yml').read_text(encoding="utf-8-sig")
+        blocks = [part for part in re.split(r'(?m)^      - ', workflow)
+                  if 'uses: ./.github/actions/build-and-test' in part]
+        self.assertEqual(len(blocks), 7)
+        for block in blocks:
+            self.assertEqual(gate.declared_lane_minimum(block), 1)
+        action = (self.root / '.github/actions/build-and-test/action.yml').read_text(encoding="utf-8-sig")
+        self.assertIn('minimumExecutedTests = [int]$env:MINIMUM_EXECUTED_TESTS', action)
+        self.assertIn('MinimumExecutedTests = $env:MINIMUM_EXECUTED_TESTS', action)
+
+    def test_direct_stronger_authorities_keep_explicit_lane_minima(self):
+        ci = (self.root / '.github/workflows/ci.yml').read_text(encoding="utf-8-sig")
+        self.assertIn('$minimumExecutedTests = 1 # lane-defined executed count', ci)
+        self.assertIn('inline-native-aot-verdict.py --minimum-executed-tests 2 --exit-code', ci)
+        for name in ['namespace-validation.yml', 'quality-gates.yml']:
+            self.assertIn('minimum_executed_tests = 1  # lane-defined result-count minimum',
+                          (self.root / '.github/workflows' / name).read_text(encoding="utf-8-sig"))
+        for name in ['transport-conformance-tests.yml', 'quality-gates.yml']:
+            self.assertIn('assert-declared-skips-only.ps1 -MinimumExecutedTests 1 -TrxDir',
+                          (self.root / '.github/workflows' / name).read_text(encoding="utf-8-sig"))
 
 
 class ProductionCallerTests(unittest.TestCase):
@@ -307,7 +422,7 @@ class ProductionCallerTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml').read_text()
+        cls.workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml').read_text(encoding="utf-8-sig")
         release_spec = importlib.util.spec_from_file_location(
             'caller_release_gate', Path(__file__).with_name('release-test-verdict-gate.py'))
         cls.release = importlib.util.module_from_spec(release_spec)

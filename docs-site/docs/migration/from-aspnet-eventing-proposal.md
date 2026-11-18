@@ -366,8 +366,8 @@ Unlike a proposal, Excalibur has **working implementations** with full consumer 
 
 ```csharp
 // GooglePubSubConsumer features:
-// - Streaming pull for low-latency
-// - Batch receiving for high throughput
+// - Streaming pull
+// - Batch receiving; measure completed work and delivery latency
 // - Acknowledgment deadline management
 // - Ordering key support
 // - Compression (Gzip/Snappy)

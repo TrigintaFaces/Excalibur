@@ -34,9 +34,17 @@ public sealed class MaterializedViewStoreRefreshPolicyShould
 	{
 		var options = Options.Create(new ElasticSearchMaterializedViewStoreOptions { NodeUri = Node, RefreshPolicy = refreshPolicy });
 		var store = new ElasticSearchMaterializedViewStore(options, NullLogger<ElasticSearchMaterializedViewStore>.Instance, TenantViewFixture.SingleTenant);
+		// Bound by parameter types, not by name alone: Invoke below passes no arguments, so a parameter
+		// added to GetRefresh would bind here and throw TargetParameterCountException at run time.
 		var method = typeof(ElasticSearchMaterializedViewStore)
-			.GetMethod("GetRefresh", BindingFlags.Instance | BindingFlags.NonPublic)
-			?? throw new MissingMethodException("ElasticSearchMaterializedViewStore.GetRefresh not found.");
+			.GetMethod(
+				"GetRefresh",
+				BindingFlags.Instance | BindingFlags.NonPublic,
+				binder: null,
+				types: Type.EmptyTypes,
+				modifiers: null)
+			?? throw new MissingMethodException(
+				"ElasticSearchMaterializedViewStore.GetRefresh() not found as a parameterless instance method.");
 		return (Refresh)method.Invoke(store, null)!;
 	}
 
@@ -44,9 +52,17 @@ public sealed class MaterializedViewStoreRefreshPolicyShould
 	{
 		var options = Options.Create(new OpenSearchMaterializedViewStoreOptions { NodeUri = Node, RefreshPolicy = refreshPolicy });
 		var store = new OpenSearchMaterializedViewStore(options, NullLogger<OpenSearchMaterializedViewStore>.Instance, TenantViewFixture.SingleTenant);
+		// Bound by parameter types, not by name alone: Invoke below passes no arguments, so a parameter
+		// added to GetRefresh would bind here and throw TargetParameterCountException at run time.
 		var method = typeof(OpenSearchMaterializedViewStore)
-			.GetMethod("GetRefresh", BindingFlags.Instance | BindingFlags.NonPublic)
-			?? throw new MissingMethodException("OpenSearchMaterializedViewStore.GetRefresh not found.");
+			.GetMethod(
+				"GetRefresh",
+				BindingFlags.Instance | BindingFlags.NonPublic,
+				binder: null,
+				types: Type.EmptyTypes,
+				modifiers: null)
+			?? throw new MissingMethodException(
+				"OpenSearchMaterializedViewStore.GetRefresh() not found as a parameterless instance method.");
 		return (global::OpenSearch.Net.Refresh)method.Invoke(store, null)!;
 	}
 

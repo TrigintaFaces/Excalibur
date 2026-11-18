@@ -95,6 +95,8 @@ public sealed class ConsulLeaderElectionOptionsValidatorShould
 		{
 			LockDelay = TimeSpan.FromMilliseconds(1),
 			SessionTTL = TimeSpan.FromSeconds(10),
+			RenewInterval = TimeSpan.FromSeconds(2),
+			GracePeriod = TimeSpan.FromSeconds(3),
 		};
 
 		// Act

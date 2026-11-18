@@ -178,7 +178,8 @@ foreach ($cap in $capabilities) {
     # Two remaining non-passing shapes, both treated as gate failure: the arm ran and failed, or it ran
     # and SKIPPED (the shape this gate exists
     # to catch that a bare exit-code check would miss: xUnit v3 does not fail the run on a skip).
-    $passedOne = $output -match 'Passed:\s*1,'
+    $minimumExecutedTests = 1 # Each declared single capability must execute its exact one test.
+    $passedOne = $output -match ('Passed:\s*' + $minimumExecutedTests + ',')
     $failedZero = $output -match 'Failed:\s*0,'
     $skippedZero = $output -match 'Skipped:\s*0,'
 

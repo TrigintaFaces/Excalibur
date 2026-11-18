@@ -179,10 +179,19 @@ public sealed partial class LegalHoldService : ILegalHoldService
 		// entry points share, so the raw and hashed callers cannot drift apart.
 		var activeHolds = new List<LegalHold>();
 
+		// ONE INSTANT FOR BOTH READS, AND THAT IS THE WHOLE REASON THE STORE TAKES IT AS A PARAMETER.
+		// This method reads the store twice -- subject-specific holds, then tenant-wide ones -- and UNIONS
+		// the results. While each read derived in-force against its own clock, the two could straddle an
+		// expiry boundary, so the union was of two sets that were never simultaneously true: a hold could
+		// be absent from the first read and present in the second, or the reverse. Pinning one instant
+		// makes the union one coherent answer to one question.
+		var asOf = DateTimeOffset.UtcNow;
+
 		// Check for data subject-specific holds
 		var subjectHolds = await _queryStore.GetActiveHoldsForDataSubjectAsync(
 			dataSubjectIdHash,
 			tenantId,
+			asOf,
 			cancellationToken).ConfigureAwait(false);
 		activeHolds.AddRange(subjectHolds);
 
@@ -210,8 +219,8 @@ public sealed partial class LegalHoldService : ILegalHoldService
 		// Over-blocking is recoverable: release the hold, or pass the tenant. Under-blocking
 		// destroys data that a court order said to keep.
 		var tenantHolds = string.IsNullOrEmpty(tenantId)
-			? await _queryStore.ListActiveHoldsAsync(null, cancellationToken).ConfigureAwait(false)
-			: await _queryStore.GetActiveHoldsForTenantAsync(tenantId, cancellationToken).ConfigureAwait(false);
+			? await _queryStore.ListActiveHoldsAsync(null, asOf, cancellationToken).ConfigureAwait(false)
+			: await _queryStore.GetActiveHoldsForTenantAsync(tenantId, asOf, cancellationToken).ConfigureAwait(false);
 
 		// Tenant-wide holds only -- those without a specific data subject.
 		var widened = 0;
@@ -269,7 +278,10 @@ public sealed partial class LegalHoldService : ILegalHoldService
 		string? tenantId,
 		CancellationToken cancellationToken)
 	{
-		return await _queryStore.ListActiveHoldsAsync(tenantId, cancellationToken).ConfigureAwait(false);
+		// The caller of a store read now names the instant. This surface does not expose it, so the
+		// instant is pinned here, at the call, rather than inside the store where it was unobservable.
+		return await _queryStore.ListActiveHoldsAsync(tenantId, DateTimeOffset.UtcNow, cancellationToken)
+			.ConfigureAwait(false);
 	}
 
 	/// <summary>

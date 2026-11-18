@@ -1,0 +1,53 @@
+{
+  "releaseVersion": "10.0.0-alpha.22",
+  "solutionFilter": "eng/ci/shards/IntegrationTests-Dispatch.slnf",
+  "disposition": "deferred-unverified",
+  "approvedUtc": "2026-11-17",
+  "approval": "Operator explicitly deferred these eleven cloud checks for alpha.22 only; disclose UNVERIFIED.",
+  "tests": [
+    {
+      "id": "3181bb91-f0d7-6f13-7f06-e5e74f2ad220",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.CacheKeyMetadata_ReducesApiCalls"
+    },
+    {
+      "id": "c4af431c-bfae-4f11-57ae-725943986e72",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.DeleteKey_SchedulesDeletion"
+    },
+    {
+      "id": "eda89047-119e-4367-7d31-229e4918258d",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.CreateKeyWithPurpose"
+    },
+    {
+      "id": "5255e2b5-1060-72ed-f450-f8a9165c96e4",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.GetActiveKey_ReturnsLatestActiveKey"
+    },
+    {
+      "id": "2a77e77d-53bc-4bbe-517d-95347b862c4c",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.CreateNewKey_WhenKeyDoesNotExist"
+    },
+    {
+      "id": "fa94dc55-c534-2d9f-d2c3-a74163f02a5a",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.ListKeys_ReturnsCreatedKeys"
+    },
+    {
+      "id": "3e66e238-1311-1cca-45de-135e757cfed4",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.RotateKey_CreatesNewVersion"
+    },
+    {
+      "id": "7ea146ca-09c7-12ce-c87e-ee872157a657",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.GetKey_AfterCreation"
+    },
+    {
+      "id": "a7772dbc-9109-3b16-9e6a-6ba68115c097",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.GetCryptographyClient_ReturnsValidClient"
+    },
+    {
+      "id": "b8437d41-4a31-6275-37a3-97dab1863c3a",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.SuspendKey_DisablesKey"
+    },
+    {
+      "id": "eaf6248c-304b-5cde-998e-1632f7825010",
+      "fullyQualifiedName": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould.ReturnNull_WhenKeyDoesNotExist"
+    }
+  ]
+}

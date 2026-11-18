@@ -24,12 +24,9 @@ namespace Excalibur.Dispatch.Messaging;
 /// </list>
 /// </para>
 /// <para>
-/// <b>Performance:</b>
-/// <list type="bullet">
-/// <item><description>Non-versioned messages: ~0ns overhead (simple type check)</description></item>
-/// <item><description>Already latest version: ~5ns (version comparison only)</description></item>
-/// <item><description>Requires upcasting: ~15ns per hop (cached paths)</description></item>
-/// </list>
+/// Upcasting cost depends on message versions, the registered transformations, and the runtime
+/// configuration. Measure representative message paths; no fixed per-message or per-hop latency
+/// is guaranteed, including for messages that do not require transformation.
 /// </para>
 /// <para>
 /// <b>Thread Safety:</b> This decorator is stateless and thread-safe as a singleton.

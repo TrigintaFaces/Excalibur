@@ -578,6 +578,7 @@ Excalibur.Dispatch.Transport.TransportSecurityException.TransportSecurityExcepti
 Excalibur.Dispatch.Transport.TransportSecurityException.TransportSecurityException(string! message) -> void
 Excalibur.Dispatch.Transport.TransportSecurityException.TransportSecurityException(string! message, System.Exception! innerException) -> void
 Excalibur.Dispatch.Transport.TransportSecurityFailureReason
+Excalibur.Dispatch.Transport.TransportSecurityFailureReason.DefaultCredentials = 2 -> Excalibur.Dispatch.Transport.TransportSecurityFailureReason
 Excalibur.Dispatch.Transport.TransportSecurityFailureReason.TlsNotEnabled = 1 -> Excalibur.Dispatch.Transport.TransportSecurityFailureReason
 Excalibur.Dispatch.Transport.TransportSecurityFailureReason.Unspecified = 0 -> Excalibur.Dispatch.Transport.TransportSecurityFailureReason
 Excalibur.Dispatch.Transport.TransportSecurityOptions

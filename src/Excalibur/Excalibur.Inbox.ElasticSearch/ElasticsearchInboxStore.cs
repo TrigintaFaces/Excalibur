@@ -32,8 +32,8 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	/// <summary>
 	/// Test-only seam: when non-null, invoked once inside <see cref="ReleaseAsync"/> in the window between
 	/// the status read and the conditional delete, so a test can deterministically interleave a concurrent
-	/// finalize and exercise the conditional-delete guard. Always <see langword="null"/> in production
-	/// (single null-check ⇒ zero overhead).
+	/// finalize and exercise the conditional-delete guard. Intended for test use;
+	/// when the hook is null, no hook delegate is invoked.
 	/// </summary>
 	internal Func<CancellationToken, Task>? ReleaseRaceHookForTests { get; set; }
 

@@ -61,22 +61,8 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 	/// never probed on a decorated object, so a decorator cannot strip it.
 	/// </remarks>
 	/// <summary>The single source of truth. The theory data and the coverage guard both read this.</summary>
-	private static readonly Type[] CapabilityTypes =
-	[
-		typeof(IOutboxStoreAdmin),
-		typeof(IMultiTransportOutboxStore),
-		typeof(IMultiTransportOutboxStoreAdmin),
-		typeof(IFencedOutboxStore),
-		typeof(IFencedOutboxStoreDiagnostics),
-		typeof(IOutboxStoreBatch),
-		typeof(IDeadLetterableOutboxStore),
-		typeof(IBackoffSchedulableOutboxStore),
-		typeof(ICloudNativeOutboxStoreBatch),
-		typeof(IClaimScopedOutboxStore),
-		typeof(IFencedClaimScopedOutboxStore),
-		typeof(IFencedDeadLetterableOutboxStore),
-		typeof(IOutboxStoreCapabilities),
-	];
+	private static Type[] CapabilityTypes => OutboxCapabilityCatalog.ProductionEntries
+		.Where(static entry => entry.Policy?.IsCapability == true).Select(static entry => entry.Type).ToArray();
 
 	public static TheoryData<Type> ProbedCapabilities()
 	{
@@ -114,42 +100,8 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 	/// </para>
 	/// </remarks>
 	/// <summary>The single source of truth for the mirror property. The theory data and the classification guard both read this.</summary>
-	private static readonly Type[] MirroredCapabilityTypes =
-	[
-		typeof(IOutboxStoreAdmin),
-		typeof(IMultiTransportOutboxStore),
-		typeof(IMultiTransportOutboxStoreAdmin),
-		typeof(IFencedOutboxStore),
-		typeof(IFencedOutboxStoreDiagnostics),
-
-		// Forwarded rather than declared, so its presence is the inner store's presence: the decorator
-		// answers the probe only when the store beneath it does. A consumer whose store lacks the combined
-		// capability must SEE that absence, because the drain's fenced route is chosen by this probe and a
-		// decorator advertising what the inner cannot honour would route a fenced completion into nothing.
-		typeof(IFencedClaimScopedOutboxStore),
-
-		// Same forwarded-not-declared shape: presence must be the inner store's presence, because the drain
-		// chooses the fenced TERMINAL route from this probe, and a decorator advertising what the inner
-		// cannot honour would route an irreversible transition into nothing.
-		typeof(IFencedDeadLetterableOutboxStore),
-
-		// Forwarded by the encrypting decorator (it is in ForwardableCapabilitySet) and carries no message
-		// payload, so its presence must likewise be the inner store's presence. FOUND BY THE
-		// CLASSIFICATION GUARD BELOW ON ITS FIRST RUN: it was locked and probed but asserted nowhere, so
-		// nothing said what a decorated store over a non-claim-scoped inner must report. The drain picks
-		// the claim-scoped completion route from this probe, and a decorator answering true over an inner
-		// that cannot honour it sends a completion into nothing -- the same hazard as its fenced sibling
-		// above, which was locked while this one was not.
-		typeof(IClaimScopedOutboxStore),
-
-		// Forwarded, and the mirror property matters here for a different reason than the others: this
-		// capability reports on the STORE'S OWN SHAPE -- whether it tracks sent messages or deletes them on
-		// send. A decorator that answers it for the store underneath is not merely advertising something it
-		// cannot honour, it is giving a WRONG answer about someone else. Denied, it read as absent, and a
-		// delete-on-sent store became indistinguishable from a sent-tracking one for every consumer who
-		// enabled crypto-shredding.
-		typeof(IOutboxStoreCapabilities),
-	];
+	private static Type[] MirroredCapabilityTypes => OutboxCapabilityCatalog.ProductionEntries
+		.Where(static entry => entry.Policy?.MirrorsInner == true).Select(static entry => entry.Type).ToArray();
 
 	public static TheoryData<Type> MirrorTheInnerCapabilities()
 	{
@@ -419,10 +371,9 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 	/// <c>CloudNativeOutboxStoreExtensions</c> and declared by no decorator; a reviewer found it, not the test.
 	/// </para>
 	/// <para>
-	/// Reflection cannot supply the population: most of these capabilities do <b>not</b> derive
-	/// <c>IOutboxStore</c> (only three do), so "interfaces assignable to IOutboxStore" discovers the wrong set.
-	/// The population is defined by <i>what the code probes</i>, which is a fact about source text. So this arm
-	/// reads the source.
+	/// Assembly reflection now supplies the declared interface population with explicit classification.
+	/// This complementary arm checks actual source probes against that catalog; assignability to
+	/// <c>IOutboxStore</c> alone would miss optional facets. Regex coverage is not a semantic source census.
 	/// </para>
 	/// </remarks>
 	[Fact]
@@ -489,31 +440,10 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 	[Fact]
 	public void Classify_every_probed_capability_as_mirrored_or_documented_as_unconditional()
 	{
-		var mirrored = MirroredCapabilityTypes
-			.Select(static t => t.Name)
-			.ToHashSet(StringComparer.Ordinal);
-
-		// Non-vacuity: the mirror list must contain something we know is in it. An empty read would make
-		// every capability look unclassified and the assertion below would fail for the wrong reason.
-		mirrored.ShouldContain(
-			nameof(IFencedOutboxStore),
-			"The mirror list read back empty or malformed, so this arm is measuring nothing.");
-
-		var unclassified = CapabilityTypes
-			.Select(static t => t.Name)
-			.Where(name => !mirrored.Contains(name)
-						&& !DeclaredUnconditionally.Contains(name)
-						&& !DeniedByIsolation.Contains(name))
-			.OrderBy(static n => n, StringComparer.Ordinal)
-			.ToList();
-
-		unclassified.ShouldBeEmpty(
-			"These capabilities are locked by this file but are neither asserted to MIRROR the inner store " +
-			"nor documented as declared-unconditionally-with-a-degradation. A capability in neither list " +
-			"has no asserted behaviour when the inner store lacks it, which is exactly how a decorator comes " +
-			"to advertise something it cannot honour. Add each to MirrorTheInnerCapabilities, or to " +
-			"DeclaredUnconditionally with the degradation it performs. Unclassified: "
-			+ string.Join(", ", unclassified) + ".");
+		var inner = FakeStoreWithEveryCapability();
+		var decorated = new TelemetryOutboxStoreDecorator(inner);
+		OutboxCapabilityCatalog.Analyze(OutboxCapabilityCatalog.ProductionEntries,
+			type => CanDiscover(inner, type), type => CanDiscover(decorated, type)).ShouldBeEmpty();
 	}
 
 	/// <summary>
@@ -542,28 +472,11 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 	/// tracked separately. This list records what the code does; it does not bless it.
 	/// </para>
 	/// </remarks>
-	private static readonly HashSet<string> DeniedByIsolation = new(StringComparer.Ordinal)
-	{
-		// MEASURED, not assumed: absent from EncryptingOutboxStoreDecorator entirely (0 occurrences), so
-		// the isolating deny-by-default applies. Its AddBatchAsync takes CloudOutboxMessage values, so
-		// forwarding it unmediated would hand the inner store plaintext payloads -- the one thing the
-		// encrypting decorator exists to prevent. It is denied rather than wrapped.
-		nameof(ICloudNativeOutboxStoreBatch),
-	};
+	private static HashSet<string> DeniedByIsolation => OutboxCapabilityCatalog.ProductionEntries
+		.Where(static entry => entry.Policy?.DeniedByIsolation == true).Select(static entry => entry.Type.Name).ToHashSet(StringComparer.Ordinal);
 
-	private static readonly HashSet<string> DeclaredUnconditionally = new(StringComparer.Ordinal)
-	{
-		// FAIL-OPEN: falls back to MarkFailedAsync, so the decorator never regresses behaviour relative to
-		// an undecorated store.
-		nameof(IBackoffSchedulableOutboxStore),
-
-		// FAIL-LOUD: throws NotSupportedException. A silent fallback would leave the message re-claimable
-		// forever, so the failure is made audible rather than absorbed.
-		nameof(IDeadLetterableOutboxStore),
-
-		// CONDITIONAL FORWARD to a batch-capable inner store.
-		nameof(IOutboxStoreBatch),
-	};
+	private static HashSet<string> DeclaredUnconditionally => OutboxCapabilityCatalog.ProductionEntries
+		.Where(static entry => entry.Policy?.LegacyUnconditional == true).Select(static entry => entry.Type.Name).ToHashSet(StringComparer.Ordinal);
 
 	/// <summary>Capabilities that are probed but deliberately not locked here, each with its reason.</summary>
 	/// <remarks>
@@ -670,6 +583,38 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 			"present a token to a store that cannot enforce it.");
 	}
 
+	[Theory]
+	[InlineData(OutboxCompletionOutcome.Applied)]
+	[InlineData(OutboxCompletionOutcome.ClaimLost)]
+	public async Task PreserveExactTypedCompletionArgumentsAndReturnedRefusals(OutboxCompletionOutcome outcome)
+	{
+		var inner = FakeStoreWithEveryCapability();
+		var plain = (IClaimScopedOutboxStore)inner;
+		var fenced = (IFencedClaimScopedOutboxStore)inner;
+		var terminal = (IFencedDeadLetterableOutboxStore)inner;
+		const string claim = "Claim-\U0001F600 ";
+		var authority = new OutboxWriteAuthority(17, claim);
+		A.CallTo(() => plain.MarkSentAsync("message", claim, CancellationToken.None))
+			.Returns(new ValueTask<OutboxCompletionOutcome>(outcome));
+		A.CallTo(() => fenced.MarkSentAsync("message", authority, CancellationToken.None))
+			.Returns(new ValueTask<OutboxCompletionOutcome>(outcome));
+		A.CallTo(() => terminal.MarkDeadLetteredAsync("message", "reason", 7, authority, CancellationToken.None))
+			.Returns(new ValueTask<OutboxCompletionOutcome>(outcome));
+		var decorated = new TelemetryOutboxStoreDecorator(inner);
+		var measuredPlain = decorated.GetService(typeof(IClaimScopedOutboxStore)).ShouldBeAssignableTo<IClaimScopedOutboxStore>();
+		var measuredFenced = decorated.GetService(typeof(IFencedClaimScopedOutboxStore)).ShouldBeAssignableTo<IFencedClaimScopedOutboxStore>();
+		var measuredTerminal = decorated.GetService(typeof(IFencedDeadLetterableOutboxStore)).ShouldBeAssignableTo<IFencedDeadLetterableOutboxStore>();
+		(await measuredPlain.MarkSentAsync("message", claim, CancellationToken.None)).ShouldBe(outcome);
+		(await measuredFenced.MarkSentAsync("message", authority, CancellationToken.None)).ShouldBe(outcome);
+		(await measuredTerminal.MarkDeadLetteredAsync("message", "reason", 7, authority, CancellationToken.None)).ShouldBe(outcome);
+		A.CallTo(() => plain.MarkSentAsync("message", claim, CancellationToken.None)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => fenced.MarkSentAsync("message", authority, CancellationToken.None)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => terminal.MarkDeadLetteredAsync("message", "reason", 7, authority, CancellationToken.None)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => inner.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IFencedOutboxStore)inner).MarkSentAsync(A<string>._, A<long>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => terminal.MarkDeadLetteredAsync(A<string>._, A<string>._, A<int>._, A<long>._, A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
 	/// <summary>A fake store that answers <c>GetService</c> the way a real store does.</summary>
 	/// <remarks>
 	/// A bare FakeItEasy fake answers <c>GetService</c> with null for every type, including interfaces it
@@ -702,20 +647,13 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 	/// </remarks>
 	private static IOutboxStore FakeStoreWithEveryCapability()
 	{
-		var fake = A.Fake<IOutboxStore>(b => b
-			.Implements<IOutboxStoreAdmin>()
-			.Implements<IMultiTransportOutboxStore>()
-			.Implements<IMultiTransportOutboxStoreAdmin>()
-			.Implements<IFencedOutboxStore>()
-			.Implements<IFencedOutboxStoreDiagnostics>()
-			.Implements<IOutboxStoreBatch>()
-			.Implements<IDeadLetterableOutboxStore>()
-			.Implements<IBackoffSchedulableOutboxStore>()
-			.Implements<ICloudNativeOutboxStoreBatch>()
-			.Implements<IClaimScopedOutboxStore>()
-			.Implements<IFencedClaimScopedOutboxStore>()
-			.Implements<IFencedDeadLetterableOutboxStore>()
-			.Implements<IOutboxStoreCapabilities>());
+		var fake = A.Fake<IOutboxStore>(b =>
+		{
+			foreach (var capability in CapabilityTypes)
+			{
+				b.Implements(capability);
+			}
+		});
 
 		A.CallTo(() => fake.GetService(A<Type>._))
 			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(fake) ? fake : null);

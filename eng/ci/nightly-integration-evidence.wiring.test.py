@@ -31,7 +31,7 @@ class NightlyWiringTests(unittest.TestCase):
         body = job('integration-tests')
         self.assertNotIn('continue-on-error:', body)
         run = step(body, 'Run Integration Tests (-m:1)')
-        self.assertIn('nightly-integration-evidence.ps1 -Mode Run', run)
+        self.assertIn('nightly-integration-evidence.ps1 -MinimumExecutedTests 1 -Mode Run', run)
         self.assertIn("-Source '${{ matrix.shard.filter }}' -Shard '${{ matrix.shard.name }}'", run)
         self.assertNotIn('non-fatal', body)
 
@@ -39,7 +39,7 @@ class NightlyWiringTests(unittest.TestCase):
         verify = step(job('integration-tests'), 'Verify integration test results')
         self.assertIn('if: always()', verify)
         self.assertIn('${{ steps.integration-tests.outcome }}', verify)
-        self.assertIn('nightly-integration-evidence.ps1 -Mode Verify', verify)
+        self.assertIn('nightly-integration-evidence.ps1 -MinimumExecutedTests 1 -Mode Verify', verify)
         self.assertIn('-RunnerOutcome $env:INTEGRATION_RUN_OUTCOME', verify)
         script = (ROOT / 'eng/ci/nightly-integration-evidence.ps1').read_text()
         self.assertIn("'required-test-evidence.py'", script)

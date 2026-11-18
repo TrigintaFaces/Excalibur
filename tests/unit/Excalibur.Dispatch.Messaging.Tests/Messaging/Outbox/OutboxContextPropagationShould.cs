@@ -40,7 +40,7 @@ public sealed class OutboxContextPropagationShould
 	public async Task RestoreTenantIdAndCausationIdOntoSingleTransportContext()
 	{
 		// Arrange -- single-transport publish path (PublishSingleTransportMessageAsync).
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
+		var store = WorkerClaimFixture.CreateStore(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
 			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
@@ -53,7 +53,7 @@ public sealed class OutboxContextPropagationShould
 			TenantId = Tenant,
 		};
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(store, new List<OutboundMessage> { message })));
 
 		IMessageContext? publishedContext = null;
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -67,13 +67,14 @@ public sealed class OutboxContextPropagationShould
 		publishedContext.ShouldNotBeNull();
 		publishedContext.GetTenantId().ShouldBe(Tenant);
 		publishedContext.CausationId.ShouldBe(Cause);
+		WorkerClaimFixture.AssertNoWeakWrites(store);
 	}
 
 	[Fact]
 	public async Task RestoreTenantIdAndCausationIdOntoMultiTransportContext()
 	{
 		// Arrange -- multi-transport per-transport publish path (PublishToTransportAsync).
-		var multiStoreBase = A.Fake<IOutboxStore>(o =>
+		var multiStoreBase = WorkerClaimFixture.CreateStore(o =>
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
@@ -116,7 +117,7 @@ public sealed class OutboxContextPropagationShould
 	public async Task LeaveTenantIdAbsentWhenMessageHasNone()
 	{
 		// EC-R1.1: a null TenantId must propagate as ABSENT (null), never fabricated as empty-string.
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
+		var store = WorkerClaimFixture.CreateStore(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
 			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
@@ -124,7 +125,7 @@ public sealed class OutboxContextPropagationShould
 
 		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1") { CorrelationId = Corr };
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(store, new List<OutboundMessage> { message })));
 
 		IMessageContext? publishedContext = null;
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -137,5 +138,6 @@ public sealed class OutboxContextPropagationShould
 		// Assert -- absent, not empty-string.
 		publishedContext.ShouldNotBeNull();
 		publishedContext.GetTenantId().ShouldBeNull();
+		WorkerClaimFixture.AssertNoWeakWrites(store);
 	}
 }

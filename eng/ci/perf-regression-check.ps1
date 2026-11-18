@@ -19,7 +19,7 @@
     than as an absent warning.
 
 .PARAMETER ResultsPath
-    Directory searched recursively for BenchmarkDotNet '*-report.json' files.
+    Directory searched recursively for BenchmarkDotNet '*-report*.json' files.
 
 .PARAMETER BaselinesPath
     Path to performance-baselines.json.
@@ -28,8 +28,9 @@
     Optional override of the threshold in the baselines file (0.10 = 10%).
 
 .PARAMETER RequireResultsOnly
-    Answer the narrower question "did this benchmark run actually EXECUTE anything?"
-    and skip the baseline comparison entirely.
+    Validate positive raw measurements for all reported cases and skip baseline
+    comparison. Requires full/full-compressed JSON. Does not prove expected case
+    coverage, functional correctness, process success, or a performance improvement.
 
     This exists so the benchmark jobs that have no recorded baselines reuse THIS
     guard rather than growing a second one. BenchmarkDotNet exits 0 when a critical
@@ -50,8 +51,8 @@
     trains readers to route around the signal.
 
 .PARAMETER AllowEmpty
-    Downgrade REFUSE to PASS. For local/manual use only; CI must never pass this,
-    because it re-creates the exact defect this script exists to prevent.
+    Permit empty input for local/manual use only; CI must never pass this.
+    Invalid measurements in RequireResultsOnly mode still REFUSE with this switch.
 #>
 [CmdletBinding()]
 param(
@@ -82,11 +83,10 @@ function Write-Verdict {
 	Write-Host "  reason               : $Reason"
 }
 
-# ---- EXISTENCE-ONLY MODE ------------------------------------------------------------
-# Same three-state contract, narrower question: did the run execute any benchmark at all?
-# Counts BENCHMARK RECORDS, not files. A report file can exist and carry an empty
-# 'Benchmarks' array, and a file-only check would read that as a successful run -- which is
-# the same "green over nothing" defect one layer in.
+# ---- REPORTED-MEASUREMENT VALIDATION ------------------------------------------------
+# Every reported case must contain positive raw Workload Actual/Result measurements,
+# with the Result count and mean reconciled to Statistics. This does not enumerate
+# expected cases, identify functional no-ops, or replace process/log validation.
 # GLOB NOTE, and it is why this gate had never passed: BenchmarkDotNet NEVER writes '*-report.json'.
 # Every JSON exporter carries a suffix -- Brief -> '-report-brief.json', Full -> '-report-full.json',
 # FullCompressed (the DEFAULT) -> '-report-full-compressed.json'. Measured in this tree: 48 files named
@@ -95,6 +95,7 @@ function Write-Verdict {
 # and the gate reported REFUSE on every healthy run. It had never executed in CI until 2026-09-14, which
 # is the only reason that went unnoticed. '*-report*.json' matches every JSON exporter variant.
 if ($RequireResultsOnly) {
+	. "$PSScriptRoot/perf-results-validation.ps1"
 	$resultFiles = @(Get-ChildItem -Path $ResultsPath -Filter '*-report*.json' -Recurse -ErrorAction SilentlyContinue)
 
 	if ($resultFiles.Count -eq 0) {
@@ -111,11 +112,12 @@ if ($RequireResultsOnly) {
 	foreach ($resultFile in $resultFiles) {
 		try {
 			$results = Get-Content $resultFile.FullName -Raw | ConvertFrom-Json
-			if (-not ($results.PSObject.Properties.Name -contains 'Benchmarks')) { continue }
-			$executed += @($results.Benchmarks).Count
+			$executed += Assert-BenchmarkReportMeasurements $results
 		}
 		catch {
-			Write-Host "::warning::Error processing $($resultFile.Name): $_"
+			Write-Verdict -State 'REFUSE' -Reason "invalid measurements in $($resultFile.Name): $_" -Compared $executed -Baselines 0 -Files $resultFiles.Count
+			Write-Host '::error::Invalid or unmeasured cases cannot be hidden by healthy sibling reports.'
+			exit $EXIT_REFUSE
 		}
 	}
 
@@ -129,7 +131,7 @@ if ($RequireResultsOnly) {
 		exit $EXIT_REFUSE
 	}
 
-	Write-Verdict -State 'PASS' -Reason 'existence-only check: the run executed benchmarks (no baseline comparison requested)' -Compared $executed -Baselines 0 -Files $resultFiles.Count
+	Write-Verdict -State 'PASS' -Reason 'all reported cases contain validated positive raw measurements; expected population and baseline comparisons not checked' -Compared $executed -Baselines 0 -Files $resultFiles.Count
 	exit $EXIT_PASS
 }
 
@@ -246,14 +248,14 @@ foreach ($resultFile in $resultFiles) {
 			# and a real regression -- an extra allocation per dispatch -- shows up in it exactly. So
 			# allocation regressions FAIL and timing is reported for a human.
 			#
-			# THE MACHINE-INDEPENDENCE IS CLASS-SCOPED, AND THIS COMMENT USED TO CLAIM IT WAS UNIVERSAL
-			# ("it is identical on every runner"). Measured 2026-10-31 over 3 runners x 2 consecutive
-			# commits: every benchmark in the breakdown classes was byte-identical in all six runs, while
-			# every benchmark in the end-to-end comparative class varied 3x to 56x -- including the two
-			# that measure a third-party library this repository cannot affect. The comparative class
-			# builds a full host per operation and runs at --iterationCount 3 --warmupCount 1, so its
-			# one-time warm-up costs land inside the measured window unpredictably.
-			# Restore timing to blocking the moment a baseline is re-recorded ON a CI runner.
+			# Historical October 31 observations reported stable breakdown allocations and variable
+			# comparative allocations across three runners and two commits. This does not establish
+			# universal machine independence or explain the variability. Hosts are built in GlobalSetup,
+			# not per operation. Later adaptive runs changed invocation/unroll configuration and cannot
+			# establish the cause of the earlier observations or serve as matched regressions.
+			# Retain the existing allocation exemption and advisory timing policy until matched evidence
+			# supports a separately reviewed policy change. BDN Error must not be labelled standard error
+			# without verifying its definition in the recorded report.
 			if ($change -gt $RegressionThreshold) {
 				$timingDrift += @{ Method = $methodName; Change = $change; Baseline = $baselineMeanNs; Current = $currentMeanNs }
 			}

@@ -47,7 +47,7 @@ public class JobConfigurator(IServiceCollection services) : IJobConfigurator
 
 			_ = q.AddTrigger(opts => _ = opts.ForJob(quartzJobKey)
 				.WithIdentity($"{key}-trigger")
-				.WithCronSchedule(cronExpression));
+				.WithCronSchedule(cronExpression, schedule => schedule.WithMisfireInstruction(CronTriggerMisfireInstruction.FireAndProceed)));
 		});
 
 		return this;
@@ -123,7 +123,7 @@ public class JobConfigurator(IServiceCollection services) : IJobConfigurator
 				_ = opts.UsingJobData("ContextSerialization", contextVersion is null ? "reflection-v1" : "metadata-v1:" + contextVersion);
 			});
 			_ = q.AddTrigger(opts => _ = opts.ForJob(quartzJobKey)
-				.WithIdentity($"{key}-trigger").WithCronSchedule(cronExpression));
+				.WithIdentity($"{key}-trigger").WithCronSchedule(cronExpression, schedule => schedule.WithMisfireInstruction(CronTriggerMisfireInstruction.FireAndProceed)));
 		});
 		return this;
 	}

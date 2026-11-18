@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch;
@@ -115,7 +114,7 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
 			// Forwarded to the inner SqlServerLeaderElection for fail-closed fencing-token issuance on
 			// acquisition — the same auto-registered provider the health-based path registers below.
-			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			var fencingTokenProvider = sp.GetService<IFencingTokenIssuer>();
 			return new SqlServerHealthBasedLeaderElection(electionOptions, healthOptions, logger, innerLogger, failureClassifier, fencingTokenProvider);
 		});
 
@@ -125,10 +124,7 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 		services.AddKeyedSingleton<ILeaderElection>("sqlserver", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<SqlServerHealthBasedLeaderElection>();
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElection(inner, meter, activitySource, "SqlServer.HealthBased");
+			return TelemetryLeaderElection.CreateOwned(inner, sp.GetService<IMeterFactory>(), "SqlServer.HealthBased");
 		});
 		services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("sqlserver"));
@@ -152,7 +148,7 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
 		// provider rather than requiring a second, easily-forgotten AddSqlServerFencingTokenProvider() +
 		// WithFencingTokens() call. WithoutFencingTokens() opts out.
-		services.TryAddDefaultFencingTokenProvider(_ => new SqlServerFencingTokenProvider(connectionString));
+		services.TryAddDefaultFencingTokenIssuer(_ => new SqlServerFencingTokenProvider(connectionString));
 
 		return services;
 	}

@@ -59,8 +59,27 @@ public sealed class MqttSubscribeContractShould
     {
         var options = new MqttOptions { MaxPayloadBytes = null };
 
-        // No cap configured -> the guard is inert by design (nothing to enforce), never a false reject.
+        // An EXPLICIT null is the consumer's opt-out, and it stays an opt-out: the guard is inert by
+        // design here, never a false reject. The arm below is what keeps that from being the default.
         MqttTransportReceiver.ExceedsPayloadLimit(options, payloadLength: int.MaxValue).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void RejectPayload_ExceedingTheDefaultLimit_WhenNothingIsConfigured()
+    {
+        var options = new MqttOptions();
+
+        // The default used to be null, so the two arms above together certified a guard that protected
+        // only consumers who already knew to configure it. "Unconfigured" and "deliberately opted out"
+        // were the same state, and every consumer who never touched the option got the second one while
+        // the option read as though a protection existed. Every other transport defaults to 4 MiB.
+        options.MaxPayloadBytes.ShouldBe(PayloadSizeGuard.DefaultMaxPayloadBytes);
+        MqttTransportReceiver.ExceedsPayloadLimit(
+            options,
+            payloadLength: PayloadSizeGuard.DefaultMaxPayloadBytes + 1).ShouldBeTrue();
+        MqttTransportReceiver.ExceedsPayloadLimit(
+            options,
+            payloadLength: PayloadSizeGuard.DefaultMaxPayloadBytes).ShouldBeFalse();
     }
 
     /// <summary>

@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS dispatch.sagas (
     -- Saga metadata
     saga_type     varchar(500)  NOT NULL,
     state_json    jsonb         NOT NULL,
+    timer_recovery_incarnation char(32) NULL,
+    timer_recovery_tracked boolean NOT NULL DEFAULT false,
+    timer_recovery_pending_batch char(32) NULL,
+    timer_recovery_pending_digest char(64) NULL,
+
     is_completed  boolean       NOT NULL DEFAULT false,
 
     -- Explicit completion instant (UTC; SagaState.CompletedAt). The retention purge

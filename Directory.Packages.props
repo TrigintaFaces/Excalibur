@@ -8,7 +8,24 @@
 		<CentralPackageTransitivePinningEnabled Condition="'$(CentralPackageTransitivePinningEnabled)' == ''">true</CentralPackageTransitivePinningEnabled>
 	</PropertyGroup>
 	<ItemGroup>
+		<!-- Benchmark-only metadata resolution for JasperFx.RuntimeCompiler 4.4.0.
+		     Keep these conditional: global transitive pinning must not change shipping dependencies. -->
+		<PackageVersion Include="System.Security.Permissions" Version="10.0.13"
+		                Condition="'$(MSBuildProjectName)' == 'Excalibur.Dispatch.Benchmarks'" />
+		<PackageVersion Include="System.Drawing.Common" Version="10.0.13"
+		                Condition="'$(MSBuildProjectName)' == 'Excalibur.Dispatch.Benchmarks'" />
+		<PackageVersion Include="System.Formats.Nrbf" Version="10.0.13"
+		                Condition="'$(MSBuildProjectName)' == 'Excalibur.Dispatch.Benchmarks'" />
 		<!-- Core BCL / Extensions -->
+		<!-- ADVISORY DRIVEN, and deliberately two patches ahead of its siblings. The AWSSDK packages pull
+		     System.Formats.Cbor transitively into a SHIPPED package (Excalibur.Dispatch.Transport.AwsSqs),
+		     and the version they resolve carries a moderate severity advisory. Measured by restore: 9.0.5
+		     is flagged and so is 10.0.13, the version every sibling System.* pin uses, so matching the
+		     house number would have looked right and changed nothing. 10.0.15 is not flagged.
+		     NU1902 is an error here, so leaving it unpinned does not merely warn: the restore failure
+		     aborts a whole solution build before any test project compiles, which reports NuGet errors
+		     and zero C# errors while test code genuinely does not compile. -->
+		<PackageVersion Include="System.Formats.Cbor" Version="10.0.15" />
 		<PackageVersion Include="System.Text.Json" Version="10.0.13" />
 		<PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="10.0.13" />
 		<PackageVersion Include="System.Threading.RateLimiting" Version="10.0.13" />
@@ -90,6 +107,7 @@
 		<PackageVersion Include="Bogus" Version="35.6.5" />
 		<!-- Benchmarks -->
 		<PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+		<PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.8" />
 		<PackageVersion Include="System.Threading.Channels" Version="10.0.13" />
 		<!-- Load Testing -->
 		<PackageVersion Include="NBomber" Version="6.3.0" />

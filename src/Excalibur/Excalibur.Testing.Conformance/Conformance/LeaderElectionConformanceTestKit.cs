@@ -386,6 +386,67 @@ public abstract class LeaderElectionConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
+	/// A CONFIGURED identity is the identity the election competes under.
+	/// </summary>
+	/// <returns>A task representing the arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// Every other arm in this kit compares the election's own <c>CandidateId</c> against what the store
+	/// reports, so a provider that invents its own identity and then uses it consistently passes all of
+	/// them. This arm is the one that fails: it asserts that the identity a CONSUMER configured is the one
+	/// actually used.
+	/// </para>
+	/// <para>
+	/// It exists because one provider declared a second option of its own and read only that, so a
+	/// consumer who configured the abstraction's property competed under an identity nobody chose. That
+	/// matters beyond tidiness: the candidate identity is what a lease holder is written from and compared
+	/// against, so the whole fencing argument is stated over it, and an instance that cannot predict its
+	/// own identity cannot recognise its own prior tenure after a restart.
+	/// </para>
+	/// </remarks>
+	public virtual async Task StartAsync_ShouldCompeteUnderTheConfiguredIdentity()
+	{
+		await ResetDataAsync().ConfigureAwait(false);
+
+		var configured = GenerateCandidateId();
+		var election = CreateElection(GenerateResourceName(), configured);
+
+		if (election.CandidateId != configured)
+		{
+			throw new TestFixtureAssertionException(
+				$"An election configured with the identity '{configured}' competes as "
+				+ $"'{election.CandidateId}' instead. The configured identity is not a hint: it is what "
+				+ "the lease holder is written from, so a provider that substitutes its own leaves the "
+				+ "consumer unable to predict or recognise its own tenure. A provider reading a "
+				+ "different option than the abstraction's is the usual cause.");
+		}
+
+		await election.StartAsync(CancellationToken.None).ConfigureAwait(false);
+
+		try
+		{
+			// LIVENESS: the configured identity must be usable, not merely stored. A provider that
+			// recorded it and then could not acquire under it would satisfy the check above.
+			await AwaitLeadershipAsync(
+				election,
+				"A candidate competing under a configured identity must still be able to acquire.")
+				.ConfigureAwait(false);
+
+			if (election.CurrentLeaderId != configured)
+			{
+				throw new TestFixtureAssertionException(
+					$"The store reports '{election.CurrentLeaderId}' as leader while the configured "
+					+ $"identity is '{configured}'. The identity reached the election object but not the "
+					+ "store, so a second instance comparing holders cannot match it.");
+			}
+		}
+		finally
+		{
+			await StopAndDisposeAsync(election).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
 	/// Verifies that a leader names itself through CurrentLeaderId.
 	/// </summary>
 	/// <returns>A task representing the arm.</returns>
@@ -851,6 +912,89 @@ public abstract class LeaderElectionConformanceTestKit : ConformanceTestKit
 		{
 			await election1.DisposeAsync().ConfigureAwait(false);
 			await election2.DisposeAsync().ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	/// Verifies a DISPOSED instance stops reporting itself the leader, and that its leadership is
+	/// genuinely available to a successor.
+	/// </summary>
+	/// <returns>A task representing the arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>A disposed instance that still answers IsLeader == true is unbounded, not merely late.</b> The
+	/// grace bound in the guarantee is written about a candidate that cannot CONFIRM its leadership — the
+	/// partition case — and bounds that by the grace period. Disposal is outside that window: every
+	/// mechanism that could relinquish or correct the flag has been shut down, so there is no later event
+	/// that makes the report true again. Any consumer gating on IsLeader rather than on a fencing token
+	/// does the wrong thing for the rest of the process's life.
+	/// </para>
+	/// <para>
+	/// It needs no partition and no clock skew. Dispose a perfectly healthy leader and the question is
+	/// simply whether the flag outlives the object.
+	/// </para>
+	/// <para>
+	/// <b>Both halves are required.</b> The refusal alone is satisfied by a provider whose IsLeader is
+	/// always false, so the arm first requires that leadership was genuinely held. And the successor half
+	/// is the liveness property: a provider could answer the report honestly while still holding the
+	/// resource against everyone else — which is a mutual-exclusion problem rather than a dishonest
+	/// surface, and only a second candidate can tell them apart.
+	/// </para>
+	/// </remarks>
+	public virtual async Task IsLeader_AfterDispose_ShouldBeFalse()
+	{
+		await ResetDataAsync().ConfigureAwait(false);
+
+		var resourceName = GenerateResourceName();
+		var incumbent = CreateElection(resourceName, candidateId: null);
+		var disposed = false;
+
+		try
+		{
+			await incumbent.StartAsync(CancellationToken.None).ConfigureAwait(false);
+
+			await AwaitLeadershipAsync(
+				incumbent,
+				"Leadership must be held before disposal can be shown to end the report of it.")
+				.ConfigureAwait(false);
+
+			await StopAndDisposeAsync(incumbent).ConfigureAwait(false);
+			disposed = true;
+
+			if (incumbent.IsLeader)
+			{
+				throw new TestFixtureAssertionException(
+					"A disposed instance reported IsLeader == true. Nothing can correct that afterwards, "
+					+ "because every path that could relinquish or clear the flag has been shut down, so "
+					+ "the report is wrong for the rest of the process's life rather than for a grace "
+					+ "period. A consumer gating on IsLeader acts as leader throughout.");
+			}
+
+			// LIVENESS: the leadership must actually be free, not merely reported as not-held.
+			var successor = CreateElection(resourceName, candidateId: null);
+
+			try
+			{
+				await successor.StartAsync(CancellationToken.None).ConfigureAwait(false);
+
+				await AwaitLeadershipAsync(
+					successor,
+					"A disposed incumbent must leave its leadership available. If no successor can take "
+					+ "it, the disposed instance is still holding the resource and the honest report is "
+					+ "concealing a mutual-exclusion problem rather than fixing one.")
+					.ConfigureAwait(false);
+			}
+			finally
+			{
+				await StopAndDisposeAsync(successor).ConfigureAwait(false);
+			}
+		}
+		finally
+		{
+			if (!disposed)
+			{
+				await StopAndDisposeAsync(incumbent).ConfigureAwait(false);
+			}
 		}
 	}
 

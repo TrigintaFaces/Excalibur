@@ -1,0 +1,9 @@
+# Lane executed-test minima
+
+Declare `minimum-executed-tests: '1'` at each build-and-test action lane, or pass `--minimum-executed-tests 1` to the existing Bash wrapper. `eng/build.ps1 -MinimumExecutedTests 1` preserves the existing manual lower bound. A higher minimum is a reviewed lane contract, not a number derived from whatever happened to run. Values are canonical positive decimal up to2147483647; zero,leading zeros,missing supplied values,duplicates and malformed/overflowing numbers refuse.
+
+Required collector contexts additionally contain numeric `minimumExecutedTests`. Both composer and external context agree; schemaVersion1 evidence containers retain their shape but old contexts lacking this field are refused by the new verifier. Migrate producers/consumers atomically; do not edit historical evidence. Aggregation reconstructs minima from checked-in workflow declarations, never from receipts. The count is the aggregate of passing independently discovered/executed identities across invocation contexts. Filtered-zero sibling projects remain valid exclusions with positive unfiltered provenance; skipped/discovered-only tests do not fill a minimum.
+
+Other guards keep their own evidence limits: console summaries, manual fresh-TRX counts and declared-skip results are not independent identity proofs. Namespace/XML-doc lanes retain named production-subset presence and all-pass assertions; these are not exact censuses. Exact-two native regressions and exact-one capability checks remain exact, in addition to the minimum. A solution-filter path, discovery census, Docker filter or benchmark selection is not a filtered test execution.
+
+The full collector control suite retains discovery-only zero-match acceptance and separately requires complete-collector nonsense-filter refusal for the zero-executed reason, alongside actual fixture4/min4 success and actual fixture4/min5 refusal. Coverage alone and runner exit0 are insufficient.

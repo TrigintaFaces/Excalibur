@@ -10,6 +10,10 @@ description: Run Excalibur on Google Cloud Functions with HTTP and Pub/Sub trigg
 
 ---
 
+The compiler-checked examples on this page use the optional dependency/compiler profile of the existing `samples/05-serverless/GoogleCloudFunctions/GoogleCloudFunctions.csproj` project, together with the normal Dispatch runtime references. They do not borrow its application types or demonstrate a deployed cloud host or successful NativeAOT publication. Use the Google Functions hosting/framework packages selected by that project; provider registrations additionally require their named Excalibur provider packages.
+
+The order examples declare an application-owned `IOrderApplication`; register your real implementation in the host before startup. These snippets supply contracts, not a simulated business service.
+
 ## Before You Start
 
 - **.NET 10.0**
@@ -29,11 +33,26 @@ Deploy Excalibur applications to Google Cloud Functions for serverless, event-dr
 
 ---
 
+## Invocation lifecycle and dependencies
+
+`AddGoogleCloudFunctionsServerless()` registers the platform adapter, cold-start optimizer and validated hosting options; it does not compose messaging, persistence, health endpoints or trigger settlement. The `AddExcaliburGoogleCloudFunctionsServerless()` entry point forwards to those same services. Configure `AddDispatch(...)` and the domain/provider services your function uses explicitly. See the [registration boundary](https://github.com/TrigintaFaces/Excalibur/blob/main/src/Dispatch/Excalibur.Dispatch.Hosting.GoogleCloudFunctions/README.md).
+
+| Concern | Application and host responsibility |
+|---|---|
+| Connection reuse | Keep the application container and thread-safe SDK clients for the host instance rather than rebuilding them per message. The selected transport owns its registered clients; do not dispose them after each invocation. Open and dispose database connections per operation so the driver's pool can reuse connections. Size each pool against maximum active instances and per-instance concurrency: scale-out creates more pools, not one shared application-wide limit. See [pool tuning](../operations/performance-tuning.md#connection-pool-tuning) and [Google connection-pooling guidance](https://cloud.google.com/sql/docs/sqlserver/manage-connections). |
+| Health | Hosting registration does not register an endpoint or a dependency probe. With the corresponding transport registry configured, opt in to `AddHealthChecks().AddTransportHealthChecks()`; with a claim-check provider configured, `AddClaimCheckHealthCheck()` exercises a real store/retrieve/delete probe. Route protected health requests through the platform's HTTP surface or run explicit checks from monitoring. A platform process-health signal is not proof that the broker, database or claim-check storage is usable. |
+| Invocation limits | Set timeout, memory and concurrency in the platform deployment. `ServerlessHostOptions.MemoryLimitMB` validates a supplied value; it does not allocate platform memory. `ExecutionTimeout` only caps the budget when invoking through `IServerlessHostProvider.ExecuteAsync`, which combines cancellation with the context's remaining time and cleanup reserve. Calling `IDispatcher` directly does not automatically use that wrapper. Propagate cancellation, await required work before returning, and make effects idempotent for trigger redelivery. |
+| Freeze, resume and replacement | Treat in-memory state and timers as temporary. A host may stop scheduling your code or replace the instance; completing an invocation must not depend on a later in-process timer. Persist essential work before returning and drive durable outbox work from a platform trigger with background polling disabled. Reused clients may need their documented stale-connection recovery; initialization/warmup is not proof a connection is still live after an idle period. See [Google function lifecycle guidance](https://cloud.google.com/run/docs/tips/functions-best-practices). |
+| Invocation scope and failures | Resolve scoped handler dependencies from the current invocation/message scope; do not cache them in a shared function object. Dispose application-owned scopes after awaited work, using async disposal when their services require it. The SDK trigger adapter owns acknowledgement, retries and batch responses. Check dispatch results before reporting success when using a result-returning path; a caught exception and a failed result are different observations. |
+
+The repository's local adapter and sample tests demonstrate their selected DI, cancellation and handler paths; they do not simulate a cloud freeze, service settlement or scale-out. In the AWS SQS sample, partial failures are expressed with the SDK's `SQSBatchResponse`; Azure and Google trigger retry behavior comes from their host configuration. Application command/event types, handlers, business services and resource names below are illustrative application code, not extra services installed by the hosting registration.
+
 ## Quick Start
 
 ### HTTP-Triggered Function
 
 ```csharp
+using Excalibur.Dispatch.Delivery;
 // Function.cs
 using Google.Cloud.Functions.Framework;
 using Microsoft.AspNetCore.Http;
@@ -57,13 +76,14 @@ public class DispatchFunction : IHttpFunction
         try
         {
             var command = await JsonSerializer.DeserializeAsync<CreateOrderCommand>(
-                context.Request.Body);
+                context.Request.Body)
+                ?? throw new InvalidOperationException("An order command is required.");
 
             var result = await _dispatcher.DispatchAsync(command, context.RequestAborted);
 
-            context.Response.StatusCode = 200;
+            context.Response.StatusCode = result.Succeeded ? 200 : 500;
             context.Response.ContentType = "application/json";
-            await JsonSerializer.SerializeAsync(context.Response.Body, result);
+            await JsonSerializer.SerializeAsync(context.Response.Body, new { succeeded = result.Succeeded });
         }
         catch (Exception ex)
         {
@@ -75,6 +95,20 @@ public class DispatchFunction : IHttpFunction
         }
     }
 }
+
+public sealed record CreateOrderCommand(Guid OrderId) : IDispatchAction;
+
+// Application-owned contract: register your real implementation before starting the host.
+public interface IOrderApplication
+{
+    Task CreateAsync(Guid orderId, CancellationToken cancellationToken);
+}
+
+public sealed class CreateOrderCommandHandler(IOrderApplication orders) : IActionHandler<CreateOrderCommand>
+{
+    public Task HandleAsync(CreateOrderCommand message, CancellationToken cancellationToken) =>
+        orders.CreateAsync(message.OrderId, cancellationToken);
+}
 ```
 
 ### Startup.cs (Dependency Injection)
@@ -82,8 +116,11 @@ public class DispatchFunction : IHttpFunction
 ```csharp
 // Startup.cs
 using Google.Cloud.Functions.Hosting;
+using Excalibur.Outbox.SqlServer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+
+[assembly: FunctionsStartup(typeof(Startup))]
 
 public class Startup : FunctionsStartup
 {
@@ -92,17 +129,27 @@ public class Startup : FunctionsStartup
         // Add Dispatch
         services.AddDispatch(options =>
         {
-            options.ServiceLifetime = ServiceLifetime.Scoped;
+            options.AddHandlersFromAssembly(typeof(CreateOrderCommandHandler).Assembly);
         });
 
         // Add handlers
-        services.AddScoped<CreateOrderCommandHandler>();
+        services.AddScoped<Excalibur.Dispatch.Delivery.IActionHandler<CreateOrderCommand>, CreateOrderCommandHandler>();
 
-        // Add Cloud SQL connection (optional)
-        services.AddSqlServerOutboxStore(options =>
+        var connectionString = Environment.GetEnvironmentVariable("SQL_CONNECTION_STRING")
+            ?? throw new InvalidOperationException("SQL_CONNECTION_STRING is required.");
+
+        // The outbox BUILDER is what registers IOutboxProcessor. AddSqlServerOutboxStore registers the
+        // store only, so resolving the processor after it fails with "No service for type
+        // IOutboxProcessor" -- the builder is not a stylistic preference here.
+        //
+        // The dead-letter queue is REQUIRED, not optional: the processor resolves IDeadLetterQueue and
+        // throws when none is registered. To discard exhausted messages instead, register
+        // NullDeadLetterQueue.Instance explicitly, so discard is a choice rather than an accident.
+        services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
         {
-            options.ConnectionString = Environment.GetEnvironmentVariable("SQL_CONNECTION_STRING");
-        });
+            outbox.UseSqlServer(sql => sql.ConnectionString(connectionString));
+            outbox.WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString);
+        }));
     }
 }
 ```
@@ -117,8 +164,8 @@ public class Startup : FunctionsStartup
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Google.Cloud.Functions.Hosting" Version="2.2.2" />
-    <PackageReference Include="Google.Cloud.Functions.Framework" Version="2.2.0" />
+    <PackageReference Include="Google.Cloud.Functions.Hosting" Version="3.0.1" />
+    <PackageReference Include="Google.Cloud.Functions.Framework" Version="3.0.1" />
 
     <PackageReference Include="Excalibur.Dispatch" Version="10.0.0" />
     <PackageReference Include="Excalibur.Outbox.SqlServer" Version="10.0.0" />
@@ -150,6 +197,32 @@ curl https://us-central1-PROJECT_ID.cloudfunctions.net/dispatch-function \
 ---
 
 ## Pub/Sub Event Processing
+
+### Message size, and the claim check
+
+Every broker here caps the size of a single message, and the cap has moved: Amazon raised the SQS maximum
+payload from 256 KiB to 1 MiB in August 2025, and AWS's own quota pages have been reported lagging such
+announcements. So **read the current service quota rather than any number written in a document**, this one
+included — that is why no figure is quoted here.
+
+What matters for composition is that the cap exists and that exceeding it fails the send, not the handler.
+The framework ships the claim-check pattern for it: the payload goes to object storage and the message
+carries a reference, so message size stops tracking payload size.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddGcsClaimCheck(gcs => gcs
+    .ProjectId("your-project")
+    .BucketName("your-payload-bucket"));
+```
+
+Two consequences worth planning for rather than discovering: the handler's storage read is now on the
+critical path of every oversized message, and the retention policy on that bucket becomes part of your
+delivery guarantee — a payload collected by a lifecycle rule before its message is consumed is a message
+that can no longer be processed. Set the bucket's retention longer than your queue's maximum retention plus
+your dead-letter window.
+
 
 ### Pub/Sub Triggered Function
 
@@ -184,7 +257,11 @@ public class IntegrationEventProcessor : ICloudEventFunction<MessagePublishedDat
         try
         {
             var integrationEvent = JsonSerializer.Deserialize<OrderCreatedIntegrationEvent>(messageData);
-            await _dispatcher.DispatchAsync(integrationEvent, cancellationToken);
+            var result = await _dispatcher.DispatchAsync(integrationEvent, cancellationToken);
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException("Integration event dispatch failed.");
+            }
 
             _logger.LogInformation("Integration event processed successfully");
         }
@@ -226,11 +303,10 @@ gcloud functions deploy pubsub-processor \
 ```csharp ignore
 // OutboxProcessorFunction.cs
 using Google.Cloud.Functions.Framework;
-using Google.Events.Protobuf.Cloud.Scheduler.V1;
-using CloudNative.CloudEvents;
+using Microsoft.AspNetCore.Http;
 using Excalibur.Dispatch;
 
-public class OutboxProcessorFunction : ICloudEventFunction<SchedulerJobData>
+public class OutboxProcessorFunction : IHttpFunction
 {
     private readonly IOutboxProcessor _outboxProcessor;
     private readonly ILogger<OutboxProcessorFunction> _logger;
@@ -240,20 +316,18 @@ public class OutboxProcessorFunction : ICloudEventFunction<SchedulerJobData>
         ILogger<OutboxProcessorFunction> logger)
     {
         _outboxProcessor = outboxProcessor;
+        _outboxProcessor.Init($"serverless-outbox-{Guid.NewGuid():N}");
         _logger = logger;
     }
 
-    public async Task HandleAsync(
-        CloudEvent cloudEvent,
-        SchedulerJobData data,
-        CancellationToken cancellationToken)
+    public async Task HandleAsync(HttpContext context)
     {
         _logger.LogInformation("Outbox processor triggered at: {Now}", DateTime.UtcNow);
 
         try
         {
             var processedCount = await _outboxProcessor.DispatchPendingMessagesAsync(
-                cancellationToken);
+                context.RequestAborted);
 
             _logger.LogInformation("Processed {Count} outbox messages", processedCount);
         }
@@ -288,191 +362,52 @@ gcloud scheduler jobs create http outbox-processor-schedule \
 
 ## Cloud Firestore Event Sourcing
 
-### Firestore Event Store
+Install `Excalibur.EventSourcing.Firestore` and select the existing provider using the host's Application Default Credentials:
 
 ```csharp
-// FirestoreEventStore.cs
-using Google.Cloud.Firestore;
-using Excalibur.EventSourcing;
+using Excalibur.EventSourcing.Firestore;
+using Microsoft.Extensions.DependencyInjection;
 
-// The stored eventType holds the event's declared [MessageName] -- the same name used by the outbox
-// MessageType and the CloudEvents type. See ../event-sourcing/domain-events.md#stable-message-names.
-public class FirestoreEventStore : IEventStore
+public static class FirestoreRegistration
 {
-    private readonly FirestoreDb _db;
-    private readonly IEventTypeRegistry _eventTypes;
-
-    public FirestoreEventStore(
-        string projectId, IEventTypeRegistry eventTypes, string databaseId = "(default)")
+    public static void Configure(IServiceCollection services, string projectId)
     {
-        _db = FirestoreDb.Create(projectId, databaseId);
-        _eventTypes = eventTypes;
-    }
-
-    public async Task AppendAsync(
-        string aggregateId,
-        IEnumerable<IDomainEvent> events,
-        int expectedVersion,
-        CancellationToken cancellationToken)
-    {
-        var batch = _db.StartBatch();
-        var eventsCollection = _db.Collection("events").Document(aggregateId).Collection("events");
-
-        // The store assigns each event's stream version; the event payload no longer carries one.
-        var version = expectedVersion;
-        foreach (var @event in events)
-        {
-            var eventDoc = eventsCollection.Document(@event.EventId.ToString());
-            var eventData = new Dictionary<string, object>
-            {
-                ["aggregateId"] = aggregateId,
-                ["eventType"] = MessageNameHelper.GetName(@event.GetType()),
-                ["eventData"] = JsonSerializer.Serialize(@event),
-                ["version"] = ++version,
-                ["occurredAt"] = Timestamp.FromDateTimeOffset(@event.OccurredAt)
-            };
-
-            batch.Set(eventDoc, eventData);
-        }
-
-        try
-        {
-            await batch.CommitAsync(cancellationToken);
-        }
-        catch (Exception)
-        {
-            throw new ConcurrencyException($"Concurrency conflict for aggregate {aggregateId}");
-        }
-    }
-
-    public async Task<IEnumerable<IDomainEvent>> GetEventsAsync(
-        string aggregateId,
-        CancellationToken cancellationToken)
-    {
-        var eventsCollection = _db.Collection("events")
-            .Document(aggregateId)
-            .Collection("events")
-            .OrderBy("version");
-
-        var snapshot = await eventsCollection.GetSnapshotAsync(cancellationToken);
-
-        var events = new List<IDomainEvent>();
-        foreach (var document in snapshot.Documents)
-        {
-            var eventType = _eventTypes.ResolveType(document.GetValue<string>("eventType"));
-            var eventData = document.GetValue<string>("eventData");
-            var @event = JsonSerializer.Deserialize(eventData, eventType) as IDomainEvent;
-            events.Add(@event);
-        }
-
-        return events;
+        services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+            es.UseFirestore(firestore => firestore
+                .ProjectId(projectId)
+                .CollectionName("events"))));
     }
 }
 ```
 
-**Startup configuration:**
-
-```csharp
-public override void ConfigureServices(WebHostBuilderContext context, IServiceCollection services)
-{
-    var projectId = Environment.GetEnvironmentVariable("GCP_PROJECT");
-    services.AddSingleton<IEventStore>(sp =>
-        new FirestoreEventStore(projectId, sp.GetRequiredService<IEventTypeRegistry>()));
-}
-```
-
-### Firestore Triggers for Projections
-
-```csharp
-// ProjectionFunction.cs
-using Google.Cloud.Functions.Framework;
-using Google.Events.Protobuf.Cloud.Firestore.V1;
-using CloudNative.CloudEvents;
-
-public class ProjectionFunction : ICloudEventFunction<DocumentEventData>
-{
-    private readonly IProjectionService _projectionService;
-    private readonly IEventTypeRegistry _eventTypes;
-
-    public ProjectionFunction(IProjectionService projectionService, IEventTypeRegistry eventTypes)
-    {
-        _projectionService = projectionService;
-        _eventTypes = eventTypes;
-    }
-
-    public async Task HandleAsync(
-        CloudEvent cloudEvent,
-        DocumentEventData data,
-        CancellationToken cancellationToken)
-    {
-        if (data.Value == null) return;  // Document deleted
-
-        var eventType = data.Value.Fields["eventType"].StringValue;
-        var eventData = data.Value.Fields["eventData"].StringValue;
-
-        // eventType is the declared [MessageName]; resolve it through the registry.
-        var type = _eventTypes.ResolveType(eventType);
-        var @event = JsonSerializer.Deserialize(eventData, type) as IDomainEvent;
-
-        await _projectionService.ProjectAsync(@event, cancellationToken);
-    }
-}
-```
-
-**Deploy:**
-
-```bash
-gcloud functions deploy projection-processor \
-  --runtime dotnet10 \
-  --trigger-event providers/cloud.firestore/eventTypes/document.create \
-  --trigger-resource "projects/PROJECT_ID/databases/(default)/documents/events/{aggregateId}/events/{eventId}" \
-  --region us-central1
-```
+Follow [Firestore provider setup](../event-sourcing/providers.md#google-firestore) for database/collection configuration, key provisioning and repository registration. Use [projection composition](../event-sourcing/projections.md) for the framework event-store path. A Firestore document trigger is separate application/platform code; do not assume a hand-written `eventType`/`eventData` document reader matches the provider's stored envelope or implements the current `IEventStore` contract.
 
 ---
 
 ## Cloud SQL Integration
 
-### Connection String Configuration
+### SQL Server connection configuration
+
+`AddSqlServerOutboxStore` selects SQL Server. Configure a SQL Server TCP connection string for the **same intended database** using Google's [SQL Server connection procedure](https://cloud.google.com/sql/docs/sqlserver/connect-instance-cloud-run) or a supported [Cloud SQL Auth Proxy TCP connection](https://cloud.google.com/sql/docs/sqlserver/connect-auth-proxy). Configure the required network access, credentials and TLS for that route. Do not pass a MySQL/PostgreSQL `/cloudsql/...` Unix-socket path to the SQL Server provider, or change database providers just to reuse such a path.
 
 ```csharp
-// Startup.cs
-public override void ConfigureServices(WebHostBuilderContext context, IServiceCollection services)
+using Excalibur.Outbox.SqlServer;
+using Google.Cloud.Functions.Hosting;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+
+public sealed class EnvironmentOutboxStartup : FunctionsStartup
 {
-    var connectionString = BuildCloudSqlConnectionString();
-
-    services.AddSqlServerOutboxStore(options =>
+    public override void ConfigureServices(WebHostBuilderContext context, IServiceCollection services)
     {
-        options.ConnectionString = connectionString;
-    });
-}
-
-private string BuildCloudSqlConnectionString()
-{
-    var instanceConnectionName = Environment.GetEnvironmentVariable("INSTANCE_CONNECTION_NAME");
-
-    if (!string.IsNullOrEmpty(instanceConnectionName))
-    {
-        // Cloud SQL Proxy connection (for Cloud Functions)
-        return $"Server=/cloudsql/{instanceConnectionName};Database=AppDb;User=sqlserver;Password=...";
+        var connectionString = Environment.GetEnvironmentVariable("SQL_CONNECTION_STRING")
+            ?? throw new InvalidOperationException("SQL_CONNECTION_STRING is required.");
+        services.AddSqlServerOutboxStore(options => options.ConnectionString = connectionString);
     }
-
-    // Direct connection (for local development)
-    return Environment.GetEnvironmentVariable("SQL_CONNECTION_STRING");
 }
 ```
 
-**Deploy with Cloud SQL:**
-
-```bash
-gcloud functions deploy your-function \
-  --runtime dotnet10 \
-  --trigger-http \
-  --entry-point DispatchFunction \
-  --region us-central1 \
-  --set-env-vars INSTANCE_CONNECTION_NAME=PROJECT_ID:REGION:INSTANCE_NAME \
-  --set-cloudsql-instances PROJECT_ID:REGION:INSTANCE_NAME
-```
+This call registers the store only. Retain the earlier `AddExcalibur(...AddOutbox(...))` processor/dead-letter composition when running the scheduled processor; use one consistent connection configuration for those registrations. Store secrets in Secret Manager or deployment secret configuration rather than putting credentials into deployment commands. Follow the connection procedure for the selected Functions generation/network profile; setting `INSTANCE_CONNECTION_NAME` alone is not a SQL Server connection.
 
 ---
 
@@ -547,26 +482,7 @@ public async Task HandleAsync(HttpContext context)
 
 ### Cloud Trace Integration
 
-```csharp
-// Startup.cs
-using Google.Cloud.Diagnostics.AspNetCore3;
-
-public override void Configure(WebHostBuilder webHostBuilder)
-{
-    webHostBuilder.ConfigureServices(services =>
-    {
-        var projectId = Environment.GetEnvironmentVariable("GCP_PROJECT");
-
-        services.AddGoogleDiagnosticsForAspNetCore(projectId, serviceName: "dispatch-function");
-    });
-}
-```
-
-**Package reference:**
-
-```xml
-<PackageReference Include="Google.Cloud.Diagnostics.AspNetCore3" Version="5.1.3" />
-```
+Configure tracing through the [Google .NET diagnostics documentation](https://cloud.google.com/dotnet/docs/reference/Google.Cloud.Diagnostics.AspNetCore3/latest) for the SDK and hosting profile you deploy, including project identity, credentials, sampling and exporter flushing. `ServerlessTelemetryOptions.EnableDistributedTracing` and `EnableMetrics` describe platform-provisioned telemetry; `AddGoogleCloudFunctionsServerless()` does not register an in-process trace exporter for these flags. Do not rely on a background exporter flush after the function has returned.
 
 ---
 
@@ -585,8 +501,37 @@ gcloud functions deploy your-function \
   --max-instances 10
 ```
 
-**Cost:** ~$0.0000025 per GB-second (always running)
-**Benefit:** Near-zero cold starts for first instance
+**Earlier unverified illustration (not measured framework cloud results):** the previous estimate of ~$0.0000025 per GB-second and “near-zero cold starts for first instance” is historical, not current pricing or a latency guarantee. Minimum instances can reduce cold starts but do not guarantee a warm instance for every request. Check [current pricing](https://cloud.google.com/functions/pricing) for the generation and region you deploy, and measure startup latency for the actual workload.
+
+#### Run the framework's cold-start optimizer
+
+Everything above is platform configuration. The framework also ships a cold-start optimizer for Google Cloud Functions,
+and **nothing invokes it for you** — registering it seats the service, it does not run the warmup. Left
+uncalled, dependency injection, JIT and SDK initialization are all paid on the first invocation of each new
+instance.
+
+```csharp
+using Excalibur.Dispatch.Hosting.Serverless;
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddGoogleCloudFunctionsServerless();
+```
+
+Then drive it once from your function's construction or initialization path, not per invocation:
+
+```csharp
+var optimizer = provider.GetRequiredService<IColdStartOptimizer>();
+await optimizer.OptimizeAsync();
+```
+
+`OptimizeAsync` is a no-op off-platform: the optimizer reports itself disabled unless both `FUNCTION_NAME` and `FUNCTION_TARGET` are set, which the Functions runtime sets for you, so the same
+code is safe to run locally and in tests without a guard of your own.
+
+Unlike AWS Lambda there is no snapshot-and-restore mechanism here to attach a warmup to, so this runs
+during instance initialization rather than at image-capture time. That makes it worth less than SnapStart
+and more than nothing: the work moves off the first request and onto instance startup, which is where
+Google Cloud Functions's own prewarming and minimum-instance settings above are already paying.
+
 
 ### Memory and CPU Allocation
 
@@ -671,7 +616,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -774,8 +719,10 @@ gcloud logging read "resource.type=cloud_function AND jsonPayload.message:memory
 
 ### Timeout Errors
 
+Select a timeout within the [limits for your function generation and trigger](https://cloud.google.com/functions/quotas#time_limits); HTTP and event-driven functions do not share one universal maximum.
+
 ```bash
-# Increase timeout (max 540s)
+# Example timeout; check the limit for the deployed generation and trigger type
 gcloud functions deploy dispatch-function \
   --timeout 540s
 ```
@@ -787,8 +734,12 @@ gcloud functions deploy dispatch-function \
 ### 1. Use Dependency Injection
 
 ```csharp
+using Google.Cloud.Functions.Hosting;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+
 // GOOD: DI via Startup
-public class Startup : FunctionsStartup
+public class MinimalDispatchStartup : FunctionsStartup
 {
     public override void ConfigureServices(WebHostBuilderContext context, IServiceCollection services)
     {
@@ -796,17 +747,12 @@ public class Startup : FunctionsStartup
     }
 }
 
-// BAD: Manual instantiation in function
-public class Function : IHttpFunction
-{
-    public Task HandleAsync(HttpContext context)
-    {
-        var dispatcher = new Dispatcher();  // Don't do this
-    }
-}
+// Resolve IDispatcher from DI; do not manually construct its dependency graph.
 ```
 
 ### 2. Handle Retries Gracefully
+
+`IsAlreadyProcessed`, `ProcessMessage` and `MarkAsProcessed` below are application-provided methods. Persist the marker with the business effect under the required concurrency control; a separate check and later mark alone is not an atomic deduplication guarantee.
 
 ```csharp
 public async Task HandleAsync(CloudEvent cloudEvent, MessagePublishedData data, CancellationToken ct)

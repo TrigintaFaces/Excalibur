@@ -65,6 +65,9 @@ public static class FencingOptOutServiceCollectionExtensions
 /// </summary>
 internal sealed class FencingOptOutMarker;
 
+/// <summary>Marks built-in elections that require a selected self-minting capability.</summary>
+internal sealed class FencingIssuerRequiredMarker;
+
 /// <summary>
 /// Shared registration helper each store's leader election extension uses to auto-register its arbitrated
 /// fencing-token provider by default, unless the consumer opted out.
@@ -95,6 +98,48 @@ internal static class FencingTokenDefaultRegistration
 			sp.GetService<FencingOptOutMarker>() is not null ? null! : createProvider(sp));
 
 		services.RegisterFencingSupportServices();
+	}
+
+	/// <summary>Registers a self-minting default while retaining the selected reader and lazy opt-out.</summary>
+	internal static void TryAddDefaultFencingTokenIssuer(
+		this IServiceCollection services,
+		Func<IServiceProvider, IFencingTokenIssuer> createProvider)
+	{
+		ArgumentNullException.ThrowIfNull(createProvider);
+		services.TryAddDefaultFencingTokenProvider(sp => createProvider(sp));
+		services.TryAddSingleton<FencingIssuerRequiredMarker>();
+		services.RegisterFencingIssuerProjection();
+	}
+
+	/// <summary>Projects the selected reader's mint capability without taking ownership a second time.</summary>
+	internal static void RegisterFencingIssuerProjection(this IServiceCollection services)
+	{
+		services.TryAddSingleton<IFencingTokenIssuer>(sp =>
+		{
+			var selected = sp.GetService<IFencingTokenProvider>();
+			if (selected is null)
+			{
+				return null!;
+			}
+
+			return selected is IFencingTokenIssuer issuer
+				? new SelectedIssuerView(issuer)
+				: throw new InvalidOperationException(
+					"The selected IFencingTokenProvider does not implement IFencingTokenIssuer. " +
+					"Register a mint-capable provider for this election or explicitly call WithoutFencingTokens().");
+		});
+	}
+
+	private sealed class SelectedIssuerView(IFencingTokenIssuer selected) : IFencingTokenIssuer
+	{
+		public ValueTask<long> IssueTokenAsync(string resourceId, CancellationToken cancellationToken) =>
+			selected.IssueTokenAsync(resourceId, cancellationToken);
+
+		public ValueTask<long?> GetTokenAsync(string resourceId, CancellationToken cancellationToken) =>
+			selected.GetTokenAsync(resourceId, cancellationToken);
+
+		public ValueTask<bool> ValidateTokenAsync(string resourceId, long token, CancellationToken cancellationToken) =>
+			selected.ValidateTokenAsync(resourceId, token, cancellationToken);
 	}
 
 	/// <summary>

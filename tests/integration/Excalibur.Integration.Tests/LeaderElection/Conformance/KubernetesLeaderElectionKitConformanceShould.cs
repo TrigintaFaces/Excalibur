@@ -52,7 +52,8 @@ public sealed class KubernetesLeaderElectionKitConformanceShould
 	: LeaderElectionConformanceTestKit, IAsyncLifetime
 {
 	private readonly KubernetesContainerFixture _fixture;
-	private readonly List<ILeaderElection> _created = [];
+	private readonly KubernetesElectionTestLifetime _ownership = new();
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Borrowed reference: KubernetesElectionTestLifetime owns this client and disposes it after every election resource/notification join and exact lease cleanup.")]
 	private IKubernetes? _client;
 
 	public KubernetesLeaderElectionKitConformanceShould(KubernetesContainerFixture fixture) => _fixture = fixture;
@@ -63,32 +64,10 @@ public sealed class KubernetesLeaderElectionKitConformanceShould
 	/// there would mean sync-over-async on every call for no benefit, since the client is safe to share
 	/// across elections -- production hosts register exactly one, too.
 	/// </summary>
-	public async ValueTask InitializeAsync() => _client = await _fixture.CreateClientAsync().ConfigureAwait(false);
+	public async ValueTask InitializeAsync() => _client = _ownership.OwnClient(await _fixture.CreateClientAsync().ConfigureAwait(false));
 
-	/// <summary>
-	/// Disposes every election this arm constructed.
-	/// </summary>
-	/// <remarks>
-	/// The kit's own teardown is <c>(election as IDisposable)?.Dispose()</c>, and
-	/// <see cref="KubernetesLeaderElection"/> implements only <see cref="IAsyncDisposable"/>, so that cast
-	/// yields null and the kit disposes nothing. Left alone each arm strands a live Lease-renewal timer.
-	/// </remarks>
-	public async ValueTask DisposeAsync()
-	{
-		foreach (var election in _created)
-		{
-			try
-			{
-				await election.DisposeAsync().ConfigureAwait(false);
-			}
-			catch (ObjectDisposedException)
-			{
-				// Already disposed by an arm that owns its own teardown.
-			}
-		}
-
-		_created.Clear();
-	}
+    /// <summary>Joins every created election's resources and terminal callbacks before native teardown.</summary>
+    public ValueTask DisposeAsync() => _ownership.DisposeAsync();
 
 	/// <inheritdoc/>
 	protected override ILeaderElection CreateElection(string resourceName, string? candidateId)
@@ -100,7 +79,7 @@ public sealed class KubernetesLeaderElectionKitConformanceShould
 		var electionOptions = Options.Create(new KubernetesLeaderElectionOptions
 		{
 			Namespace = "default",
-			CandidateId = candidateId ?? GenerateCandidateId()[..24],
+			InstanceId = candidateId ?? GenerateCandidateId()[..24],
 
 			// A fresh cluster's coordination API answers well within a second; these values keep the
 			// renewal loop and the safety-net self-demotion margin comfortably inside the kit's default
@@ -119,7 +98,7 @@ public sealed class KubernetesLeaderElectionKitConformanceShould
 			electionOptions,
 			NullLogger<KubernetesLeaderElection>.Instance);
 
-		_created.Add(election);
+		_ownership.Track(election, _client!, $"{resourceName}-leader-election", "default");
 		return election;
 	}
 
@@ -174,6 +153,13 @@ public sealed class KubernetesLeaderElectionKitConformanceShould
 
 	[Fact]
 	public Task CurrentLeadership_AfterStop_ShouldBeNull_Test() => CurrentLeadership_AfterStop_ShouldBeNull();
+
+	[Fact]
+	public Task IsLeader_AfterDispose_ShouldBeFalse_Test() => IsLeader_AfterDispose_ShouldBeFalse();
+
+	[Fact]
+	public Task StartAsync_ShouldCompeteUnderTheConfiguredIdentity_Test() =>
+		StartAsync_ShouldCompeteUnderTheConfiguredIdentity();
 
 	[Fact]
 	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();

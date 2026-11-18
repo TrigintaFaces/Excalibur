@@ -32,6 +32,7 @@ public static class ConsulFencingTokenServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		services.TryAddSingleton<IFencingTokenProvider, ConsulFencingTokenProvider>();
+		services.RegisterFencingIssuerProjection();
 		services.TryAddSingleton<FencingTokenMiddleware>();
 
 		return services;

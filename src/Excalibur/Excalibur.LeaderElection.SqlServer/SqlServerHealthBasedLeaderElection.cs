@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json;
+using System.Transactions;
 using System.Text.RegularExpressions;
 
 using Excalibur.Dispatch;
@@ -37,12 +38,45 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 	[GeneratedRegex(@"^[a-zA-Z0-9_]+$")]
 	private static partial Regex SafeIdentifierRegex();
 
-	private readonly SqlServerLeaderElection _inner;
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "HealthElectionLifetime owns the inner DisposeAsync delegate and joins its memoized result before completing wrapper disposal.")]
+	private readonly ILeaderElection _inner;
+    private readonly IHealthElectionStore? _store;
 	private readonly string _connectionString;
 	private readonly SqlServerHealthBasedLeaderElectionOptions _healthOptions;
 	private readonly ILogger<SqlServerHealthBasedLeaderElection> _logger;
-	private volatile bool _disposed;
+	private readonly Lock _lifetimeGate = new();
+    private HealthElectionLifetime? _lifetime;
+    private int _metadataWriteAttempted;
+    private HealthElectionLifetime Lifetime
+    {
+        get
+        {
+            lock (_lifetimeGate)
+            {
+                return _lifetime ??= new HealthElectionLifetime(StartCoreAsync, _inner.StopAsync,
+                    _inner.DisposeAsync, RemoveOwnedHealthAsync, _ddlGate.Dispose,
+                    beforeStart: () => LeaderElectionNotifications.ThrowIfNotificationReentrant(_inner.NotificationsCompleted));
+            }
+        }
+    }
+
+    private async Task RemoveOwnedHealthAsync(CancellationToken token)
+    {
+        if (Volatile.Read(ref _metadataWriteAttempted) == 0) { return; }
+        await RemoveHealthRecordAsync(CandidateId, token).ConfigureAwait(false);
+        Volatile.Write(ref _metadataWriteAttempted, 0);
+    }
+
+    private async Task StartCoreAsync(CancellationToken token)
+    {
+        if (_healthOptions.AutoCreateTable)
+        { await Lifetime.NativeAsync(EnsureTableCreatedAsync, token).ConfigureAwait(false); }
+        token.ThrowIfCancellationRequested();
+        await _inner.StartAsync(token).ConfigureAwait(false);
+    }
 	private bool _tableCreated;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "HealthElectionLifetime invokes the gate Dispose delegate after all admitted DDL and health work has drained, including failure paths.")]
+    private readonly SemaphoreSlim _ddlGate = new(1, 1);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerHealthBasedLeaderElection"/> class.
@@ -59,7 +93,7 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 	/// renewal faults. Defaults to <see langword="null"/> (grace-only behavior).
 	/// </param>
 	/// <param name="fencingTokenProvider">
-	/// An optional <see cref="IFencingTokenProvider"/> forwarded to the inner
+	/// An optional <see cref="IFencingTokenIssuer"/> forwarded to the inner
 	/// <see cref="SqlServerLeaderElection"/> for fail-closed fencing-token issuance on acquisition. Defaults to
 	/// <see langword="null"/> (no fencing).
 	/// </param>
@@ -69,14 +103,14 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 		ILogger<SqlServerHealthBasedLeaderElection> logger,
 		ILogger<SqlServerLeaderElection> innerLogger,
 		IMessageFailureClassifier? failureClassifier = null,
-		IFencingTokenProvider? fencingTokenProvider = null)
+		IFencingTokenIssuer? fencingTokenProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(electionOptions);
 		ArgumentNullException.ThrowIfNull(healthOptions);
 		ArgumentNullException.ThrowIfNull(logger);
 		ArgumentNullException.ThrowIfNull(innerLogger);
 
-		_healthOptions = healthOptions.Value;
+		_healthOptions = Snapshot(healthOptions.Value);
 		ArgumentException.ThrowIfNullOrWhiteSpace(_healthOptions.ConnectionString);
 		ArgumentException.ThrowIfNullOrWhiteSpace(_healthOptions.LockResource);
 
@@ -89,6 +123,16 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 		_inner = new SqlServerLeaderElection(
 			_healthOptions.ConnectionString, _healthOptions.LockResource, electionOptions, innerLogger, failureClassifier, fencingTokenProvider);
 	}
+
+    internal SqlServerHealthBasedLeaderElection(IOptions<SqlServerHealthBasedLeaderElectionOptions> healthOptions,
+        ILogger<SqlServerHealthBasedLeaderElection> logger, ILeaderElection inner, IHealthElectionStore store)
+    {
+        _healthOptions = Snapshot(healthOptions.Value);
+        _connectionString = _healthOptions.ConnectionString;
+        _logger = logger; _inner = inner; _store = store;
+        ValidateIdentifier(_healthOptions.SchemaName, nameof(_healthOptions.SchemaName));
+        ValidateIdentifier(_healthOptions.TableName, nameof(_healthOptions.TableName));
+    }
 
 	/// <inheritdoc/>
 	public event EventHandler<LeaderElectionEventArgs>? BecameLeader
@@ -122,6 +166,9 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 	public string CandidateId => _inner.CandidateId;
 
 	/// <inheritdoc/>
+	public Task NotificationsCompleted => _inner.NotificationsCompleted;
+
+	/// <inheritdoc/>
 	public bool IsLeader => _inner.IsLeader;
 
 	/// <inheritdoc/>
@@ -132,64 +179,49 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 
 	/// <inheritdoc/>
 	public async Task StartAsync(CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		if (_healthOptions.AutoCreateTable)
-		{
-			await EnsureTableCreatedAsync(cancellationToken).ConfigureAwait(false);
-		}
-
-		await _inner.StartAsync(cancellationToken).ConfigureAwait(false);
-
-		LogStarted(CandidateId);
-	}
+    {
+        await Lifetime.StartAsync(cancellationToken).ConfigureAwait(false);
+        LogStarted(CandidateId);
+    }
 
 	/// <inheritdoc/>
 	public async Task StopAsync(CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		await _inner.StopAsync(cancellationToken).ConfigureAwait(false);
-
-		// Remove health record on stop
-		try
-		{
-			await RemoveHealthRecordAsync(CandidateId, cancellationToken).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			LogHealthRemovalError(ex, CandidateId);
-		}
-
-		LogStopped(CandidateId);
-	}
+    {
+        await Lifetime.StopAsync(cancellationToken).ConfigureAwait(false);
+        LogStopped(CandidateId);
+    }
 
 	/// <inheritdoc/>
 	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		var metadataJson = metadata != null
-			? JsonSerializer.Serialize(metadata, JsonContext.IDictionaryStringString)
-			: "{}";
-
-		await UpsertHealthRecordAsync(CandidateId, isHealthy, metadataJson, cancellationToken).ConfigureAwait(false);
-
-		LogHealthUpdated(CandidateId, isHealthy);
-
-		// Step down if unhealthy and configured to do so
-		if (!isHealthy && _healthOptions.StepDownWhenUnhealthy && _inner.IsLeader)
-		{
-			LogSteppingDown(CandidateId);
-			await _inner.StopAsync(CancellationToken.None).ConfigureAwait(false);
-		}
-	}
+    {
+        var copy = metadata is null ? null : new Dictionary<string, string>(metadata, StringComparer.Ordinal);
+        var metadataJson = copy is null ? "{}" : JsonSerializer.Serialize(copy, JsonContext.IDictionaryStringString);
+        var steppedDown = false;
+        await Lifetime.MutateAsync(ct =>
+        {
+            Interlocked.Exchange(ref _metadataWriteAttempted, 1);
+            return UpsertHealthRecordAsync(CandidateId, isHealthy, metadataJson, ct);
+        }, async () =>
+        {
+            // Remains owned until this authority effect settles: an old update cannot stop a new run.
+            if (!isHealthy && _healthOptions.StepDownWhenUnhealthy && _inner.IsLeader)
+            {
+                try { await _inner.StopAsync(CancellationToken.None).ConfigureAwait(false); }
+                catch (ObjectDisposedException) when (Lifetime.DisposalRequested) { }
+                steppedDown = true;
+            }
+        }, cancellationToken).ConfigureAwait(false);
+        LogHealthUpdated(CandidateId, isHealthy);
+        if (steppedDown) { LogSteppingDown(CandidateId); }
+    }
 
 	/// <inheritdoc/>
-	public async Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken)
+	public Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken) =>
+        Lifetime.ReadAsync(GetCandidateHealthCoreAsync, cancellationToken);
+
+    private async Task<IEnumerable<CandidateHealth>> GetCandidateHealthCoreAsync(CancellationToken cancellationToken)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_store is not null) { return await _store.ReadAsync(cancellationToken).ConfigureAwait(false); }
 
 		var results = new List<CandidateHealth>();
 		var qualifiedTableName = $"[{_healthOptions.SchemaName}].[{_healthOptions.TableName}]";
@@ -236,25 +268,25 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask DisposeAsync()
-	{
-		if (_disposed)
-		{
-			return;
-		}
+	public ValueTask DisposeAsync() => Lifetime.DisposeAsync();
 
-		_disposed = true;
+    private async Task EnsureTableCreatedAsync(CancellationToken cancellationToken)
+    {
+        await _ddlGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_tableCreated) { return; }
+            using var infrastructure = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
+            await CreateTableCoreAsync(cancellationToken).ConfigureAwait(false);
+            // Publication follows command and connection disposal, in the autonomous scope.
+            _tableCreated = true;
+        }
+        finally { _ddlGate.Release(); }
+    }
 
-		await _inner.DisposeAsync().ConfigureAwait(false);
-	}
-
-	private async Task EnsureTableCreatedAsync(CancellationToken cancellationToken)
-	{
-		if (_tableCreated)
-		{
-			return;
-		}
-
+    private async Task CreateTableCoreAsync(CancellationToken cancellationToken)
+    {
+        if (_store is not null) { await _store.CreateAsync(cancellationToken).ConfigureAwait(false); return; }
 		var qualifiedTableName = $"[{_healthOptions.SchemaName}].[{_healthOptions.TableName}]";
 
 		await using var connection = new SqlConnection(_connectionString);
@@ -291,11 +323,11 @@ END;";
 
 		_ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-		_tableCreated = true;
-	}
+    }
 
 	private async Task UpsertHealthRecordAsync(string candidateId, bool isHealthy, string metadataJson, CancellationToken cancellationToken)
 	{
+        if (_store is not null) { await _store.UpsertAsync(candidateId, isHealthy, metadataJson, _inner.IsLeader, cancellationToken).ConfigureAwait(false); return; }
 		var qualifiedTableName = $"[{_healthOptions.SchemaName}].[{_healthOptions.TableName}]";
 
 		await using var connection = new SqlConnection(_connectionString);
@@ -331,6 +363,7 @@ WHEN NOT MATCHED THEN
 
 	private async Task RemoveHealthRecordAsync(string candidateId, CancellationToken cancellationToken)
 	{
+        if (_store is not null) { await _store.RemoveAsync(candidateId, cancellationToken).ConfigureAwait(false); return; }
 		var qualifiedTableName = $"[{_healthOptions.SchemaName}].[{_healthOptions.TableName}]";
 
 		await using var connection = new SqlConnection(_connectionString);
@@ -349,6 +382,21 @@ WHEN NOT MATCHED THEN
 		_ = command.Parameters.AddWithValue("@CandidateId", candidateId);
 		_ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 	}
+
+    private static SqlServerHealthBasedLeaderElectionOptions Snapshot(SqlServerHealthBasedLeaderElectionOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var snapshot = new SqlServerHealthBasedLeaderElectionOptions
+        {
+            ConnectionString = options.ConnectionString, LockResource = options.LockResource,
+            SchemaName = options.SchemaName, TableName = options.TableName,
+            AutoCreateTable = options.AutoCreateTable, StepDownWhenUnhealthy = options.StepDownWhenUnhealthy,
+            HealthExpirationSeconds = options.HealthExpirationSeconds, CommandTimeoutSeconds = options.CommandTimeoutSeconds
+        };
+        var validation = new SqlServerHealthBasedLeaderElectionOptionsValidator().Validate(null, snapshot);
+        if (validation.Failed) { throw new OptionsValidationException(Options.DefaultName, typeof(SqlServerHealthBasedLeaderElectionOptions), validation.Failures); }
+        return snapshot;
+    }
 
 	private static void ValidateIdentifier(string value, string parameterName)
 	{

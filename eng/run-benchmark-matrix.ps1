@@ -451,7 +451,6 @@ $runtimeProfileVariables = Get-RuntimeProfileVariables -ProfileName $RuntimeProf
 $runtimeProfileOriginalEnv = @{}
 foreach ($envVar in $runtimeProfileVariables.Keys) {
     $runtimeProfileOriginalEnv[$envVar] = [Environment]::GetEnvironmentVariable($envVar)
-    [Environment]::SetEnvironmentVariable($envVar, "$($runtimeProfileVariables[$envVar])")
 }
 
 $quietLogEnvVars = @(
@@ -466,25 +465,34 @@ $originalEnv = @{}
 if (-not $VerboseFrameworkLogs) {
     foreach ($envVar in $quietLogEnvVars) {
         $originalEnv[$envVar] = [Environment]::GetEnvironmentVariable($envVar)
-        [Environment]::SetEnvironmentVariable($envVar, "Warning")
     }
 }
 
-$environmentMetadata = Get-BenchmarkEnvironmentMetadata -RuntimeProfileName $RuntimeProfile -RuntimeProfileVariables $runtimeProfileVariables
-
-Write-Host "Benchmark matrix root: $repoRoot" -ForegroundColor Cyan
-Write-Host "Benchmark project: $projectPath" -ForegroundColor Cyan
-Write-Host "Artifacts path: $artifactsFullPath" -ForegroundColor Cyan
-Write-Host "Selected classes ($(@($selectedClasses).Count)): $($selectedClasses -join ', ')" -ForegroundColor Cyan
-Write-Host "Repeat count: $RepeatCount" -ForegroundColor Cyan
-Write-Host "Quiet framework logs: $(-not $VerboseFrameworkLogs)" -ForegroundColor Cyan
-Write-Host "Runtime profile: $(if ([string]::IsNullOrWhiteSpace($RuntimeProfile)) { 'none' } else { $RuntimeProfile })" -ForegroundColor Cyan
-if ($runtimeProfileVariables.Count -gt 0) {
-    Write-Host "Runtime profile variables: $(($runtimeProfileVariables.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join ', ')" -ForegroundColor Cyan
-}
-
-Push-Location $repoRoot
+$locationPushed = $false
 try {
+    foreach ($envVar in $runtimeProfileVariables.Keys) {
+        [Environment]::SetEnvironmentVariable($envVar, "$($runtimeProfileVariables[$envVar])")
+    }
+    if (-not $VerboseFrameworkLogs) {
+        foreach ($envVar in $quietLogEnvVars) { [Environment]::SetEnvironmentVariable($envVar, "Warning") }
+    }
+    $environmentMetadata = Get-BenchmarkEnvironmentMetadata -RuntimeProfileName $RuntimeProfile -RuntimeProfileVariables $runtimeProfileVariables
+
+    Write-Host "Benchmark matrix root: $repoRoot" -ForegroundColor Cyan
+    Write-Host "Benchmark project: $projectPath" -ForegroundColor Cyan
+    Write-Host "Artifacts path: $artifactsFullPath" -ForegroundColor Cyan
+    Write-Host "Selected classes ($(@($selectedClasses).Count)): $($selectedClasses -join ', ')" -ForegroundColor Cyan
+    Write-Host "Repeat count: $RepeatCount" -ForegroundColor Cyan
+    Write-Host "Quiet framework logs: $(-not $VerboseFrameworkLogs)" -ForegroundColor Cyan
+    Write-Host "Runtime profile: $(if ([string]::IsNullOrWhiteSpace($RuntimeProfile)) { 'none' } else { $RuntimeProfile })" -ForegroundColor Cyan
+    if ($runtimeProfileVariables.Count -gt 0) {
+        Write-Host "Runtime profile variables: $(($runtimeProfileVariables.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join ', ')" -ForegroundColor Cyan
+    }
+
+    # BenchmarkDotNet resolves its nearest solution from the working directory.
+    # The project-local solution excludes unrelated repository projects with duplicate names.
+    Push-Location (Split-Path -Parent $projectPath)
+    $locationPushed = $true
     foreach ($className in $selectedClasses) {
         for ($repeatIndex = 1; $repeatIndex -le $RepeatCount; $repeatIndex++) {
             $classStart = Get-Date
@@ -601,16 +609,20 @@ try {
     }
 }
 finally {
-    Pop-Location
+    try { if ($locationPushed) { Pop-Location } }
+    finally {
 
     if (-not $VerboseFrameworkLogs) {
         foreach ($envVar in $quietLogEnvVars) {
-            [Environment]::SetEnvironmentVariable($envVar, $originalEnv[$envVar])
+            if ($null -eq $originalEnv[$envVar]) { Remove-Item -LiteralPath "Env:$envVar" -ErrorAction SilentlyContinue }
+            else { [Environment]::SetEnvironmentVariable($envVar, $originalEnv[$envVar]) }
         }
     }
 
     foreach ($envVar in $runtimeProfileVariables.Keys) {
-        [Environment]::SetEnvironmentVariable($envVar, $runtimeProfileOriginalEnv[$envVar])
+        if ($null -eq $runtimeProfileOriginalEnv[$envVar]) { Remove-Item -LiteralPath "Env:$envVar" -ErrorAction SilentlyContinue }
+        else { [Environment]::SetEnvironmentVariable($envVar, $runtimeProfileOriginalEnv[$envVar]) }
+    }
     }
 }
 

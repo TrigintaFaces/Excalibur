@@ -29,14 +29,23 @@ public sealed class LeaderElectionOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void InstanceId_IsNotEmpty()
+	public void InstanceId_DefaultsToNullSoNobodyConfiguredIsExpressible()
 	{
-		// Act
+		// FLIPPED, not weakened, and this arm had been RED since the option changed -- it asserted a
+		// non-empty 24-character default. The default is now null BY DESIGN: a generated identity as the
+		// default makes "nobody configured one" indistinguishable from a deliberate choice, so every
+		// provider would have to treat the value as intentional. The identity is resolved from this value
+		// exactly once, in LeaderCandidateIdentity, which is where the generated fallback now lives.
 		var options = new LeaderElectionOptions();
 
-		// Assert
-		options.InstanceId.ShouldNotBeNullOrWhiteSpace();
-		options.InstanceId.Length.ShouldBe(24);
+		options.InstanceId.ShouldBeNull(
+			"null is what makes an unconfigured identity EXPRESSIBLE; a generated default would hide it.");
+
+		// And the liveness half, so this arm is not satisfied by an option nothing can ever resolve: the
+		// resolver still produces a usable identity from that null, using the environment or a complete
+		// generated GUID when no environment identity is available.
+		var resolved = LeaderCandidateIdentity.Resolve(options.InstanceId);
+		resolved.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]

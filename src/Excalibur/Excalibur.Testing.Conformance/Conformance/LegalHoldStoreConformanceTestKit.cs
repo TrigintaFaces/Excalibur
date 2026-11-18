@@ -518,7 +518,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 		var releasedHold = CreateLegalHold(dataSubjectIdHash: dataSubjectIdHash, isActive: false);
 		await store.SaveHoldAsync(releasedHold, CancellationToken.None).ConfigureAwait(false);
 
-		var holds = await GetQueryStore(store).GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, null, CancellationToken.None).ConfigureAwait(false);
+		var holds = await GetQueryStore(store).GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, null, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		if (!holds.Any(h => h.HoldId == activeHold.HoldId))
 		{
@@ -549,7 +549,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 		var tenantBHold = CreateLegalHold(dataSubjectIdHash: dataSubjectIdHash, tenantId: "tenant-B", isActive: true);
 		await store.SaveHoldAsync(tenantBHold, CancellationToken.None).ConfigureAwait(false);
 
-		var holds = await GetQueryStore(store).GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, "tenant-A", CancellationToken.None)
+		var holds = await GetQueryStore(store).GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, "tenant-A", DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		if (!holds.Any(h => h.HoldId == tenantAHold.HoldId))
@@ -606,7 +606,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 		// LIVENESS: the global order is readable. Without this half, a store that returns nothing at all
 		// passes the safety half below having demonstrated nothing.
 		var unscoped = await GetQueryStore(store)
-			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, null, CancellationToken.None)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, null, DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		if (!unscoped.Any(h => h.HoldId == globalHold.HoldId))
@@ -619,7 +619,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 
 		// SAFETY: naming a tenant does not widen the answer to a different tenant's order.
 		var scoped = await GetQueryStore(store)
-			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, "tenant-A", CancellationToken.None)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, "tenant-A", DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		if (scoped.Any(h => h.HoldId == otherTenantHold.HoldId))
@@ -671,7 +671,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 		await store.SaveHoldAsync(otherTenantHold, CancellationToken.None).ConfigureAwait(false);
 
 		var scoped = await GetQueryStore(store)
-			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, tenantA, CancellationToken.None)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, tenantA, DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// LIVENESS -- the global order survives the caller's tenant argument.
@@ -731,11 +731,11 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 		await store.SaveHoldAsync(otherTenantHold, CancellationToken.None).ConfigureAwait(false);
 
 		var withEmpty = await GetQueryStore(store)
-			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, string.Empty, CancellationToken.None)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, string.Empty, DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		var withNull = await GetQueryStore(store)
-			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, null, CancellationToken.None)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, null, DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// LIVENESS -- an empty argument is not a tenant to match against, so the caller's own hold survives it.
@@ -767,7 +767,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 		// SAFETY -- the arm must not be satisfiable by a store that simply returns everything. Naming a real
 		// tenant still confines the read, so the two halves cannot be passed by the same mutation.
 		var scoped = await GetQueryStore(store)
-			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, tenantA, CancellationToken.None)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, tenantA, DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		if (scoped.Any(h => h.HoldId == otherTenantHold.HoldId))
@@ -788,7 +788,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 
 		try
 		{
-			_ = await GetQueryStore(store).GetActiveHoldsForDataSubjectAsync(null!, null, CancellationToken.None).ConfigureAwait(false);
+			_ = await GetQueryStore(store).GetActiveHoldsForDataSubjectAsync(null!, null, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 			throw new TestFixtureAssertionException(
 				"Expected ArgumentException for null dataSubjectIdHash but no exception was thrown");
 		}
@@ -831,7 +831,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 		var otherTenantHold = CreateLegalHold(tenantId: tenantB, isActive: true);
 		await store.SaveHoldAsync(otherTenantHold, CancellationToken.None).ConfigureAwait(false);
 
-		var holds = await GetQueryStore(store).GetActiveHoldsForTenantAsync(tenantA, CancellationToken.None).ConfigureAwait(false);
+		var holds = await GetQueryStore(store).GetActiveHoldsForTenantAsync(tenantA, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// SAFETY -- a read scoped to tenant A must never surface tenant B's hold. This is the arm
 		// the kit was missing, and its absence is why a store that drops the tenantId predicate
@@ -899,7 +899,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 		await store.SaveHoldAsync(otherTenantHold, CancellationToken.None).ConfigureAwait(false);
 
 		var scoped = await GetQueryStore(store)
-			.GetActiveHoldsForTenantAsync(tenantA, CancellationToken.None)
+			.GetActiveHoldsForTenantAsync(tenantA, DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// LIVENESS -- the estate-wide order is in force for this tenant and must be returned to it.
@@ -932,7 +932,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 
 		try
 		{
-			_ = await GetQueryStore(store).GetActiveHoldsForTenantAsync(null!, CancellationToken.None).ConfigureAwait(false);
+			_ = await GetQueryStore(store).GetActiveHoldsForTenantAsync(null!, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 			throw new TestFixtureAssertionException(
 				"Expected ArgumentException for null tenantId but no exception was thrown");
 		}
@@ -943,6 +943,266 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	#endregion
+
+	/// <summary>
+	/// Verifies that every in-force query EXCLUDES a hold whose stated expiry has passed, while still
+	/// returning an indefinite hold and one whose expiry is in the future.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>In force is the CONJUNCTION of two independent facts, and one word was doing duty for both.</b>
+	/// <c>IsActive</c> answers "was this hold RELEASED?" -- an act, with an actor, a time and a reason.
+	/// <c>ExpiresAt</c> answers "has the stated period LAPSED?" -- the passage of time. Neither implies the
+	/// other, and no member may use one as a proxy for the other: a hold is in force when it is neither
+	/// released NOR lapsed.
+	/// </para>
+	/// <para>
+	/// <b>THREE rows, because each one catches a different wrong implementation and no two of them
+	/// together catch all three.</b> The lapsed row catches a provider that filters on the release flag
+	/// alone, which is the defect this arm was added for. The INDEFINITE row is the liveness half: without
+	/// it a provider that returns nothing at all passes the safety assertion, and an indefinite hold is
+	/// the commonest kind there is. The FUTURE row catches an INVERTED comparison, which is the likeliest
+	/// slip when adding the term and is otherwise indistinguishable from a correct fix -- a provider that
+	/// returns only lapsed holds satisfies both of the other rows' expectations about itself.
+	/// </para>
+	/// <para>
+	/// <b>This is a conformance arm rather than a per-provider test because the divergence it closes ran
+	/// the dangerous direction:</b> the reference in-memory store derived expiry correctly while both SQL
+	/// providers filtered on the release flag alone. Anything built and unit-tested against the reference
+	/// store was therefore green in every test and inert on both shipped providers.
+	/// </para>
+	/// <para>
+	/// It deliberately registers NO expiration sweep. A hold's stated expiry is a property of the hold,
+	/// not of an optional background actor having run: the sweep RELEASES lapsed holds, and the three
+	/// registration entry points for erasure, hold storage and expiration are separate public calls, so a
+	/// deployment with holds and no sweep is a supported composition rather than a misconfiguration.
+	/// </para>
+	/// </remarks>
+	/// <returns> A task representing the asynchronous operation. </returns>
+	public virtual async Task ActiveHoldQueries_ShouldExcludeALapsedHoldAndStillReturnIndefiniteAndFutureOnes()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var tenant = $"tenant-expiry-{Guid.NewGuid():N}";
+		var subject = $"subject-expiry-{Guid.NewGuid():N}";
+		var now = DateTimeOffset.UtcNow;
+
+		// CreatedAt is PINNED rather than taken from the clock, so the newest-first ordering below is
+		// decidable without a delay between writes. Three holds created in quick succession can share a
+		// timestamp, which would make an ordering assertion flaky rather than wrong.
+		var createdBase = now.AddDays(-1);
+
+		// NOT in force: never released, but its stated period has passed.
+		var lapsed = CreateLegalHold(
+			dataSubjectIdHash: subject, tenantId: tenant, isActive: true, expiresAt: now.AddHours(-1))
+			with { CreatedAt = createdBase };
+
+		// In force: expiry stated and not yet reached.
+		var future = CreateLegalHold(
+			dataSubjectIdHash: subject, tenantId: tenant, isActive: true, expiresAt: now.AddHours(1))
+			with { CreatedAt = createdBase.AddMinutes(1) };
+
+		// In force: an indefinite hold, which carries no expiry at all. NEWEST of the three.
+		var indefinite = CreateLegalHold(
+			dataSubjectIdHash: subject, tenantId: tenant, isActive: true, expiresAt: null)
+			with { CreatedAt = createdBase.AddMinutes(2) };
+
+		foreach (var hold in new[] { lapsed, future, indefinite })
+		{
+			await store.SaveHoldAsync(hold, CancellationToken.None).ConfigureAwait(false);
+		}
+
+		var queries = GetQueryStore(store);
+
+		AssertInForce(
+			"GetActiveHoldsForDataSubjectAsync",
+			await queries.GetActiveHoldsForDataSubjectAsync(subject, tenant, DateTimeOffset.UtcNow, CancellationToken.None)
+				.ConfigureAwait(false),
+			lapsed.HoldId, indefinite.HoldId, future.HoldId);
+
+		AssertInForce(
+			"GetActiveHoldsForTenantAsync",
+			await queries.GetActiveHoldsForTenantAsync(tenant, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false),
+			lapsed.HoldId, indefinite.HoldId, future.HoldId);
+
+		AssertInForce(
+			"ListActiveHoldsAsync",
+			await queries.ListActiveHoldsAsync(tenant, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false),
+			lapsed.HoldId, indefinite.HoldId, future.HoldId);
+	}
+
+	/// <summary>
+	/// Verifies that the three in-force queries derive in force against the <c>asOf</c> they are GIVEN,
+	/// and read no clock of their own.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The fixture is one hold whose expiry is in the FUTURE</b>, so it is in force at real wall-clock
+	/// time and the two halves below differ only in the argument. Asked as of an instant BEFORE that
+	/// expiry it must be returned; asked as of an instant AFTER it, it must not be. An implementation that
+	/// ignores the parameter and reads its own clock returns the hold in BOTH, and the second assertion is
+	/// what catches it -- there is no waiting and no sleeping, because the discriminator is the argument.
+	/// </para>
+	/// <para>
+	/// <b>Why the contract carries the instant at all.</b> "The holds in force at asOf" is decidable;
+	/// "the holds in force at a time the store chooses" is not, so two sound implementations could
+	/// disagree and neither would be wrong. It also lets a caller that must read twice and union the
+	/// results pin both reads to one instant, instead of unioning two sets that were never
+	/// simultaneously true.
+	/// </para>
+	/// <para>
+	/// Mutant, run rather than recorded: replace the parameter with the provider's own clock in any of
+	/// the three members and the second half of that member's assertion goes RED.
+	/// </para>
+	/// </remarks>
+	public virtual async Task ActiveHoldQueries_ShouldDeriveInForceAgainstTheGivenInstant()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+
+		var subject = $"subject-{Guid.NewGuid():N}";
+		var tenant = $"tenant-{Guid.NewGuid():N}";
+
+		var expiry = DateTimeOffset.UtcNow.AddHours(1);
+		var hold = CreateLegalHold(
+			dataSubjectIdHash: subject, tenantId: tenant, isActive: true, expiresAt: expiry);
+
+		await store.SaveHoldAsync(hold, CancellationToken.None).ConfigureAwait(false);
+
+		var queries = GetQueryStore(store);
+		var beforeExpiry = expiry.AddMinutes(-1);
+		var afterExpiry = expiry.AddMinutes(1);
+
+		await AssertDerivedAgainstAsOfAsync(
+			"GetActiveHoldsForDataSubjectAsync",
+			asOf => queries.GetActiveHoldsForDataSubjectAsync(subject, tenant, asOf, CancellationToken.None),
+			hold.HoldId, beforeExpiry, afterExpiry).ConfigureAwait(false);
+
+		await AssertDerivedAgainstAsOfAsync(
+			"GetActiveHoldsForTenantAsync",
+			asOf => queries.GetActiveHoldsForTenantAsync(tenant, asOf, CancellationToken.None),
+			hold.HoldId, beforeExpiry, afterExpiry).ConfigureAwait(false);
+
+		await AssertDerivedAgainstAsOfAsync(
+			"ListActiveHoldsAsync",
+			asOf => queries.ListActiveHoldsAsync(tenant, asOf, CancellationToken.None),
+			hold.HoldId, beforeExpiry, afterExpiry).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Asserts that one in-force query answers the instant it was given rather than its own clock.
+	/// </summary>
+	/// <param name="member">The member under assertion, named in any failure.</param>
+	/// <param name="read">The member, as a function of the instant.</param>
+	/// <param name="holdId">The hold whose stated expiry falls between the two instants.</param>
+	/// <param name="beforeExpiry">An instant at which the hold is still in force.</param>
+	/// <param name="afterExpiry">An instant by which the hold has lapsed.</param>
+	private static async Task AssertDerivedAgainstAsOfAsync(
+		string member,
+		Func<DateTimeOffset, Task<IReadOnlyList<LegalHold>>> read,
+		Guid holdId,
+		DateTimeOffset beforeExpiry,
+		DateTimeOffset afterExpiry)
+	{
+		// LIVENESS first. Without it the safety half below is satisfied by a member that returns the
+		// empty set to every caller, which is the cheapest way never to return a lapsed hold.
+		var live = await read(beforeExpiry).ConfigureAwait(false);
+		if (IndexOf(live, holdId) < 0)
+		{
+			throw new TestFixtureAssertionException(
+				$"{member} must return a hold whose stated expiry is after the instant it was asked about. "
+				+ "A hold in force at asOf is one that was released at no point and had not lapsed by then, "
+				+ "and this one satisfies both.");
+		}
+
+		// SAFETY, and the half that catches a provider reading its own clock: at real wall-clock time this
+		// hold has NOT lapsed, so only a member honouring the argument can exclude it.
+		var lapsed = await read(afterExpiry).ConfigureAwait(false);
+		if (IndexOf(lapsed, holdId) >= 0)
+		{
+			throw new TestFixtureAssertionException(
+				$"{member} returned a hold that had lapsed by the instant it was asked about. The hold's "
+				+ "expiry has not yet passed in real time, so returning it here means the member derived "
+				+ "in force against its own clock and ignored the instant the caller supplied -- which "
+				+ "makes its answer undecidable and makes two reads that must agree unable to.");
+		}
+	}
+
+	/// <summary>
+	/// Asserts that one in-force query excluded the lapsed hold and returned both of the live ones.
+	/// </summary>
+	/// <param name="member">The member under assertion, named in any failure.</param>
+	/// <param name="holds">What that member returned.</param>
+	/// <param name="lapsedId">The hold whose stated expiry has passed.</param>
+	/// <param name="indefiniteId">The hold carrying no expiry.</param>
+	/// <param name="futureId">The hold whose expiry is not yet reached.</param>
+	private static void AssertInForce(
+		string member,
+		IReadOnlyList<LegalHold> holds,
+		Guid lapsedId,
+		Guid indefiniteId,
+		Guid futureId)
+	{
+		if (holds.Any(h => h.HoldId == lapsedId))
+		{
+			throw new TestFixtureAssertionException(
+				$"{member} returned a hold whose stated expiry has PASSED. A lapsed hold is not in force, so "
+				+ "it must not block an erasure: reported in force forever, it leaves an Article 17 erasure "
+				+ "permanently undischarged with nothing recording why. Filtering on the release flag alone "
+				+ "is the defect -- in force is 'not released AND not lapsed'.");
+		}
+
+		if (!holds.Any(h => h.HoldId == indefiniteId))
+		{
+			throw new TestFixtureAssertionException(
+				$"{member} dropped an INDEFINITE hold -- one carrying no expiry at all, which is the commonest "
+				+ "kind. A hold with no stated end has not lapsed and is in force until it is released. "
+				+ "Without this assertion a provider returning nothing would satisfy the lapsed-hold check.");
+		}
+
+		if (!holds.Any(h => h.HoldId == futureId))
+		{
+			throw new TestFixtureAssertionException(
+				$"{member} dropped a hold whose expiry is in the FUTURE, which means the expiry comparison is "
+				+ "inverted: it is returning the lapsed holds and withholding the live ones. That destroys "
+				+ "data a court order said to keep, and it is indistinguishable from a correct fix unless "
+				+ "this row is present.");
+		}
+
+		// ORDERING IS PART OF THE CONTRACT, and it diverged silently: both SQL providers ordered
+		// newest-first while the reference store returned these two members in dictionary order. A caller
+		// taking the first row got the newest hold on one provider and an arbitrary one on another, which
+		// nothing detected because nothing takes the first row TODAY. The hold carrying the basis, case
+		// reference and description is the one an operator reads first, so "arbitrary" is not a usable
+		// contract and the convergence is toward the providers that already agreed.
+		var indefiniteIndex = IndexOf(holds, indefiniteId);
+		var futureIndex = IndexOf(holds, futureId);
+
+		if (indefiniteIndex > futureIndex)
+		{
+			throw new TestFixtureAssertionException(
+				$"{member} returned holds in the wrong order. In-force holds are ordered by CreatedAt "
+				+ $"DESCENDING -- newest first -- and this store put the older hold at index {futureIndex} "
+				+ $"ahead of the newer one at index {indefiniteIndex}.");
+		}
+	}
+
+	/// <summary>
+	/// The position of <paramref name="holdId"/> in <paramref name="holds"/>.
+	/// </summary>
+	/// <param name="holds">The returned holds.</param>
+	/// <param name="holdId">The hold to locate.</param>
+	/// <returns>Its index, or -1 when absent.</returns>
+	private static int IndexOf(IReadOnlyList<LegalHold> holds, Guid holdId)
+	{
+		for (var i = 0; i < holds.Count; i++)
+		{
+			if (holds[i].HoldId == holdId)
+			{
+				return i;
+			}
+		}
+
+		return -1;
+	}
 
 	#region List Active Tests
 
@@ -967,7 +1227,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 		var releasedHold = CreateLegalHold(isActive: false);
 		await store.SaveHoldAsync(releasedHold, CancellationToken.None).ConfigureAwait(false);
 
-		var holds = await GetQueryStore(store).ListActiveHoldsAsync(null, CancellationToken.None).ConfigureAwait(false);
+		var holds = await GetQueryStore(store).ListActiveHoldsAsync(null, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		if (!holds.Any(h => h.HoldId == olderHold.HoldId))
 		{
@@ -1025,7 +1285,7 @@ public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 		var tenantBHold = CreateLegalHold(tenantId: tenantB, isActive: true);
 		await store.SaveHoldAsync(tenantBHold, CancellationToken.None).ConfigureAwait(false);
 
-		var holds = await GetQueryStore(store).ListActiveHoldsAsync(tenantA, CancellationToken.None).ConfigureAwait(false);
+		var holds = await GetQueryStore(store).ListActiveHoldsAsync(tenantA, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		if (!holds.Any(h => h.HoldId == tenantAHold.HoldId))
 		{

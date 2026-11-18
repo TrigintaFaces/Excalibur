@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
@@ -138,7 +137,7 @@ public static class KubernetesLeaderElectionExtensions
 
 			if (k8sBuilder.LeaseIdentityValue is not null)
 			{
-				opt.CandidateId = k8sBuilder.LeaseIdentityValue;
+				opt.InstanceId = k8sBuilder.LeaseIdentityValue;
 			}
 
 			if (k8sBuilder.LeaseDurationSeconds.HasValue)
@@ -203,10 +202,7 @@ public static class KubernetesLeaderElectionExtensions
 		_ = services.AddSingleton<ILeaderElectionFactory>(sp =>
 		{
 			var inner = ActivatorUtilities.CreateInstance<KubernetesLeaderElectionFactory>(sp);
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Kubernetes");
+			return TelemetryLeaderElectionFactory.CreateOwned(inner, sp.GetService<IMeterFactory>(), "Kubernetes");
 		});
 
 		// Register a hosted service for automatic leader election if needed

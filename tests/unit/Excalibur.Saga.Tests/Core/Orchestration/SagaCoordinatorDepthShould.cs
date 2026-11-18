@@ -16,6 +16,11 @@ public sealed class SagaCoordinatorDepthShould
 	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
 	private readonly ISagaStore _sagaStore = A.Fake<ISagaStore>();
 
+	public SagaCoordinatorDepthShould()
+	{
+		A.CallTo(() => _serviceProvider.GetService(A<Type>._)).Returns(null);
+	}
+
 	[Fact]
 	public async Task ProcessEventAsyncThrowsWhenMessageContextIsNull()
 	{

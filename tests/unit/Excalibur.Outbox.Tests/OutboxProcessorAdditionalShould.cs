@@ -36,7 +36,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -75,7 +76,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			BatchProcessing = { ParallelProcessingDegree = 4 }
 		});
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -111,7 +113,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			}
 		});
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -165,7 +168,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			BatchProcessing = { ParallelProcessingDegree = 1 } // Sequential processing
 		});
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -197,7 +201,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			BatchProcessing = { ParallelProcessingDegree = 16 } // High parallelism
 		});
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -241,7 +246,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			EnableBatchDatabaseOperations = true
 		});
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -282,7 +288,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			}
 		});
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -319,7 +326,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			DeliveryGuarantee = OutboxDeliveryGuarantee.AtLeastOnce
 		});
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -352,7 +360,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			DeliveryGuarantee = OutboxDeliveryGuarantee.MinimizedWindow
 		});
 
-		var outboxStore = A.Fake<IOutboxStore>();
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = NullLogger<OutboxProcessor>.Instance;
@@ -424,7 +433,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 	{
 		return new OutboxProcessor(
 			options ?? CreateValidOptions(),
-			outboxStore ?? A.Fake<IOutboxStore>(),
+			outboxStore ?? CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IClaimScopedOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>()),
 			serializer ?? new DispatchJsonSerializer(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
 			logger ?? NullLogger<OutboxProcessor>.Instance,

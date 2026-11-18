@@ -20,11 +20,11 @@ namespace Excalibur.Dispatch.Benchmarks.Core;
 /// </summary>
 /// <remarks>
 /// <para>
-/// These benchmarks validate that <see cref="HandlerActivator"/> uses cached compiled
-/// expression-tree delegates instead of reflection on every dispatch.
+/// These benchmarks measure prewarmed activation and property-setting paths.
+/// Registered transient DI resolution and setter-only methods perform different work.
 /// </para>
 /// <para>
-/// Target: Zero reflection in handler resolution hot path.
+/// Zero reflection is a target requiring separate path evidence, not a conclusion from these timings.
 /// </para>
 /// </remarks>
 [MemoryDiagnoser]

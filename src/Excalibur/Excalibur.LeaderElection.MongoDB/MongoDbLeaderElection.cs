@@ -40,6 +40,49 @@ namespace Excalibur.LeaderElection.MongoDB;
 /// </remarks>
 public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDisposable
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Owned field is disposed by memoized DisposeCoreAsync after producer seal and join.")]
+
+    private readonly CancellationTokenSource _lifetimeStop = new();
+    private readonly Lock _lifecycleGate = new();
+    private readonly LeaderElectionProducerLifetime _producers = new();
+    private readonly LeaderElectionNotifications _notifications;
+    private Task? _disposalTask;
+    private Task? _startTask;
+    private Task? _stopTask;
+
+    /// <inheritdoc />
+    public Task NotificationsCompleted => _notifications.NotificationsCompleted;
+
+    private async Task RunProducerAsync(Func<Task> action)
+    {
+        if (!_producers.TryEnter(out var lease)) { throw new ObjectDisposedException(GetType().Name); }
+        using (lease) { await LeaderElectionExecution.RunAsync(action).ConfigureAwait(false); }
+    }
+
+    private void QueueEvent<T>(EventHandler<T>? subscribers, T args) where T : EventArgs
+    {
+        if (subscribers is null) { return; }
+        _ = _notifications.Enqueue(() => _notifications.InvokeEach(subscribers, this, args));
+    }
+
+    private async Task WaitForStartAsync(Task start, CancellationToken cancellationToken)
+    {
+        try { await start.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Retain shutdown ownership when a canceled waiter leaves admitted startup work behind.
+            try { _ = StopAsync(CancellationToken.None); }
+            catch (ObjectDisposedException) when (_disposed) { }
+            throw;
+        }
+    }
+
+    private static void ThrowFailures(List<Exception> failures)
+    {
+        if (failures.Count == 1) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw(); }
+        if (failures.Count > 1) { throw new AggregateException("Leader election resource cleanup failed.", failures); }
+    }
+
 	private readonly TimeProvider _timeProvider;
 	private readonly IMongoCollection<MongoDbLeaderElectionDocument> _collection;
 	private readonly string _resourceName;
@@ -50,7 +93,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	// Optional monotonic fencing token provider. Null when the consumer did not enable fencing (opt-in,
 	// backward compatible). When supplied, a token is minted on acquisition BEFORE leadership is declared;
 	// if the token domain is exhausted the candidate relinquishes rather than leading with an un-advanced fence.
-	private readonly IFencingTokenProvider? _fencingTokenProvider;
+	private readonly IFencingTokenIssuer? _fencingTokenProvider;
 
 	// The fencing token minted for the current leadership term, carried on the LeaderChanged event so
 	// subscribers capture the exact token issued at this transition (no TOCTOU re-read). Null when no
@@ -62,6 +105,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	private long _currentFencingToken = NoFencingToken;
 
 	private readonly Lock _lock = new();
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Owned field is disposed by memoized DisposeCoreAsync after producer seal and join.")]
 
 	private CancellationTokenSource? _renewalCts;
 	private Task? _renewalTask;
@@ -104,7 +148,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 		IOptions<MongoDbLeaderElectionOptions> mongoOptions,
 		IOptions<LeaderElectionOptions> electionOptions,
 		ILogger<MongoDbLeaderElection> logger,
-		IFencingTokenProvider? fencingTokenProvider = null,
+		IFencingTokenIssuer? fencingTokenProvider = null,
 		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
@@ -126,9 +170,10 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 		_options.Validate();
 		_electionOptions = electionOptions.Value;
 		_logger = logger;
+        _notifications = new LeaderElectionNotifications(LogElectionError);
 		_timeProvider = timeProvider ?? TimeProvider.System;
 
-		CandidateId = _electionOptions.InstanceId ?? (Environment.MachineName + "-" + Guid.NewGuid().ToString("N")[..8]);
+		CandidateId = Excalibur.Dispatch.LeaderElection.LeaderCandidateIdentity.Resolve(_electionOptions.InstanceId);
 
 		var database = client.GetDatabase(_options.DatabaseName);
 		_collection = database.GetCollection<MongoDbLeaderElectionDocument>(_options.CollectionName);
@@ -150,7 +195,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	public string CandidateId { get; }
 
 	/// <inheritdoc/>
-	public bool IsLeader => _isLeader;
+	public bool IsLeader => !_disposed && _isLeader;
 
 	/// <inheritdoc/>
 	public Leadership? CurrentLeadership
@@ -159,7 +204,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 		{
 			lock (_lock)
 			{
-				if (!_isLeader)
+				if (_disposed || !_isLeader)
 				{
 					return null;
 				}
@@ -183,38 +228,54 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	}
 
 	/// <inheritdoc/>
-	public async Task StartAsync(CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _notifications.ThrowIfReentrant();
+        Task start;
+        lock (_lifecycleGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_isStarted) { return WaitForStartAsync(_startTask ?? Task.CompletedTask, cancellationToken); }
+            if (_stopTask is { IsCompletedSuccessfully: false }) { throw new InvalidOperationException("Previous stop has not completed successfully."); }
+            _isStarted = true;
+            _stopTask = null;
+            _renewalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetimeStop.Token);
+            _startTask = start = RunProducerAsync(() => StartCoreAsync(_renewalCts.Token));
+        }
+        return WaitForStartAsync(start, cancellationToken);
+    }
 
-		if (_isStarted)
-		{
-			return;
-		}
-
-		await EnsureTtlIndexAsync(cancellationToken).ConfigureAwait(false);
-
-		_isStarted = true;
-		_renewalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-		// One acquisition attempt is awaited BEFORE returning, so reading IsLeader on the statement after
-		// StartAsync observes the outcome of a real attempt rather than the pre-attempt default. The other
-		// providers acquire inside StartAsync; returning before attempting made this store the odd one out,
-		// and a caller written against the others silently did nothing here.
-		await RunElectionStepAsync(_renewalCts.Token).ConfigureAwait(false);
-
-		_renewalTask = RunElectionLoopAsync(_renewalCts.Token);
-
-		LogStarted(_resourceName, CandidateId);
-	}
+    private async Task StartCoreAsync(CancellationToken cancellationToken)
+    {
+        await _notifications.DrainTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await EnsureTtlIndexAsync(cancellationToken).ConfigureAwait(false);
+        if (_disposed || !_isStarted) { return; }
+        cancellationToken.ThrowIfCancellationRequested();
+        await RunElectionStepAsync(cancellationToken).ConfigureAwait(false);
+        lock (_lifecycleGate)
+        {
+            if (!_disposed && _isStarted)
+            {
+                _renewalTask = RunProducerAsync(() => RunElectionLoopAsync(_renewalCts!.Token));
+            }
+        }
+        _notifications.EnqueueDiagnostic(LogStarted, _resourceName, CandidateId);
+    }
 
 	/// <inheritdoc/>
-	public async Task StopAsync(CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		await StopCoreAsync(cancellationToken).ConfigureAwait(false);
-	}
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        Task stop;
+        lock (_lifecycleGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_stopTask is not null) { return _stopTask.WaitAsync(cancellationToken); }
+            if (!_isStarted) { return Task.CompletedTask; }
+            _isStarted = false;
+            _stopTask = stop = RunProducerAsync(StopCoreAsync);
+        }
+        return stop.WaitAsync(cancellationToken);
+    }
 
 	/// <summary>
 	/// The stop sequence, without the disposed guard.
@@ -227,66 +288,81 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	/// the guard on the public entry point and the work in here means disposal cannot be refused by
 	/// the guard that exists to protect callers from it.
 	/// </remarks>
-	private async Task StopCoreAsync(CancellationToken cancellationToken)
-	{
-		if (!_isStarted)
-		{
-			return;
-		}
-
-		_isStarted = false;
-
-		if (_renewalCts != null)
-		{
-			await _renewalCts.CancelAsync().ConfigureAwait(false);
-		}
-
-		if (_renewalTask != null)
-		{
-			try
-			{
-				await _renewalTask.WaitAsync(cancellationToken).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-			{
-				// Expected during shutdown
-			}
-		}
-
-		// Release leadership if held
-		if (_isLeader)
-		{
-			await ReleaseLockAsync().ConfigureAwait(false);
-			SetLeader(false, null);
-		}
-
-		LogStopped(_resourceName, CandidateId);
-	}
+    private async Task StopCoreAsync()
+    {
+        var failures = new List<Exception>();
+        var source = _renewalCts;
+        if (source is not null)
+        {
+            try { await source.CancelAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+        }
+        foreach (var task in new[] { _startTask, _renewalTask })
+        {
+            if (task is null) { continue; }
+            try { await task.ConfigureAwait(false); }
+            catch (OperationCanceledException) when (source?.IsCancellationRequested == true) { }
+            catch (Exception error) { failures.Add(error); }
+        }
+        if (_isLeader)
+        {
+            try { await ReleaseLockAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            finally { SetLeader(false, null); }
+        }
+        lock (_lifecycleGate)
+        {
+            if (ReferenceEquals(_renewalCts, source)) { _renewalCts = null; }
+        }
+        try { source?.Dispose(); }
+        catch (Exception error) { failures.Add(error); }
+        _notifications.EnqueueDiagnostic(LogStopped, _resourceName, CandidateId);
+        ThrowFailures(failures);
+    }
 
 	/// <inheritdoc/>
-	public async ValueTask DisposeAsync()
-	{
-		if (_disposed)
-		{
-			return;
-		}
+    public ValueTask DisposeAsync()
+    {
+        lock (_lifecycleGate)
+        {
+            if (_disposalTask is not null) { return new ValueTask(_disposalTask); }
+            _disposed = true;
+            _isStarted = false;
+            _disposalTask = LeaderElectionExecution.RunAsync(DisposeCoreAsync);
+            return new ValueTask(_disposalTask);
+        }
+    }
 
-		_disposed = true;
-
-		if (_isStarted)
-		{
-			try
-			{
-				await StopCoreAsync(CancellationToken.None).ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				LogDisposeError(ex);
-			}
-		}
-
-		_renewalCts?.Dispose();
-	}
+    private async Task DisposeCoreAsync()
+    {
+        var failures = new List<Exception>();
+        var producers = _producers.Seal();
+        try
+        {
+            try { await _lifetimeStop.CancelAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            try { await producers.ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            if (_isLeader)
+            {
+                try { await ReleaseLockAsync().ConfigureAwait(false); }
+                catch (Exception error) { failures.Add(error); }
+                finally { SetLeader(false, null); }
+            }
+            CancellationTokenSource? remainingRunSource;
+            lock (_lifecycleGate)
+            {
+                remainingRunSource = _renewalCts;
+                _renewalCts = null;
+            }
+            try { remainingRunSource?.Dispose(); }
+            catch (Exception error) { failures.Add(error); }
+            try { _lifetimeStop.Dispose(); }
+            catch (Exception error) { failures.Add(error); }
+        }
+        finally { _notifications.Seal(); }
+        ThrowFailures(failures);
+    }
 
 	/// <summary>
 	/// Performs one election step: renew the lease while leading, otherwise attempt to acquire it.
@@ -312,20 +388,35 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 				return;
 			}
 
+			await _notifications.DrainTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (_disposed || !_isStarted) { return; }
 			var acquired = await TryAcquireLockAsync(cancellationToken).ConfigureAwait(false);
 			if (acquired)
 			{
 				// Mint the fencing token BEFORE declaring leadership so the fence is always advanced
-				// before this candidate acts as leader. If the token domain is exhausted, relinquish
-				// (release the lock, do not lead) rather than lead with an un-advanced/wrapped fence.
-				if (await TryMintFencingTokenAsync(cancellationToken).ConfigureAwait(false))
+				// before this candidate acts as leader. On ANY mint failure, relinquish: release the lock
+				// document this candidate just took, then report. The cause is deliberately not
+				// discriminated — a candidate that cannot fence its writes must not lead, and one that
+				// also keeps the lock leaves the resource with no leader and no successor until the TTL
+				// index reaps the row.
+				var mintFailure = await TryMintFencingTokenAsync(cancellationToken).ConfigureAwait(false);
+				if (mintFailure is null)
 				{
-					SetLeader(true, CandidateId);
+                    var published = false;
+                    lock (_lifecycleGate)
+                    {
+                        if (!_disposed && _isStarted && !cancellationToken.IsCancellationRequested)
+                        {
+                            SetLeader(true, CandidateId);
+                            published = true;
+                        }
+                    }
+                    if (!published) { await ReleaseLockAsync().ConfigureAwait(false); }
 				}
 				else
 				{
 					await ReleaseLockAsync().ConfigureAwait(false);
-					RaiseAcquisitionFailed("fencing token domain exhausted", exception: null);
+					RaiseAcquisitionFailed("fencing token mint failed", mintFailure);
 				}
 
 				return;
@@ -342,7 +433,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 		}
 		catch (Exception ex)
 		{
-			LogElectionError(ex);
+			_notifications.EnqueueDiagnostic(LogElectionError, ex);
 
 			// An error while attempting to acquire (not while holding leadership) is a failed acquisition.
 			if (!_isLeader)
@@ -364,7 +455,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 					? TimeSpan.FromSeconds(_options.RenewIntervalSeconds)
 					: _electionOptions.RetryInterval;
 
-				await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
+				await Task.Delay(interval, _timeProvider, cancellationToken).ConfigureAwait(false);
 
 				await RunElectionStepAsync(cancellationToken).ConfigureAwait(false);
 			}
@@ -377,29 +468,42 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 
 	/// <summary>
 	/// Mints a monotonic fencing token on acquisition (when a provider is configured), returning
-	/// <see langword="true"/> if leadership may proceed. Returns <see langword="false"/> only when the token
-	/// domain is exhausted (<see cref="FencingTokenExhaustedException"/>) — the fail-closed relinquish path.
-	/// A transient mint error propagates to the election loop's handler; the lock lease expires on its own,
-	/// so leadership is never declared without an advanced fence.
+	/// <see langword="null"/> if leadership may proceed and otherwise the failure that forbids it — the
+	/// fail-closed relinquish signal. The caller must release the lock it took before reporting.
 	/// </summary>
-	private async Task<bool> TryMintFencingTokenAsync(CancellationToken cancellationToken)
+	/// <remarks>
+	/// Every mint failure answers the same way, whatever its cause. A superseded version of this contract
+	/// relinquished only on <see cref="FencingTokenExhaustedException"/> and reasoned that "a transient
+	/// mint error propagates to the election loop's handler; the lock lease expires on its own, so
+	/// leadership is never declared without an advanced fence." Both halves of that are true and the
+	/// conclusion does not follow: never declaring leadership is the safety half, while the lock stayed
+	/// held by a candidate that was not leading, so no other candidate could acquire until the lease
+	/// expired. Returning the failure rather than a flag keeps the cause available to a subscriber, which
+	/// a boolean cannot carry.
+	/// </remarks>
+	private async Task<Exception?> TryMintFencingTokenAsync(CancellationToken cancellationToken)
 	{
 		if (_fencingTokenProvider is null)
 		{
-			return true;
+			return null;
 		}
 
 		try
 		{
 			var token = await _fencingTokenProvider.IssueTokenAsync(_resourceName, cancellationToken).ConfigureAwait(false);
 			_ = Interlocked.Exchange(ref _currentFencingToken, token);
-			LogFencingTokenIssued(CandidateId, token, _resourceName);
-			return true;
+			_notifications.EnqueueDiagnostic(LogFencingTokenIssued, CandidateId, token, _resourceName);
+			return null;
 		}
-		catch (FencingTokenExhaustedException ex)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			LogFencingTokenExhausted(ex, CandidateId, _resourceName);
-			return false;
+			// Shutdown, not a mint failure: the stop path owns the release.
+			throw;
+		}
+		catch (Exception ex)
+		{
+			_notifications.EnqueueDiagnostic(LogFencingTokenIssueError, ex, CandidateId, _resourceName);
+			return ex;
 		}
 	}
 
@@ -411,7 +515,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	{
 		try
 		{
-			AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName, reason, _timeProvider.GetUtcNow(), exception));
+			QueueEvent(AcquisitionFailed, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName, reason, _timeProvider.GetUtcNow(), exception));
 		}
 		catch (Exception)
 		{
@@ -548,7 +652,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 			}
 
 			// Prefer the store-arbitrated term as this tenure's fencing token. When an external
-			// IFencingTokenProvider is configured, TryMintFencingTokenAsync (invoked by the caller
+			// IFencingTokenIssuer is configured, TryMintFencingTokenAsync (invoked by the caller
 			// immediately after this method returns true, before SetLeader) supersedes this value with its
 			// own fail-closed mint, preserving the pre-existing domain-exhaustion relinquish behavior for
 			// that opt-in path.
@@ -636,17 +740,17 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 
 		if (isLeader && !wasLeader)
 		{
-			BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+			QueueEvent(BecameLeader, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 			var fencingToken = Interlocked.Read(ref _currentFencingToken);
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, CandidateId, _resourceName, fencingToken == NoFencingToken ? null : fencingToken, timestamp: _timeProvider.GetUtcNow()));
-			LogBecameLeader(_resourceName, CandidateId);
+			QueueEvent(LeaderChanged, new LeaderChangedEventArgs(previousLeaderId, CandidateId, _resourceName, fencingToken == NoFencingToken ? null : fencingToken, timestamp: _timeProvider.GetUtcNow()));
+			_notifications.EnqueueDiagnostic(LogBecameLeader, _resourceName, CandidateId);
 		}
 		else if (!isLeader && wasLeader)
 		{
 			_ = Interlocked.Exchange(ref _currentFencingToken, NoFencingToken);
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, leaderId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-			LogLostLeadership(_resourceName, CandidateId);
+			QueueEvent(LostLeadership, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+			QueueEvent(LeaderChanged, new LeaderChangedEventArgs(CandidateId, leaderId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+			_notifications.EnqueueDiagnostic(LogLostLeadership, _resourceName, CandidateId);
 		}
 	}
 
@@ -664,26 +768,11 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 			_currentLeaderId = leaderId;
 		}
 
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, leaderId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+		QueueEvent(LeaderChanged, new LeaderChangedEventArgs(previousLeaderId, leaderId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
 	}
 
-	private async Task EnsureTtlIndexAsync(CancellationToken cancellationToken)
-	{
-		var indexKeysDefinition = Builders<MongoDbLeaderElectionDocument>.IndexKeys.Ascending(d => d.ExpiresAt);
-		var indexOptions = new CreateIndexOptions { ExpireAfter = TimeSpan.Zero, Name = "ttl_expiresAt" };
-		var indexModel = new CreateIndexModel<MongoDbLeaderElectionDocument>(indexKeysDefinition, indexOptions);
-
-		try
-		{
-			await _collection.Indexes
-				.CreateOneAsync(indexModel, cancellationToken: cancellationToken)
-				.ConfigureAwait(false);
-		}
-		catch (MongoCommandException)
-		{
-			// Index may already exist with different options - tolerate
-		}
-	}
+    private Task EnsureTtlIndexAsync(CancellationToken cancellationToken) =>
+        MongoDbLeaderElectionSchema.EnsureTtlIndexAsync(_collection, cancellationToken);
 
 	[LoggerMessage(DataMongoDbEventId.LeaderElectionStarted, LogLevel.Information,
 		"MongoDB leader election started for resource '{ResourceName}' with candidate '{CandidateId}'")]
@@ -708,9 +797,9 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 		"Candidate {CandidateId} minted fencing token {Token} for resource {Resource}")]
 	private partial void LogFencingTokenIssued(string candidateId, long token, string resource);
 
-	[LoggerMessage(DataMongoDbEventId.LeaderElectionFencingTokenExhausted, LogLevel.Critical,
-		"Candidate {CandidateId} could not mint a fencing token for resource {Resource} — token domain exhausted; relinquishing leadership (fail-closed) rather than leading with an un-advanced fence")]
-	private partial void LogFencingTokenExhausted(Exception exception, string candidateId, string resource);
+	[LoggerMessage(DataMongoDbEventId.LeaderElectionFencingTokenMintFailed, LogLevel.Critical,
+		"Candidate {CandidateId} could not mint a fencing token for resource {Resource}; releasing the lock and relinquishing leadership (fail-closed) rather than leading with an un-advanced fence")]
+	private partial void LogFencingTokenIssueError(Exception exception, string candidateId, string resource);
 
 	[LoggerMessage(DataMongoDbEventId.LeaderElectionDisposeError, LogLevel.Warning, "Error during leader election dispose")]
 	private partial void LogDisposeError(Exception exception);

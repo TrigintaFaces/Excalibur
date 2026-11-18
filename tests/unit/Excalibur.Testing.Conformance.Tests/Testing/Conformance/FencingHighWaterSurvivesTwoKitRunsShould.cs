@@ -76,11 +76,15 @@ internal sealed class PersistentFencedOutboxStore(SharedOutboxState state)
 		return ValueTask.CompletedTask;
 	}
 
-	public ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
+	public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
 	{
-		Fence(fencingToken);
+		if (!Fence(fencingToken))
+		{
+			return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.FenceRefused);
+		}
+
 		Send(messageId);
-		return ValueTask.CompletedTask;
+		return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied);
 	}
 
 	public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken)
@@ -108,22 +112,23 @@ internal sealed class PersistentFencedOutboxStore(SharedOutboxState state)
 	}
 
 	/// <summary>The mutation fence: refuse a token below the mark, otherwise adopt it.</summary>
-	private void Fence(long fencingToken)
+	/// <returns><see langword="true"/> when the token was accepted and adopted; otherwise <see langword="false"/>.</returns>
+	/// <remarks>
+	/// REPORTS rather than throws, because this fixture is meant to be a CONFORMING store and the contract
+	/// now requires a refusal to travel in the return value. It used to throw, carrying the presented and
+	/// recorded tokens as exception properties; the outcome enumeration has no counterpart for either, and
+	/// the kit asks the diagnostic member for the recorded mark instead. A fixture that still threw would
+	/// make a failing arm indict the kit's token handling when the fault was the fixture's encoding.
+	/// </remarks>
+	private bool Fence(long fencingToken)
 	{
 		if (state.HighWater is { } current && fencingToken < current)
 		{
-			// Report BOTH tokens: the kit requires a refusal to say what was presented and what it lost to,
-			// and this fixture is meant to be a conforming store whose only special property is a durable
-			// mark -- so a failing arm indicts the kit's token handling and nothing else.
-			throw new StaleOutboxFencingTokenException(
-				$"token {fencingToken} is stale against high-water {current}")
-			{
-				PresentedToken = fencingToken,
-				HighWaterToken = current,
-			};
+			return false;
 		}
 
 		Adopt(fencingToken);
+		return true;
 	}
 
 	private IEnumerable<OutboundMessage> Unsent(int batchSize) =>
@@ -190,11 +195,11 @@ public sealed class FencingHighWaterSurvivesTwoKitRunsShould
 		var message = new OutboundMessage { Id = Guid.NewGuid().ToString("N"), CreatedAt = DateTimeOffset.UtcNow };
 		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
 
-		var refusal = await Record.ExceptionAsync(
-			async () => await ((IFencedOutboxStore)store)
-				.MarkSentAsync(message.Id, 1L, CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
+		var refusal = await ((IFencedOutboxStore)store)
+			.MarkSentAsync(message.Id, 1L, CancellationToken.None).ConfigureAwait(false);
 
-		refusal.ShouldBeNull(
+		refusal.ShouldBe(
+			OutboxCompletionOutcome.Applied,
 			$"after two conformance runs the store's fencing high-water is {afterSecondRun} (it was "
 			+ $"{afterFirstRun} after one run), so a real election minting token 1 is refused and that scope "
 			+ "stalls permanently. A conformance kit must not leave a consumer's store in a state the "

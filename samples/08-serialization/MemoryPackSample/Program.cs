@@ -4,7 +4,7 @@
 // MemoryPack Serialization Sample
 // ================================
 // This sample demonstrates MemoryPack serialization with Excalibur.Dispatch.Serialization.MemoryPack:
-// - Zero-allocation binary serialization
+// - Source-generated binary serialization
 // - Source-generated serializers for maximum performance
 // - Immutable type support with [MemoryPackConstructor]
 // - NativeAOT/trimming compatibility
@@ -156,10 +156,10 @@ logger.LogInformation("  MemoryPack:       {MemPackSize} bytes ({Reduction:P1} s
 	1.0 - ((double)memoryPackBytes.Length / jsonBytes.Length));
 
 // ============================================================
-// Demonstrate zero-allocation deserialization
+// Demonstrate span-based deserialization
 // ============================================================
 logger.LogInformation("");
-logger.LogInformation("=== Zero-Allocation Deserialization Demo ===");
+logger.LogInformation("=== Span-Based Deserialization Demo ===");
 logger.LogInformation("");
 
 // MemoryPack supports ReadOnlySpan-based deserialization
@@ -243,9 +243,9 @@ logger.LogInformation("");
 logger.LogInformation("=== Source Generation & AOT Support ===");
 logger.LogInformation("");
 logger.LogInformation("MemoryPack uses source generation for:");
-logger.LogInformation("  - Zero-allocation serialization");
-logger.LogInformation("  - Full NativeAOT/trimming support");
-logger.LogInformation("  - No reflection at runtime");
+logger.LogInformation("  - Generated serialization code; total allocation depends on the API and payload");
+logger.LogInformation("  - Publish and execute the complete NativeAOT/trimmed sample to verify compatibility");
+logger.LogInformation("  - Generated serializers for annotated types; verify remaining paths and dependencies");
 logger.LogInformation("");
 logger.LogInformation("Requirements:");
 logger.LogInformation("  - [MemoryPackable] attribute on types");
@@ -258,7 +258,7 @@ logger.LogInformation("  - [MemoryPackConstructor] for immutable types");
 logger.LogInformation("");
 logger.LogInformation("=== Performance Notes ===");
 logger.LogInformation("");
-logger.LogInformation("Typical serialization performance comparison:");
+logger.LogInformation("Legacy illustrative constants only: these are not measured results from this sample.");
 logger.LogInformation("");
 logger.LogInformation("  | Serializer      | Serialize (ns/1KB) | Deserialize (ns/1KB) | Size (bytes) |");
 logger.LogInformation("  |-----------------|--------------------|--------------------- |--------------|");
@@ -267,9 +267,10 @@ logger.LogInformation("  | Protobuf        | 5,100              | 4,800         
 logger.LogInformation("  | MessagePack     | 3,800              | 3,200                | 112          |");
 logger.LogInformation("  | MessagePack+LZ4 | 4,500              | 4,000                | 85           |");
 logger.LogInformation("  | MemoryPack      | 150                | 120                  | 86           |");
+logger.LogInformation("Do not use these constants for rankings or capacity planning. Measure your actual payload and API.");
 logger.LogInformation("");
 logger.LogInformation("MemoryPack excels when:");
-logger.LogInformation("  - Maximum throughput is required (10-100x faster than JSON)");
+logger.LogInformation("  - .NET-to-.NET source-generated binary serialization suits the measured workload");
 logger.LogInformation("  - Memory pressure must be minimized");
 logger.LogInformation("  - .NET-to-.NET communication only");
 logger.LogInformation("  - NativeAOT deployment is needed");

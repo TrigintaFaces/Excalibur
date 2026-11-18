@@ -1,827 +1,650 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
-
-
-using System.Collections.Concurrent;
-using System.Net;
-using System.Text.Json;
-
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.LeaderElection.Diagnostics;
-
 using k8s;
-using k8s.Autorest;
-using k8s.Models;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-using Polly;
-using Polly.Retry;
-
 namespace Excalibur.LeaderElection.Kubernetes;
 
-/// <summary>
-/// Kubernetes-based implementation of leader election using the Lease API.
-/// </summary>
-/// <remarks>
-/// <para>
-/// <b>Split-brain safety invariant (at-most-one-leader-EFFECT).</b> Every leader-gated side effect is
-/// protected by EITHER (a) a monotonic fencing token checked at the action's authority, OR (b) a monotonic
-/// self-relinquish bound at the incumbent (the leader ceases before any challenger can acquire; grace period
-/// &gt; clock skew). This provider satisfies <b>(a)</b>: it is a <em>native-authority</em> election, so the
-/// fencing token is the Lease's native <c>leaseTransitions</c> counter — monotonic, and int32-exhaustion
-/// fails closed by relinquishing rather than wrapping into a non-monotonic token. A takeover increments the
-/// counter, so a stale (partitioned) incumbent's fenced writes carry a strictly lower token and are rejected
-/// fail-closed at the resource.
-/// </para>
-/// <para>
-/// This is why the challenger's takeover comparison is <em>correctly</em> wall-clock
-/// (<c>now &gt; RenewTime + LeaseDuration + GracePeriod</c>): <c>RenewTime</c> is the API server's
-/// server-stamped, inherently cross-process timestamp, and the added grace period is the clock-skew cushion.
-/// A monotonic self-relinquish is <em>not</em> required for correctness here because safety is carried by the
-/// fencing token, not by the incumbent demoting itself — though adding one would make <c>IsLeader</c> honest
-/// during a partition (a defense-in-depth liveness improvement, not a safety fix).
-/// </para>
-/// </remarks>
+/// <summary>Lease API election with independent monotonic local authority and joined native operations.</summary>
+/// <remarks>LeaseTransitions is scoped to a retained Lease UID. Holder-authored takeover timestamps do not prove arbitrary cross-clock safety.</remarks>
 public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElection, IDisposable, IAsyncDisposable
 {
-	private readonly TimeProvider _timeProvider;
-	private readonly IKubernetes _kubernetesClient;
-	private readonly KubernetesLeaderElectionOptions _options;
-	private readonly ILogger<KubernetesLeaderElection> _logger;
-	private readonly string _resourceName;
-	private readonly string _leaseName;
-	private readonly string _namespace;
-	private readonly Timer _renewalTimer;
-	private readonly ResiliencePipeline _retryPolicy;
-	private readonly SemaphoreSlim _leaseLock = new(1, 1);
-
-	private ConcurrentBag<Task> _trackedTasks = [];
-
-	private CancellationTokenSource? _runningTokenSource;
-	private V1Lease? _currentLease;
-	private volatile bool _isRunning;
-	private volatile bool _disposed;
-	private volatile bool _isLeader;
-	private volatile string? _currentLeaderId;
-	// the native Lease.spec.leaseTransitions counter observed at the most recent leadership
-	// transition (the fencing token per SA ruling), and UTC ticks of the instant that tenure began.
-	// Accessed lock-free via Interlocked, mirroring the existing volatile-field pattern on this type.
-	private long _currentFencingToken;
-	private long _leadershipAcquiredAtTicks;
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="KubernetesLeaderElection" /> class.
-	/// </summary>
-	/// <param name="kubernetesClient"> The Kubernetes client. </param>
-	/// <param name="resourceName"> The resource to elect a leader for. </param>
-	/// <param name="options"> The Kubernetes leader election options. </param>
-	/// <param name="logger"> The logger. </param>
-	/// <param name="timeProvider">
-	/// Optional time provider used for event timestamps. Defaults to <see cref="TimeProvider.System"/>.
-	/// Inject a controllable provider to make emitted timestamps deterministic in tests.
-	/// </param>
-	public KubernetesLeaderElection(
-		IKubernetes kubernetesClient,
-		string resourceName,
-		IOptions<KubernetesLeaderElectionOptions>? options,
-		ILogger<KubernetesLeaderElection>? logger,
-		TimeProvider? timeProvider = null)
-	{
-		_kubernetesClient = kubernetesClient ?? throw new ArgumentNullException(nameof(kubernetesClient));
-		_resourceName = resourceName ?? throw new ArgumentNullException(nameof(resourceName));
-		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-		_logger = logger ?? NullLogger<KubernetesLeaderElection>.Instance;
-		_timeProvider = timeProvider ?? TimeProvider.System;
-
-		// Determine the lease name
-		_leaseName = _options.LeaseName ?? $"{resourceName}-leader-election";
-
-		// Determine namespace (from options, pod namespace, or default)
-		_namespace = DetermineNamespace();
-
-		// Set candidate ID (from options, pod name, or generated)
-		CandidateId = DetermineCandidateId();
-
-		// Create renewal timer (not started yet)
-		_renewalTimer = new Timer(RenewLeadershipAsync, state: null, Timeout.Infinite, Timeout.Infinite);
-
-		// Configure retry policy
-		_retryPolicy = new ResiliencePipelineBuilder()
-			.AddRetry(new RetryStrategyOptions
-			{
-				MaxRetryAttempts = _options.MaxRetries,
-				DelayGenerator = args =>
-				{
-					var delay = TimeSpan.FromMilliseconds(Math.Min(1000 * Math.Pow(2, args.AttemptNumber),
-						_options.MaxRetryDelay.TotalMilliseconds));
-					return ValueTask.FromResult<TimeSpan?>(delay);
-				},
-				ShouldHandle = new PredicateBuilder()
-					.Handle<HttpOperationException>()
-					.Handle<TaskCanceledException>(),
-				OnRetry = args =>
-				{
-					LogRetryWarning(args.Outcome.Exception!, args.AttemptNumber, args.RetryDelay.TotalMilliseconds, _leaseName);
-					return ValueTask.CompletedTask;
-				},
-			})
-			.Build();
-
-		LogInitialized(_resourceName, _leaseName, _namespace);
-	}
-
-	/// <inheritdoc />
-	public event EventHandler<LeaderElectionEventArgs>? BecameLeader;
-
-	/// <inheritdoc />
-	public event EventHandler<LeaderElectionEventArgs>? LostLeadership;
-
-	/// <inheritdoc />
-	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
-
-	/// <inheritdoc/>
-	public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
-
-	/// <inheritdoc />
-	public string CandidateId { get; }
-
-	/// <inheritdoc />
-	public bool IsLeader => _isLeader;
-
-	/// <inheritdoc />
-	public Leadership? CurrentLeadership
-	{
-		get
-		{
-			if (!_isLeader)
-			{
-				return null;
-			}
-
-			var token = Interlocked.Read(ref _currentFencingToken);
-			var acquiredAtTicks = Interlocked.Read(ref _leadershipAcquiredAtTicks);
-			return new Leadership(token == 0 ? null : token, new DateTimeOffset(acquiredAtTicks, TimeSpan.Zero));
-		}
-	}
-
-	/// <inheritdoc />
-	public string? CurrentLeaderId => _currentLeaderId;
-
-	/// <inheritdoc />
-	public async Task StartAsync(CancellationToken cancellationToken)
-	{
-		if (_isRunning)
-		{
-			LogAlreadyRunning(_resourceName);
-			return;
-		}
-
-		_isRunning = true;
-		_runningTokenSource = new CancellationTokenSource();
-
-		LogStarting(_resourceName, CandidateId);
-
-		// Ensure the lease exists
-		await EnsureLeaseExistsAsync(cancellationToken).ConfigureAwait(false);
-
-		// Start the election loop and track for graceful disposal
-		cancellationToken.ThrowIfCancellationRequested();
-		_trackedTasks.Add(RunElectionLoopAsync(_runningTokenSource.Token));
-
-		// Start renewal timer
-		var renewInterval = _options.RenewInterval;
-		_ = _renewalTimer.Change(renewInterval, renewInterval);
-	}
-
-	/// <inheritdoc />
-	public async Task StopAsync(CancellationToken cancellationToken)
-	{
-		if (!_isRunning)
-		{
-			return;
-		}
-
-		_isRunning = false;
-		_ = _renewalTimer.Change(Timeout.Infinite, Timeout.Infinite);
-
-		LogStopping(_resourceName);
-
-		// Cancel the running token
-		if (_runningTokenSource != null)
-		{
-			await _runningTokenSource.CancelAsync().ConfigureAwait(false);
-		}
-
-		// Release leadership if we hold it
-		if (IsLeader)
-		{
-			await ReleaseLeadershipAsync(cancellationToken).ConfigureAwait(false);
-		}
-
-		_runningTokenSource?.Dispose();
-		_runningTokenSource = null;
-	}
-
-	/// <inheritdoc />
-	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
-	{
-		if (!_isRunning)
-		{
-			return;
-		}
-
-		// Update health metadata in the lease annotation
-		await _leaseLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-		try
-		{
-			if (_currentLease != null && IsLeader)
-			{
-				var healthData = new KubernetesHealthAnnotation
-				{
-					CandidateId = CandidateId,
-					IsHealthy = isHealthy,
-					HealthScore = isHealthy ? 1.0 : 0.0,
-					LastUpdated = _timeProvider.GetUtcNow(),
-					Metadata = metadata,
-				};
-
-				// Add health data to lease annotations
-				_currentLease.Metadata.Annotations ??= new Dictionary<string, string>(StringComparer.Ordinal);
-				_currentLease.Metadata.Annotations[$"leader-election.excalibur.io/health-{CandidateId}"] =
-					JsonSerializer.Serialize(healthData, KubernetesLeaderElectionJsonContext.Default.KubernetesHealthAnnotation);
-
-				// Update the lease
-				await _retryPolicy.ExecuteAsync(
-					async ct => _currentLease = await _kubernetesClient.CoordinationV1
-						.ReplaceNamespacedLeaseAsync(_currentLease, _leaseName, _namespace, cancellationToken: ct).ConfigureAwait(false),
-					cancellationToken).ConfigureAwait(false);
-
-				// If unhealthy and configured to step down, release leadership
-				if (!isHealthy && _options.StepDownWhenUnhealthy)
-				{
-					LogSteppingDownUnhealthy(_resourceName);
-					await ReleaseLeadershipAsync(_runningTokenSource!.Token).ConfigureAwait(false);
-				}
-			}
-		}
-		finally
-		{
-			_ = _leaseLock.Release();
-		}
-	}
-
-	/// <inheritdoc />
-	public async Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken)
-	{
-		var healthList = new List<CandidateHealth>();
-
-		try
-		{
-			// Get the current lease
-			var lease = await _retryPolicy.ExecuteAsync(
-				async ct => await _kubernetesClient.CoordinationV1.ReadNamespacedLeaseAsync(_leaseName, _namespace,
-					cancellationToken: ct).ConfigureAwait(false),
-				cancellationToken).ConfigureAwait(false);
-
-			if (lease?.Metadata?.Annotations != null)
-			{
-				// Extract health data from annotations
-				foreach (var annotation in lease.Metadata.Annotations)
-				{
-					if (annotation.Key.StartsWith("leader-election.excalibur.io/health-", StringComparison.Ordinal))
-					{
-						try
-						{
-							var healthData = JsonSerializer.Deserialize(
-								annotation.Value,
-								KubernetesLeaderElectionJsonContext.Default.KubernetesHealthAnnotation);
-							if (healthData != null)
-							{
-								healthList.Add(new CandidateHealth
-								{
-									CandidateId = healthData.CandidateId,
-									IsHealthy = healthData.IsHealthy,
-									HealthScore = healthData.HealthScore,
-									LastUpdated = healthData.LastUpdated,
-									IsLeader = string.Equals(
-										lease.Spec?.HolderIdentity,
-										healthData.CandidateId,
-										StringComparison.Ordinal),
-									Metadata = healthData.Metadata is not null
-										? new Dictionary<string, string>(healthData.Metadata, StringComparer.Ordinal)
-										: [],
-								});
-							}
-						}
-						catch (Exception ex)
-						{
-							LogHealthAnnotationParseFailed(ex, annotation.Key);
-						}
-					}
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			LogGetHealthFailed(ex, _leaseName);
-		}
-
-		return healthList;
-	}
-
-	/// <inheritdoc />
-	public void Dispose()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_isRunning = false;
-		_runningTokenSource?.Cancel();
-		_renewalTimer.Dispose();
-		_leaseLock.Dispose();
-		_runningTokenSource?.Dispose();
-	}
-
-	/// <summary>
-	/// Asynchronously disposes resources, ensuring tracked tasks complete and leadership is released.
-	/// </summary>
-	public async ValueTask DisposeAsync()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_isRunning = false;
-
-		// 1. Disable timer and wait for in-flight callbacks
-		await _renewalTimer.DisposeAsync().ConfigureAwait(false);
-
-		// 2. Cancel running token to signal tracked tasks
-		if (_runningTokenSource != null)
-		{
-			await _runningTokenSource.CancelAsync().ConfigureAwait(false);
-		}
-
-		// 3. Wait for all tracked tasks to complete
-		try
-		{
-			await Task.WhenAll(_trackedTasks).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-		{
-			// Expected during shutdown
-		}
-
-		// 4. Release leadership if we hold it
-		if (IsLeader)
-		{
-			using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-			try
-			{
-				await ReleaseLeadershipAsync(cts.Token).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-			{
-				// Timed out — lease will expire naturally
-			}
-		}
-
-		_leaseLock.Dispose();
-		_runningTokenSource?.Dispose();
-	}
-
-	private string DetermineNamespace()
-	{
-		// Priority: Options > Pod namespace > Default
-		if (!string.IsNullOrEmpty(_options.Namespace))
-		{
-			return _options.Namespace;
-		}
-
-		// Try to read from pod namespace file (when running in-cluster)
-		const string namespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace";
-		if (File.Exists(namespaceFile))
-		{
-			try
-			{
-				return File.ReadAllText(namespaceFile).Trim();
-			}
-			catch (Exception ex)
-			{
-				LogNamespaceReadFailed(ex, namespaceFile);
-			}
-		}
-
-		return "default";
-	}
-
-	private string DetermineCandidateId()
-	{
-		// Priority: Options > Pod name (from env) > Machine name + GUID
-		if (!string.IsNullOrEmpty(_options.CandidateId))
-		{
-			return _options.CandidateId;
-		}
-
-		// Try to get pod name from environment (set by Kubernetes)
-		var podName = Environment.GetEnvironmentVariable("HOSTNAME") ??
-					  Environment.GetEnvironmentVariable("POD_NAME");
-
-		if (!string.IsNullOrEmpty(podName))
-		{
-			return podName;
-		}
-
-		// Fallback to machine name with GUID
-		return $"{Environment.MachineName}-{Guid.NewGuid():N}";
-	}
-
-	private async Task EnsureLeaseExistsAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			// Try to get the lease
-			_currentLease = await _retryPolicy.ExecuteAsync(
-				async ct => await _kubernetesClient.CoordinationV1.ReadNamespacedLeaseAsync(
-					_leaseName, _namespace, cancellationToken: ct).ConfigureAwait(false),
-				cancellationToken).ConfigureAwait(false);
-
-			LogLeaseExists(_leaseName, _namespace);
-		}
-		catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.NotFound)
-		{
-			// Create the lease if it doesn't exist
-			LogCreatingLease(_leaseName, _namespace);
-
-			var lease = new V1Lease
-			{
-				Metadata = new V1ObjectMeta
-				{
-					Name = _leaseName,
-					NamespaceProperty = _namespace,
-					Labels = new Dictionary<string, string>(StringComparer.Ordinal)
-					{
-						["app.kubernetes.io/managed-by"] = "excalibur-leader-election",
-						["excalibur.io/resource"] = _resourceName,
-					},
-					Annotations = new Dictionary<string, string>(StringComparer.Ordinal),
-				},
-				Spec = new V1LeaseSpec
-				{
-					HolderIdentity = null,
-					LeaseDurationSeconds = (int)_options.LeaseDuration.TotalSeconds,
-					AcquireTime = null,
-					RenewTime = null,
-				},
-			};
-
-			try
-			{
-				_currentLease = await _retryPolicy.ExecuteAsync(
-					async ct => await _kubernetesClient.CoordinationV1.CreateNamespacedLeaseAsync(
-						lease, _namespace, cancellationToken: ct).ConfigureAwait(false),
-					cancellationToken).ConfigureAwait(false);
-			}
-			catch (HttpOperationException createEx) when (createEx.Response.StatusCode == HttpStatusCode.Conflict)
-			{
-				// Another candidate's StartAsync raced this one between the read-404 above and this
-				// create: both saw no lease, both tried to create it, and Kubernetes admits exactly one
-				// (409 AlreadyExists for the rest). That candidate's create is authoritative -- this is
-				// not a failure, it is the lease now existing, which is what this method promises on
-				// return. Falling through to a read (rather than treating the 409 as terminal) is what
-				// lets every losing candidate proceed to the normal acquire path instead of StartAsync
-				// throwing outright for N-1 of N concurrent starters.
-				LogLeaseExists(_leaseName, _namespace);
-
-				_currentLease = await _retryPolicy.ExecuteAsync(
-					async ct => await _kubernetesClient.CoordinationV1.ReadNamespacedLeaseAsync(
-						_leaseName, _namespace, cancellationToken: ct).ConfigureAwait(false),
-					cancellationToken).ConfigureAwait(false);
-			}
-		}
-	}
-
-	private async Task RunElectionLoopAsync(CancellationToken cancellationToken)
-	{
-		while (!cancellationToken.IsCancellationRequested && _isRunning)
-		{
-			try
-			{
-				await TryAcquireOrRenewLeaseAsync(cancellationToken).ConfigureAwait(false);
-
-				// Wait before next attempt
-				await Task.Delay(_options.RetryInterval, cancellationToken).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-			{
-				break;
-			}
-			catch (Exception ex)
-			{
-				LogElectionLoopError(ex, _leaseName);
-
-				// An error while not holding leadership is a failed acquisition attempt.
-				if (!IsLeader)
-				{
-					RaiseAcquisitionFailed("error during acquisition", ex);
-				}
-
-				await Task.Delay(_options.RetryInterval, cancellationToken).ConfigureAwait(false);
-			}
-		}
-	}
-
-	/// <summary>
-	/// Raises <see cref="AcquisitionFailed"/>, guarding the invocation so a throwing subscriber
-	/// can never break the acquisition/renewal loop.
-	/// </summary>
-	private void RaiseAcquisitionFailed(string reason, Exception? exception)
-	{
-		try
-		{
-			AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName, reason, _timeProvider.GetUtcNow(), exception));
-		}
-		catch (Exception)
-		{
-			// A throwing subscriber must never break the acquire loop.
-		}
-	}
-
-	// Justification: Leader election state machine with K8s API calls, lease acquisition/renewal, and error recovery requires sequential orchestration for correctness
-	// Method is too long
-#pragma warning disable MA0051
-	// internal so the split-brain regression can drive one acquisition attempt directly. Driving it
-	// through StartAsync would mean waiting on a renewal timer, which puts a clock back into a test
-	// whose subject is a race, not a duration.
-	internal async Task TryAcquireOrRenewLeaseAsync(CancellationToken cancellationToken)
-	{
-		await _leaseLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-		try
-		{
-			// Get the current lease
-			var lease = await _retryPolicy.ExecuteAsync(
-				async ct => await _kubernetesClient.CoordinationV1.ReadNamespacedLeaseAsync(
-					_leaseName, _namespace, cancellationToken: ct).ConfigureAwait(false),
-				cancellationToken).ConfigureAwait(false);
-
-			_currentLease = lease;
-			var now = _timeProvider.GetUtcNow();
-			var previousLeaderId = CurrentLeaderId;
-
-			// Check if we can acquire or renew the lease
-			var canAcquire = false;
-
-			if (string.IsNullOrEmpty(lease.Spec.HolderIdentity))
-			{
-				// No current holder, we can acquire
-				canAcquire = true;
-				LogAttemptingAcquire(_leaseName);
-			}
-			else if (string.Equals(lease.Spec.HolderIdentity, CandidateId, StringComparison.Ordinal))
-			{
-				// We are the current holder, renew
-				canAcquire = true;
-				LogRenewingLease(_leaseName);
-			}
-			else if (lease.Spec.RenewTime.HasValue)
-			{
-				// Check if the lease has expired
-				var expiry = lease.Spec.RenewTime.Value.AddSeconds(lease.Spec.LeaseDurationSeconds ?? (int)_options.LeaseDuration.TotalSeconds);
-				if (now > expiry.Add(_options.GracePeriod))
-				{
-					canAcquire = true;
-					LogLeaseExpired(_leaseName, lease.Spec.HolderIdentity, lease.Spec.RenewTime, expiry);
-				}
-			}
-
-			if (canAcquire)
-			{
-				// A leadership TRANSITION (takeover from a different/absent prior holder, not a self-renew)
-				// advances the native Lease.spec.leaseTransitions counter — the monotonic fencing token
-				// (SA ruling: K8s reads the native counter, never a self-minted one). If the int32 counter is
-				// exhausted, relinquish (fail-closed) rather than wrap it into a non-monotonic token.
-				var isTransition = !string.Equals(previousLeaderId, CandidateId, StringComparison.Ordinal);
-				if (isTransition)
-				{
-					var currentTransitions = lease.Spec.LeaseTransitions ?? 0;
-					if (currentTransitions >= int.MaxValue)
-					{
-						LogFencingTokenExhausted(CandidateId, _leaseName);
-						RaiseAcquisitionFailed("fencing token (leaseTransitions) domain exhausted", exception: null);
-						return;
-					}
-
-					lease.Spec.LeaseTransitions = currentTransitions + 1;
-				}
-
-				// Update the lease
-				lease.Spec.HolderIdentity = CandidateId;
-				lease.Spec.LeaseDurationSeconds = (int)_options.LeaseDuration.TotalSeconds;
-				lease.Spec.RenewTime = now.UtcDateTime;
-
-				if (!lease.Spec.AcquireTime.HasValue || !string.Equals(previousLeaderId, CandidateId, StringComparison.Ordinal))
-				{
-					lease.Spec.AcquireTime = now.UtcDateTime;
-				}
-
-				// Add candidate metadata
-				lease.Metadata.Annotations ??= new Dictionary<string, string>(StringComparer.Ordinal);
-				foreach (var kvp in _options.CandidateMetadata)
-				{
-					lease.Metadata.Annotations[$"leader-election.excalibur.io/metadata-{kvp.Key}"] = kvp.Value;
-				}
-
-				// Try to update the lease
-				try
-				{
-					_currentLease = await _retryPolicy.ExecuteAsync(
-						async ct => await _kubernetesClient.CoordinationV1.ReplaceNamespacedLeaseAsync(
-							lease, _leaseName, _namespace, cancellationToken: ct).ConfigureAwait(false),
-						cancellationToken).ConfigureAwait(false);
-
-					// Update our state
-					var wasLeader = IsLeader;
-					_isLeader = true;
-					_currentLeaderId = CandidateId;
-					Interlocked.Exchange(ref _currentFencingToken, lease.Spec.LeaseTransitions ?? 0);
-
-					if (!wasLeader)
-					{
-						Interlocked.Exchange(ref _leadershipAcquiredAtTicks, _timeProvider.GetUtcNow().UtcTicks);
-						LogAcquiredLeadership(_resourceName);
-						BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-					}
-
-					if (!string.Equals(previousLeaderId, CandidateId, StringComparison.Ordinal))
-					{
-						LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-					}
-				}
-				catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.Conflict)
-				{
-					// Another candidate won the race.
-					//
-					// `lease` is OUR copy, and its HolderIdentity was overwritten with CandidateId above
-					// before the write was attempted. Deriving leadership from it here reads our own
-					// identity back and concludes we won -- so EVERY loser of the race declared itself
-					// leader, and the !IsLeader guard below could never fire. That is a split-brain: the
-					// conformance kit observed three leaders among four candidates against a real API
-					// server. The authoritative holder is what the server has, so re-read it.
-					LogLostRace(_leaseName);
-
-					try
-					{
-						var authoritative = await _retryPolicy.ExecuteAsync(
-							async ct => await _kubernetesClient.CoordinationV1.ReadNamespacedLeaseAsync(
-								_leaseName, _namespace, cancellationToken: ct).ConfigureAwait(false),
-							cancellationToken).ConfigureAwait(false);
-
-						_currentLease = authoritative;
-						await UpdateLeadershipStateFromLeaseAsync(authoritative).ConfigureAwait(false);
-					}
-					catch (Exception readEx) when (readEx is not OperationCanceledException)
-					{
-						// Fail CLOSED. We lost the race and could not learn who won, so we cannot be the
-						// leader -- claiming it on an unconfirmed read is the same defect one layer down.
-						if (IsLeader)
-						{
-							_isLeader = false;
-							LogLostLeadership(_resourceName);
-							LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-						}
-
-						_currentLeaderId = null;
-					}
-
-					if (!IsLeader)
-					{
-						RaiseAcquisitionFailed("lost the acquisition race", exception: null);
-					}
-				}
-			}
-			else
-			{
-				// Another candidate holds a valid lease — we could not acquire this attempt.
-				await UpdateLeadershipStateFromLeaseAsync(lease).ConfigureAwait(false);
-				if (!IsLeader)
-				{
-					RaiseAcquisitionFailed("lost the acquisition race", exception: null);
-				}
-			}
-		}
-		finally
-		{
-			_ = _leaseLock.Release();
-		}
-	}
-
-	private Task UpdateLeadershipStateFromLeaseAsync(V1Lease lease)
-	{
-		var previousLeaderId = CurrentLeaderId;
-		var wasLeader = IsLeader;
-
-		_currentLeaderId = lease.Spec?.HolderIdentity;
-		_isLeader = string.Equals(_currentLeaderId, CandidateId, StringComparison.Ordinal);
-
-		if (wasLeader && !IsLeader)
-		{
-			LogLostLeadership(_resourceName);
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-		}
-
-		if (!string.Equals(previousLeaderId, CurrentLeaderId, StringComparison.Ordinal))
-		{
-			LogLeaderChanged(previousLeaderId, CurrentLeaderId, _resourceName);
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, CurrentLeaderId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-		}
-
-		return Task.CompletedTask;
-	}
-
-	private void RenewLeadershipAsync(object? state)
-	{
-		if (!_isRunning || _disposed || !IsLeader)
-		{
-			return;
-		}
-
-		var task = RenewLeadershipCoreAsync(_runningTokenSource?.Token ?? CancellationToken.None);
-		_trackedTasks.Add(task);
-
-		// Drain completed tasks to prevent unbounded growth
-		var snapshot = Interlocked.Exchange(ref _trackedTasks, new ConcurrentBag<Task>());
-		foreach (var t in snapshot)
-		{
-			if (!t.IsCompleted)
-			{
-				_trackedTasks.Add(t);
-			}
-		}
-	}
-
-	private async Task RenewLeadershipCoreAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			await TryAcquireOrRenewLeaseAsync(cancellationToken).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-		{
-			// Shutdown requested — expected during disposal
-		}
-		catch (Exception ex)
-		{
-			LogRenewalError(ex, _leaseName);
-		}
-	}
-
-	private async Task ReleaseLeadershipAsync(CancellationToken cancellationToken)
-	{
-		await _leaseLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-		try
-		{
-			if (_currentLease?.Spec != null && string.Equals(_currentLease.Spec.HolderIdentity, CandidateId, StringComparison.Ordinal))
-			{
-				LogReleasingLeadership(_resourceName);
-
-				// Clear the holder identity
-				_currentLease.Spec.HolderIdentity = null;
-				_currentLease.Spec.AcquireTime = null;
-				_currentLease.Spec.RenewTime = null;
-
-				try
-				{
-					await _retryPolicy.ExecuteAsync(
-						async ct => await _kubernetesClient.CoordinationV1.ReplaceNamespacedLeaseAsync(
-							_currentLease, _leaseName, _namespace, cancellationToken: ct).ConfigureAwait(false),
-						cancellationToken).ConfigureAwait(false);
-
-					var previousLeaderId = CurrentLeaderId;
-					_isLeader = false;
-					_currentLeaderId = null;
-
-					LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-					LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeaderId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-				}
-				catch (Exception ex)
-				{
-					LogReleaseError(ex, _leaseName);
-				}
-			}
-		}
-		finally
-		{
-			_ = _leaseLock.Release();
-		}
-	}
+    private readonly Lock _runGate = new();
+    private readonly TimeProvider _timeProvider;
+    private readonly KubernetesLeaderElectionOptions _options;
+    private readonly ILogger<KubernetesLeaderElection> _logger;
+    private readonly string _resourceName;
+    private readonly string _leaseName;
+    private readonly string _namespace;
+    private readonly LeaderElectionNotifications _notifications;
+    private readonly LeaderElectionProducerLifetime _producers = new();
+#pragma warning disable CA2213 // DisposeAsync memoizes DisposeResourcesAsync; it cancels and joins all actual producers/public SDK work before disposing this source. Synchronous Dispose joins that same resource task.
+    private readonly CancellationTokenSource _lifetimeStop = new();
+#pragma warning restore CA2213
+    private readonly HashSet<PublicWork> _publicWork = [];
+    private readonly KubernetesLeaseProtocol _protocol;
+    private StartSlot? _slot;
+    private volatile bool _disposed;
+    private Task? _disposal;
+
+    /// <summary>Constructs an election borrowing the supplied Kubernetes client.</summary>
+    /// <param name="kubernetesClient">Borrowed SDK client; never disposed or reconfigured.</param>
+    /// <param name="resourceName">Display resource.</param>
+    /// <param name="options">Election configuration copied at construction.</param>
+    /// <param name="logger">Diagnostic logger.</param>
+    /// <param name="timeProvider">Monotonic clock and deterministic timers.</param>
+    public KubernetesLeaderElection(IKubernetes kubernetesClient, string resourceName,
+        IOptions<KubernetesLeaderElectionOptions>? options, ILogger<KubernetesLeaderElection>? logger,
+        TimeProvider? timeProvider = null)
+    {
+        ArgumentNullException.ThrowIfNull(kubernetesClient);
+        _resourceName = resourceName ?? throw new ArgumentNullException(nameof(resourceName));
+        _options = KubernetesElectionConfiguration.Snapshot(options?.Value ?? throw new ArgumentNullException(nameof(options)));
+        _logger = logger ?? NullLogger<KubernetesLeaderElection>.Instance;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _leaseName = _options.LeaseName ?? (resourceName + "-leader-election");
+        _notifications = new LeaderElectionNotifications(error => LogRenewalError(error, _leaseName));
+        _namespace = KubernetesElectionConfiguration.DetermineNamespace(_options.Namespace,
+            (error, path) => _notifications.EnqueueDiagnostic(LogNamespaceReadFailed, error, path));
+        CandidateId = LeaderCandidateIdentity.Resolve(_options.InstanceId);
+        var retry = KubernetesLeaderElectionRetry.Create(_options, _timeProvider,
+            (error, attempt, delay) => _notifications.EnqueueDiagnostic(LogRetryWarning, error, attempt, delay, _leaseName));
+        _protocol = new KubernetesLeaseProtocol(kubernetesClient, _options, _leaseName, _namespace, CandidateId, _resourceName, _timeProvider, retry);
+        _notifications.EnqueueDiagnostic(LogInitialized, _resourceName, _leaseName, _namespace);
+    }
+
+#pragma warning disable CA2000 // TryEnter preregisters the lease before scheduling. The scheduled delegate owns it lexically with using through actual action completion; a synchronous scheduling failure disposes it in catch.
+    private Task RunProducerAsync(Func<Task> action)
+    {
+        ObjectDisposedException.ThrowIf(!_producers.TryEnter(out var producer), this);
+        try { return LeaderElectionExecution.RunAsync(async () => { using (producer) { await action().ConfigureAwait(false); } }); }
+        catch { producer.Dispose(); throw; }
+    }
+#pragma warning restore CA2000
+
+    /// <inheritdoc/>
+    public string CandidateId { get; }
+    /// <inheritdoc/>
+    public Task NotificationsCompleted => _notifications.NotificationsCompleted;
+    /// <inheritdoc/>
+    public bool IsLeader => CurrentRun()?.Kernel.Current is not null;
+    /// <inheritdoc/>
+    public Leadership? CurrentLeadership
+    {
+        get
+        {
+            var held = CurrentRun()?.Kernel.Current;
+            return held is null ? null : new Leadership(held.FencingToken, held.AcquiredAt);
+        }
+    }
+    /// <inheritdoc/>
+    public string? CurrentLeaderId
+    {
+        get
+        {
+            var run = CurrentRun();
+            if (run is null) { return null; }
+            var status = run.Kernel.ReadStatus();
+            return status.Tenure is not null ? CandidateId : status.ObservedHolder;
+        }
+    }
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionEventArgs>? BecameLeader;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionEventArgs>? LostLeadership;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
+
+    /// <inheritdoc/>
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        var callerStart = _timeProvider.GetTimestamp();
+        KubernetesNativeOperation.ThrowIfActive(this);
+        _notifications.ThrowIfReentrant();
+        StartSlot slot;
+        lock (_runGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_slot is { Shutdown: { } shutdown } && !shutdown.IsCompletedSuccessfully)
+            {
+                throw new InvalidOperationException("The previous run has not reached successful client quiescence.");
+            }
+            if (_slot is { Shutdown: null } existing) { slot = existing; }
+            else
+            {
+                // A pending start owns only one cancellation/lifecycle slot. It allocates NO
+                // kernel, timer, run or dispatcher until all previous callbacks have drained.
+                var previousNotifications = _slot?.Run?.Kernel.NotificationDrainTask ?? _slot?.PreviousNotifications ?? Task.CompletedTask;
+                slot = new StartSlot(previousNotifications);
+                _slot = slot;
+                _notifications.EnqueueDiagnostic(LogStarting, _resourceName, CandidateId);
+                slot.Worker = RunProducerAsync(() => AdmitRunAsync(slot));
+            }
+        }
+        try { await KubernetesCallerWait.WaitAsync(slot.Initial.Task, callerStart, CallerBudget, _timeProvider, cancellationToken).ConfigureAwait(false); }
+        catch (TimeoutException)
+        {
+            _ = BeginStop(slot); // Actual operation and shutdown remain owned after this wait.
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _ = BeginStop(slot); // retained; a canceled waiter does not abandon a pending launch.
+            throw;
+        }
+    }
+
+    private async Task AdmitRunAsync(StartSlot slot)
+    {
+        try
+        {
+            await slot.PreviousNotifications.WaitAsync(slot.Stop.Token).ConfigureAwait(false);
+            Run run;
+            lock (_runGate)
+            {
+                if (slot.StopRequested || _disposed || !ReferenceEquals(_slot, slot))
+                {
+                    throw new OperationCanceledException(slot.Stop.Token);
+                }
+                run = new Run(this, slot);
+                slot.Run = run;
+                run.Actor = RunProducerAsync(() => RunActorAsync(run));
+            }
+            await run.Initial.Task.ConfigureAwait(false);
+            slot.Initial.TrySetResult();
+        }
+        catch (OperationCanceledException) when (slot.StopRequested)
+        {
+            slot.Initial.TrySetCanceled(slot.Stop.Token);
+        }
+        catch (TimeoutException failure)
+        {
+            slot.Initial.TrySetException(failure); // Logical start failure is not physical cleanup failure.
+        }
+        catch (Exception failure)
+        {
+            slot.Initial.TrySetException(failure);
+            throw;
+        }
+    }
+
+    /// <inheritdoc/>
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        var callerStart = _timeProvider.GetTimestamp();
+        KubernetesNativeOperation.ThrowIfActive(this);
+        StartSlot? slot;
+        lock (_runGate) { ObjectDisposedException.ThrowIf(_disposed, this); slot = _slot; }
+        return slot is null ? Task.CompletedTask : KubernetesCallerWait.WaitAsync(
+            BeginStop(slot), callerStart, CallerBudget, _timeProvider, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public ValueTask DisposeAsync()
+    {
+        KubernetesNativeOperation.ThrowIfActive(this);
+        lock (_runGate)
+        {
+            if (_disposal is not null) { return new ValueTask(_disposal); }
+            _disposed = true;
+            var publicWork = _publicWork.ToArray();
+            if (_slot is { } slot) { _ = BeginStop(slot); }
+            foreach (var work in publicWork) { work.Latch.SealAndJoinAsync(); }
+            return new ValueTask(_disposal = LeaderElectionExecution.RunAsync(() => DisposeResourcesAsync(publicWork)));
+        }
+    }
+
+    private async Task DisposeResourcesAsync(PublicWork[] publicWork)
+    {
+        var errors = new List<Exception>();
+        var producers = _producers.Seal();
+        try
+        {
+            try { await _lifetimeStop.CancelAsync().ConfigureAwait(false); } catch (Exception error) { errors.Add(error); }
+            StartSlot? slot; lock (_runGate) { slot = _slot; }
+            if (slot is not null) { try { await BeginStop(slot).ConfigureAwait(false); } catch (Exception error) { errors.Add(error); } }
+            try { await producers.ConfigureAwait(false); } catch (Exception error) { errors.Add(error); }
+            foreach (var work in publicWork)
+            {
+                try { await work.Completion.Task.ConfigureAwait(false); }
+                catch (OperationCanceledException error) when (work.CancelledBeforeLaunch || (work.Token.IsCancellationRequested && error.CancellationToken == work.Token)) { }
+                catch (Exception error) { errors.Add(error); }
+            }
+            try { _lifetimeStop.Dispose(); } catch (Exception error) { errors.Add(error); }
+        }
+        finally { _notifications.Seal(); }
+        KubernetesElectionFailures.Throw(errors, "Kubernetes owned shutdown failed.");
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+#pragma warning disable RS0030 // IDisposable must join the same memoized RESOURCE cleanup and observe faults; notification delivery is a separate lane.
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
+#pragma warning restore RS0030
+    }
+
+    // Kubernetes-local caller policy, not a network-completion or lease-safety theorem.
+    private TimeSpan CallerBudget => _options.RenewInterval + _options.GracePeriod;
+
+    private void AdmitOwnershipPhase(Run run, Attempt attempt, long requestStart, bool renewal)
+    {
+        lock (_runGate)
+        {
+            if (run.StopRequested || !ReferenceEquals(_slot, run.Slot) || attempt.Retiring)
+            { throw new OperationCanceledException(attempt.Token); }
+            if (_timeProvider.GetElapsedTime(requestStart) >= CallerBudget)
+            { throw new TimeoutException("Kubernetes logical ownership attempt exceeded its total caller budget."); }
+            if (renewal && !ReferenceEquals(run.Kernel.Current?.OwnershipProof, attempt))
+            { throw new OperationCanceledException(attempt.Token); }
+            // Phase admission is the boundary. Its SDK prefix runs outside this gate,
+            // may physically start late, and remains covered by the actual operation owner.
+        }
+    }
+
+    private Run? CurrentRun() { lock (_runGate) { return _slot?.Run; } }
+
+    private Task BeginStop(StartSlot slot)
+    {
+        lock (_runGate)
+        {
+            if (slot.Shutdown is not null) { return slot.Shutdown; }
+            slot.StopRequested = true;
+            _notifications.EnqueueDiagnostic(LogStopping, _resourceName);
+            // No new run can be installed after this seal: admission checks under this gate.
+            // The common kernel never invokes external user code inline under its gate.
+            slot.Run?.Kernel.RequestStop();
+            var publicWork = _publicWork.ToArray();
+            foreach (var work in publicWork) { work.Latch.SealAndJoinAsync(); }
+            return slot.Shutdown = LeaderElectionExecution.RunAsync(() => StopSlotAsync(slot, publicWork));
+        }
+    }
+
+    private async Task StopSlotAsync(StartSlot slot, PublicWork[] publicWork)
+    {
+        var failures = new List<Exception>();
+        try { await slot.Stop.CancelAsync().ConfigureAwait(false); }
+        catch (Exception error) { failures.Add(error); }
+        try { await slot.Worker.ConfigureAwait(false); }
+        catch (Exception error) { failures.Add(error); }
+        if (slot.Run is { } run)
+        {
+            try { await run.Actor.ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            try { await run.Kernel.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            if (run.ActorFailure is not null) { failures.Add(run.ActorFailure); }
+        }
+        foreach (var work in publicWork)
+        {
+            try { await work.CancelAsync().ConfigureAwait(false); } catch (Exception error) { failures.Add(error); }
+            try { await work.Completion.Task.ConfigureAwait(false); }
+            catch (OperationCanceledException error) when (work.CancelledBeforeLaunch || (work.Token.IsCancellationRequested && error.CancellationToken == work.Token)) { }
+            catch (Exception error) { failures.Add(error); }
+        }
+        slot.Stop.Dispose();
+        KubernetesElectionFailures.Throw(failures, "Kubernetes run shutdown failed.");
+    }
+
+
+    private async Task RunActorAsync(Run run)
+    {
+        try
+        {
+            await run.Kernel.WaitForNotificationDrainAsync(run.Stop.Token).ConfigureAwait(false);
+            while (!run.StopRequested && !run.Stop.IsCancellationRequested)
+            {
+                var attempt = new Attempt(Guid.NewGuid().ToString("N"), run.Stop.Token);
+                long generation;
+                try { generation = run.Kernel.BeginAcquisition(attempt, attempt.Acquire); }
+                catch { attempt.Stop.Dispose(); if (run.StopRequested) { break; } throw; }
+                var start = _timeProvider.GetTimestamp();
+                KubernetesLeaseProtocol.Result? result = null;
+                attempt.Acquire.TryLaunch(async () => { result = await KubernetesNativeOperation.RunAsync(this,
+                    ct => _protocol.AcquireAsync(attempt.Native, ct), attempt.Token, error => attempt.SdkCleanupFailure = error,
+                    () => AdmitOwnershipPhase(run, attempt, start, false)).ConfigureAwait(false); });
+                try
+                {
+                    await KubernetesCallerWait.WaitAsync(attempt.Acquire.Completion, start, CallerBudget, _timeProvider, attempt.Token).ConfigureAwait(false);
+                    if (result is { Confirmed: true, Proof: { } proof } && !run.Stop.IsCancellationRequested)
+                    {
+                        attempt.Proof = proof;
+                        run.Kernel.Publish(generation, start, attempt, proof.Token, _timeProvider.GetUtcNow());
+                    }
+                    else
+                    {
+                        var reason = FenceFailureReason(result?.Failure ?? KubernetesLeaseProtocol.FenceFailure.None) ?? "lost the acquisition race";
+                        run.Kernel.ReportObservation(generation, true, result?.OtherHolder, reason, null, _timeProvider.GetUtcNow());
+                        run.Kernel.Retire(generation, "acquisition race lost");
+                    }
+                }
+                catch (OperationCanceledException error) when (attempt.Token.IsCancellationRequested && error.CancellationToken == attempt.Token)
+                { run.Initial.TrySetCanceled(attempt.Token); run.Kernel.Retire(generation, "stopped"); }
+                catch (TimeoutException error)
+                {
+                    run.Initial.TrySetException(error); // Must precede finally's generic TrySetResult.
+                    run.Kernel.Retire(generation, "logical acquisition timed out", error);
+                    _ = BeginStop(run.Slot); // A failed initial start cannot autonomously reacquire.
+                }
+                catch (Exception error)
+                {
+                    run.Kernel.Retire(generation, "acquisition failed", error);
+                    run.Kernel.ReportObservation(generation, false, null, "error during acquisition", error, _timeProvider.GetUtcNow());
+                    _notifications.EnqueueDiagnostic(LogElectionLoopError, error, _leaseName);
+                }
+                finally { run.Initial.TrySetResult(); }
+                var cadenceStart = start;
+                var delay = _options.RenewInterval;
+                while (!run.Stop.IsCancellationRequested && run.Kernel.Current is not null)
+                {
+                    await LeaderElectionDelay.WaitFromAsync(cadenceStart, delay, _timeProvider, run.Stop.Token).ConfigureAwait(false);
+                    var operation = new OwnedOperationLatch();
+                    if (!run.Kernel.TryRegisterOperation(generation, operation)) { break; }
+                    var proofStart = run.Kernel.Current?.ProofRequestStart;
+                    if (proofStart is null) { await operation.SealAndJoinAsync().ConfigureAwait(false); break; }
+                    var renewalStart = _timeProvider.GetTimestamp(); cadenceStart = renewalStart;
+                    KubernetesLeaseProtocol.Result? renewal = null;
+                    operation.TryLaunch(async () => { renewal = await KubernetesNativeOperation.RunAsync(this,
+                        ct => _protocol.RenewAsync(attempt.Proof!, ct), attempt.Token, error => attempt.SdkCleanupFailure = error,
+                        () => AdmitOwnershipPhase(run, attempt, renewalStart, true)).ConfigureAwait(false); });
+                    try
+                    {
+                        await KubernetesCallerWait.WaitAsync(operation.Completion, proofStart.Value, CallerBudget, _timeProvider, attempt.Token).ConfigureAwait(false);
+                        if (renewal is { Confirmed: true }) { run.Kernel.Confirm(generation, renewalStart); delay = _options.RenewInterval; }
+                        else if (renewal is { Lost: true })
+                        {
+                            if (FenceFailureReason(renewal.Failure) is { } failure) { run.Kernel.ReportObservation(generation, false, null, failure, null, _timeProvider.GetUtcNow()); }
+                            run.Kernel.Retire(generation, "native UID/private owner proof changed");
+                            run.Kernel.ReportObservation(generation, true, renewal.OtherHolder, null, null, _timeProvider.GetUtcNow());
+                        }
+                        else { delay = _options.RetryInterval; }
+                    }
+                    catch (OperationCanceledException error) when (attempt.Token.IsCancellationRequested && error.CancellationToken == attempt.Token) { break; }
+                    catch (TimeoutException error)
+                    {
+                        run.Kernel.Retire(generation, "logical renewal timed out", error);
+                        _notifications.EnqueueDiagnostic(LogRenewalError, error, _leaseName);
+                    }
+                    catch (Exception error)
+                    {
+                        _notifications.EnqueueDiagnostic(LogRenewalError, error, _leaseName);
+                        if (attempt.SdkCleanupFailure is not null) { run.Kernel.Retire(generation, "owned SDK cleanup failed", error); }
+                        delay = _options.RetryInterval; // Ambiguity never refreshes the original proof.
+                    }
+                }
+                run.Kernel.Retire(generation, run.Stop.IsCancellationRequested ? "stopped" : "tenure ended");
+                await run.Kernel.RetirementTask.ConfigureAwait(false);
+                run.Kernel.CompleteRetirement(generation);
+                await run.Kernel.WaitForNotificationDrainAsync(run.Stop.Token).ConfigureAwait(false);
+                await LeaderElectionDelay.WaitFromAsync(cadenceStart, _options.RetryInterval, _timeProvider, run.Stop.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException error) when (run.Stop.IsCancellationRequested && error.CancellationToken == run.Stop.Token) { }
+        catch (Exception error)
+        {
+            run.ActorFailure = error; run.Initial.TrySetException(error); _ = BeginStop(run.Slot);
+        }
+        finally { run.Initial.TrySetResult(); }
+    }
+
+    private async Task RetireAsync(Run run, RenewalTenureDeadline.Retirement retirement)
+    {
+        var attempt = (Attempt)retirement.AcquisitionOwner;
+        PublicWork[] health;
+        lock (_runGate)
+        {
+            attempt.Retiring = true;
+            health = _publicWork.Where(work => ReferenceEquals(work.Attempt, attempt)).ToArray();
+            foreach (var work in health) { if (!work.PermitRetiring) { work.Latch.SealAndJoinAsync(); } }
+        }
+        var errors = new List<Exception>();
+        try { await attempt.Stop.CancelAsync().ConfigureAwait(false); } catch (Exception error) { errors.Add(error); }
+        if (retirement.OperationCompletion is { } completion)
+        {
+            try { await completion.ConfigureAwait(false); }
+            catch (OperationCanceledException error) when (attempt.Token.IsCancellationRequested && error.CancellationToken == attempt.Token) { }
+            catch (Exception error) { _notifications.EnqueueDiagnostic(LogRenewalError, error, _leaseName); }
+        }
+        if (attempt.SdkCleanupFailure is not null) { errors.Add(attempt.SdkCleanupFailure); }
+        foreach (var work in health)
+        {
+            try { await work.Completion.Task.ConfigureAwait(false); }
+            catch (OperationCanceledException error) when (work.Token.IsCancellationRequested && error.CancellationToken == work.Token) { }
+            catch (Exception error) { errors.Add(error); }
+        }
+        // Prepared proof also covers an ambiguous write that committed before its response failed.
+        if (attempt.Native.Prepared is { } proof)
+        {
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await KubernetesNativeOperation.RunAsync(this, async ct =>
+                { await _protocol.ReleaseAsync(proof, ct).ConfigureAwait(false); return true; }, cleanup.Token).ConfigureAwait(false);
+            }
+            catch (Exception error) { errors.Add(error); }
+        }
+        try { attempt.Stop.Dispose(); } catch (Exception error) { errors.Add(error); }
+        KubernetesElectionFailures.Throw(errors, "Kubernetes owned shutdown failed.");
+    }
+
+    private sealed class Attempt
+    {
+        internal Attempt(string nonce, CancellationToken stop)
+        { Native = new(nonce); Stop = CancellationTokenSource.CreateLinkedTokenSource(stop); Token = Stop.Token; }
+        internal KubernetesLeaseProtocol.Acquisition Native { get; }
+        internal OwnedOperationLatch Acquire { get; } = new();
+        internal CancellationTokenSource Stop { get; }
+        internal CancellationToken Token { get; }
+        internal KubernetesLeaseProtocol.Owner? Proof { get; set; }
+        internal bool Retiring;
+        internal Exception? SdkCleanupFailure { get; set; }
+    }
+
+    private void Notify(RenewalTenureDeadline.Transition transition)
+    {
+        if (transition.Acquired) { _notifications.EnqueueDiagnostic(LogAcquiredLeadership, _resourceName); }
+        else { _notifications.EnqueueDiagnostic(LogLostLeadership, _resourceName); }
+        var args = new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: transition.Timestamp);
+        InvokeEach(transition.Acquired ? BecameLeader : LostLeadership, args);
+        InvokeEach(LeaderChanged, new LeaderChangedEventArgs(transition.Acquired ? transition.PreviousHolder : CandidateId,
+            transition.Acquired ? CandidateId : null, _resourceName,
+            fencingToken: transition.Acquired ? transition.FencingToken : null, timestamp: transition.Timestamp));
+    }
+
+    private void InvokeEach<T>(EventHandler<T>? subscribers, T args) where T : EventArgs
+    {
+        _notifications.InvokeEach(subscribers, this, args);
+    }
+
+    private void NotifyObservation(RenewalTenureDeadline.Observation observation)
+    {
+        if (observation.HasHolder && !string.Equals(observation.PreviousHolder, observation.Holder, StringComparison.Ordinal))
+        {
+            InvokeEach(LeaderChanged, new LeaderChangedEventArgs(observation.PreviousHolder, observation.Holder,
+                _resourceName, timestamp: observation.Timestamp));
+        }
+        if (observation.FailureReason is not null)
+        {
+            InvokeEach(AcquisitionFailed, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName,
+                observation.FailureReason, observation.Timestamp, observation.Cause));
+        }
+    }
+
+
+    /// <inheritdoc/>
+    public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
+    {
+        var annotation = KubernetesLeaseHealthCodec.SerializeHealth(CandidateId, isHealthy, _timeProvider.GetUtcNow(), metadata);
+        var work = await AdmitPublicAsync(true, !isHealthy && _options.StepDownWhenUnhealthy, cancellationToken).ConfigureAwait(false);
+        if (work is null) { return; }
+        work.Launch(async () =>
+        {
+            var matched = await KubernetesNativeOperation.RunAsync(this,
+                ct => _protocol.WriteHealthAsync(work.Attempt!.Proof!, annotation, ct), work.Token).ConfigureAwait(false);
+            if (!matched) { work.Run!.Kernel.Retire(work.Generation, "health read observed a different native owner"); }
+        });
+        await work.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken)
+    {
+        var work = await AdmitPublicAsync(false, false, cancellationToken).ConfigureAwait(false);
+        if (work is null) { return []; }
+        IReadOnlyList<CandidateHealth> result = [];
+        work.Launch(async () =>
+        {
+            try
+            {
+                var lease = await KubernetesNativeOperation.RunAsync(this, _protocol.ReadAsync, work.Token).ConfigureAwait(false);
+                result = KubernetesLeaseHealthCodec.ReadCandidates(lease,
+                    (error, key) => _notifications.EnqueueDiagnostic(LogHealthAnnotationParseFailed, error, key));
+            }
+            catch (OperationCanceledException error) when (work.Token.IsCancellationRequested && error.CancellationToken == work.Token) { throw; }
+            catch (Exception error) { _notifications.EnqueueDiagnostic(LogGetHealthFailed, error, _leaseName); }
+        });
+        await work.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return result;
+    }
+
+    private async Task<PublicWork?> AdmitPublicAsync(bool mutation, bool unhealthy, CancellationToken caller)
+    {
+        while (true)
+        {
+            Task? wait; PublicWork? work = null;
+            lock (_runGate)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                wait = _slot?.Shutdown is { IsCompletedSuccessfully: false } stopping ? stopping : null;
+                if (wait is null)
+                {
+                    var run = _slot is { Shutdown: null } ? _slot.Run : null; var current = run?.Kernel.Current;
+                    var attempt = current?.OwnershipProof as Attempt;
+                    if (mutation && (attempt is null || attempt.Retiring)) { return null; }
+                    var parent = mutation && !unhealthy ? attempt!.Token : run?.Stop.Token ?? _lifetimeStop.Token;
+                    work = new PublicWork(this, run, mutation ? attempt : null, current?.Generation ?? 0, caller, parent);
+                    work.PermitRetiring = unhealthy;
+                    _publicWork.Add(work);
+                    work.Worker = RunProducerAsync(() => ExecutePublicAsync(work));
+                    if (unhealthy) { _notifications.EnqueueDiagnostic(LogSteppingDownUnhealthy, _resourceName); run!.Kernel.Retire(current!.Generation, "unhealthy candidate"); }
+                }
+            }
+            if (work is not null) { return work; }
+            // Stop joins admitted SDK callbacks. That same SDK context cannot join Stop in return.
+            // Check outside the state gate and only on this pending-shutdown wait path.
+            KubernetesNativeOperation.ThrowIfActive(this);
+            await wait!.WaitAsync(caller).ConfigureAwait(false);
+        }
+    }
+
+    private async Task ExecutePublicAsync(PublicWork work)
+    {
+        Exception? failure = null;
+        try
+        {
+            await work.Ready.Task.ConfigureAwait(false);
+            work.Token.ThrowIfCancellationRequested();
+            if (!work.Latch.TryLaunch(work.Operation!)) { work.CancelledBeforeLaunch = true; throw new OperationCanceledException(work.Token); }
+            await work.Latch.Completion.ConfigureAwait(false);
+        }
+        catch (Exception error) { failure = error; }
+        try { await work.DisposeAsync().ConfigureAwait(false); } catch (Exception error) { failure = KubernetesElectionFailures.Combine(failure, error); }
+        lock (_runGate)
+        {
+            _publicWork.Remove(work);
+            if (failure is OperationCanceledException canceled && canceled.CancellationToken == work.Token) { work.Completion.TrySetCanceled(canceled.CancellationToken); }
+            else if (failure is not null) { work.Completion.TrySetException(failure); }
+            else { work.Completion.TrySetResult(); }
+        }
+    }
+
+    private sealed class PublicWork : IAsyncDisposable
+    {
+        internal PublicWork(KubernetesLeaderElection owner, Run? run, Attempt? attempt, long generation, CancellationToken caller, CancellationToken parent)
+        {
+            Run = run; Attempt = attempt; Generation = generation;
+            Source = CancellationTokenSource.CreateLinkedTokenSource(caller, parent, owner._lifetimeStop.Token); Token = Source.Token;
+        }
+        internal Run? Run { get; }
+        internal Attempt? Attempt { get; }
+        internal long Generation { get; }
+        private CancellationTokenSource Source { get; }
+        internal CancellationToken Token { get; }
+        internal bool PermitRetiring;
+        internal bool CancelledBeforeLaunch;
+        private readonly Lock _sourceGate = new();
+        private bool _finishing;
+        private Task? _cancellation;
+        internal OwnedOperationLatch Latch { get; } = new();
+        internal TaskCompletionSource Ready { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal Func<Task>? Operation { get; private set; }
+        internal Task Worker { get; set; } = Task.CompletedTask;
+        internal void Launch(Func<Task> operation) { Operation = operation; Ready.TrySetResult(); }
+        internal Task CancelAsync()
+        {
+            lock (_sourceGate)
+            {
+                if (_finishing) { return Task.CompletedTask; }
+                return _cancellation ??= Source.CancelAsync();
+            }
+        }
+        public async ValueTask DisposeAsync()
+        {
+            Task? cancellation;
+            lock (_sourceGate) { _finishing = true; cancellation = _cancellation; }
+            try { if (cancellation is not null) { await cancellation.ConfigureAwait(false); } }
+            finally { Source.Dispose(); }
+        }
+    }
+
+
+    private sealed class StartSlot(Task previousNotifications)
+    {
+        internal Task PreviousNotifications { get; } = previousNotifications;
+        internal CancellationTokenSource Stop { get; } = new();
+        internal TaskCompletionSource Initial { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal Task Worker { get; set; } = Task.CompletedTask;
+        internal Run? Run { get; set; }
+        internal Task? Shutdown { get; set; }
+        internal volatile bool StopRequested;
+    }
+
+    private sealed class Run
+    {
+        internal Run(KubernetesLeaderElection owner, StartSlot slot)
+        {
+            Slot = slot;
+            Kernel = new RenewalTenureDeadline(owner._timeProvider, owner._options.RenewInterval + owner._options.GracePeriod,
+                retirement => owner.RetireAsync(this, retirement), owner.Notify,
+                observe: owner.NotifyObservation, notifications: owner._notifications);
+        }
+        internal StartSlot Slot { get; }
+        internal CancellationTokenSource Stop => Slot.Stop;
+        internal bool StopRequested => Slot.StopRequested;
+        internal TaskCompletionSource Initial { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal RenewalTenureDeadline Kernel { get; }
+        internal Task Actor { get; set; } = Task.CompletedTask;
+        internal Exception? ActorFailure { get; set; }
+    }
+
+    private string? FenceFailureReason(KubernetesLeaseProtocol.FenceFailure failure)
+    {
+        if (failure == KubernetesLeaseProtocol.FenceFailure.Exhausted)
+        { _notifications.EnqueueDiagnostic(LogFencingTokenExhausted, CandidateId, _leaseName); return "fencing token (leaseTransitions) domain exhausted"; }
+        if (failure == KubernetesLeaseProtocol.FenceFailure.Unset)
+        { _notifications.EnqueueDiagnostic(LogUnusableFencingToken, CandidateId, _leaseName); return "no usable fencing token"; }
+        return null;
+    }
+
+
+
 
 	// LoggerMessage delegates
 	[LoggerMessage(LeaderElectionEventId.KubernetesRetryWarning, LogLevel.Warning,
@@ -896,7 +719,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	partial void LogLostRace(string leaseName);
 
 	[LoggerMessage(LeaderElectionEventId.KubernetesFencingTokenExhausted, LogLevel.Critical,
-		"Candidate {CandidateId} cannot take leadership of lease {LeaseName} — leaseTransitions (int32 fencing token) is exhausted; relinquishing (fail-closed) rather than wrapping to a non-monotonic token")]
+		"Candidate {CandidateId} cannot take leadership of lease {LeaseName} â€” leaseTransitions (int32 fencing token) is exhausted; relinquishing (fail-closed) rather than wrapping to a non-monotonic token")]
 	partial void LogFencingTokenExhausted(string candidateId, string leaseName);
 
 	[LoggerMessage(LeaderElectionEventId.KubernetesLostLeadership, LogLevel.Warning, "Lost leadership for resource '{Resource}'")]
@@ -916,6 +739,10 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	[LoggerMessage(LeaderElectionEventId.KubernetesReleasingLeadership, LogLevel.Information,
 		"Releasing leadership for resource '{Resource}'")]
 	partial void LogReleasingLeadership(string resource);
+
+	[LoggerMessage(LeaderElectionEventId.KubernetesUnusableFencingToken, LogLevel.Critical,
+		"Candidate {CandidateId} holds lease {LeaseName} but it records no leadership transition, so no strictly-positive fencing token exists; giving the lease back and relinquishing (fail-closed) rather than leading a tenure whose every fenced write would be refused")]
+	partial void LogUnusableFencingToken(string candidateId, string leaseName);
 
 	[LoggerMessage(LeaderElectionEventId.KubernetesReleaseError, LogLevel.Error, "Failed to release leadership for lease '{LeaseName}'")]
 	partial void LogReleaseError(Exception ex, string leaseName);

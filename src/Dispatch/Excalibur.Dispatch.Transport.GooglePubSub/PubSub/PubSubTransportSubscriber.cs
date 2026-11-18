@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
@@ -218,6 +218,20 @@ internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 		// loop catches to reject the poison message; never truncated or silently passed.
 		PayloadSizeGuard.EnsureWithinLimit(pubsubMessage.Data.Length, _maxPayloadBytes);
 
+		// Decompress when the producer said it compressed. The CloudEvents encoder for this transport
+		// compresses outbound bodies over a threshold and records the algorithm in an attribute, so a
+		// receive path that skipped this step handed the deserializer compressed bytes and failed on
+		// every message a consumer had opted into compressing. The same limit applies again to the
+		// decompressed output: the check above bounds what arrived on the wire, and the expansion ratio
+		// is the producer's to choose.
+		var body = GooglePubSubMessageBodyCodec.TryDecodeBody(
+			pubsubMessage,
+			_maxPayloadBytes,
+			out var decodedBody,
+			out _)
+			? decodedBody.Memory
+			: pubsubMessage.Data.Memory;
+
 		var attributes = pubsubMessage.Attributes;
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 		foreach (var attr in attributes)
@@ -242,7 +256,7 @@ internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 		return new TransportReceivedMessage
 		{
 			Id = messageId,
-			Body = pubsubMessage.Data.Memory,
+			Body = body,
 			ContentType = contentType,
 			MessageType = messageType,
 			CorrelationId = correlationId,

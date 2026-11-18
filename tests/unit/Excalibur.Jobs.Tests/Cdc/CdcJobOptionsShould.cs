@@ -45,12 +45,7 @@ public sealed class CdcJobConfigShould
 	public void AcceptDatabaseConfigs()
 	{
 		// Arrange
-		var dbConfig = new DatabaseOptions
-		{
-			DatabaseName = "TestDb",
-			DatabaseConnectionIdentifier = "TestDbConnection",
-			StateConnectionIdentifier = "TestStateConnection",
-		};
+		var dbConfig = new DatabaseOptions("TestDb", "TestDbConnection", "TestStateConnection");
 
 		// Act
 		var config = new CdcJobOptions
@@ -67,18 +62,8 @@ public sealed class CdcJobConfigShould
 	public void AcceptMultipleDatabaseConfigs()
 	{
 		// Arrange
-		var dbConfig1 = new DatabaseOptions
-		{
-			DatabaseName = "Db1",
-			DatabaseConnectionIdentifier = "Db1Connection",
-			StateConnectionIdentifier = "State1Connection",
-		};
-		var dbConfig2 = new DatabaseOptions
-		{
-			DatabaseName = "Db2",
-			DatabaseConnectionIdentifier = "Db2Connection",
-			StateConnectionIdentifier = "State2Connection",
-		};
+		var dbConfig1 = new DatabaseOptions("Db1", "Db1Connection", "State1Connection");
+		var dbConfig2 = new DatabaseOptions("Db2", "Db2Connection", "State2Connection");
 
 		// Act
 		var config = new CdcJobOptions
@@ -156,12 +141,7 @@ public sealed class CdcJobConfigShould
 		{
 			DatabaseConfigs =
 			[
-				new DatabaseOptions
-				{
-					DatabaseName = "TestDb",
-					DatabaseConnectionIdentifier = "TestConnection",
-					StateConnectionIdentifier = "TestStateConnection",
-				},
+				new DatabaseOptions("TestDb", "TestConnection", "TestStateConnection"),
 			],
 			CronSchedule = "0 0 * * * ?",
 			JobName = "TestCdcJob",
@@ -182,12 +162,7 @@ public sealed class CdcJobConfigShould
 	{
 		// Arrange
 		var config = new CdcJobOptions { DatabaseConfigs = [] };
-		var dbConfig = new DatabaseOptions
-		{
-			DatabaseName = "AddedDb",
-			DatabaseConnectionIdentifier = "AddedConnection",
-			StateConnectionIdentifier = "AddedStateConnection",
-		};
+		var dbConfig = new DatabaseOptions("AddedDb", "AddedConnection", "AddedStateConnection");
 
 		// Act
 		config.DatabaseConfigs.Add(dbConfig);

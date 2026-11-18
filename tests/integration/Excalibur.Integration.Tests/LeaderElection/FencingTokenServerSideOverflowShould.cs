@@ -122,7 +122,7 @@ public sealed class FencingTokenServerSideOverflowShould :
 		_ = services.AddSingleton<IConnectionMultiplexer>(muxer);
 		_ = services.AddRedisFencingTokenProvider();
 		await using var provider = services.BuildServiceProvider();
-		var fencingProvider = provider.GetRequiredService<IFencingTokenProvider>();
+		var fencingProvider = provider.GetRequiredService<IFencingTokenIssuer>();
 
 		// LIVENESS (below ceiling first, on a DIFFERENT resource): the same provider still mints normally.
 		var livenessResourceId = UniqueResourceId("redis-liveness");
@@ -154,7 +154,7 @@ public sealed class FencingTokenServerSideOverflowShould :
 		_ = services.AddSingleton<IConnectionMultiplexer>(muxer);
 		_ = services.AddRedisFencingTokenProvider();
 		await using var provider = services.BuildServiceProvider();
-		var fencingProvider = provider.GetRequiredService<IFencingTokenProvider>();
+		var fencingProvider = provider.GetRequiredService<IFencingTokenIssuer>();
 
 		var election = new RedisLeaderElection(
 			muxer,
@@ -235,7 +235,7 @@ public sealed class FencingTokenServerSideOverflowShould :
 		});
 		_ = services.AddMongoDbFencingTokenProvider();
 		await using var provider = services.BuildServiceProvider();
-		var fencingProvider = provider.GetRequiredService<IFencingTokenProvider>();
+		var fencingProvider = provider.GetRequiredService<IFencingTokenIssuer>();
 
 		// LIVENESS (below ceiling, different resource): the same provider still mints normally.
 		var livenessResourceId = UniqueResourceId("mongo-liveness");
@@ -274,7 +274,7 @@ public sealed class FencingTokenServerSideOverflowShould :
 		});
 		_ = services.AddMongoDbFencingTokenProvider();
 		await using var provider = services.BuildServiceProvider();
-		var fencingProvider = provider.GetRequiredService<IFencingTokenProvider>();
+		var fencingProvider = provider.GetRequiredService<IFencingTokenIssuer>();
 
 		var election = new MongoDbLeaderElection(
 			client,
@@ -358,7 +358,7 @@ public sealed class FencingTokenServerSideOverflowShould :
 		var services = new ServiceCollection();
 		_ = services.AddPostgresFencingTokenProvider(_postgresFixture.ConnectionString);
 		await using var provider = services.BuildServiceProvider();
-		var fencingProvider = provider.GetRequiredService<IFencingTokenProvider>();
+		var fencingProvider = provider.GetRequiredService<IFencingTokenIssuer>();
 
 		// Mint once first so the provider creates the real sequence, then seed it one below the ceiling
 		// with a direct ALTER SEQUENCE against the real database, so the NEXT nextval() genuinely exceeds
@@ -407,7 +407,7 @@ public sealed class FencingTokenServerSideOverflowShould :
 		var services = new ServiceCollection();
 		_ = services.AddPostgresFencingTokenProvider(_postgresFixture.ConnectionString);
 		await using var provider = services.BuildServiceProvider();
-		var fencingProvider = provider.GetRequiredService<IFencingTokenProvider>();
+		var fencingProvider = provider.GetRequiredService<IFencingTokenIssuer>();
 
 		// A fresh, unique lock key so the sequence it maps to (fencing_<hash-of-lockkey-string>) has never
 		// been touched by another test.
@@ -505,7 +505,7 @@ public sealed class FencingTokenServerSideOverflowShould :
 		var services = new ServiceCollection();
 		_ = services.AddSqlServerFencingTokenProvider(_sqlServerFixture.ConnectionString);
 		await using var provider = services.BuildServiceProvider();
-		var fencingProvider = provider.GetRequiredService<IFencingTokenProvider>();
+		var fencingProvider = provider.GetRequiredService<IFencingTokenIssuer>();
 
 		// Mint once first so the provider creates the real sequence, then seed it directly to the ceiling.
 		_ = await fencingProvider.IssueTokenAsync(resourceId, TestContext.Current.CancellationToken);
@@ -553,7 +553,7 @@ public sealed class FencingTokenServerSideOverflowShould :
 		var services = new ServiceCollection();
 		_ = services.AddSqlServerFencingTokenProvider(_sqlServerFixture.ConnectionString);
 		await using var provider = services.BuildServiceProvider();
-		var fencingProvider = provider.GetRequiredService<IFencingTokenProvider>();
+		var fencingProvider = provider.GetRequiredService<IFencingTokenIssuer>();
 
 		_ = await fencingProvider.IssueTokenAsync(lockResource, TestContext.Current.CancellationToken);
 		await using (var connection = new SqlConnection(_sqlServerFixture.ConnectionString))

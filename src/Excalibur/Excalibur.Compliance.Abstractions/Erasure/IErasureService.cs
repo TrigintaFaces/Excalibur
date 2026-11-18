@@ -84,7 +84,24 @@ public sealed record ErasureExecutionResult
 	/// <summary>
 	/// Gets whether the erasure executed successfully.
 	/// </summary>
-	public required bool Success { get; init; }
+	public required ErasureExecutionOutcome Outcome { get; init; }
+
+	/// <summary>
+	/// Gets a value indicating whether the erasure ran and covered everything it was asked to cover.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> only when <see cref="Outcome"/> is
+	/// <see cref="ErasureExecutionOutcome.Succeeded"/>; otherwise <see langword="false"/>.
+	/// </value>
+	/// <remarks>
+	/// <b>DERIVED, and no longer settable, because it cannot express what callers need to know.</b> It
+	/// reads exactly as it always did — true for a full success and false for everything else — so no
+	/// existing caller's behaviour changes. What it could never say is WHY it is false, and the
+	/// difference between "attempted and failed" and "declined, nothing destroyed" decides whether
+	/// retrying is correct. Read <see cref="Outcome"/> for that; this remains for the common case of
+	/// asking only whether the erasure is done.
+	/// </remarks>
+	public bool Success => Outcome == ErasureExecutionOutcome.Succeeded;
 
 	/// <summary>
 	/// Gets the error message if execution failed.
@@ -106,7 +123,7 @@ public sealed record ErasureExecutionResult
 	/// </summary>
 	public static ErasureExecutionResult Succeeded(int keysDeleted, int recordsAffected) => new()
 	{
-		Success = true,
+		Outcome = ErasureExecutionOutcome.Succeeded,
 		KeysDeleted = keysDeleted,
 		RecordsAffected = recordsAffected
 	};
@@ -116,7 +133,7 @@ public sealed record ErasureExecutionResult
 	/// </summary>
 	public static ErasureExecutionResult PartiallySucceeded(int keysDeleted, int recordsAffected, string errorMessage) => new()
 	{
-		Success = false,
+		Outcome = ErasureExecutionOutcome.PartiallyCompleted,
 		KeysDeleted = keysDeleted,
 		RecordsAffected = recordsAffected,
 		ErrorMessage = errorMessage,
@@ -142,18 +159,42 @@ public sealed record ErasureExecutionResult
 		int recordsAffected,
 		string errorMessage) => new()
 		{
-			Success = false,
+			Outcome = ErasureExecutionOutcome.CompletedExceptConcurrentWrites,
 			KeysDeleted = keysDeleted,
 			RecordsAffected = recordsAffected,
 			ErrorMessage = errorMessage,
 		};
 
 	/// <summary>
-	/// Creates a failed execution result.
+	/// Creates a result for an erasure this executor DECLINED to perform, with nothing destroyed.
 	/// </summary>
+	/// <param name="reason">Why it was declined, recorded verbatim for the caller and the operator.</param>
+	/// <returns>A result whose outcome is <see cref="ErasureExecutionOutcome.Refused"/>.</returns>
+	/// <remarks>
+	/// <b>Use this wherever the erasure was never attempted</b> — a legal hold deferring it, a request
+	/// another executor already owns, a status that makes it ineligible, a request that does not exist.
+	/// Reporting those as failures is what made a lawful Article 17(3) deferral read to a consumer as a
+	/// failed erasure, and what let a correct withholding consume a retry budget until it became a
+	/// terminal non-erasure.
+	/// </remarks>
+	public static ErasureExecutionResult Refused(string reason) => new()
+	{
+		Outcome = ErasureExecutionOutcome.Refused,
+		ErrorMessage = reason,
+	};
+
+	/// <summary>
+	/// Creates a result for an erasure that was ATTEMPTED and failed.
+	/// </summary>
+	/// <param name="errorMessage">What went wrong.</param>
+	/// <returns>A result whose outcome is <see cref="ErasureExecutionOutcome.Failed"/>.</returns>
+	/// <remarks>
+	/// Reserved for a genuine fault. If the erasure was never attempted, use <see cref="Refused"/>: a
+	/// refusal reported as a failure is retried, and retried to exhaustion becomes terminal.
+	/// </remarks>
 	public static ErasureExecutionResult Failed(string errorMessage) => new()
 	{
-		Success = false,
+		Outcome = ErasureExecutionOutcome.Failed,
 		ErrorMessage = errorMessage
 	};
 }

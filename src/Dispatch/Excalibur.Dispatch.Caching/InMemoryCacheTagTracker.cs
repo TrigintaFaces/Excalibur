@@ -35,6 +35,7 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 	private const int DefaultCapacity = 10_000;
 
 	private readonly ConcurrentDictionary<string, string> _stamps = new(StringComparer.Ordinal);
+	private readonly Lock _mutationLock = new();
 	private readonly Counter<long> _stampCreationCounter;
 	private readonly Counter<long> _stampBumpCounter;
 	private readonly Counter<long> _epochCollapseCounter;
@@ -119,27 +120,42 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 			return Task.FromResult(existing);
 		}
 
-		if (_stamps.Count >= _capacity)
+		string? created = null;
+		var warnAtCapacity = false;
+		lock (_mutationLock)
 		{
-			if (Interlocked.CompareExchange(ref _capacityWarningEmitted, 1, 0) == 0)
+			// Every writer uses this lock, making admission and capacity one decision.
+			if (_stamps.TryGetValue(tag, out existing))
 			{
-				_logger?.LogWarning(
-					"InMemoryCacheTagTracker capacity ({Capacity}) reached. New tags will be tracked without a stable stamp.",
-					_capacity);
+				return Task.FromResult(existing);
 			}
 
-			// At capacity: still hand back a usable (if unmemoized) stamp rather than throwing --
-			// caching is cross-cutting infrastructure and must fail open, never break the request.
-			return Task.FromResult(CacheTagStamp.CreateNew());
+			if (_stamps.Count < _capacity)
+			{
+				created = CacheTagStamp.CreateNew();
+				_stamps[tag] = created;
+			}
+			else
+			{
+				warnAtCapacity = Interlocked.CompareExchange(ref _capacityWarningEmitted, 1, 0) == 0;
+			}
 		}
 
-		// ConcurrentDictionary.GetOrAdd's factory may run more than once under a race; only one
-		// winning value is ever stored, and every caller -- winner or loser -- receives that same
-		// stored value, so a race here produces at most a harmlessly discarded extra stamp, never a
-		// disagreement between callers about the tag's current stamp.
-		var created = _stamps.GetOrAdd(tag, static _ => CacheTagStamp.CreateNew());
-		_stampCreationCounter.Add(1);
-		return Task.FromResult(created);
+		// Instrumentation can invoke consumer callbacks; never call it under the mutation lock.
+		if (created is not null)
+		{
+			_stampCreationCounter.Add(1);
+			return Task.FromResult(created);
+		}
+
+		if (warnAtCapacity)
+		{
+			_logger?.LogWarning(
+				"InMemoryCacheTagTracker capacity ({Capacity}) reached. New tags will be tracked without a stable stamp.",
+				_capacity);
+		}
+
+		return Task.FromResult(CacheTagStamp.CreateNew());
 	}
 
 	/// <inheritdoc />
@@ -150,24 +166,35 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 		// Overwrite in place when the tag is tracked, and admit a new one only while there is room.
 		// The indexer alone would ADD at capacity, letting the invalidate path grow past the bound the
 		// resolve path enforces.
-		if (_stamps.ContainsKey(tag) || _stamps.Count < _capacity)
+		long? collapsedTo = null;
+		lock (_mutationLock)
 		{
-			_stamps[tag] = CacheTagStamp.CreateNew();
+			if (_stamps.ContainsKey(tag) || _stamps.Count < _capacity)
+			{
+				_stamps[tag] = CacheTagStamp.CreateNew();
+			}
+			else
+			{
+				_stamps.Clear();
+				collapsedTo = Interlocked.Increment(ref _epoch);
+			}
+		}
+
+		if (collapsedTo is null)
+		{
 			_stampBumpCounter.Add(1);
 			return Task.CompletedTask;
 		}
 
 		// At capacity with an untracked tag there is nowhere to record this invalidation, so it becomes
-		// a global one: every stamp issued from here carries a higher epoch than any entry already
-		// written, so every such entry is treated as stale. An invalidation is never lost; the cost is
+		// a global one: clearing the map makes subsequent resolutions generate fresh opaque stamps.
+		// Previously recorded stamps then compare unequal; the cost is
 		// a miss-rate spike, which is observable, bounded and self-correcting.
 		// Discard every memoized stamp. Each tag then resolves to a fresh random stamp, so every entry
 		// written before this compares unequal and is treated as stale -- the global invalidation --
 		// while the stamps themselves stay opaque and separator-free, which they must be because they
 		// are concatenated into cache keys. Clearing also RELIEVES the pressure that forced the
 		// collapse, so the bound is self-correcting rather than permanently collapsed.
-		_stamps.Clear();
-		var collapsedTo = Interlocked.Increment(ref _epoch);
 		_epochCollapseCounter.Add(1);
 		_logger?.LogWarning(
 			"InMemoryCacheTagTracker at capacity ({Capacity}): a bump for an untracked tag collapsed to a "

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text;
@@ -21,7 +21,7 @@ public sealed class AwsSqsMessageBodyCodecShould
 		var message = new Message { MessageAttributes = null! };
 
 		// Act
-		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, out var body, out var algorithm);
+		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, maxDecompressedBytes: null, out var body, out var algorithm);
 
 		// Assert
 		result.ShouldBeFalse();
@@ -39,7 +39,7 @@ public sealed class AwsSqsMessageBodyCodecShould
 		};
 
 		// Act
-		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, out var body, out var algorithm);
+		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, maxDecompressedBytes: null, out var body, out var algorithm);
 
 		// Assert
 		result.ShouldBeFalse();
@@ -60,7 +60,7 @@ public sealed class AwsSqsMessageBodyCodecShould
 		};
 
 		// Act
-		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, out var body, out var algorithm);
+		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, maxDecompressedBytes: null, out var body, out var algorithm);
 
 		// Assert
 		result.ShouldBeFalse();
@@ -81,7 +81,7 @@ public sealed class AwsSqsMessageBodyCodecShould
 		};
 
 		// Act
-		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, out var body, out var algorithm);
+		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, maxDecompressedBytes: null, out var body, out var algorithm);
 
 		// Assert
 		result.ShouldBeFalse();
@@ -103,7 +103,7 @@ public sealed class AwsSqsMessageBodyCodecShould
 		};
 
 		// Act
-		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, out var body, out var algorithm);
+		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, maxDecompressedBytes: null, out var body, out var algorithm);
 
 		// Assert
 		result.ShouldBeFalse();
@@ -126,7 +126,7 @@ public sealed class AwsSqsMessageBodyCodecShould
 		};
 
 		// Act
-		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, out var body, out var algorithm);
+		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, maxDecompressedBytes: null, out var body, out var algorithm);
 
 		// Assert
 		result.ShouldBeFalse();
@@ -149,7 +149,7 @@ public sealed class AwsSqsMessageBodyCodecShould
 		};
 
 		// Act
-		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, out var body, out var algorithm);
+		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, maxDecompressedBytes: null, out var body, out var algorithm);
 
 		// Assert
 		result.ShouldBeFalse();
@@ -180,7 +180,7 @@ public sealed class AwsSqsMessageBodyCodecShould
 		};
 
 		// Act
-		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, out var body, out var algorithm);
+		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, maxDecompressedBytes: null, out var body, out var algorithm);
 
 		// Assert
 		result.ShouldBeTrue();
@@ -206,7 +206,7 @@ public sealed class AwsSqsMessageBodyCodecShould
 		};
 
 		// Act
-		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, out var body, out _);
+		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, maxDecompressedBytes: null, out var body, out _);
 
 		// Assert
 		result.ShouldBeTrue();
@@ -231,11 +231,51 @@ public sealed class AwsSqsMessageBodyCodecShould
 		};
 
 		// Act
-		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, out var body, out var algorithm);
+		var result = AwsSqsMessageBodyCodec.TryDecodeBody(message, maxDecompressedBytes: null, out var body, out var algorithm);
 
 		// Assert
 		result.ShouldBeTrue();
 		body.ShouldBe(originalBytes);
 		algorithm.ShouldBe(CompressionAlgorithm.Gzip);
+	}
+	[Fact]
+	public void RefuseADecompressedBodyThatExceedsTheLimit()
+	{
+		// This is the reachable leg: the receive loop calls DecodeBody on every inbound message, so a
+		// producer choosing the compression ratio chooses the allocation unless the OUTPUT is bounded.
+		// The inbound check the receiver already performs sees only the compressed length, which here is
+		// a few hundred bytes for a 64 KiB body.
+		var message = CompressedMessage(new byte[64 * 1024]);
+
+		_ = Should.Throw<PayloadTooLargeException>(
+			() => AwsSqsMessageBodyCodec.DecodeBody(message, maxDecompressedBytes: 1024));
+	}
+
+	[Fact]
+	public void DecodeACompressedBodyThatFitsTheLimit()
+	{
+		// The liveness half. Without it, a codec that refused everything would satisfy the arm above.
+		var payload = Encoding.UTF8.GetBytes(new string('a', 512));
+
+		var decoded = AwsSqsMessageBodyCodec.DecodeBody(CompressedMessage(payload), maxDecompressedBytes: 1024);
+
+		decoded.ShouldBe(payload);
+	}
+
+	private static Message CompressedMessage(byte[] payload)
+	{
+		var compressed = AwsSqsCompression.Compress(payload, CompressionAlgorithm.Gzip);
+
+		return new Message
+		{
+			Body = Convert.ToBase64String(compressed),
+			MessageAttributes = new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal)
+			{
+				[AwsSqsMessageAttributes.Compression] =
+					new() { StringValue = CompressionAlgorithm.Gzip.ToString(), DataType = "String" },
+				[AwsSqsMessageAttributes.BodyEncoding] =
+					new() { StringValue = AwsSqsMessageAttributes.BodyEncodingBase64, DataType = "String" },
+			},
+		};
 	}
 }

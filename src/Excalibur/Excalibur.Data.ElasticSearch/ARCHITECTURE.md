@@ -305,3 +305,12 @@ asserted, because an arm that returns early when it is absent reports PASS and e
 - **No property-based coverage and no model.** The arms above are examples chosen by hand; they sample
   the composition space rather than generate it. This guarantee is verified at the contract-and-arm
   level only — treat it as unproven against compositions nobody thought of.
+
+
+## Scoped projection-store readiness logging
+
+Event `106910` (`ProjectionStoreInitialized`) is a Debug-level diagnostic that a scoped projection-store
+instance is ready for its resolved index and projection type. It is not an index-created notification.
+A fresh used store instance still checks index existence and validates the mapping; an existing index
+returns before creation. This logging change does not cache verification across scopes, change store or
+client lifetimes, skip mapping checks, or alter provisioning and cancellation behavior.

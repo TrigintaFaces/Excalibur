@@ -12,9 +12,15 @@ dotnet add package Excalibur.Testing.Conformance
 
 When implementing a custom provider (e.g., a new database backend for event sourcing), use these conformance test kits to verify your implementation meets all contract requirements. Each test kit provides a comprehensive set of tests covering happy paths, edge cases, and error handling.
 
+## Use an exclusively owned test scope
+
+These kits issue real writes through the provider you supply, including inserts, updates, claims, deletes, cache clears, key rotation, and counter or lease transitions. Use isolated resources exclusively owned by the test fixture, with production data and writers outside that scope. A dedicated persistent test database, table/container, queue, or key namespace is supported; disposable containers are not required. Quiesce other writers in the selected test scope before running a kit. A tenant or partition alone is not sufficient isolation for arms that exercise estate-wide administration.
+
+Your provider factories, registration hooks, and cleanup overrides determine the actual backing resources and their cleanup. Some default cleanup hooks do nothing; the package does not snapshot or universally restore existing data. The outbox kit restores the fencing high-water it captured, but that forced restoration is not a concurrent-production rollback. If another writer advances that high-water during the run, the forced restoration can lower its legitimate advance; keep that test scope exclusive/quiesced.
+
 ## Available Test Kits
 
-42 kits ship in this package. The most commonly implemented:
+The package includes these commonly implemented kits:
 
 | Test Kit | Interface Under Test |
 |----------|---------------------|
@@ -25,6 +31,7 @@ When implementing a custom provider (e.g., a new database backend for event sour
 | `SagaStoreConformanceTestKit` | `ISagaStore` |
 | `DeadLetterStoreConformanceTestKit` | `IDeadLetterStore` |
 | `LeaderElectionConformanceTestKit` | `ILeaderElection` |
+| `FencingTokenProviderConformanceTestKit` | `IFencingTokenProvider` |
 | `EncryptionProviderConformanceTestKit` | `IEncryptionProvider` |
 | `AuditStoreConformanceTestKit` | `IAuditStore` |
 | `TransportConformanceTestKit<TSender, TReceiver>` | transport sender/receiver pairs |
@@ -75,18 +82,38 @@ registration extension**. The kit resolves the service under test from a real co
 registrations, so every assertion runs against the object a consumer actually gets.
 
 ```csharp
-public class MyCustomEventStoreConformanceTests : EventStoreConformanceTestKit
+using System;
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization.Metadata;
+using System.Threading.Tasks;
+using Excalibur.EventSourcing.SqlServer;
+using Excalibur.Testing.Conformance;
+using Microsoft.Extensions.DependencyInjection;
+
+// Managed/non-trimmed test hosts only, as required by the base kit.
+[RequiresUnreferencedCode("Event-store conformance deserializes consumer event types; a trimmed test host is unsupported.")]
+public sealed class SqlServerEventStoreConformanceTests(string connectionString, Func<Task> cleanupOwnedTestScope)
+    : EventStoreConformanceTestKit
 {
-    private readonly MyProviderFixture _fixture;
+    protected override void ConfigureProvider(IServiceCollection services, IJsonTypeInfoResolver? eventTypeInfoResolver)
+    {
+        // The same shipped provider registration is used for reflection and supplied-resolver arms.
+        services.AddExcalibur(x => x.AddEventSourcing(es => es.UseSqlServer(sql =>
+        {
+            sql.ConnectionString(connectionString);
+            if (eventTypeInfoResolver is not null)
+            {
+                sql.EventTypeInfoResolver(eventTypeInfoResolver);
+            }
+        })));
+    }
 
-    // The only member you must implement. Call your shipped registration extension and nothing else.
-    protected override void ConfigureProvider(IServiceCollection services) =>
-        services.AddExcalibur(x => x.AddEventSourcing(es => es.UseMyProvider(_fixture.ConnectionString)));
-
-    // Optional: override to reset state between test runs.
-    protected override async Task CleanupAsync() => await _fixture.CleanupAsync();
+    // The runner supplies real cleanup for its exclusively owned, provisioned SQL test scope.
+    protected override Task CleanupAsync() => cleanupOwnedTestScope();
 }
 ```
+
+This is a provider-registration skeleton for a managed, non-trimmed test host, not a complete runner adapter or an executed conformance result. Supply a connection string for an exclusively owned SQL test database with the provider schema installed, and a real cleanup callback for that scope. Connect the kit lifecycle and all applicable arms to your test runner; the callback is not a substitute for those assertions.
 
 The kit never accepts an already-constructed store. Registering the store by hand inside
 `ConfigureProvider` defeats the point: it would certify an instance the test author assembled rather than
@@ -113,11 +140,29 @@ the reporting no longer overstates it. The ledger records; you decide what an un
 `ConformanceTestKit.OnArmSkipped` to surface skips in your runner (`Assert.Skip` on xUnit v3, `Assert.Ignore`
 on NUnit) or to throw, which certifies that every capability your component provides was reached.
 
-**If your store is decorated:** the outbox kit discovers capabilities through `GetService(Type)`, which a
-decorator forwards. `IDeadLetterStore` exposes no such method, so its kit resolves the admin facet from the
-store's own type — sound for a store handed to the kit directly, unsound for a wrapped one. Override
-`DeadLetterStoreConformanceTestKit.ResolveAdminFacet` to return the facet the wrapper holds; otherwise those
-arms report as skips.
+**If your store is decorated:** both outbox and dead-letter kits discover optional capabilities through
+`GetService(Type)`. Forward the selected capability through your decorator so the kit exercises the actual
+provider facet. `DeadLetterStoreConformanceTestKit.ResolveAdminFacet` is overridable for custom facet
+resolution; its default already uses the store's `GetService(Type)`.
+
+### Implement a fencing-token provider fixture
+
+`FencingTokenProviderConformanceTestKit` checks the token-provider contract independently of leader-election lifecycle tests. Derive directly from it. The kit has no xUnit or Shouldly dependency: call `InitializeAsync`/`DisposeAsync` from your runner’s per-test lifecycle (xUnit v3 adapters implement `IAsyncLifetime`), override `CreateProviderAsync` to resolve a real provider, and override `CleanupAsync` to dispose only resources owned by that fixture. Every case gets a fresh resource ID. Override `TestCancellationToken` with your runner’s token; the default is `CancellationToken.None`.
+
+The complete xUnit scaffold is [the in-memory provider suite](../../../tests/unit/Excalibur.LeaderElection.Tests/InMemory/InMemoryFencingTokenProviderConformanceShould.cs). It shows public registration, disposal, direct inheritance, all nine thin method wrappers, the six explicit never-issued theory values and the normal `ConformanceSuite_ShouldWireEveryArm` wrapper. Copy the complete wrapper set rather than a subset. The wiring check covers the eight no-argument arms; it does not certify parameterized data, so preserve the theory cases `long.MinValue`, `-1`, `0`, `1`, `2`, `long.MaxValue` and verify the runner discovers all fourteen behavioral cases. The wiring check adds its own fifteenth case.
+
+The fixture hooks are:
+
+| Hook | Consumer responsibility |
+|---|---|
+| `CreateProviderAsync()` | Return the actual selected `IFencingTokenProvider`, not a fake of the interface. |
+| `CleanupAsync()` | Await disposal of fixture-owned resources after each case. |
+| `TestCancellationToken` | Supply the runner's current case token. |
+| `EstablishTokenAsync(resourceId)` | Default requires the actual provider to implement `IFencingTokenIssuer` and calls its real mint; native reader-only providers override it to drive a real leadership transition. |
+| `ProviderMintsItsOwnTokens` | Set false only for native-counter providers, and provide separate substrate concurrency evidence. |
+| `StoreCanHoldAnUnadvancedMark` / `CreateUnadvancedMarkAsync(resourceId)` | Declare and construct the actual reachable unadvanced artifact when supported; retain the provider's exact resource naming. |
+
+The existing unadvanced/native-counter applicability branches remain explicit declarations, not evidence that an unavailable substrate scenario ran. Never-issued, unadvanced, established and unreadable states are distinct. Reads must return the exact established mark; validation admits the pinned incumbent and rejects a superseded token. Self-minting providers additionally race eight establishments. These are example-based provider contract controls, not an all-infrastructure or formal split-brain proof.
 
 ## Which testing kit do I reach for?
 

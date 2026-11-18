@@ -15,10 +15,10 @@ namespace Excalibur.Dispatch;
 /// absent token as a stale one would state a high-water mark that was never read.
 /// </para>
 /// <para>
-/// Reaching this state under an active gate means leadership was lost, since a fenced leader always holds a
-/// token. Refusing is the fail-closed choice: draining without a fence is the "looks fenced but isn't" window
-/// a superseded leader exploits. Callers treat it exactly as they treat any
-/// <see cref="OutboxFenceRefusedException"/> — abort the message with no further store write.
+/// Reaching this state under an active gate means the caller cannot prove its write authority. Refuse
+/// the current drain without falling back to an unfenced write. Unlike a learned stale-token refusal,
+/// an absent token supplies no evidence for a rejected-token watermark; do not poison a newer or
+/// unrelated token merely because the live gate currently exposes no token.
 /// </para>
 /// </remarks>
 public sealed class OutboxFencingTokenUnavailableException : OutboxFenceRefusedException

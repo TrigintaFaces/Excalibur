@@ -14,12 +14,13 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 
 /// <summary>
 /// Benchmarks for event sourcing critical paths: AppendEvents, LoadAggregate, and SnapshotLoad.
-/// Uses an in-memory event store implementation to isolate framework overhead from I/O.
+/// Uses a benchmark-local event store with synthetic event payloads and no external I/O.
 /// </summary>
 /// <remarks>
-/// These benchmarks measure the framework overhead for event sourcing operations,
-/// not database I/O performance. To benchmark real database implementations, create
-/// provider-specific benchmark classes that inherit from this pattern.
+/// Writer iterations use a fresh store with two seeded streams. Iteration setup limits
+/// each writer iteration to one original invocation; seed preparation is outside timing.
+/// Results describe this private store and fixture, not production provider performance.
+/// Snapshot methods read event tails without retrieving snapshots or rehydrating aggregates.
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -35,27 +36,66 @@ public class EventSourcingBenchmarks
 	[GlobalSetup]
 	public void Setup()
 	{
+		Cleanup();
+		try
+		{
+			InitializeSeededStore();
+		}
+		catch
+		{
+			Cleanup();
+			throw;
+		}
+	}
+
+	/// <summary>Starts a writer iteration with only the original seeded streams.</summary>
+	[IterationSetup(Targets = [nameof(AppendEvents_NewStream), nameof(AppendEvents_ExistingStream), nameof(ConcurrentAppend_DifferentAggregates)])]
+	public void WriterIterationSetup() => Setup();
+
+	/// <summary>Releases writer state after the original asynchronous invocation completes.</summary>
+	[IterationCleanup(Targets = [nameof(AppendEvents_NewStream), nameof(AppendEvents_ExistingStream), nameof(ConcurrentAppend_DifferentAggregates)])]
+	public void WriterIterationCleanup() => Cleanup();
+
+	/// <summary>Releases benchmark-owned state; safe to call more than once.</summary>
+	[GlobalCleanup]
+	public void Cleanup()
+	{
+		_eventStore = null!;
+		_preloadedAggregateId = null!;
+		_snapshotAggregateId = null!;
+	}
+
+	private void InitializeSeededStore()
+	{
 		_eventStore = new InMemoryBenchmarkEventStore();
 
 		// Pre-load aggregate for LoadAggregate benchmarks
 		_preloadedAggregateId = Guid.NewGuid().ToString();
 		var events = CreateEvents(_preloadedAggregateId, 100);
-		_eventStore.AppendAsync(
+		var preloadedResult = _eventStore.AppendAsync(
 			_preloadedAggregateId,
 			"BenchmarkAggregate",
 			events,
 			expectedVersion: -1,
 			CancellationToken.None).AsTask().GetAwaiter().GetResult();
+		if (!preloadedResult.Success)
+		{
+			throw new InvalidOperationException("Failed to seed the full-stream benchmark fixture.");
+		}
 
 		// Pre-load aggregate with "snapshot" (events before version 50)
 		_snapshotAggregateId = Guid.NewGuid().ToString();
 		var snapshotEvents = CreateEvents(_snapshotAggregateId, 200);
-		_eventStore.AppendAsync(
+		var snapshotResult = _eventStore.AppendAsync(
 			_snapshotAggregateId,
 			"BenchmarkAggregate",
 			snapshotEvents,
 			expectedVersion: -1,
 			CancellationToken.None).AsTask().GetAwaiter().GetResult();
+		if (!snapshotResult.Success)
+		{
+			throw new InvalidOperationException("Failed to seed the event-tail benchmark fixture.");
+		}
 	}
 
 	/// <summary>

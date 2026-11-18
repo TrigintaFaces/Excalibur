@@ -11,13 +11,13 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("shard-result-gate-" + [guid]:
 $failures = [Collections.Generic.List[string]]::new()
 $caseCount = 0
 
-function New-Trx([string[]]$Outcomes = @('Passed'), [string[]]$Names = @('A.Test')) {
+function New-Trx([string[]]$Outcomes = @('Passed'), [string[]]$Names = @('A.Test'), [string]$Assembly = 'A.Tests.dll') {
     $definitions = ''
     $results = ''
     for ($index = 0; $index -lt $Outcomes.Count; $index++) {
         $id = "test-$index"
         $name = $Names[[Math]::Min($index, $Names.Length - 1)]
-        $definitions += "<UnitTest id='$id' storage='A.Tests.dll' name='$name'/>"
+        $definitions += "<UnitTest id='$id' storage='$Assembly' name='$name'/>"
         $results += "<UnitTestResult testId='$id' executionId='execution-$index' testName='$name' outcome='$($Outcomes[$index])'/>"
     }
     $passed = @($Outcomes | Where-Object { $_ -eq 'Passed' }).Count
@@ -27,7 +27,7 @@ function New-Trx([string[]]$Outcomes = @('Passed'), [string[]]$Names = @('A.Test
     return "<TestRun xmlns='http://microsoft.com/schemas/VisualStudio/TeamTest/2010' id='$([guid]::NewGuid())'><TestDefinitions>$definitions</TestDefinitions><Results>$results</Results><ResultSummary outcome='Completed'><Counters total='$($Outcomes.Count)' executed='$executed' passed='$passed' failed='$failed' notExecuted='$skipped'/></ResultSummary></TestRun>"
 }
 
-function Assert-Case([string]$Name, [string[]]$Documents, [bool]$Pass, [string]$Expected = 'A.Tests', [int]$Count = 0, [string]$MustPrint = '') {
+function Assert-Case([string]$Name, [string[]]$Documents, [bool]$Pass, [string[]]$Expected = @('A.Tests'), [int]$Count = 0, [string]$MustPrint = '', [int]$ExitCode = -1, [int]$Minimum = 1) {
     $script:caseCount++
     $directory = Join-Path $testRoot $Name
     [void](New-Item -ItemType Directory -Path $directory)
@@ -35,8 +35,13 @@ function Assert-Case([string]$Name, [string[]]$Documents, [bool]$Pass, [string]$
         [IO.File]::WriteAllText((Join-Path $directory "$index.trx"), $Documents[$index])
     }
     $report = Join-Path $directory 'report'
-    $output = & $shell -NoProfile -File $gate -TrxDir $directory -ExpectedAssemblies $Expected -OutDir $report 2>&1
+    $expectedFile = Join-Path $directory 'expected.json'
+    [IO.File]::WriteAllText($expectedFile, (ConvertTo-Json -InputObject @($Expected) -Compress))
+    $output = & $shell -NoProfile -File $gate -TrxDir $directory -ExpectedAssembliesFile $expectedFile -MinExpectedAssemblies $Minimum -OutDir $report 2>&1
     $code = $LASTEXITCODE
+    if ($ExitCode -ge 0 -and $code -ne $ExitCode) {
+        $failures.Add("${Name}: expected exact exit=$ExitCode, got $code, output=$output")
+    }
     if (($code -eq 0) -ne $Pass) {
         $failures.Add("${Name}: expected pass=$Pass, exit=$code, output=$output")
     }
@@ -62,7 +67,36 @@ try {
     Assert-Case 'mixed-skipped' @(New-Trx @('Passed','NotExecuted')) $false
     Assert-Case 'failed' @(New-Trx @('Failed')) $false
     Assert-Case 'unknown-outcome' @($valid.Replace("outcome='Passed'", "outcome='Mystery'")) $false
-    Assert-Case 'missing-assembly' @($valid) $false -Expected 'Missing.Tests'
+    Assert-Case 'missing-assembly' @($valid) $false -Expected 'Missing.Tests' -ExitCode 1 -MustPrint 'missing.tests.dll'
+    Assert-Case 'larger-produced-set' @($valid, (New-Trx -Names @('B.Test') -Assembly 'B.Tests.dll')) $true -Count 2 -ExitCode 0
+    Assert-Case 'expected-floor-refuses-valid-results' @($valid) $false -Minimum 2 -ExitCode 2 -MustPrint 'non-vacuity floor of 2'
+
+    # Execute the CURRENT CI caller's deterministic derivation, not a copied approximation.
+    # Both aggregation and Windows blocks must derive the same expected list and retain floor 40.
+    $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+    $workflow = Get-Content -LiteralPath (Join-Path $repo '.github/workflows/ci.yml') -Raw
+    $pattern = '(?ms)^          \$det = Get-Content eng/ci/shards/UnitTests-Deterministic\.slnf -Raw \| ConvertFrom-Json\r?\n          \$expected = @\(\$det\.solution\.projects \|.*?Sort-Object -Unique\)'
+    $derivations = [regex]::Matches($workflow, $pattern)
+    if ($derivations.Count -ne 2) { throw 'Expected both current workflow deterministic assembly derivations.' }
+    $floorCalls = [regex]::Matches($workflow, '(?s)validate-shard-results\.ps1(?:(?!validate-shard-results\.ps1).)*?-MinExpectedAssemblies 40')
+    if ($floorCalls.Count -ne 2) { throw 'Expected both workflow aggregation callers to retain floor 40.' }
+    $expectedLists = @()
+    Push-Location $repo
+    try {
+        foreach ($derivation in $derivations) {
+            $body = $derivation.Value + "`n`$expected"
+            $expectedLists += ,@(& ([scriptblock]::Create($body)))
+        }
+    }
+    finally { Pop-Location }
+    if (($expectedLists[0] -join "`n") -cne ($expectedLists[1] -join "`n")) { throw 'Workflow expected populations differ.' }
+    $workflowExpected = @($expectedLists[0])
+    if ($workflowExpected.Count -lt 40) { throw 'Actual deterministic derivation fell below the workflow floor.' }
+    $fullDocuments = @($workflowExpected | ForEach-Object { New-Trx -Assembly $_ })
+    Assert-Case 'workflow-derived-consistent-pair' $fullDocuments $true -Expected $workflowExpected -Count $workflowExpected.Count -Minimum 40 -ExitCode 0
+    Assert-Case 'workflow-derived-larger-full-set' @($fullDocuments + (New-Trx -Assembly 'Additional.FullOnly.Tests.dll')) $true -Expected $workflowExpected -Count ($workflowExpected.Count + 1) -Minimum 40 -ExitCode 0
+    $planted = 'Planted.Deterministic.Only.Tests.dll'
+    Assert-Case 'workflow-derived-planted-missing' $fullDocuments $false -Expected @($workflowExpected + $planted) -Minimum 40 -ExitCode 1 -MustPrint 'planted.deterministic.only.tests.dll'
     Assert-Case 'absent-artifacts' @() $false
     Assert-Case 'malformed-xml' @('<TestRun>') $false
     Assert-Case 'missing-summary' @($valid -replace '<ResultSummary.*?</ResultSummary>','') $false

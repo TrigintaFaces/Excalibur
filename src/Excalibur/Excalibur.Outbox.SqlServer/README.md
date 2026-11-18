@@ -21,12 +21,12 @@ dotnet add package Excalibur.Outbox.SqlServer
 
 ## Features
 
-- `SqlServerOutboxStore` - High-performance Dapper-based outbox implementation
+- `SqlServerOutboxStore` - Dapper-based outbox implementation
 - `SqlServerDeadLetterQueue` - Dead letter handling for failed messages
 - Batch message retrieval with ordering guarantees
 - Status transitions (Pending → Processing → Published → Failed)
 - Connection factory pattern for multi-database scenarios
-- AOT-compatible with full Native AOT support
+- NativeAOT compatibility depends on configured providers, payload metadata and dependencies; validate by publishing and executing the application’s native binary.
 - NO Entity Framework Core dependency
 
 ## Usage
@@ -49,6 +49,23 @@ builder.UseSqlServerOutboxStore(options =>
     options.ConnectionString = "Server=.;Database=MyDb;Trusted_Connection=True;";
 });
 ```
+
+## Enqueue payload transformation
+
+SQL Server exposes `IOutboxPayloadTransformStore` through the owning `IOutboxStore` capability
+lookup. This lets the encryption decorator protect legacy `EnqueueAsync` without replacing SQL
+Server's configured payload codec, envelope identity, routing or metadata. Ordinary enqueue keeps
+its existing behavior; the transformed path prepares the envelope before invoking the callback.
+
+The callback receives stable borrowed read-only serialized bytes, the prepared row tenant and the
+caller token. Its non-null result is copied before the existing SQL staging transaction begins.
+Callback failure, null output or cancellation before staging accepts no row. Once SQL persistence
+starts, its existing transaction and cancellation semantics apply. This facet grants no claim,
+fencing or worker-admission capability, and encryption does not expose an unmediated transform writer.
+
+Legacy enqueue retains its reflection/dynamic-code annotations; this capability does not certify
+that convenience path for NativeAOT. Use the explicit metadata/payload configuration and validate
+actual native publishing and execution for the application paths you use.
 
 ## Database Schema
 
@@ -93,3 +110,12 @@ ls ~/.nuget/packages/excalibur.outbox.sqlserver/<version>/scripts/
 
 **The folder is authoritative.** If any list of scripts — including this one — disagrees with what is
 actually in the package you installed, the package is right.
+
+## Request parameter metadata
+
+Framework requests bind their declared primitive input/output schema explicitly. Known parameter values
+can be replaced before execution; custom Dapper metadata, templates and callbacks belong in custom
+requests. Scheduled timestamps use `DbType.DateTimeOffset` for both values and database nulls. Earlier
+Dapper inference used a string type for a null schedule; the explicit type now matches the SQL schema
+and remains stable when scheduling is enabled. This does not change the stored timestamp or due-time
+selection.

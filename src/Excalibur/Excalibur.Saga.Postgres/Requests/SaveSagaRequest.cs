@@ -86,19 +86,39 @@ public sealed class SaveSagaRequest<TSagaState>: DataRequestBase<IDbConnection, 
  // - expected > 0 (update) -> UPDATE... WHERE version = @ExpectedVersion, NO insert. A stale version
  // OR a missing row (deleted/zombie saga) matches no row -> 0 rows -> conflict. No INSERT path means a
  // deleted saga is never re-created.
- var expectedVersion = sagaState.Version;
+ if (sagaState.TimerRecoveryIncarnationId == Guid.Empty)
+        {
+            if (sagaState.Version < 1) { throw new InvalidOperationException("A new saga must have a nonempty timer recovery incarnation."); }
+            // The conditional write below, not this observation, decides whether legacy initialization is still current.
+            sagaState.TimerRecoveryIncarnationId = Guid.NewGuid();
+        }
+        var recoveryTracked = sagaState.PendingTimerRecovery is not null || sagaState.LastTimerRecoveryBatchId != Guid.Empty;
+        var recoveryIncarnation = sagaState.TimerRecoveryIncarnationId.ToString("N");
+        var recoveryBatch = sagaState.PendingTimerRecovery?.BatchId.ToString("N");
+        var recoveryDigest = sagaState.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null;
+        var expectedVersion = sagaState.Version;
  var newVersion = sagaState.Version + 1;
 
  var stateJson = serializer.Serialize(sagaState);
+        if (recoveryTracked)
+        {
+            var restored = serializer.Deserialize<TSagaState>(stateJson);
+            if (restored is null || restored.TimerRecoveryIncarnationId != sagaState.TimerRecoveryIncarnationId
+                || restored.TimerRecoverySequence != sagaState.TimerRecoverySequence
+                || restored.LastTimerRecoveryBatchId != sagaState.LastTimerRecoveryBatchId
+                || (restored.PendingTimerRecovery is { } restoredJournal ? Convert.ToHexString(restoredJournal.GetAuthorityDigest()) : null) != recoveryDigest)
+            { throw new InvalidOperationException("The selected saga serializer does not preserve ordinary timer recovery authority."); }
+        }
+
 
  string sql;
  if (expectedVersion == 0)
  {
  sql = $"""
  INSERT INTO {options.QualifiedTableName}
- (saga_id, saga_type, state_json, is_completed, completed_at, tenant_id, version, created_utc, updated_utc)
+ (saga_id, saga_type, state_json, is_completed, completed_at, tenant_id, version, created_utc, updated_utc, timer_recovery_incarnation, timer_recovery_tracked, timer_recovery_pending_batch, timer_recovery_pending_digest)
  VALUES
- (@SagaId, @SagaType, @StateJson::jsonb, @IsCompleted, @CompletedAt, @TenantId, @NewVersion, NOW(), NOW())
+ (@SagaId, @SagaType, @StateJson::jsonb, @IsCompleted, @CompletedAt, @TenantId, @NewVersion, NOW(), NOW(), @RecoveryIncarnation, @RecoveryTracked, @RecoveryBatch, @RecoveryDigest)
  ON CONFLICT (tenant_id, saga_id) DO NOTHING;
  """;
  }
@@ -107,13 +127,19 @@ public sealed class SaveSagaRequest<TSagaState>: DataRequestBase<IDbConnection, 
  sql = $"""
  UPDATE {options.QualifiedTableName} SET
  saga_type = @SagaType,
+ timer_recovery_incarnation = COALESCE(timer_recovery_incarnation, @RecoveryIncarnation),
+                        timer_recovery_tracked = CASE WHEN timer_recovery_tracked = TRUE OR @RecoveryTracked = TRUE THEN TRUE ELSE FALSE END,
+                        timer_recovery_pending_batch = @RecoveryBatch, timer_recovery_pending_digest = @RecoveryDigest,
  state_json = @StateJson::jsonb,
  is_completed = @IsCompleted,
  completed_at = @CompletedAt,
  tenant_id = @TenantId,
  version = @NewVersion,
  updated_utc = NOW()
- WHERE saga_id = @SagaId AND version = @ExpectedVersion AND tenant_id = @TenantId;
+ WHERE saga_id = @SagaId AND version = @ExpectedVersion AND tenant_id = @TenantId
+ AND (timer_recovery_incarnation IS NULL OR timer_recovery_incarnation = @RecoveryIncarnation)
+                        AND (timer_recovery_pending_batch IS NULL OR (timer_recovery_pending_batch = @RecoveryBatch AND timer_recovery_pending_digest = @RecoveryDigest)
+                          OR (@RecoveryBatch IS NULL AND timer_recovery_pending_batch = @RecoveryLastAck));
  """;
  }
 
@@ -137,6 +163,12 @@ public sealed class SaveSagaRequest<TSagaState>: DataRequestBase<IDbConnection, 
  // unconditional in both the ON CONFLICT target and the UPDATE predicate. sagaState.TenantId remains
  // inside state_json as defense-in-depth, not as the row key.
  var partition = KeyedTenantPartition.FromScope(scope);
+        if (sagaState.PendingTimerRecovery is { } owned
+            && (owned.Scope.SagaId != sagaState.SagaId || owned.Scope.StateType != typeof(TSagaState).Name
+                || !string.Equals(owned.Scope.TenantId, partition.TenantId, StringComparison.Ordinal)
+                || owned.IncarnationId != sagaState.TimerRecoveryIncarnationId || owned.Sequence != sagaState.TimerRecoverySequence))
+        { throw new InvalidOperationException("Timer journal differs from the state store's exact authority."); }
+
  Parameters.Add("TenantId", partition.TenantId);
  Parameters.Add("NewVersion", newVersion);
 
@@ -147,7 +179,13 @@ public sealed class SaveSagaRequest<TSagaState>: DataRequestBase<IDbConnection, 
  Parameters.Add("ExpectedVersion", expectedVersion);
  }
 
- Command = CreateCommand(sql, commandTimeout: options.CommandTimeoutSeconds, cancellationToken: cancellationToken);
+ Parameters.Add("RecoveryIncarnation", recoveryIncarnation);
+        Parameters.Add("RecoveryTracked", recoveryTracked);
+        Parameters.Add("RecoveryBatch", recoveryBatch);
+        Parameters.Add("RecoveryDigest", recoveryDigest);
+        if (expectedVersion != 0) { Parameters.Add("RecoveryLastAck", sagaState.LastTimerRecoveryBatchId.ToString("N")); }
+
+		Command = CreateCommand(sql, commandTimeout: options.CommandTimeoutSeconds, cancellationToken: cancellationToken);
  ResolveAsync = conn => conn.ExecuteAsync(Command);
 	}
 }

@@ -103,8 +103,7 @@ public sealed class APartlySucceededErasureStillProducesEvidenceShould
 			+ "record of the erasure -- the key is gone and the request is terminal, so a consumer told "
 			+ "it did not happen can neither redo it nor prove it was done.");
 
-		A.CallTo(() => _store.UpdateStatusAsync(
-				requestId, ErasureRequestStatus.Failed, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.Failed, A<ErasureRequestStatus?>._, A<string?>._, A<string?>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -147,9 +146,23 @@ public sealed class APartlySucceededErasureStillProducesEvidenceShould
 				RequestedBy = "admin",
 				UpdatedAt = DateTimeOffset.UtcNow,
 			}));
-		A.CallTo(() => _store.UpdateStatusAsync(
-				requestId, A<ErasureRequestStatus>._, A<string?>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+		A.CallTo(() => _store.UpdateStatusAsync(requestId, A<ErasureRequestStatus>._, A<ErasureRequestStatus?>._, A<string?>._, A<string?>._, A<CancellationToken>._))
+			.Returns(ErasureWriteOutcome.Applied);
+
+		// The claim is arranged explicitly now. The wildcard status setup above used to cover it, because
+		// taking custody WAS a status write; it is a separate member now, and a fake with no setup returns
+		// a default that is deliberately not a grant -- so without this the service refuses every arm.
+		A.CallTo(() => _store.ClaimForExecutionAsync(
+				A<Guid>._, A<ErasureRequestStatus>._, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
+
+		// The completion returns an outcome now, where it used to return a bare Task with no value
+		// to arrange. A fake with no setup returns the default, the default is deliberately not
+		// Applied, and the service correctly stands down on anything else -- so without this every
+		// arm here reports a refusal. Applied is what a bare Task meant.
+		A.CallTo(() => _store.RecordCompletionAsync(
+				A<Guid>._, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
+			.Returns(ErasureWriteOutcome.Applied);
 
 		A.CallTo(() => _legalHoldService.CheckHoldsAsync(
 				A<string>._, A<DataSubjectIdType>._, A<string?>._, A<CancellationToken>._))
@@ -178,7 +191,7 @@ public sealed class APartlySucceededErasureStillProducesEvidenceShould
 			_legalHoldService,
 			null,
 			null,
-			TestRetentions.None,
+			TestRetentions.None, TestMintLedger.None,
 			contributors);
 
 	/// <summary>A contributor that runs and cannot do its job — the shape the projection gap has.</summary>

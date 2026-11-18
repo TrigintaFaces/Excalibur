@@ -23,10 +23,6 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		// Arrange
 		var options = new Dispatch.Transport.RabbitMQ.RabbitMqOptions
 		{
-			Connection = new Dispatch.Transport.RabbitMQ.RabbitMqConnectionOptions
-			{
-				ConnectionString = "amqp://guest:guest@localhost:5672/",
-			},
 			Exchange = "test-exchange",
 			Queue = new Dispatch.Transport.RabbitMQ.RabbitMqQueueOptions
 			{
@@ -36,7 +32,6 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		};
 
 		// Assert
-		options.Connection.ConnectionString.ShouldNotBeNullOrEmpty();
 		options.Exchange.ShouldBe("test-exchange");
 		options.Queue.QueueName.ShouldBe("test-queue");
 		options.RoutingKey.ShouldBe("test-key");
@@ -124,7 +119,7 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		// Configure multiple transport options
 		_ = services.Configure<Dispatch.Transport.RabbitMQ.RabbitMqOptions>(opts =>
 		{
-			opts.Connection.ConnectionString = "amqp://guest:guest@rabbit-host:5672/";
+			opts.Exchange = "rabbit-exchange";
 		});
 
 		_ = services.Configure<Dispatch.Transport.Kafka.KafkaOptions>(opts =>
@@ -138,7 +133,7 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		var rabbitOptions = provider.GetRequiredService<IOptions<Dispatch.Transport.RabbitMQ.RabbitMqOptions>>();
 		var kafkaOptions = provider.GetRequiredService<IOptions<Dispatch.Transport.Kafka.KafkaOptions>>();
 
-		rabbitOptions.Value.Connection.ConnectionString.ShouldContain("rabbit-host");
+		rabbitOptions.Value.Exchange.ShouldBe("rabbit-exchange");
 		kafkaOptions.Value.BootstrapServers.ShouldBe("kafka-host:9092");
 	}
 

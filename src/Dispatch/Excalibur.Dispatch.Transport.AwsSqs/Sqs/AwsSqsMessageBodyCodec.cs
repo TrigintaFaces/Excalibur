@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 using System.Text;
 
@@ -76,11 +76,16 @@ internal static class AwsSqsMessageBodyCodec
 	/// recoverable, and returning the raw text would hand the consumer a different payload than the
 	/// producer sent.
 	/// </exception>
-	public static byte[] DecodeBody(Message message)
+	/// <param name="maxDecompressedBytes">
+	/// The maximum length, in bytes, a compressed body may occupy once decompressed, or
+	/// <see langword="null"/> to opt out. The receiver's inbound check bounds what the sender
+	/// transmitted; this bounds what decompression produces, which is a quantity the sender chooses.
+	/// </param>
+	public static byte[] DecodeBody(Message message, int? maxDecompressedBytes)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		if (TryDecodeBody(message, out var decompressed, out _))
+		if (TryDecodeBody(message, maxDecompressedBytes, out var decompressed, out _))
 		{
 			return decompressed;
 		}
@@ -132,6 +137,7 @@ internal static class AwsSqsMessageBodyCodec
 
 	public static bool TryDecodeBody(
 			Message message,
+			int? maxDecompressedBytes,
 			out byte[] bodyBytes,
 			out TransportCompressionAlgorithm? compressionAlgorithm)
 	{
@@ -172,7 +178,7 @@ internal static class AwsSqsMessageBodyCodec
 
 		var encodedBody = message.Body ?? string.Empty;
 		var compressedBytes = Convert.FromBase64String(encodedBody);
-		bodyBytes = AwsSqsCompression.Decompress(compressedBytes, algorithm);
+		bodyBytes = AwsSqsCompression.Decompress(compressedBytes, algorithm, maxDecompressedBytes);
 		compressionAlgorithm = algorithm;
 		return true;
 	}

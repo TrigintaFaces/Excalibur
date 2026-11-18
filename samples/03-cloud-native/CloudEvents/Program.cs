@@ -13,6 +13,7 @@
 // - Dispatching events that get enriched with CloudEvents metadata
 // ============================================================================
 
+using System.Text.Json.Serialization;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Transport;
@@ -43,7 +44,13 @@ services.AddDispatch(dispatch =>
 
 	// AddCloudEvents() wires the core CloudEvents spine (the envelope⇄CloudEvent bridge, the converter,
 	// and validated CloudEventOptions). This works without any transport package — the core-only case.
-	_ = dispatch.AddCloudEvents(options =>
+	//
+	// Passing a source-generated resolver is what makes CloudEvents publishable under trimming and
+	// Native AOT: the envelope needs no reflection either way, but your PAYLOAD is your own type, so the
+	// framework cannot generate metadata for it. SampleJsonContext below supplies it. The overload with
+	// no resolver still works and is correct on a full runtime, but it is annotated, so an ahead-of-time
+	// publish warns you at your own call site rather than failing on a user's machine.
+	_ = dispatch.AddCloudEvents(SampleJsonContext.Default, options =>
 	{
 		options.Mode = CloudEventMode.Structured;
 		options.DefaultSource = new Uri("urn:sample:cloud-events-demo");
@@ -91,6 +98,17 @@ namespace Excalibur.Dispatch.Samples.CloudEvents
 		Guid OrderId,
 		string CustomerId,
 		decimal TotalAmount) : IDispatchEvent;
+
+	/// <summary>
+	/// The source-generated JSON metadata for this sample's CloudEvent payloads.
+	/// </summary>
+	/// <remarks>
+	/// One attribute per type published as CloudEvent data. The generator writes the serialization code
+	/// at compile time, so nothing on this path reflects over the type at run time and the trimmer can
+	/// see exactly which members are needed.
+	/// </remarks>
+	[JsonSerializable(typeof(OrderPlacedEvent))]
+	internal sealed partial class SampleJsonContext : JsonSerializerContext;
 
 	/// <summary>
 	/// Handler that processes the order placed event.

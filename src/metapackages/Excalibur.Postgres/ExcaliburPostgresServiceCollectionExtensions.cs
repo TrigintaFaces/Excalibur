@@ -195,6 +195,17 @@ public static class ExcaliburPostgresServiceCollectionExtensions
 			});
 		}
 
+
+		// LAST, deliberately. Everything this preset declares is above; a declaration the consumer makes
+		// through the framework's own seam therefore runs after it and wins, which is the same precedence a
+		// separate later AddExcalibur call already had. See ConfigureExcalibur's remarks for what is only
+		// reachable this way -- tenancy, CDC, jobs, the identity map, data processing, assembly scanning,
+		// and configuration of the event sourcing and outbox registrations this entry point makes for you.
+		if (options.ExcaliburConfiguration is not null)
+		{
+			_ = services.AddExcalibur(options.ExcaliburConfiguration);
+		}
+
 		// Data Access
 		_ = services.AddPostgresDataExecutors(
 			() => new Npgsql.NpgsqlConnection(options.ConnectionString));

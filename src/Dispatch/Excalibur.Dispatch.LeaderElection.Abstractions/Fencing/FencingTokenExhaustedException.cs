@@ -4,21 +4,14 @@
 namespace Excalibur.Dispatch.LeaderElection.Fencing;
 
 /// <summary>
-/// Thrown by <see cref="IFencingTokenProvider.IssueTokenAsync(string, System.Threading.CancellationToken)"/>
-/// when the next monotonic token would exceed the provider's token domain (the counter is exhausted).
+/// Thrown by <see cref="IFencingTokenIssuer.IssueTokenAsync(string, System.Threading.CancellationToken)"/>
+/// when its domain cannot generate another strictly positive monotonic token.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Fencing tokens MUST be strictly monotonic: a wrapped or reused value would let a stale leader validate
-/// as current, producing split-brain. When the domain is exhausted the only safe behavior is to
-/// <b>fail closed</b> — refuse to mint, and therefore refuse to grant or renew leadership. A leader that
-/// hits exhaustion mid-tenure must relinquish rather than continue with an unsafe token.
-/// </para>
-/// <para>
-/// Exhaustion is practically unreachable for an <see cref="long"/> domain (Mongo/Consul self-minting) but
-/// is reachable for narrower native counters (e.g. a Kubernetes <c>Lease.spec.leaseTransitions</c>, which is
-/// a 32-bit value).
-/// </para>
+/// The token domain must never wrap or reuse a value: either would admit a stale leader. Exhaustion is
+/// permanent for the attempt, so a retrying mint caller propagates this exception and relinquishes
+/// rather than declaring a tenure with an unsafe token. A provider's bounded domain need not fill the
+/// entire Int64 range. Read-native providers do not implement the separate minting capability.
 /// </remarks>
 public sealed class FencingTokenExhaustedException : Exception
 {

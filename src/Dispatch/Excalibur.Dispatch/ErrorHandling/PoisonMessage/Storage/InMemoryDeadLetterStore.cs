@@ -176,16 +176,48 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore, IDeadLet
 	}
 
 	/// <inheritdoc />
-	public Task MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken)
+	public Task<DeadLetterReplayOutcome> MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		cancellationToken.ThrowIfCancellationRequested();
+
+		if (!TryGetByMessageId(messageId, out var message))
+		{
+			return Task.FromResult(DeadLetterReplayOutcome.MessageNotFound);
+		}
+
+		// THE TRANSITION IS THE CLAIM, so it is taken under the entry's own lock and the loser is told.
+		// Testing IsReplayed outside the lock would reproduce the read-then-act window this member exists
+		// to close -- both callers would see false and both would be told they had claimed it.
+		lock (message)
+		{
+			if (message.IsReplayed)
+			{
+				return Task.FromResult(DeadLetterReplayOutcome.AlreadyReplayed);
+			}
+
+			message.IsReplayed = true;
+			message.ReplayedAt = DateTimeOffset.UtcNow;
+		}
+
+		LogMarkedDeadLetterMessageAsReplayed(messageId);
+
+		return Task.FromResult(DeadLetterReplayOutcome.Claimed);
+	}
+
+	/// <inheritdoc />
+	public Task ReleaseReplayClaimAsync(string messageId, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		if (TryGetByMessageId(messageId, out var message))
 		{
-			message.IsReplayed = true;
-			message.ReplayedAt = DateTimeOffset.UtcNow;
-
-			LogMarkedDeadLetterMessageAsReplayed(messageId);
+			lock (message)
+			{
+				message.IsReplayed = false;
+				message.ReplayedAt = null;
+			}
 		}
 
 		return Task.CompletedTask;

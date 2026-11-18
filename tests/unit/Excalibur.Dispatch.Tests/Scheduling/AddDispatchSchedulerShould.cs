@@ -129,5 +129,12 @@ public sealed class AddDispatchSchedulerShould
 		public Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 			TimeSpan interval, TMessage message, CancellationToken cancellationToken)
 			where TMessage : class => Task.CompletedTask;
+        public Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
+            string cronExpression, CronRecurrenceProfile profile, TMessage message, CancellationToken cancellationToken)
+            where TMessage : class => Task.CompletedTask;
+        public Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
+            string cronExpression, TimeZoneInfo timeZone, CronRecurrenceProfile profile,
+            TMessage message, CancellationToken cancellationToken) where TMessage : class => Task.CompletedTask;
+
 	}
 }

@@ -1,640 +1,560 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
-
+using System.Data;
+using System.Data.Common;
 using System.Globalization;
-
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Postgres.Diagnostics;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 using Npgsql;
 
 namespace Excalibur.LeaderElection.Postgres;
 
-/// <summary>
-/// Postgres implementation of <see cref="ILeaderElection"/> using advisory locks.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Uses Postgres session-level advisory locks (<c>pg_try_advisory_lock</c>) for distributed
-/// leader election. The lock is held for the duration of the connection and automatically
-/// released when the connection drops or is closed.
-/// </para>
-/// <para>
-/// Advisory locks are lightweight and do not conflict with regular table locks.
-/// They are ideal for coordination scenarios like leader election because:
-/// </para>
-/// <list type="bullet">
-/// <item>They survive transaction boundaries (session-scoped).</item>
-/// <item>They are automatically released on connection loss.</item>
-/// <item>They have minimal overhead compared to row-level locks.</item>
-/// </list>
-/// </remarks>
+/// <summary>Postgres session advisory-lock election with a monotonic local deadline.</summary>
+/// <remarks>Uses tenure-specific ownership proofs and joins owned operations before remote cleanup.</remarks>
 public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisposable
 {
-	private readonly TimeProvider _timeProvider;
-	private readonly PostgresLeaderElectionOptions _pgOptions;
-	private readonly LeaderElectionOptions _electionOptions;
-	private readonly ILogger<PostgresLeaderElection> _logger;
-	private readonly string _connectionString;
-	// optional fencing-token provider. When supplied, a monotonic fencing token is minted
-	// (atomically, store-side via a Postgres SEQUENCE) BEFORE leadership is declared at each acquisition, so a
-	// stale leader's token falls below the high-water mark and its protected operations are rejected by
-	// FencingTokenMiddleware. Null when the consumer did not enable fencing (opt-in, backward compatible).
-	private readonly IFencingTokenProvider? _fencingTokenProvider;
-	// The fencing resource id for this election = the advisory lock key as an invariant string (matches the
-	// "resource" used in the leadership events/logs).
-	private readonly string _fencingResourceId;
-
-	// bounded retry budget for minting the fencing token on acquisition before relinquishing
-	// (fail-closed). Small + fixed: the renewal loop supplies the outer retry cadence; this just rides out a
-	// transient store blip without instantly surrendering a freshly-acquired lock. Mirrors the Redis reference.
-	private const int FencingTokenMintMaxAttempts = 3;
-
-	private readonly Lock _lock = new();
-
-	private NpgsqlConnection? _connection;
-	private CancellationTokenSource? _renewalCts;
-	private Task? _renewalTask;
-	private bool _isStarted;
-	private volatile bool _isLeader;
-	private string? _currentLeaderId;
-	private volatile bool _disposed;
-	// Stored as a monotonic TimeProvider timestamp accessed via Interlocked: the renewal task
-	// reads/writes this lock-free while BecomeLeader writes it under _lock, so a multi-field DateTimeOffset
-	// would tear. Elapsed-time computations must use TimeProvider.GetElapsedTime, never a wall-clock delta.
-	private long _lastSuccessfulRenewalTicks;
-	// the fencing token minted for the current leadership tenure (0 when no provider is
-	// configured) and the instant that tenure began, read together under _lock via CurrentLeadership.
-	private long _currentFencingToken;
-	private DateTimeOffset _leadershipAcquiredAt;
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="PostgresLeaderElection"/> class.
-	/// </summary>
-	/// <param name="pgOptions">The Postgres leader election options.</param>
-	/// <param name="electionOptions">The leader election options.</param>
-	/// <param name="logger">The logger instance.</param>
-	/// <param name="fencingTokenProvider">
-	/// An optional <see cref="IFencingTokenProvider"/>. When supplied, a monotonic fencing
-	/// token is minted at each leadership acquisition (BEFORE leadership is declared); if the mint cannot be
-	/// advanced after bounded retries the candidate relinquishes rather than leading with a stale fence.
-	/// Defaults to <see langword="null"/> (no token issued; opt-in, backward compatible).
-	/// </param>
-	/// <param name="timeProvider">
-	/// Optional time provider used for event timestamps. Defaults to <see cref="TimeProvider.System"/>.
-	/// Inject a controllable provider to make emitted timestamps deterministic in tests.
-	/// </param>
-	public PostgresLeaderElection(
-		IOptions<PostgresLeaderElectionOptions> pgOptions,
-		IOptions<LeaderElectionOptions> electionOptions,
-		ILogger<PostgresLeaderElection> logger,
-		IFencingTokenProvider? fencingTokenProvider = null,
-		TimeProvider? timeProvider = null)
-	{
-		ArgumentNullException.ThrowIfNull(pgOptions);
-		ArgumentNullException.ThrowIfNull(electionOptions);
-		ArgumentNullException.ThrowIfNull(logger);
-
-		_pgOptions = pgOptions.Value;
-		_pgOptions.Validate();
-		_electionOptions = electionOptions.Value;
-		_logger = logger;
-		_timeProvider = timeProvider ?? TimeProvider.System;
-		_connectionString = BuildLockConnectionString(_pgOptions.ConnectionString);
-		_fencingTokenProvider = fencingTokenProvider;
-		_fencingResourceId = _pgOptions.LockKey.ToString(CultureInfo.InvariantCulture);
-
-		CandidateId = _electionOptions.InstanceId ?? (Environment.MachineName + "-" + Guid.NewGuid().ToString("N")[..8]);
-	}
-
-	/// <summary>
-	/// Builds the connection string used for the lock-holding connection, hardened so that a lost
-	/// session-scoped advisory lock is never masked by a pooled/reused connection.
-	/// </summary>
-	/// <remarks>
-	/// A Postgres advisory lock is session-scoped: it lives on the backend session and is released when
-	/// that session ends. <see cref="NpgsqlConnectionStringBuilder.Pooling"/> is disabled so the lock
-	/// connection is dedicated (never reset/reused by the pool as a different backend session), ensuring a
-	/// dropped session surfaces as a broken connection rather than silently continuing on a new backend
-	/// that does not hold the advisory lock — which would otherwise yield false-positive leadership
-	/// (split-brain).
-	/// </remarks>
-	/// <param name="connectionString">The caller-supplied connection string.</param>
-	/// <returns>The hardened connection string.</returns>
-	private static string BuildLockConnectionString(string connectionString)
-	{
-		var builder = new NpgsqlConnectionStringBuilder(connectionString)
-		{
-			Pooling = false,
-		};
-
-		return builder.ConnectionString;
-	}
-
-	/// <inheritdoc/>
-	public event EventHandler<LeaderElectionEventArgs>? BecameLeader;
-
-	/// <inheritdoc/>
-	public event EventHandler<LeaderElectionEventArgs>? LostLeadership;
-
-	/// <inheritdoc/>
-	public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
-
-	/// <inheritdoc/>
-	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
-
-	/// <inheritdoc/>
-	public string CandidateId { get; }
-
-	/// <inheritdoc/>
-	public bool IsLeader => _isLeader;
-
-	/// <inheritdoc/>
-	public Leadership? CurrentLeadership
-	{
-		get
-		{
-			lock (_lock)
-			{
-				return _isLeader ? new Leadership(_currentFencingToken == 0 ? null : _currentFencingToken, _leadershipAcquiredAt) : null;
-			}
-		}
-	}
-
-	/// <inheritdoc/>
-	public string? CurrentLeaderId
-	{
-		get
-		{
-			lock (_lock)
-			{
-				return _currentLeaderId;
-			}
-		}
-	}
-
-	/// <inheritdoc/>
-	public async Task StartAsync(CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		lock (_lock)
-		{
-			if (_isStarted)
-			{
-				return;
-			}
-
-			_isStarted = true;
-		}
-
-		LogStarting(CandidateId, _pgOptions.LockKey);
-
-		await TryAcquireLockAsync(cancellationToken).ConfigureAwait(false);
-
-		_renewalCts = new CancellationTokenSource();
-		_renewalTask = RunRenewalLoopAsync(_renewalCts.Token);
-	}
-
-	/// <inheritdoc/>
-	public async Task StopAsync(CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		await StopCoreAsync(cancellationToken).ConfigureAwait(false);
-	}
-
-	/// <summary>
-	/// The stop sequence, without the disposed guard.
-	/// </summary>
-	/// <remarks>
-	/// Disposal must run this as well, and it runs it after marking the instance disposed, so it
-	/// cannot go through the public method: that method's first act is to reject a disposed instance,
-	/// and disposal's own catch was swallowing the rejection. The renewal loop was then never
-	/// cancelled and never awaited, so it kept renewing the lock — and holding its connection — for
-	/// the life of the process. Keeping the guard on the public entry point and the work in here
-	/// means disposal cannot be refused by the guard that exists to protect callers from it.
-	/// </remarks>
-	private async Task StopCoreAsync(CancellationToken cancellationToken)
-	{
-		bool wasLeader;
-
-		lock (_lock)
-		{
-			if (!_isStarted)
-			{
-				return;
-			}
-
-			_isStarted = false;
-			wasLeader = _isLeader;
-		}
-
-		LogStopping(CandidateId);
-
-		if (_renewalCts != null)
-		{
-			await _renewalCts.CancelAsync().ConfigureAwait(false);
-			if (_renewalTask != null)
-			{
-				try
-				{
-					await _renewalTask.ConfigureAwait(false);
-				}
-				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-				{
-					// Expected
-				}
-			}
-
-			_renewalCts.Dispose();
-			_renewalCts = null;
-			_renewalTask = null;
-		}
-
-		await ReleaseLockAsync().ConfigureAwait(false);
-
-		if (wasLeader)
-		{
-			string? previousLeader;
-
-			lock (_lock)
-			{
-				_isLeader = false;
-				previousLeader = _currentLeaderId;
-				_currentLeaderId = null;
-			}
-
-			// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
-			// snapshot taken under the lock keeps the event args consistent (no torn read).
-			var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource, timestamp: _timeProvider.GetUtcNow()));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, resource, timestamp: _timeProvider.GetUtcNow()));
-		}
-	}
-
-	/// <inheritdoc/>
-	public async ValueTask DisposeAsync()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-
-		if (_isStarted)
-		{
-			try
-			{
-				await StopCoreAsync(CancellationToken.None).ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				LogDisposeError(ex, CandidateId);
-			}
-		}
-
-		if (_connection != null)
-		{
-			await _connection.DisposeAsync().ConfigureAwait(false);
-			_connection = null;
-		}
-
-		_renewalCts?.Dispose();
-	}
-
-	private async Task TryAcquireLockAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			_connection = new NpgsqlConnection(_connectionString);
-			await _connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-			await using var command = new NpgsqlCommand("SELECT pg_try_advisory_lock(@lockKey)", _connection)
-			{
-				CommandTimeout = _pgOptions.CommandTimeoutSeconds
-			};
-
-			command.Parameters.AddWithValue("lockKey", _pgOptions.LockKey);
-
-			var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-
-			if (result is true)
-			{
-				// (fail-CLOSED fencing): when a provider is configured, advance the fence BEFORE
-				// declaring leadership; on bounded-retry exhaustion RELINQUISH (release the advisory lock, do NOT
-				// become leader). BecomeLeader (and its events) is structurally unreachable unless the mint
-				// succeeded — mirrors the Redis reference.
-				if (_fencingTokenProvider is not null)
-				{
-					long token;
-					try
-					{
-						token = await MintFencingTokenWithRetryAsync(cancellationToken).ConfigureAwait(false);
-					}
-					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-					{
-						throw;
-					}
-					catch (Exception ex)
-					{
-						// Bounded mint retries exhausted: relinquish rather than lead with an un-advanced fence.
-						// ReleaseLockAsync releases the advisory lock + closes the lock connection; the next
-						// renewal iteration re-attempts acquire+mint.
-						LogFencingTokenIssueError(ex, CandidateId, _fencingResourceId);
-						await ReleaseLockAsync().ConfigureAwait(false);
-						RaiseAcquisitionFailed("fencing token mint failed", ex);
-						return;
-					}
-
-					// Fence advanced — only NOW declare leadership (events fire strictly AFTER the fence advanced).
-					BecomeLeader(token);
-					LogFencingTokenIssued(CandidateId, token, _fencingResourceId);
-				}
-				else
-				{
-					// No fencing configured (opt-in): declare leadership directly — backward compatible.
-					BecomeLeader(fencingToken: 0);
-				}
-			}
-			else
-			{
-				LogLockAcquisitionFailed(CandidateId, _pgOptions.LockKey);
-
-				await _connection.CloseAsync().ConfigureAwait(false);
-				await _connection.DisposeAsync().ConfigureAwait(false);
-				_connection = null;
-
-				RaiseAcquisitionFailed("lost the acquisition race", exception: null);
-			}
-		}
-		catch (Exception ex)
-		{
-			LogLockAcquisitionError(ex, CandidateId);
-			RaiseAcquisitionFailed("error during acquisition", ex);
-
-			if (_connection != null)
-			{
-				await _connection.CloseAsync().ConfigureAwait(false);
-				await _connection.DisposeAsync().ConfigureAwait(false);
-				_connection = null;
-			}
-		}
-	}
-
-	private async Task ReleaseLockAsync()
-	{
-		if (_connection == null || _connection.State != System.Data.ConnectionState.Open)
-		{
-			return;
-		}
-
-		try
-		{
-			await using var command = new NpgsqlCommand("SELECT pg_advisory_unlock(@lockKey)", _connection)
-			{
-				CommandTimeout = _pgOptions.CommandTimeoutSeconds
-			};
-
-			command.Parameters.AddWithValue("lockKey", _pgOptions.LockKey);
-
-			_ = await command.ExecuteScalarAsync().ConfigureAwait(false);
-
-			LogLockReleased(CandidateId);
-		}
-		catch (Exception ex)
-		{
-			LogLockReleaseError(ex, CandidateId);
-		}
-		finally
-		{
-			await _connection.CloseAsync().ConfigureAwait(false);
-			await _connection.DisposeAsync().ConfigureAwait(false);
-			_connection = null;
-		}
-	}
-
-	private async Task RunRenewalLoopAsync(CancellationToken cancellationToken)
-	{
-		while (!cancellationToken.IsCancellationRequested)
-		{
-			try
-			{
-				await Task.Delay(_electionOptions.RenewInterval, cancellationToken).ConfigureAwait(false);
-
-				if (!_isLeader)
-				{
-					await TryAcquireLockAsync(cancellationToken).ConfigureAwait(false);
-				}
-				else
-				{
-					// (RATIFIED DECISION — grace-only, no 3-state acceleration): Postgres
-					// deliberately does NOT adopt the Redis/SqlServer DefinitivelyLost accelerate-on-loss seam.
-					// Under the hardened Npgsql lock connection (pooling + transparent resiliency disabled, see
-					// BuildLockConnectionString) the "alive-but-not-owning" state is structurally inexpressible
-					// a live connection ALWAYS still owns the advisory lock, and a lost backend can
-					// only surface as State!=Open. So VerifyLockAsync==false is never a definitive loss observed on
-					// a still-queryable session — it is Indeterminate (broken connection / probe threw). There is
-					// therefore NO definitive-loss-while-queryable signal to accelerate on; a 3-state would make the
-					// DefinitivelyLost branch unreachable (a phantom signal). Accelerating on the ambiguous false
-					// would be the very false-relinquish we avoid, so GracePeriod remains the hard — and correct —
-					// split-brain upper bound. (SA-confirmed; the paused/stalled-leader split-brain is the
-					// orthogonal concern covered by fencing tokens, /.)
-					var stillLeader = await VerifyLockAsync(cancellationToken).ConfigureAwait(false);
-					if (!stillLeader)
-					{
-						var elapsed = _timeProvider.GetElapsedTime(Interlocked.Read(ref _lastSuccessfulRenewalTicks));
-						if (elapsed > _electionOptions.GracePeriod)
-						{
-							await LoseLeadershipAsync().ConfigureAwait(false);
-						}
-					}
-					else
-					{
-						Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
-					}
-				}
-			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-			{
-				break;
-			}
-			catch (Exception ex)
-			{
-				LogRenewalError(ex, CandidateId);
-
-				if (_isLeader)
-				{
-					var elapsed = _timeProvider.GetElapsedTime(Interlocked.Read(ref _lastSuccessfulRenewalTicks));
-					if (elapsed > _electionOptions.GracePeriod)
-					{
-						await LoseLeadershipAsync().ConfigureAwait(false);
-					}
-				}
-			}
-		}
-	}
-
-	/// <summary>
-	/// Verifies that the current backend session still actually holds the advisory lock — ownership, not
-	/// merely connection liveness.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// The probe queries <c>pg_locks</c> for a granted advisory lock owned by the current backend
-	/// (<c>pid = pg_backend_pid()</c>). Because this connection is dedicated (pooling disabled, see
-	/// <see cref="BuildLockConnectionString"/>) and only ever takes this one advisory lock, "this backend
-	/// holds a granted advisory lock" is equivalent to "we still hold our lock" — no lock-key decoding is
-	/// required.
-	/// </para>
-	/// <para>
-	/// A plain connection-liveness check (<c>SELECT 1</c>) is insufficient: across a failover or a
-	/// reconnect, the connection can answer queries on a <em>new</em> backend that never re-acquired the
-	/// advisory lock. Liveness would falsely report continued ownership while another node acquires the
-	/// lock — a silent split-brain. The new backend holds no advisory lock, so this probe correctly
-	/// returns <see langword="false"/> and leadership is relinquished.
-	/// </para>
-	/// <para>
-	/// <b>Structural guarantee:</b> unlike <c>Microsoft.Data.SqlClient</c>, Npgsql has no
-	/// transparent connection-resiliency, and this lock connection disables pooling
-	/// (<see cref="BuildLockConnectionString"/>). Consequently a lost backend session cannot resurface as a
-	/// <em>live-but-not-owning</em> connection — it can only surface as a broken connection, caught by the
-	/// <c>State != Open</c> guard below (<c>session loss ⟹ State≠Open ⟹ leadership relinquished</c>). The
-	/// "alive-but-not-owning" false-positive is therefore <em>structurally inexpressible</em> here, which is a
-	/// stronger guarantee than a behavioral check; the <c>pg_locks</c> ownership probe is the honest
-	/// ownership verification (and defense-in-depth for any future reconnect-capable configuration).
-	/// </para>
-	/// <para>
-	/// This addresses the reachable failover/pool-reset split-brain. The orthogonal paused/stalled-leader
-	/// split-brain (which no connectivity check can catch) is mitigated by fencing tokens.
-	/// </para>
-	/// </remarks>
-	private async Task<bool> VerifyLockAsync(CancellationToken cancellationToken)
-	{
-		if (_connection == null || _connection.State != System.Data.ConnectionState.Open)
-		{
-			return false;
-		}
-
-		try
-		{
-			await using var command = new NpgsqlCommand(
-				"SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND granted)",
-				_connection)
-			{
-				CommandTimeout = _pgOptions.CommandTimeoutSeconds
-			};
-
-			var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-			return result is true;
-		}
-		catch
-		{
-			return false;
-		}
-	}
-
-	/// <summary>
-	/// Mints a monotonic fencing token for the protected resource, retrying a bounded number of times
-	/// (<see cref="FencingTokenMintMaxAttempts"/>) before failing (fail-closed). The caller mints
-	/// BEFORE declaring leadership and relinquishes if this throws, so the fence is always advanced before
-	/// fenced leadership is granted. Mirrors the Redis reference.
-	/// </summary>
-	/// <param name="cancellationToken">A token to observe while minting.</param>
-	/// <returns>The newly minted, strictly-monotonic fencing token.</returns>
-	/// <exception cref="InvalidOperationException">The mint failed on every bounded attempt.</exception>
-	private Task<long> MintFencingTokenWithRetryAsync(CancellationToken cancellationToken) =>
-		FencingTokenMinting.MintWithRetryAsync(
-			_fencingTokenProvider!, _fencingResourceId, cancellationToken, FencingTokenMintMaxAttempts);
-
-	/// <summary>
-	/// Raises <see cref="AcquisitionFailed"/>, guarding the invocation so a throwing subscriber
-	/// can never break the acquisition/renewal loop.
-	/// </summary>
-	private void RaiseAcquisitionFailed(string reason, Exception? exception)
-	{
-		var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
-		try
-		{
-			AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, resource, reason, _timeProvider.GetUtcNow(), exception));
-		}
-		catch (Exception)
-		{
-			// A throwing subscriber must never break the acquire loop.
-		}
-	}
-
-	private void BecomeLeader(long fencingToken)
-	{
-		string? previousLeader;
-
-		lock (_lock)
-		{
-			if (_isLeader)
-			{
-				return;
-			}
-
-			previousLeader = _currentLeaderId;
-			_isLeader = true;
-			_currentLeaderId = CandidateId;
-			_currentFencingToken = fencingToken;
-			_leadershipAcquiredAt = _timeProvider.GetUtcNow();
-			Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
-		}
-
-		var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
-		LogBecameLeader(CandidateId, resource);
-
-		BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource, timestamp: _timeProvider.GetUtcNow()));
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, CandidateId, resource, timestamp: _timeProvider.GetUtcNow()));
-	}
-
-	private async Task LoseLeadershipAsync()
-	{
-		string? previousLeader;
-
-		lock (_lock)
-		{
-			if (!_isLeader)
-			{
-				return;
-			}
-
-			_isLeader = false;
-			previousLeader = _currentLeaderId;
-			_currentLeaderId = null;
-		}
-
-		var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
-		LogLostLeadership(CandidateId, resource);
-
-		// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
-		// snapshot taken under the lock keeps the event args consistent (no torn read).
-		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, resource, timestamp: _timeProvider.GetUtcNow()));
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, resource, timestamp: _timeProvider.GetUtcNow()));
-
-		if (_connection != null)
-		{
-			try
-			{
-				await _connection.CloseAsync().ConfigureAwait(false);
-			}
-			catch
-			{
-				// Ignore connection close errors during leadership loss
-			}
-
-			await _connection.DisposeAsync().ConfigureAwait(false);
-			_connection = null;
-		}
-	}
-
+    private readonly Lock _runGate = new();
+    private readonly LeaderElectionNotifications _notifications;
+    private readonly Func<string, DbConnection> _sessionFactory;
+    private readonly PostgresLeaderElectionOptions _pgOptions;
+    private readonly string _connectionString;
+    private readonly string _resource;
+    private readonly LeaderElectionOptions _electionOptions;
+    private readonly ILogger<PostgresLeaderElection> _logger;
+    private readonly TimeProvider _timeProvider;
+    private readonly IMessageFailureClassifier? _failureClassifier;
+    private readonly IFencingTokenIssuer? _fencingTokenProvider;
+    private const int FencingTokenMintMaxAttempts = 3;
+    private StartSlot? _slot;
+    private volatile bool _disposed;
+    private Task? _disposal;
+
+    /// <summary>Initializes a dedicated-session Postgres leader election.</summary>
+    /// <param name="pgOptions">Postgres connection and lock options.</param>
+    /// <param name="electionOptions">Local timing and candidate options.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="fencingTokenProvider">Optional monotonic fencing provider.</param>
+    /// <param name="timeProvider">Optional monotonic clock.</param>
+    public PostgresLeaderElection(IOptions<PostgresLeaderElectionOptions> pgOptions,
+        IOptions<LeaderElectionOptions> electionOptions, ILogger<PostgresLeaderElection> logger,
+        IFencingTokenIssuer? fencingTokenProvider = null, TimeProvider? timeProvider = null)
+        : this(pgOptions, electionOptions, logger, fencingTokenProvider, timeProvider, null, null) { }
+
+    /// <summary>Initializes a Postgres candidate with shared failure classification.</summary>
+    /// <param name="pgOptions">Postgres connection and lock options.</param>
+    /// <param name="electionOptions">Local timing and candidate options.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="fencingTokenProvider">Optional monotonic fencing provider.</param>
+    /// <param name="timeProvider">Optional monotonic clock.</param>
+    /// <param name="context">Optional cross-cutting failure classification.</param>
+    public PostgresLeaderElection(IOptions<PostgresLeaderElectionOptions> pgOptions,
+        IOptions<LeaderElectionOptions> electionOptions, ILogger<PostgresLeaderElection> logger,
+        IFencingTokenIssuer? fencingTokenProvider, TimeProvider? timeProvider, PostgresLeaderElectionContext? context)
+        : this(pgOptions, electionOptions, logger, fencingTokenProvider, timeProvider, context, null) { }
+
+    // The factory transfers a new dedicated closed connection. It is an internal deterministic
+    // protocol-test seam, not a promise that arbitrary wrappers can preserve backend ownership.
+    internal PostgresLeaderElection(IOptions<PostgresLeaderElectionOptions> pgOptions,
+        IOptions<LeaderElectionOptions> electionOptions, ILogger<PostgresLeaderElection> logger,
+        IFencingTokenIssuer? fencingTokenProvider, TimeProvider? timeProvider,
+        PostgresLeaderElectionContext? context, Func<string, DbConnection>? sessionFactory)
+    {
+        ArgumentNullException.ThrowIfNull(pgOptions);
+        ArgumentNullException.ThrowIfNull(electionOptions);
+        ArgumentNullException.ThrowIfNull(logger);
+        var supplied = pgOptions.Value;
+        _pgOptions = new PostgresLeaderElectionOptions
+        {
+            ConnectionString = supplied.ConnectionString,
+            LockKey = supplied.LockKey,
+            CommandTimeoutSeconds = supplied.CommandTimeoutSeconds,
+        };
+        _pgOptions.Validate();
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_pgOptions.CommandTimeoutSeconds, 0);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(_pgOptions.CommandTimeoutSeconds, 300);
+        _electionOptions = electionOptions.Value;
+        var validation = new LeaderElectionOptionsValidator().Validate(null, _electionOptions);
+        if (validation.Failed) { throw new OptionsValidationException(nameof(LeaderElectionOptions), typeof(LeaderElectionOptions), validation.Failures); }
+        _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _failureClassifier = context?.FailureClassifier;
+        _fencingTokenProvider = fencingTokenProvider;
+        _connectionString = BuildLockConnectionString(_pgOptions.ConnectionString);
+        _sessionFactory = sessionFactory ?? (connectionString => new NpgsqlConnection(connectionString));
+        _resource = _pgOptions.LockKey.ToString(CultureInfo.InvariantCulture);
+        CandidateId = LeaderCandidateIdentity.Resolve(_electionOptions.InstanceId);
+        _notifications = new LeaderElectionNotifications(error => LogRenewalError(error, CandidateId));
+    }
+
+    private static string BuildLockConnectionString(string connectionString) =>
+        new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            Pooling = false,
+            Multiplexing = false,
+            Enlist = false,
+        }.ConnectionString;
+
+    /// <inheritdoc/>
+    public string CandidateId { get; }
+    /// <inheritdoc/>
+    public Task NotificationsCompleted => _notifications.NotificationsCompleted;
+    /// <inheritdoc/>
+    public bool IsLeader => CurrentRun()?.Kernel.Current is not null;
+    /// <inheritdoc/>
+    public Leadership? CurrentLeadership
+    {
+        get
+        {
+            var held = CurrentRun()?.Kernel.Current;
+            return held is null ? null : new Leadership(held.FencingToken, held.AcquiredAt);
+        }
+    }
+    /// <inheritdoc/>
+    public string? CurrentLeaderId
+    {
+        get
+        {
+            var run = CurrentRun();
+            if (run is null) { return null; }
+            var status = run.Kernel.ReadStatus();
+            return status.Tenure is not null ? CandidateId : status.ObservedHolder;
+        }
+    }
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionEventArgs>? BecameLeader;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionEventArgs>? LostLeadership;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
+
+    /// <inheritdoc/>
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        _notifications.ThrowIfReentrant();
+        StartSlot slot;
+        lock (_runGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_slot is { Shutdown: { } shutdown } && !shutdown.IsCompletedSuccessfully)
+            {
+                throw new InvalidOperationException("The previous run has not reached successful client quiescence.");
+            }
+            if (_slot is { Shutdown: null } existing) { slot = existing; }
+            else
+            {
+                // A pending start owns only one cancellation/lifecycle slot. It allocates NO
+                // kernel, timer, run or dispatcher until all previous callbacks have drained.
+                var previousNotifications = _slot?.Run?.Kernel.NotificationDrainTask ?? _slot?.PreviousNotifications ?? Task.CompletedTask;
+                slot = new StartSlot(previousNotifications);
+                _slot = slot;
+                _notifications.EnqueueDiagnostic(LogStarting, CandidateId, _pgOptions.LockKey);
+#pragma warning disable RS0030 // The owned admission worker cannot run consumer notification-drain code under the run gate; Stop joins this task.
+                slot.Worker = LeaderElectionExecution.RunAsync(() => AdmitRunAsync(slot));
+#pragma warning restore RS0030
+            }
+        }
+        try { await slot.Initial.Task.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _ = BeginStop(slot); // retained; a canceled waiter does not abandon a pending launch.
+            throw;
+        }
+    }
+
+    private async Task AdmitRunAsync(StartSlot slot)
+    {
+        try
+        {
+            await slot.PreviousNotifications.WaitAsync(slot.Stop.Token).ConfigureAwait(false);
+            Run run;
+            lock (_runGate)
+            {
+                if (slot.StopRequested || _disposed || !ReferenceEquals(_slot, slot))
+                {
+                    throw new OperationCanceledException(slot.Stop.Token);
+                }
+                run = new Run(this, slot);
+                slot.Run = run;
+#pragma warning disable RS0030 // A tracked protocol actor owns SDK result processing and is joined during Stop, separately from resource retirement.
+                run.Actor = LeaderElectionExecution.RunAsync(() => RunActorAsync(run));
+#pragma warning restore RS0030
+            }
+            await run.Initial.Task.ConfigureAwait(false);
+            slot.Initial.TrySetResult();
+        }
+        catch (OperationCanceledException) when (slot.StopRequested)
+        {
+            slot.Initial.TrySetCanceled(slot.Stop.Token);
+        }
+        catch (Exception failure)
+        {
+            slot.Initial.TrySetException(failure);
+            throw;
+        }
+    }
+
+    /// <inheritdoc/>
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        StartSlot? slot;
+        lock (_runGate) { ObjectDisposedException.ThrowIf(_disposed, this); slot = _slot; }
+        return slot is null ? Task.CompletedTask : BeginStop(slot).WaitAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public ValueTask DisposeAsync()
+    {
+        lock (_runGate)
+        {
+            _disposed = true;
+            // Permanent disposal seals the same admitted start slot before its async stop worker runs.
+            if (_slot is { } slot) { slot.StopRequested = true; }
+            return new ValueTask(_disposal ??= LeaderElectionExecution.RunAsync(DisposeResourcesAsync));
+        }
+    }
+
+    private async Task DisposeResourcesAsync()
+    {
+        try
+        {
+            StartSlot? slot;
+            lock (_runGate) { slot = _slot; }
+            if (slot is not null) { await BeginStop(slot).ConfigureAwait(false); }
+        }
+        finally { _notifications.Seal(); }
+    }
+
+    private Run? CurrentRun() { lock (_runGate) { return _slot?.Run; } }
+
+    private Task BeginStop(StartSlot slot)
+    {
+        lock (_runGate)
+        {
+            if (slot.Shutdown is not null) { return slot.Shutdown; }
+            slot.StopRequested = true;
+            _notifications.EnqueueDiagnostic(LogStopping, CandidateId);
+            // No new run can be installed after this seal: admission checks under this gate.
+            // The common kernel never invokes external user code inline under its gate.
+            slot.Run?.Kernel.RequestStop();
+#pragma warning disable RS0030 // Memoized shutdown runs cancellation and owned joins outside the run gate, including notification-reentrant Stop.
+            return slot.Shutdown = LeaderElectionExecution.RunAsync(() => StopSlotAsync(slot));
+#pragma warning restore RS0030
+        }
+    }
+
+    private static async Task StopSlotAsync(StartSlot slot)
+    {
+        var failures = new List<Exception>();
+        try { await slot.Stop.CancelAsync().ConfigureAwait(false); }
+        catch (Exception error) { failures.Add(error); }
+        try { await slot.Worker.ConfigureAwait(false); }
+        catch (Exception error) { failures.Add(error); }
+        if (slot.Run is { } run)
+        {
+            try { await run.Actor.ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            try { await run.Kernel.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            if (run.ActorFailure is not null) { failures.Add(run.ActorFailure); }
+        }
+        slot.Stop.Dispose();
+        var distinct = failures.Distinct<Exception>(ReferenceEqualityComparer.Instance).ToArray();
+        if (distinct.Length == 1) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(distinct[0]).Throw(); }
+        if (distinct.Length > 1) { throw new AggregateException("Postgres run shutdown failed.", distinct); }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+        Justification = "Each Attempt is transferred to BeginAcquisition, whose retirement callback joins its SDK latch and disposes it; failed transfer disposes the attempt in the adjacent catch.")]
+    private async Task RunActorAsync(Run run)
+    {
+        try
+        {
+            await run.Kernel.WaitForNotificationDrainAsync(run.Stop.Token).ConfigureAwait(false);
+            while (!run.StopRequested && !run.Stop.IsCancellationRequested)
+            {
+                var attempt = new Attempt(_sessionFactory(_connectionString));
+                long generation;
+                try { generation = run.Kernel.BeginAcquisition(attempt, attempt.Acquire); }
+                catch
+                {
+                    await attempt.DisposeAsync().ConfigureAwait(false);
+                    if (run.StopRequested) { break; }
+                    throw;
+                }
+                var start = _timeProvider.GetTimestamp();
+                attempt.Acquire.TryLaunch(async () =>
+                {
+                    if (attempt.Connection.State != ConnectionState.Closed)
+                    {
+                        throw new InvalidOperationException("The Postgres session factory must transfer a new closed connection.");
+                    }
+                    await attempt.Connection.OpenAsync(run.Stop.Token).ConfigureAwait(false);
+                    attempt.AcquisitionAttempted = true;
+                    attempt.Acquired = await ExecuteBooleanAsync(attempt.Connection,
+                        "SELECT pg_catalog.pg_try_advisory_lock(@lockKey)", run.Stop.Token).ConfigureAwait(false);
+                    attempt.AcquisitionAnswered = true;
+                    if (attempt.Acquired && _fencingTokenProvider is not null)
+                    {
+                        attempt.Fence = await FencingTokenMinting.MintWithRetryAsync(_fencingTokenProvider,
+                            _resource, run.Stop.Token, FencingTokenMintMaxAttempts).ConfigureAwait(false);
+                    }
+                });
+                try
+                {
+                    await attempt.Acquire.Completion.ConfigureAwait(false);
+                    if (attempt.Acquired && !run.Stop.IsCancellationRequested)
+                    {
+                        if (!run.Kernel.Publish(generation, start, attempt, attempt.Fence, _timeProvider.GetUtcNow()))
+                        {
+                            run.Kernel.ReportObservation(generation, false, null, "acquisition proof expired before publication", null, _timeProvider.GetUtcNow());
+                        }
+                    }
+                    else
+                    {
+                        _notifications.EnqueueDiagnostic(LogLockAcquisitionFailed, CandidateId, _pgOptions.LockKey);
+                        run.Kernel.ReportObservation(generation, true, null, "lost the acquisition race", null, _timeProvider.GetUtcNow());
+                        run.Kernel.Retire(generation, "acquisition race lost");
+                    }
+                }
+                catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { run.Kernel.Retire(generation, "stopped"); }
+                catch (Exception error)
+                {
+                    run.Kernel.Retire(generation, "acquisition failed", error);
+                    if (attempt.Acquired && _fencingTokenProvider is not null)
+                    {
+                        _notifications.EnqueueDiagnostic(LogFencingTokenIssueError, error, CandidateId, _resource);
+                    }
+                    run.Kernel.ReportObservation(generation, false, null,
+                        attempt.Acquired ? "fencing token mint failed" : "error during acquisition", error, _timeProvider.GetUtcNow());
+                    _notifications.EnqueueDiagnostic(LogLockAcquisitionError, error, CandidateId);
+                }
+                finally { run.Initial.TrySetResult(); }
+
+                var cadenceAnchor = start;
+                var renewalDelay = _electionOptions.RenewInterval;
+                while (!run.Stop.IsCancellationRequested && run.Kernel.Current is not null)
+                {
+                    await LeaderElectionDelay.WaitFromAsync(cadenceAnchor, renewalDelay, _timeProvider, run.Stop.Token).ConfigureAwait(false);
+                    var operation = new OwnedOperationLatch();
+                    if (!run.Kernel.TryRegisterOperation(generation, operation)) { break; }
+                    var renewalStart = _timeProvider.GetTimestamp();
+                    cadenceAnchor = renewalStart;
+                    var renewed = false;
+                    var backendAvailable = false;
+                    operation.TryLaunch(async () =>
+                    {
+                        // No reconnect: a closed/broken dedicated session cannot retain its advisory lock.
+                        backendAvailable = attempt.Connection.State == ConnectionState.Open;
+                        renewed = backendAvailable &&
+                            await ExecuteBooleanAsync(attempt.Connection, VerifyOwnershipSql, run.Stop.Token).ConfigureAwait(false);
+                    });
+                    try
+                    {
+                        await operation.Completion.ConfigureAwait(false);
+                        if (renewed)
+                        {
+                            run.Kernel.Confirm(generation, renewalStart);
+                            renewalDelay = _electionOptions.RenewInterval;
+                        }
+                        else { run.Kernel.Retire(generation, backendAvailable
+                            ? "configured advisory lock ownership is absent"
+                            : "dedicated backend is unavailable"); }
+                    }
+                    catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { break; }
+                    catch (Exception error)
+                    {
+                        _notifications.EnqueueDiagnostic(LogRenewalError, error, CandidateId);
+                        if (_failureClassifier?.Classify(error) == MessageFailureKind.Permanent)
+                        {
+                            run.Kernel.Retire(generation, "permanent renewal failure", error);
+                        }
+                        // Retry inside the grace portion rather than spending another full R before
+                        // the next attempt. A transient at default R=G=5 otherwise cannot recover by B=10.
+                        renewalDelay = _electionOptions.RetryInterval;
+                        // Ambiguous/unrelated cancellation does not advance the deadline or stop the actor.
+                    }
+                }
+                run.Kernel.Retire(generation, run.Stop.IsCancellationRequested ? "stopped" : "tenure ended");
+                await run.Kernel.RetirementTask.ConfigureAwait(false);
+                run.Kernel.CompleteRetirement(generation);
+                await run.Kernel.WaitForNotificationDrainAsync(run.Stop.Token).ConfigureAwait(false);
+                await LeaderElectionDelay.WaitFromAsync(cadenceAnchor, _electionOptions.RetryInterval, _timeProvider, run.Stop.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            run.ActorFailure = error;
+            run.Initial.TrySetException(error);
+            _ = BeginStop(run.Slot); // another task owns the join; the actor never joins itself.
+        }
+        finally { run.Initial.TrySetResult(); }
+    }
+
+    private async Task RetireAsync(Run run, RenewalTenureDeadline.Retirement retirement)
+    {
+        var attempt = (Attempt)retirement.AcquisitionOwner;
+        var failures = new List<Exception>();
+        Exception? operationFailure = null;
+        Exception? unlockFailure = null;
+        var unlocked = false;
+        if (retirement.OperationCompletion is not null)
+        {
+            try { await retirement.OperationCompletion.ConfigureAwait(false); }
+            catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { }
+            catch (Exception error) { operationFailure = error; }
+        }
+        try
+        {
+            if (attempt.Connection.State == ConnectionState.Open &&
+                (attempt.Acquired || (attempt.AcquisitionAttempted && !attempt.AcquisitionAnswered)))
+            {
+                _ = await ExecuteBooleanAsync(attempt.Connection,
+                    "SELECT pg_catalog.pg_advisory_unlock(@lockKey)", CancellationToken.None).ConfigureAwait(false);
+                unlocked = true;
+            }
+        }
+        catch (Exception error) { unlockFailure = error; failures.Add(error); }
+        try { await attempt.DisposeAsync().ConfigureAwait(false); }
+        catch (Exception disposeFailure) { failures.Add(disposeFailure); }
+        // Queue best-effort diagnostics after SDK join and owned-session disposal; their callbacks run independently.
+        if (operationFailure is not null)
+        {
+            try { _notifications.EnqueueDiagnostic(LogRenewalError, operationFailure, CandidateId); }
+            catch (Exception loggingFailure) { failures.Add(operationFailure); failures.Add(loggingFailure); }
+        }
+        if (unlockFailure is not null)
+        {
+            try { _notifications.EnqueueDiagnostic(LogLockReleaseError, unlockFailure, CandidateId); }
+            catch (Exception loggingFailure) { failures.Add(loggingFailure); }
+        }
+        else if (unlocked)
+        {
+            try { _notifications.EnqueueDiagnostic(LogLockReleased, CandidateId); }
+            catch (Exception loggingFailure) { failures.Add(loggingFailure); }
+        }
+        if (failures.Count == 1)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        }
+        if (failures.Count > 1)
+        {
+            throw new AggregateException("Postgres owned session retirement failed.", failures);
+        }
+    }
+
+    private const string VerifyOwnershipSql = """
+        SELECT EXISTS (
+            SELECT 1 FROM pg_catalog.pg_locks
+            WHERE locktype = 'advisory' AND pid = pg_catalog.pg_backend_pid() AND granted
+                AND mode = 'ExclusiveLock' AND objsubid = 1
+                AND database = (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database())
+                AND classid = ((CAST(@lockKey AS bigint) >> 32) & 4294967295)::oid
+                AND objid = (CAST(@lockKey AS bigint) & 4294967295)::oid)
+        """;
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities",
+        Justification = "Private callers supply only the three fixed advisory-lock SQL literals; the configured lock key is always bound as an Int64 parameter.")]
+    private async Task<bool> ExecuteBooleanAsync(DbConnection connection, string sql, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.CommandType = CommandType.Text;
+        command.CommandTimeout = _pgOptions.CommandTimeoutSeconds;
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "lockKey";
+        parameter.DbType = DbType.Int64;
+        parameter.Value = _pgOptions.LockKey;
+        command.Parameters.Add(parameter);
+        var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return result is bool value ? value : throw new InvalidOperationException("Postgres advisory-lock commands must return a boolean.");
+    }
+
+    private void Notify(RenewalTenureDeadline.Transition transition)
+    {
+        var args = new LeaderElectionEventArgs(CandidateId, _resource, timestamp: transition.Timestamp);
+        InvokeEach(transition.Acquired ? BecameLeader : LostLeadership, args);
+        InvokeEach(LeaderChanged, new LeaderChangedEventArgs(transition.Acquired ? transition.PreviousHolder : CandidateId,
+            transition.Acquired ? CandidateId : null, _resource,
+            fencingToken: transition.Acquired ? transition.FencingToken : null, timestamp: transition.Timestamp));
+        // Foreign diagnostics cannot suppress either event family.
+        if (transition.Acquired)
+        {
+            _notifications.EnqueueDiagnostic(LogBecameLeader, CandidateId, _resource);
+            if (transition.FencingToken is { } fence) { _notifications.EnqueueDiagnostic(LogFencingTokenIssued, CandidateId, fence, _resource); }
+        }
+        else { _notifications.EnqueueDiagnostic(LogLostLeadership, CandidateId, _resource); }
+    }
+
+    private void InvokeEach<T>(EventHandler<T>? subscribers, T args) where T : EventArgs
+    {
+        _notifications.InvokeEach(subscribers, this, args);
+    }
+
+    private void NotifyObservation(RenewalTenureDeadline.Observation observation)
+    {
+        if (observation.HasHolder && !string.Equals(observation.PreviousHolder, observation.Holder, StringComparison.Ordinal))
+        {
+            InvokeEach(LeaderChanged, new LeaderChangedEventArgs(observation.PreviousHolder, observation.Holder,
+                _resource, timestamp: observation.Timestamp));
+        }
+        if (observation.FailureReason is not null)
+        {
+            InvokeEach(AcquisitionFailed, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resource,
+                observation.FailureReason, observation.Timestamp, observation.Cause));
+        }
+    }
+
+    private sealed class Attempt(DbConnection connection) : IAsyncDisposable
+    {
+        private readonly Lock _disposeGate = new();
+        private Task? _disposal;
+        internal DbConnection Connection { get; } = connection ?? throw new ArgumentNullException(nameof(connection));
+        internal OwnedOperationLatch Acquire { get; } = new();
+        internal bool AcquisitionAttempted { get; set; }
+        internal bool AcquisitionAnswered { get; set; }
+        internal bool Acquired { get; set; }
+        internal long? Fence { get; set; }
+        public ValueTask DisposeAsync()
+        {
+            lock (_disposeGate) { return new ValueTask(_disposal ??= Connection.DisposeAsync().AsTask()); }
+        }
+    }
+
+    private sealed class StartSlot(Task previousNotifications)
+    {
+        internal Task PreviousNotifications { get; } = previousNotifications;
+        internal CancellationTokenSource Stop { get; } = new();
+        internal TaskCompletionSource Initial { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal Task Worker { get; set; } = Task.CompletedTask;
+        internal Run? Run { get; set; }
+        internal Task? Shutdown { get; set; }
+        internal volatile bool StopRequested;
+    }
+
+    private sealed class Run
+    {
+        internal Run(PostgresLeaderElection owner, StartSlot slot)
+        {
+            Slot = slot;
+            Kernel = new RenewalTenureDeadline(owner._timeProvider, owner._electionOptions.RenewInterval + owner._electionOptions.GracePeriod,
+                retirement => owner.RetireAsync(this, retirement), owner.Notify,
+                observe: owner.NotifyObservation, notifications: owner._notifications);
+        }
+        internal StartSlot Slot { get; }
+        internal CancellationTokenSource Stop => Slot.Stop;
+        internal bool StopRequested => Slot.StopRequested;
+        internal TaskCompletionSource Initial { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal RenewalTenureDeadline Kernel { get; }
+        internal Task Actor { get; set; } = Task.CompletedTask;
+        internal Exception? ActorFailure { get; set; }
+    }
 	[LoggerMessage(LeaderElectionPostgresEventId.LeaderElectionStarted, LogLevel.Information,
 		"Starting Postgres leader election for candidate {CandidateId} on lock key {LockKey}")]
 	private partial void LogStarting(string candidateId, long lockKey);

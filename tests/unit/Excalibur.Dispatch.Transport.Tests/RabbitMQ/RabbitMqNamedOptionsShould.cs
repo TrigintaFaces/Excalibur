@@ -39,7 +39,6 @@ public sealed class RabbitMqNamedOptionsShould
 
 		var unnamed = provider.GetRequiredService<IOptions<RabbitMqOptions>>().Value;
 		unnamed.Queue.QueueName.ShouldBe("single-queue");
-		unnamed.Connection.ConnectionString.ShouldBe("amqp://app:s3cret@localhost:5672/");
 
 		Resolve(provider, "rabbitmq").Queue.QueueName.ShouldBe("single-queue");
 	}

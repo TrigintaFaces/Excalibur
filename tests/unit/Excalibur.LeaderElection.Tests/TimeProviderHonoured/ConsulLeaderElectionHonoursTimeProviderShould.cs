@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text.Json;
+using System.Collections.Concurrent;
 
 using Consul;
 
@@ -30,36 +31,45 @@ namespace Excalibur.LeaderElection.Tests.TimeProviderHonoured;
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+[Trait("Pattern", "Regression")]
 public sealed class ConsulLeaderElectionHonoursTimeProviderShould
 {
 	/// <summary>
 	/// Arranges a candidate that successfully acquires, capturing what is written to the Consul KV.
 	/// </summary>
-	private static async Task<(ConsulLeaderElection Sut, FakeTimeProvider Clock, List<KVPair> Acquired, List<KVPair> Put)> CreateLeaderAsync()
+	private static async Task<(ConsulLeaderElection Sut, FakeTimeProvider Clock, ConcurrentQueue<KVPair> Acquired, ConcurrentQueue<KVPair> Put)> CreateLeaderAsync()
 	{
 		var options = Microsoft.Extensions.Options.Options.Create(new ConsulLeaderElectionOptions
 		{
 			ConsulAddress = "http://localhost:8500",
 			InstanceId = "candidate-a",
 
-			// Far longer than any arm, so no real timer fires and every stamp under test is one this
-			// test provoked.
-			RenewInterval = TimeSpan.FromHours(1),
+			// The fake clock controls callbacks while timings retain actual session TTL headroom.
+			RenewInterval = TimeSpan.FromSeconds(5),
+			GracePeriod = TimeSpan.FromSeconds(5),
+			SessionTTL = TimeSpan.FromSeconds(30),
+			MaxRetryAttempts = 0,
 		});
 
-		var acquired = new List<KVPair>();
-		var put = new List<KVPair>();
+		var acquired = new ConcurrentQueue<KVPair>();
+		var put = new ConcurrentQueue<KVPair>();
 
 		var client = A.Fake<IConsulClient>();
-		_ = A.CallTo(() => client.Session.Create(A<SessionEntry>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new WriteResult<string> { Response = "session-1" }));
-		_ = A.CallTo(() => client.Session.Renew(A<string>._))
-			.Returns(Task.FromResult(new WriteResult<SessionEntry> { Response = new SessionEntry() }));
-		_ = A.CallTo(() => client.KV.Acquire(A<KVPair>._, A<CancellationToken>._))
-			.Invokes((KVPair p, CancellationToken _) => acquired.Add(p))
+		_ = A.CallTo(() => client.KV.Get(A<string>._, A<QueryOptions>._, A<CancellationToken>._))
+			.ReturnsLazily(() => Task.FromResult(new QueryResult<KVPair> { Response = acquired.LastOrDefault()! }));
+		_ = A.CallTo(() => client.KV.Release(A<KVPair>._, A<WriteOptions>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new WriteResult<bool> { Response = true }));
-		_ = A.CallTo(() => client.KV.Put(A<KVPair>._, A<CancellationToken>._))
-			.Invokes((KVPair p, CancellationToken _) => put.Add(p))
+		_ = A.CallTo(() => client.Session.Destroy(A<string>._, A<WriteOptions>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new WriteResult<bool> { Response = true }));
+		_ = A.CallTo(() => client.Session.Create(A<SessionEntry>._, A<WriteOptions>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new WriteResult<string> { Response = "session-1" }));
+		_ = A.CallTo(() => client.Session.Renew(A<string>._, A<WriteOptions>._, A<CancellationToken>._))
+			.ReturnsLazily((string session, WriteOptions _, CancellationToken _) => Task.FromResult(new WriteResult<SessionEntry> { Response = new SessionEntry { ID = session, TTL = TimeSpan.FromSeconds(30) } }));
+		_ = A.CallTo(() => client.KV.Acquire(A<KVPair>._, A<WriteOptions>._, A<CancellationToken>._))
+			.Invokes((KVPair p, WriteOptions _, CancellationToken _) => acquired.Enqueue(p))
+			.Returns(Task.FromResult(new WriteResult<bool> { Response = true }));
+		_ = A.CallTo(() => client.KV.Put(A<KVPair>._, A<WriteOptions>._, A<CancellationToken>._))
+			.Invokes((KVPair p, WriteOptions _, CancellationToken _) => put.Enqueue(p))
 			.Returns(Task.FromResult(new WriteResult<bool> { Response = true }));
 
 		var clock = new FakeTimeProvider();
@@ -71,7 +81,7 @@ public sealed class ConsulLeaderElectionHonoursTimeProviderShould
 		// every assertion below while being wrong for the acquisition it claims to describe.
 		clock.Advance(TimeSpan.FromHours(7));
 
-		await sut.StartAsync(CancellationToken.None);
+		await sut.StartAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
 		sut.IsLeader.ShouldBeTrue("arrangement failed: the candidate never acquired leadership, so nothing below is exercised.");
 
 		return (sut, clock, acquired, put);
@@ -101,10 +111,10 @@ public sealed class ConsulLeaderElectionHonoursTimeProviderShould
 			+ $"Members present: {string.Join(", ", document.RootElement.EnumerateObject().Select(m => m.Name))}.");
 	}
 
-	private static DateTimeOffset AcquiredAtFromConsulPayload(List<KVPair> acquired)
+	private static DateTimeOffset AcquiredAtFromConsulPayload(ConcurrentQueue<KVPair> acquired)
 	{
 		acquired.ShouldNotBeEmpty("no leader key was written, so there is no stored instant to compare.");
-		return ReadInstant(acquired[^1].Value, "AcquiredAt");
+		return ReadInstant(acquired.Last().Value, "AcquiredAt");
 	}
 
 	/// <summary>
@@ -149,7 +159,7 @@ public sealed class ConsulLeaderElectionHonoursTimeProviderShould
 		await sut.UpdateHealthAsync(isHealthy: true, metadata: null, CancellationToken.None);
 
 		put.ShouldNotBeEmpty("no health key was written, so this arm would assert nothing.");
-		ReadInstant(put[^1].Value, "LastUpdated").ShouldBe(clock.GetUtcNow());
+		ReadInstant(put.Last().Value, "LastUpdated").ShouldBe(clock.GetUtcNow());
 	}
 
 	/// <summary>
@@ -167,25 +177,34 @@ public sealed class ConsulLeaderElectionHonoursTimeProviderShould
 		{
 			ConsulAddress = "http://localhost:8500",
 			InstanceId = "candidate-default",
-			RenewInterval = TimeSpan.FromHours(1),
+			RenewInterval = TimeSpan.FromSeconds(5),
+			GracePeriod = TimeSpan.FromSeconds(5),
+			SessionTTL = TimeSpan.FromSeconds(30),
+			MaxRetryAttempts = 0,
 		});
 
-		var acquired = new List<KVPair>();
+		var acquired = new ConcurrentQueue<KVPair>();
 		var client = A.Fake<IConsulClient>();
-		_ = A.CallTo(() => client.Session.Create(A<SessionEntry>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new WriteResult<string> { Response = "session-1" }));
-		_ = A.CallTo(() => client.Session.Renew(A<string>._))
-			.Returns(Task.FromResult(new WriteResult<SessionEntry> { Response = new SessionEntry() }));
-		_ = A.CallTo(() => client.KV.Acquire(A<KVPair>._, A<CancellationToken>._))
-			.Invokes((KVPair p, CancellationToken _) => acquired.Add(p))
+		_ = A.CallTo(() => client.KV.Get(A<string>._, A<QueryOptions>._, A<CancellationToken>._))
+			.ReturnsLazily(() => Task.FromResult(new QueryResult<KVPair> { Response = acquired.LastOrDefault()! }));
+		_ = A.CallTo(() => client.KV.Release(A<KVPair>._, A<WriteOptions>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new WriteResult<bool> { Response = true }));
-		_ = A.CallTo(() => client.KV.Put(A<KVPair>._, A<CancellationToken>._))
+		_ = A.CallTo(() => client.Session.Destroy(A<string>._, A<WriteOptions>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new WriteResult<bool> { Response = true }));
+		_ = A.CallTo(() => client.Session.Create(A<SessionEntry>._, A<WriteOptions>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new WriteResult<string> { Response = "session-1" }));
+		_ = A.CallTo(() => client.Session.Renew(A<string>._, A<WriteOptions>._, A<CancellationToken>._))
+			.ReturnsLazily((string session, WriteOptions _, CancellationToken _) => Task.FromResult(new WriteResult<SessionEntry> { Response = new SessionEntry { ID = session, TTL = TimeSpan.FromSeconds(30) } }));
+		_ = A.CallTo(() => client.KV.Acquire(A<KVPair>._, A<WriteOptions>._, A<CancellationToken>._))
+			.Invokes((KVPair p, WriteOptions _, CancellationToken _) => acquired.Enqueue(p))
+			.Returns(Task.FromResult(new WriteResult<bool> { Response = true }));
+		_ = A.CallTo(() => client.KV.Put(A<KVPair>._, A<WriteOptions>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new WriteResult<bool> { Response = true }));
 
 		await using var sut = new ConsulLeaderElection(
 			"test-resource", options, client, NullLogger<ConsulLeaderElection>.Instance);
 
-		await sut.StartAsync(CancellationToken.None);
+		await sut.StartAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
 
 		AcquiredAtFromConsulPayload(acquired).ShouldBeGreaterThan(before);
 	}

@@ -69,7 +69,7 @@ public sealed class InsertOutboxMessageRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new InsertOutboxMessageRequest(TestTableName, null!, null, 30, CancellationToken.None));
+			new InsertOutboxMessageRequest(TestTableName, (OutboundMessage)null!, null, 30, CancellationToken.None));
 	}
 
 	#endregion

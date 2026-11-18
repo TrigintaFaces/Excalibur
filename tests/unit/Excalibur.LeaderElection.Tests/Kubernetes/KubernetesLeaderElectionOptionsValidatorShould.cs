@@ -203,7 +203,7 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 		// Assert — must reject; the pairwise-only validator (pre-fix) accepts this.
 		result.Failed.ShouldBeTrue();
 		result.FailureMessage.ShouldContain(nameof(KubernetesLeaderElectionOptions.LeaseDuration));
-		result.FailureMessage.ShouldContain("split-brain");
+		result.FailureMessage.ShouldContain("headroom");
 	}
 
 	[Fact]

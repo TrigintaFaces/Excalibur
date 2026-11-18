@@ -67,9 +67,7 @@ internal sealed class GetFailedOutboxMessages : DataRequest<IEnumerable<DeadLett
 
 		sql += " ORDER BY occurred_on ASC OFFSET :Offset ROWS FETCH NEXT :BatchSize ROWS ONLY";
 
-		// ODP.NET binds positionally (this store does not set BindByName), so parameters are added in the
-		// exact textual order their placeholders appear: :MaxRetries, then :OlderThan (when present), then
-		// :Offset, then :BatchSize.
+		// The static Oracle initializer preserves effective named binding; keep the same input schema.
 		var parameters = new DynamicParameters();
 		parameters.Add("MaxRetries", maxRetries, direction: ParameterDirection.Input);
 
@@ -82,6 +80,16 @@ internal sealed class GetFailedOutboxMessages : DataRequest<IEnumerable<DeadLett
 		parameters.Add("BatchSize", batchSize, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QueryAsync<DeadLetterRecord>(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.QueryAsync(conn, Command, command =>
+		{
+			OracleOutboxRowReader.Initialize(command);
+			StaticDbCommand.AddParameter(command, "MaxRetries", StaticDbCommand.Input<int>(Parameters, "MaxRetries"), DbType.Int32);
+			StaticDbCommand.AddParameter(command, "BatchSize", StaticDbCommand.Input<int>(Parameters, "BatchSize"), DbType.Int32);
+			StaticDbCommand.AddParameter(command, "Offset", StaticDbCommand.Input<int>(Parameters, "Offset"), DbType.Int32);
+			if (Parameters.ParameterNames.Contains("OlderThan", StringComparer.Ordinal))
+			{
+				StaticDbCommand.AddParameter(command, "OlderThan", StaticDbCommand.Input<DateTimeOffset>(Parameters, "OlderThan"), DbType.DateTimeOffset);
+			}
+		}, reader => OracleRecoveryRowReader.Read(reader, includePriority: true)).ConfigureAwait(false);
 	}
 }

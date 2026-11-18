@@ -92,9 +92,24 @@ services.AddGooglePubSubTransport("events", pubsub =>
               ce.UseOrderingKeys = true;
               ce.Transport.EnableCompression = true;
               ce.Transport.CompressionThreshold = 1024 * 1024; // 1MB
+              ce.Transport.MaxDecompressedBytes = 8 * 1024 * 1024; // optional; defaults to 4 MiB
           });
 });
 ```
+
+Bodies over `CompressionThreshold` are gzipped on publish and the algorithm is recorded in a message
+attribute, which the receive path reads to decompress them again.
+
+`MaxDecompressedBytes` bounds the *decompressed* size, which is a different quantity from the inbound
+limit: the compression ratio is chosen by whoever sent the message, so a payload small enough to accept
+on the wire can still expand to an arbitrarily large buffer. An over-limit message is rejected and
+settled as unprocessable, never truncated. It defaults to 4 MiB; raise it if your decompressed bodies
+are legitimately larger than that.
+
+> **Fixed:** inbound decompression was previously not wired into the receive path, so a consumer who
+> enabled compression published messages this framework could not read back — the body reached
+> deserialization still compressed. If you had `EnableCompression` on with Dispatch on both ends,
+> messages over the threshold failed to decode; they decode correctly now.
 
 #### Standalone CloudEvents Registration
 Use `AddCloudEventsForPubSub` for standalone CloudEvents configuration:
@@ -108,6 +123,11 @@ backed by a source-generated serializer.
 :::
 
 ```csharp
+// Choose how CloudEvent payloads are serialized. This is required once, and the transport
+// registration below reports it at startup if you leave it out.
+//   - with a source-generated context: reflection-free, and safe to trim or publish ahead-of-time
+//   - AddCloudEvents() with no argument: the reflective path, annotated so your build warns you
+services.AddDispatch(dispatch => dispatch.AddCloudEvents(MyPayloadContext.Default));
 services.AddCloudEventsForPubSub(options => options.UseOrderingKeys = true);
 ```
 

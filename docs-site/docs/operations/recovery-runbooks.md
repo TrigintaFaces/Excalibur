@@ -249,7 +249,7 @@ JOIN pg_catalog.pg_locks blocking_locks ON blocking_locks.locktype = blocked_loc
 **Prevention:**
 - Enable autoscale for variable workloads
 - Monitor RU consumption via Azure Monitor
-- Implement bulk operations for high-throughput scenarios
+- Evaluate bulk operations where their batching and concurrency behavior preserves required ordering, ownership and transaction semantics; measure completed work
 
 ---
 

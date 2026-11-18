@@ -50,7 +50,8 @@ public interface IDispatchMiddleware
 	/// <param name="cancellationToken"> The cancellation token to observe. </param>
 	/// <returns>
 	/// A <see cref="ValueTask{TResult}"/> representing the result of message processing, potentially modified by this middleware.
-	/// Using ValueTask enables zero-allocation dispatch on synchronous completion paths.
+	/// ValueTask can avoid allocating a Task for a synchronously completed result;
+	/// other dispatch work can still allocate.
 	/// </returns>
 	/// <remarks>
 	/// Implementations can execute logic before calling nextDelegate, after calling it, or both. To short-circuit the pipeline, don't call

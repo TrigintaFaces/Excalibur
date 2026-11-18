@@ -125,7 +125,7 @@ public sealed class OutboxTraceparentPropagationShould
 		// Arrange -- a stored outbox message whose headers carry a traceparent. The single-transport
 		// publish path (PublishSingleTransportMessageAsync) must restore it onto the rebuilt context so
 		// the transport-serialized envelope carries it (EC-A4: single path).
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
+		var store = WorkerClaimFixture.CreateStore(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
 			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
@@ -133,7 +133,7 @@ public sealed class OutboxTraceparentPropagationShould
 
 		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1", TraceparentHeaders(CallerTraceParent));
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(store, new List<OutboundMessage> { message })));
 
 		IMessageContext? publishedContext = null;
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -146,6 +146,7 @@ public sealed class OutboxTraceparentPropagationShould
 		// Assert -- non-vacuity: pre-fix the rebuilt context never set TraceParent (RED, null).
 		publishedContext.ShouldNotBeNull();
 		publishedContext.GetTraceParent().ShouldBe(CallerTraceParent);
+		WorkerClaimFixture.AssertNoWeakWrites(store);
 	}
 
 	[Fact]
@@ -153,7 +154,7 @@ public sealed class OutboxTraceparentPropagationShould
 	{
 		// Arrange -- the multi-transport per-transport publish path (PublishToTransportAsync) must ALSO
 		// restore the traceparent (EC-A4: neither path left severed).
-		var multiStoreBase = A.Fake<IOutboxStore>(o =>
+		var multiStoreBase = WorkerClaimFixture.CreateStore(o =>
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
@@ -191,7 +192,7 @@ public sealed class OutboxTraceparentPropagationShould
 	{
 		// Arrange -- a stored message without a traceparent header must not fabricate one, and must not
 		// throw (the restore is additive/only-if-present).
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
+		var store = WorkerClaimFixture.CreateStore(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
 			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
@@ -199,7 +200,7 @@ public sealed class OutboxTraceparentPropagationShould
 
 		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1");
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(store, new List<OutboundMessage> { message })));
 
 		IMessageContext? publishedContext = null;
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -212,6 +213,7 @@ public sealed class OutboxTraceparentPropagationShould
 		// Assert
 		publishedContext.ShouldNotBeNull();
 		publishedContext.GetTraceParent().ShouldBeNull();
+		WorkerClaimFixture.AssertNoWeakWrites(store);
 	}
 
 	// ----- helpers -----

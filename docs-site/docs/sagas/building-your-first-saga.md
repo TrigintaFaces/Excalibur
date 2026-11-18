@@ -43,6 +43,8 @@ An e-commerce order fulfillment process with three steps:
 
 Each step is triggered by an event. If payment fails, we must release the inventory reservation. If payment takes too long, a timeout fires to cancel the order.
 
+The examples below form one managed application: keep the state, event and saga declarations together. The first registration explicitly selects in-memory state and timeout stores for local learning; it is not a durable deployment. The SQL alternative selects SQL-backed state and timeouts; neither example selects the atomic state-and-command profile.
+
 ```mermaid
 flowchart LR
     A[StartOrderProcessing] --> B[InventoryReserved]
@@ -58,7 +60,10 @@ flowchart LR
 The saga state holds all data shared across event handlers. It extends `SagaState`, which provides the built-in `SagaId`, processed event tracking, and serialization support.
 
 ```csharp
+#nullable enable
+using System.Collections.Generic;
 using Excalibur.Saga.Orchestration;
+using Excalibur.Dispatch.Messaging;
 
 public class OrderSagaState : SagaState
 {
@@ -81,19 +86,35 @@ public class OrderSagaState : SagaState
 Events must implement `ISagaEvent` so the `SagaCoordinator` can route them to the correct saga instance. Each event carries a `SagaId` to identify which saga it belongs to.
 
 ```csharp
+#nullable enable
 using Excalibur.Dispatch;
 
 // Start event -- creates a new saga instance
 public record StartOrderProcessing(
-    string SagaId, string OrderId, string CustomerId, decimal TotalAmount) : ISagaEvent;
+    string SagaId, string OrderId, string CustomerId, decimal TotalAmount) : ISagaEvent
+{
+    public string? StepId => null;
+}
 
 // Step completion events
-public record InventoryReserved(string SagaId, string ReservationId) : ISagaEvent;
-public record PaymentProcessed(string SagaId, string TransactionId) : ISagaEvent;
-public record OrderShipped(string SagaId, string TrackingNumber) : ISagaEvent;
+public record InventoryReserved(string SagaId, string ReservationId) : ISagaEvent
+{
+    public string? StepId => null;
+}
+public record PaymentProcessed(string SagaId, string TransactionId) : ISagaEvent
+{
+    public string? StepId => null;
+}
+public record OrderShipped(string SagaId, string TrackingNumber) : ISagaEvent
+{
+    public string? StepId => null;
+}
 
 // Failure events
-public record PaymentFailed(string SagaId, string Reason) : ISagaEvent;
+public record PaymentFailed(string SagaId, string Reason) : ISagaEvent
+{
+    public string? StepId => null;
+}
 ```
 
 ## Step 3: Define a Timeout Message
@@ -101,6 +122,7 @@ public record PaymentFailed(string SagaId, string Reason) : ISagaEvent;
 Timeouts are also events. Define a timeout message for the payment deadline:
 
 ```csharp
+#nullable enable
 using Excalibur.Dispatch;
 
 public sealed class PaymentTimeout : ISagaEvent
@@ -115,9 +137,13 @@ public sealed class PaymentTimeout : ISagaEvent
 Extend `SagaBase<TState>` and implement `ISagaTimeout<T>` for declarative timeout handling:
 
 ```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Excalibur.Dispatch;
-using Excalibur.Saga;
+using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Orchestration;
+using Excalibur.Dispatch.Messaging;
 using Microsoft.Extensions.Logging;
 
 public sealed partial class OrderFulfillmentSaga(
@@ -143,7 +169,7 @@ public sealed partial class OrderFulfillmentSaga(
     /// <summary>
     /// Processes saga events and advances the workflow.
     /// </summary>
-    public override async Task HandleAsync(
+    public override async Task<SagaEventOutcome> HandleAsync(
         object eventMessage, CancellationToken cancellationToken)
     {
         switch (eventMessage)
@@ -189,7 +215,10 @@ public sealed partial class OrderFulfillmentSaga(
                 State.FailureReason = failed.Reason;
                 MarkCompleted();
                 break;
+            default:
+                return SagaEventOutcome.Declined;
         }
+        return SagaEventOutcome.Handled;
     }
 
     /// <summary>
@@ -224,7 +253,6 @@ Key points:
 ## Step 5: Register and Configure
 
 ```csharp
-using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.Orchestration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -232,10 +260,9 @@ public static class SagaConfiguration
 {
     public static IServiceCollection AddOrderSaga(this IServiceCollection services)
     {
-        // Register saga coordination infrastructure:
-        //   - InMemorySagaStore (keyed "inmemory" + "default")
-        //   - SagaCoordinator (routes ISagaEvent messages to saga instances)
-        //   - SagaHandlingMiddleware (plugs into the Dispatch pipeline)
+        // Coordination does not choose persistence. Explicitly opt into
+        // volatile state for this local example before registering the saga.
+        services.AddInMemorySagaStore();
         services.AddExcaliburOrchestration();
 
         // Register timeout delivery (in-memory timeout store + delivery service)
@@ -261,15 +288,37 @@ public static class SagaConfiguration
 }
 ```
 
-Or use the `ISagaBuilder` fluent API with a persistence provider:
+For SQL Server, use this **alternative** registration instead of `AddOrderSaga`. In this order, `UseSqlServer` selects both SQL-backed saga state and a SQL-backed timeout store; `WithTimeouts()` enables hosted delivery without replacing that selected store. Apply the state and timeout provider schemas before starting the host. This is ordinary persistence, not the [primary SQL atomic transition profile](index.md#state-only-and-atomic-durable-transitions):
 
 ```csharp
-services.AddExcalibur(excalibur => excalibur.AddSagas(saga =>
+using Excalibur.Saga.Orchestration;
+using Excalibur.Saga.SqlServer.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class SqlOrderSagaConfiguration
 {
-    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
-        .WithCoordination()
-        .WithTimeouts();
-}));
+    public static IServiceCollection AddSqlOrderSaga(
+        this IServiceCollection services, string connectionString)
+    {
+        services.AddExcalibur(excalibur => excalibur.AddSagas(saga =>
+        {
+            saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
+                .WithCoordination()
+                .WithTimeouts();
+        }));
+        services.AddSaga<OrderFulfillmentSaga, OrderSagaState>();
+        SagaRegistry.Register<OrderFulfillmentSaga, OrderSagaState>(info =>
+        {
+            info.StartsWith<StartOrderProcessing>();
+            info.Handles<InventoryReserved>();
+            info.Handles<PaymentProcessed>();
+            info.Handles<OrderShipped>();
+            info.Handles<PaymentFailed>();
+            info.Handles<PaymentTimeout>();
+        });
+        return services;
+    }
+}
 ```
 
 ## What Happens When It Works
@@ -310,27 +359,36 @@ Result: Saga ended gracefully instead of hanging indefinitely.
 
 In the event-driven model, compensation is handled explicitly in your event handlers rather than automatically by the framework. When a failure event arrives, your saga can:
 
-1. **Publish compensation commands** via the `Dispatcher`:
+1. **Buffer compensation commands** through `SendCommandAsync`, which the coordinator flushes after the state save. The base dispatcher is private. For example, replace the `PaymentFailed` branch with a call to the application method below:
 
 ```csharp
-case PaymentFailed failed:
-    State.FailureReason = failed.Reason;
+using System.Threading;
+using System.Threading.Tasks;
+using Excalibur.Dispatch;
 
-    // Compensate: release the inventory reservation
-    if (State.ReservationId is not null)
+public sealed record ReleaseInventoryCommand(string OrderId, string ReservationId)
+    : IDispatchAction;
+
+public sealed partial class OrderFulfillmentSaga
+{
+    private async Task CompensatePaymentFailureAsync(
+        PaymentFailed failed, CancellationToken cancellationToken)
     {
-        await Dispatcher.DispatchAsync(
-            new ReleaseInventoryCommand(State.OrderId, State.ReservationId),
-            cancellationToken).ConfigureAwait(false);
+        State.FailureReason = failed.Reason;
+        if (State.ReservationId is not null)
+        {
+            await SendCommandAsync(
+                new ReleaseInventoryCommand(State.OrderId, State.ReservationId),
+                cancellationToken).ConfigureAwait(false);
+        }
+        await MarkCompletedAsync(cancellationToken).ConfigureAwait(false);
     }
-
-    MarkCompleted();
-    break;
+}
 ```
 
 2. **Track compensation state** in the saga state so you know what needs undoing.
 
-This gives you full control over compensation ordering, parallel compensation, and conditional compensation based on which steps actually completed.
+Implement an idempotent handler for the application-owned `ReleaseInventoryCommand`; the snippet does not claim an external inventory service exists. Ordinary buffered commands can be stranded by a crash after state commit. Use the separately documented atomic profile when durable command intent is required. Compensation ordering remains application-owned.
 
 ## Idempotent Event Replay
 
@@ -350,14 +408,20 @@ Two limits are worth knowing before you rely on it:
 If you schedule a timeout but the step completes successfully, always cancel the timeout:
 
 ```csharp
-case PaymentProcessed paid:
-    // Cancel the payment timeout since payment succeeded
-    if (State.TimeoutId is not null)
+using System.Threading;
+using System.Threading.Tasks;
+
+public sealed partial class OrderFulfillmentSaga
+{
+    private async Task CancelConfirmedPaymentTimeoutAsync(CancellationToken cancellationToken)
     {
-        await CancelTimeoutAsync(State.TimeoutId, cancellationToken)
-            .ConfigureAwait(false);
+        if (State.TimeoutId is not null)
+        {
+            await CancelTimeoutAsync(State.TimeoutId, cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
-    break;
+}
 ```
 
 ### 2. Not using ConfigureAwait(false)
@@ -365,11 +429,16 @@ case PaymentProcessed paid:
 In library code (which sagas are), always use `ConfigureAwait(false)` on awaits:
 
 ```csharp
-// Good
-await MarkCompletedAsync(cancellationToken).ConfigureAwait(false);
+using System.Threading;
+using System.Threading.Tasks;
 
-// Bad - may deadlock in synchronous callers
-await MarkCompletedAsync(cancellationToken);
+public sealed partial class OrderFulfillmentSaga
+{
+    private async Task CompleteWithoutCapturingContextAsync(CancellationToken cancellationToken)
+    {
+        await MarkCompletedAsync(cancellationToken).ConfigureAwait(false);
+    }
+}
 ```
 
 ### 3. Not implementing ISagaTimeout for timeout messages
@@ -377,14 +446,29 @@ await MarkCompletedAsync(cancellationToken);
 If you schedule a timeout but don't implement `ISagaTimeout<T>`, the timeout message falls through to `HandleAsync` as a regular event. This works but loses the type-safety benefit:
 
 ```csharp
-// Better: Declare the timeout handler explicitly
-public sealed class OrderFulfillmentSaga
-    : SagaBase<OrderSagaState>,
-      ISagaTimeout<PaymentTimeout>  // Framework routes directly here
+using System.Threading;
+using System.Threading.Tasks;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Saga.Abstractions;
+using Excalibur.Saga.Orchestration;
+using Microsoft.Extensions.Logging;
+
+// A separate minimal example of the typed-timeout contract.
+public sealed class PaymentTimeoutExampleSaga(
+    OrderSagaState state, IDispatcher dispatcher, ILogger<PaymentTimeoutExampleSaga> logger)
+    : SagaBase<OrderSagaState>(state, dispatcher, logger), ISagaTimeout<PaymentTimeout>
 {
+    public override bool HandlesEvent(object message) => message is PaymentTimeout;
+
+    public override Task<SagaEventOutcome> HandleAsync(object message, CancellationToken ct)
+        => Task.FromResult(SagaEventOutcome.Declined);
+
     public Task HandleTimeoutAsync(PaymentTimeout message, CancellationToken ct)
     {
-        // Clean, type-safe timeout handling
+        State.FailureReason = "Payment confirmation timed out";
+        MarkCompleted();
+        return Task.CompletedTask;
     }
 }
 ```

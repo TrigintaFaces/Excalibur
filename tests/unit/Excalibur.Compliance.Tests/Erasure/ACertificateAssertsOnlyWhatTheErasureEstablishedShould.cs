@@ -36,6 +36,12 @@ namespace Excalibur.Compliance.Tests.Erasure;
 public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 {
 	private const string Subject = "the-subject-whose-certificate-must-be-honest";
+	/// <summary>
+	/// An aggregate type nothing has written to before the erasure runs, so its per-class handle is absent
+	/// from the mint ledger at the instant the erasure enumerates.
+	/// </summary>
+	private const string ClassWrittenDuringErasure = "AClassFirstWrittenMidErasure";
+
 	private const string RetainedType = "SalesRecord";
 	private const string Justification =
 		"Vehicle sales records are kept for six years under the tax code's record-keeping requirement.";
@@ -320,6 +326,155 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 	}
 
 	/// <summary>
+	/// SAFETY, and it is the end-to-end half of the concurrent-write property: a mint-ledger row whose key
+	/// creation was never confirmed stops this erasure from attesting a completion.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the one state no amount of re-reading can detect without the row saying so.</b> The row is
+	/// written BEFORE the key is created, so while a write sits between those two steps the ledger's handle
+	/// set is unchanged since the erasure read it and the key material reads absent because it genuinely is
+	/// not there yet. That is observationally identical to a writer that crashed between its row and its
+	/// mint -- which is safe and correctly ignored -- and the two diverge only after the certificate is
+	/// signed. The pending row is the only observable that separates them.
+	/// </para>
+	/// <para>
+	/// The arm records an intent and never confirms it, which is exactly the state a write in flight leaves
+	/// behind, then runs a real erasure and binds that the outcome is NOT Completed.
+	/// </para>
+	/// <para>
+	/// RED input: have the erasure read only the minted set, or drop the error it raises per pending handle.
+	/// Either way the pending row is detected and then certified over anyway, which is the original defect
+	/// -- the detection has to cost an error or it changes nothing.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task Not_attest_completion_while_a_mint_is_still_pending()
+	{
+		await using var stack = new HonestCertificateStack();
+
+		stack.LeaveAMintPendingDuringTheErasure();
+
+		var outcome = await stack.EraseAsync();
+
+		outcome.Status.ShouldNotBe(
+			ErasureRequestStatus.Completed,
+			"a mint-ledger row whose key creation was never confirmed is a write in flight, and its key may "
+			+ "come into existence after this erasure finishes. Attesting a completed erasure over it would "
+			+ "be a signed certificate covering personal data that is about to become readable, which "
+			+ "nothing downstream could ever detect. What the erasure reported instead: "
+			+ outcome.Detail);
+
+		outcome.Status.ShouldBe(
+			ErasureRequestStatus.CompletedExceptConcurrentWrites,
+			"nothing the erasure ATTEMPTED failed -- the keys it set out to destroy are gone and a write "
+			+ "arrived alongside -- so the outcome that says exactly that is the honest one. Reporting a "
+			+ "partial failure would tell an auditor something broke when nothing did. What the erasure "
+			+ "reported instead: " + outcome.Detail);
+	}
+
+	/// <summary>
+	/// SAFETY, and the one an adversarial review of the fix above constructed: a handle the erasure
+	/// ENUMERATED, attempted, and found nothing at, whose key is then created before the attestation.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the case that reports through no other path, and it is reachable with one ordinary
+	/// writer.</b> A ledger row is written before its key, so a row can exist while its key does not. The
+	/// erasure enumerates that row -- pending rows are part of the set it must decide about -- attempts the
+	/// destruction, and the key store answers that nothing is there. That is an idempotent no-op by design
+	/// and raises no error, because a handle whose key never existed has no ciphertext this erasure could
+	/// have made unreadable. Then the write finishes: it creates the key and confirms the row it had
+	/// already written.
+	/// </para>
+	/// <para>
+	/// <b>Nothing else looks at it.</b> It is not in the destroyed set, so the re-occupation probe cannot
+	/// reach it. It is no longer pending, so the two-state row cannot. And it IS in the enumerated set,
+	/// which is what an earlier version of this fix subtracted from the probe's domain -- so the handle was
+	/// enumerated, acted on, and examined by nothing, and the certificate said Completed.
+	/// </para>
+	/// <para>
+	/// ENUMERATED IS AN INTENT; DESTROYED IS A FACT. This arm is the set where they differ.
+	/// </para>
+	/// <para>
+	/// RED input: subtract the enumerated set from the attestation's probe domain, which is what the
+	/// previous revision did and what the sibling arm below cannot detect.
+	/// </para>
+	/// </remarks>
+	/// <returns>A task that completes when the outcome has been asserted.</returns>
+	[Fact]
+	public async Task Not_attest_completion_when_a_handle_it_found_empty_is_minted_before_the_attestation()
+	{
+		await using var stack = new HonestCertificateStack();
+
+		stack.CompleteAPendingMintDuringTheErasure();
+
+		var outcome = await stack.EraseAsync();
+
+		outcome.Status.ShouldNotBe(
+			ErasureRequestStatus.Completed,
+			"the erasure enumerated this handle, tried to destroy it, found nothing there -- which is "
+			+ "correctly not an error -- and the write then created the key. Live material for an erased "
+			+ "subject sits at a handle the certificate claims to have covered, and no probe over the "
+			+ "DESTROYED set can see it, because this erasure destroyed nothing at it. What the erasure "
+			+ "reported instead: " + outcome.Detail);
+
+		outcome.Status.ShouldBe(
+			ErasureRequestStatus.CompletedExceptConcurrentWrites,
+			"nothing the erasure ATTEMPTED failed, so the outcome naming a write alongside is the honest "
+			+ "one. What the erasure reported instead: " + outcome.Detail);
+	}
+
+	/// <summary>
+	/// SAFETY, and the gap a formal model found rather than a test: a write that COMPLETES between the
+	/// enumeration and the attestation, at a handle this erasure never enumerated, stops it attesting a
+	/// completion.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This handle is in none of the three sets the erasure used to examine.</b> It is not in the
+	/// enumerated set, because that set was read before the write existed. It is not in the destroyed set,
+	/// because the erasure never set out to destroy a handle it had not heard of. And it is not PENDING,
+	/// because the write finished -- so the two-state mint row, which catches a write still in flight, sees
+	/// nothing either. Each of those three mechanisms is correct and none of them reaches this.
+	/// </para>
+	/// <para>
+	/// <b>It needs no unusual behaviour to reach.</b> The write here goes into an aggregate type nothing had
+	/// written to before, which derives a per-class handle absent from the ledger when the erasure
+	/// enumerated. A subject who is re-registered mid-erasure, or who keeps trading because the law requires
+	/// their identity kept, does exactly this. The old outcome was a signed certificate asserting an erasure
+	/// over personal data that is readable right now, with nothing raised anywhere.
+	/// </para>
+	/// <para>
+	/// RED input: narrow the attestation probe's domain back to the handles this pass destroyed. The write
+	/// is then invisible to every check and the erasure reports Completed, which is the defect.
+	/// </para>
+	/// </remarks>
+	/// <returns>A task that completes when the outcome has been asserted.</returns>
+	[Fact]
+	public async Task Not_attest_completion_when_a_write_lands_at_a_handle_it_never_enumerated()
+	{
+		await using var stack = new HonestCertificateStack(writeANewClassDuringErasure: true);
+
+		var outcome = await stack.EraseAsync();
+
+		outcome.Status.ShouldNotBe(
+			ErasureRequestStatus.Completed,
+			"a handle holding live material for this subject, which this erasure neither destroyed nor "
+			+ "retained deliberately, is personal data the certificate would be attesting the erasure of. "
+			+ "The handle was minted after the enumeration, so it is in neither the enumerated set nor the "
+			+ "destroyed set, and its mint completed, so it is not pending either -- which is why a probe "
+			+ "over the LEDGER is the only thing that can see it. What the erasure reported instead: "
+			+ outcome.Detail);
+
+		outcome.Status.ShouldBe(
+			ErasureRequestStatus.CompletedExceptConcurrentWrites,
+			"nothing the erasure ATTEMPTED failed, so the outcome that says a write arrived alongside is "
+			+ "the honest one. Reporting a partial failure would tell an auditor something broke when "
+			+ "nothing did. What the erasure reported instead: " + outcome.Detail);
+	}
+
+	/// <summary>
 	/// SAFETY. A provider that cannot say whether a key is destroyed leaves the key state unmeasured, and an
 	/// unmeasured state is recorded as such rather than assumed clean.
 	/// </summary>
@@ -377,6 +532,7 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 		private readonly LegalHoldBasis _contributorBasis;
 		private readonly TimeSpan? _contributorPeriod;
 		private readonly bool _writeDuringErasure;
+		private bool _writeANewClassDuringErasure;
 		private readonly bool _keyAdminCanReportDestruction;
 		private readonly byte[] _signingKey = new byte[32];
 		private bool _started;
@@ -390,8 +546,10 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 			LegalHoldBasis contributorBasis = LegalHoldBasis.LegalObligation,
 			TimeSpan? contributorPeriod = null,
 			bool writeDuringErasure = false,
-			bool keyAdminCanReportDestruction = true)
+			bool keyAdminCanReportDestruction = true,
+			bool writeANewClassDuringErasure = false)
 		{
+			_writeANewClassDuringErasure = writeANewClassDuringErasure;
 			_contributorBasis = contributorBasis;
 			_contributorPeriod = contributorPeriod;
 			_writeDuringErasure = writeDuringErasure;
@@ -422,6 +580,10 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 
 			_ = services.AddCryptoShredding();
 			_ = services.AddDefaultTenantContext();
+						// The store reads the instant a claim lapse is decided against from a clock no caller can
+			// supply, so a container that registers it by type owes that clock. The production
+			// registration supplies it; this fixture builds its own container and must too.
+			_ = services.AddSingleton(TimeProvider.System);
 			_ = services.AddSingleton<InMemoryErasureStore>();
 			_ = services.AddSingleton<IErasureStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
 
@@ -430,6 +592,18 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 			// constructed -- and with it, a destruction the erasure service performs is recorded where a later
 			// read can find it.
 			_ = services.AddSingleton<IKeyDestructionLedger>(sp => sp.GetRequiredService<InMemoryErasureStore>());
+
+			// The write path records a mint intent for every first write per subject and obligation class,
+			// so the crypto-shredding stack cannot encrypt anything without one. Resolved from the same
+			// store as the destruction ledger, which is what the production registration does.
+			_ = services.AddSingleton<IKeyMintLedger>(sp => sp.GetRequiredService<InMemoryErasureStore>());
+
+			// This fixture wires a VOLATILE mint ledger by hand rather than through
+			// AddInMemoryErasureStore(), so nothing in its registration announces that the rows are lost on
+			// restart -- and startup correctly refuses that. These arms are about which handles an erasure
+			// destroys within a single process, so the statement is true here and stated rather than
+			// side-stepped by relaxing the guard.
+			_ = services.AcknowledgeNonDurableErasureLedger();
 
 			_provider = services.BuildServiceProvider();
 		}
@@ -450,6 +624,21 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 
 			var requestId = await GivenAnErasureAsync();
 
+			if (_completePendingMintDuringErasure)
+			{
+				var stamped = await Store.GetStatusAsync(requestId, TestContext.Current.CancellationToken);
+				await RecordAnUnconfirmedMintAsync(stamped!.TenantId, ClassWrittenDuringErasure);
+			}
+
+			if (_pendingMintDuringErasure)
+			{
+				// AFTER the request exists, so the owner is the one the store stamped, and BEFORE the service
+				// runs, so the row is already on file when the erasure enumerates -- the dominant shape of a
+				// write in flight when an erasure begins.
+				var stamped = await Store.GetStatusAsync(requestId, TestContext.Current.CancellationToken);
+				await RecordAnUnconfirmedMintAsync(stamped!.TenantId);
+			}
+
 			var result = await NewService().ExecuteAsync(requestId, TestContext.Current.CancellationToken);
 
 			var status = await Store.GetStatusAsync(requestId, TestContext.Current.CancellationToken);
@@ -469,7 +658,62 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 
 		public async ValueTask DisposeAsync() => await _provider.DisposeAsync();
 
+		private bool _pendingMintDuringErasure;
+		private bool _completePendingMintDuringErasure;
+
 		private InMemoryErasureStore Store => _provider.GetRequiredService<InMemoryErasureStore>();
+
+		/// <summary>
+		/// Arranges for an unconfirmed mint-ledger row to exist when the erasure enumerates.
+		/// </summary>
+		internal void LeaveAMintPendingDuringTheErasure() => _pendingMintDuringErasure = true;
+
+		/// <summary>
+		/// Arranges the one state no probe over the destroyed set can reach: a ledger row that exists when
+		/// the erasure enumerates, whose key does NOT exist when the erasure tries to destroy it, and whose
+		/// key is created before the attestation.
+		/// </summary>
+		/// <remarks>
+		/// The row is recorded at the handle the mid-erasure write will DERIVE, so that write completes this
+		/// same row instead of creating a second one -- which is exactly what the production write path does
+		/// when it finds a row of its own already present. The erasure therefore enumerates the handle,
+		/// attempts to destroy it, finds nothing there, and reports nothing: the absent branch is an
+		/// idempotent no-op by design. Only a probe whose domain is the LEDGER sees it afterwards.
+		/// </remarks>
+		internal void CompleteAPendingMintDuringTheErasure()
+		{
+			_completePendingMintDuringErasure = true;
+			_writeANewClassDuringErasure = true;
+		}
+
+		/// <summary>
+		/// Records a mint-ledger row for this stack's data subject and deliberately never confirms it,
+		/// which is the state a write in flight leaves behind between its row and its key.
+		/// </summary>
+		/// <returns>A task that completes when the unconfirmed row is on file.</returns>
+		/// <remarks>
+		/// The handle and the subject token are derived through the SAME functions the write path uses, so
+		/// the row this records is the row a real concurrent write would have left -- not a value this test
+		/// invented, which would bind nothing about the erasure's own enumeration.
+		/// </remarks>
+		internal async Task RecordAnUnconfirmedMintAsync(
+			string? recordedTenant,
+			string obligationClass = "AWriteInFlight")
+		{
+			var hasher = _provider.GetRequiredService<IDataSubjectHasher>();
+			// THE OWNER THE REQUEST RECORDED, read back from the store rather than assumed. The service
+			// derives its enumeration owner from status.TenantId by this same function, so taking any
+			// other value here would record a row the erasure never looks for -- the arm would pass
+			// while binding nothing.
+			var owner = SubjectKeyHandle.OwningTenant(recordedTenant);
+			var handle = SubjectKeyHandle.ForSubject(owner, Subject, hasher).Retained(obligationClass);
+
+			await ((IKeyMintLedger)Store).RecordMintIntentAsync(
+				handle.Value,
+				owner,
+				hasher.HashDataSubjectId(Subject),
+				TestContext.Current.CancellationToken);
+		}
 
 		private async ValueTask StartAsync()
 		{
@@ -565,13 +809,26 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 				// the claims these arms are about, and would make every liveness arm here unreachable.
 				TestAnnotationSource.None,
 				_provider.GetRequiredService<IErasureRetentionRegistry>(),
+
+				// THE SAME INSTANCE as the destruction ledger and the erasure store, deliberately: the
+				// production registration resolves all three from one store, so a separate mint ledger
+				// here would let these arms pass against a composition the framework cannot produce.
+				Store,
 				[
 					new RetainedContributor(
 						_contributorBasis,
 						_contributorPeriod,
-						_writeDuringErasure
+						_writeDuringErasure || _writeANewClassDuringErasure
 							? _provider.GetRequiredService<IFieldEncryptor>()
-							: null),
+							: null,
+						// OUTSIDE any aggregate, so the write lands on the PLAIN handle this erasure
+						// destroyed and the re-occupation probe is what catches it -- or INTO a class
+						// whose handle was never minted, so the handle is in neither the enumerated set
+						// nor the destroyed set and only a probe over the LEDGER can catch it. Two
+						// different defects, one parameter, and the arms name which they are about.
+						_writeANewClassDuringErasure
+							? RetentionScope.For(ClassWrittenDuringErasure)
+							: RetentionScope.NotInAnAggregate),
 				]);
 
 		/// <summary>
@@ -582,7 +839,8 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 		private sealed class RetainedContributor(
 			LegalHoldBasis basis,
 			TimeSpan? period,
-			IFieldEncryptor? writesDuringErasure) : IErasureContributor
+			IFieldEncryptor? writesDuringErasure,
+			RetentionScope writeScope) : IErasureContributor
 		{
 			public string Name => "EventStore";
 
@@ -600,7 +858,7 @@ public sealed class ACertificateAssertsOnlyWhatTheErasureEstablishedShould
 					// because the law requires their identity kept, does exactly this.
 					_ = await writesDuringErasure.EncryptAsync(
 						Subject,
-						RetentionScope.NotInAnAggregate,
+						writeScope,
 						"a field written while the erasure was running"u8.ToArray(),
 						cancellationToken);
 				}

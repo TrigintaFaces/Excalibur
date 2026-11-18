@@ -37,3 +37,11 @@ For the complete text of each license, please refer to the respective files in t
 - `licenses/LICENSE-EXCALIBUR.txt`
 - `licenses/LICENSE-AGPL-3.0.txt`
 - `licenses/LICENSE-SSPL-1.0.txt`
+
+### Third-party license text, not available for selection
+
+A fourth file, `licenses/LICENSE-APACHE-2.0.txt`, is also distributed. It is **not** one of the
+licenses offered above and cannot be selected for this software. It is the verbatim Apache License
+2.0, included because a portion of `Excalibur.Dispatch` is adapted from the Apache-2.0 licensed
+CloudEvents C# SDK, and that license asks for a copy of its text to accompany a derivative work.
+`THIRD-PARTY-NOTICES.md` records exactly which code the attribution covers.

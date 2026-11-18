@@ -322,7 +322,9 @@ The `Excalibur.Dispatch.Hosting.AspNetCore` package does the whole mapping in on
 
 ## Handler Execution Order
 
-By default, event handlers execute in **parallel** for maximum throughput. You can control execution behavior through pipeline profiles:
+For local event delivery through `LocalMessageBus`, Dispatch invokes each handler before awaiting the collected asynchronous operations. Asynchronous work can overlap, while synchronous work in one invocation can delay the next handler. Dispatch waits for all operations to finish; completion order and execution on separate threads are not guaranteed. Handlers can share scoped dependencies, so they must coordinate shared mutable state.
+
+The following pipeline profiles select middleware; they do not configure event fan-out scheduling:
 
 ```csharp
 builder.Services.AddDispatch(dispatch =>
@@ -447,7 +449,7 @@ must not arrive wrapped.
 | `IEventHandler<TEvent>` | Handler interface for events |
 | `DispatchAsync` | Dispatches event to all registered handlers |
 | Multiple handlers | Same event can have many handlers |
-| Parallel execution | Default behavior for throughput |
+| Local event fan-out | Asynchronous handler work can overlap; no completion-order guarantee |
 
 ## Gotchas and Common Mistakes
 

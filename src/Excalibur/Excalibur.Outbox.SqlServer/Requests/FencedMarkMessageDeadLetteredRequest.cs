@@ -54,6 +54,11 @@ internal sealed class FencedMarkMessageDeadLetteredRequest : DataRequestBase<IDb
 	/// <param name="fencingToken">The presented tenure token.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public FencedMarkMessageDeadLetteredRequest(
 		string outboxTableName,
 		string fenceTableName,
@@ -116,6 +121,14 @@ internal sealed class FencedMarkMessageDeadLetteredRequest : DataRequestBase<IDb
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.QuerySingleAsync<FencedClaimMutationResult>(Command).ConfigureAwait(false);
+			await StaticDbCommand.SingleAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "Scope", StaticDbCommand.Input<string>(Parameters, "Scope"), DbType.String);
+				StaticDbCommand.AddParameter(command, "FencingToken", StaticDbCommand.Input<long>(Parameters, "FencingToken"), DbType.Int64);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "Reason", StaticDbCommand.Input<string>(Parameters, "Reason"), DbType.String);
+				StaticDbCommand.AddParameter(command, "AttemptCount", StaticDbCommand.Input<int>(Parameters, "AttemptCount"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "LastAttemptAt", StaticDbCommand.Input<DateTimeOffset>(Parameters, "LastAttemptAt"), DbType.DateTimeOffset);
+			}, static reader => new FencedClaimMutationResult { HighWaterToken = StaticDbValue.Int64(reader, 0), UpdatedCount = StaticDbValue.Int32(reader, 1), RowExists = StaticDbValue.Boolean(reader, 2), IsTerminal = StaticDbValue.Boolean(reader, 3) }).ConfigureAwait(false);
 	}
 }

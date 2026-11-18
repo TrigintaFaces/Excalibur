@@ -23,17 +23,21 @@ namespace Excalibur.Dispatch.Examples.ECommerceSample;
 /// </remarks>
 public sealed partial class NotificationDrainService(
 	IOutboxStore outboxStore,
-	InMemoryEmailService emailService,
+	IEmailSender emailService,
 	PerformanceMonitor monitor,
-	ILogger<NotificationDrainService> logger) : BackgroundService
+	ILogger<NotificationDrainService> logger,
+	TimeProvider? timeProvider = null) : BackgroundService
 {
 	private const int BatchSize = 20;
 	private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(250);
 
 	private readonly IOutboxStore _outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
-	private readonly InMemoryEmailService _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
+	private readonly IEmailSender _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
 	private readonly PerformanceMonitor _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
 	private readonly ILogger<NotificationDrainService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+	private readonly IClaimScopedOutboxStore _completion = outboxStore.GetService(typeof(IClaimScopedOutboxStore)) as IClaimScopedOutboxStore
+		?? throw new InvalidOperationException("The notification drainer requires acquisition-scoped outbox completion.");
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
@@ -44,7 +48,6 @@ public sealed partial class NotificationDrainService(
 			try
 			{
 				await DrainOnceAsync(stoppingToken).ConfigureAwait(false);
-				await Task.Delay(PollInterval, stoppingToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
@@ -53,6 +56,15 @@ public sealed partial class NotificationDrainService(
 			catch (Exception ex)
 			{
 				LogDrainCycleFailed(ex);
+			}
+			// Failed reads observe the same post-cycle interval as successful work.
+			try
+			{
+				await Task.Delay(PollInterval, _timeProvider, stoppingToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			{
+				break;
 			}
 		}
 
@@ -64,37 +76,87 @@ public sealed partial class NotificationDrainService(
 		using var activity = SampleTelemetry.Orders.StartActivity("NotificationDrain.Drain");
 
 		var claimed = await _outboxStore.GetUnsentMessagesAsync(BatchSize, cancellationToken).ConfigureAwait(false);
-
+		// Freeze the entire batch before any sender callback can mutate a detached store row.
+		var acquisitions = claimed.Select(message => new NotificationAcquisition(
+			message.Id, message.DispatcherId, message.RetryCount, message.Payload.ToArray())).ToArray();
+		foreach (var acquisition in acquisitions)
+		{
+			if (string.IsNullOrWhiteSpace(acquisition.MessageId) || string.IsNullOrWhiteSpace(acquisition.ClaimIdentity))
+			{
+				throw new InvalidOperationException("The notification batch contains missing acquisition evidence.");
+			}
+		}
 		var sent = 0;
-		foreach (var message in claimed)
+		foreach (var acquisition in acquisitions)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-
 			try
 			{
-				var notification = JsonSerializer.Deserialize<EmailNotification>(message.Payload)
-					?? throw new InvalidOperationException($"Outbox message '{message.Id}' carried an empty payload.");
-
+				var notification = JsonSerializer.Deserialize<EmailNotification>(acquisition.Payload)
+					?? throw new InvalidOperationException($"Outbox message '{acquisition.MessageId}' carried an empty payload.");
 				await _emailService.SendEmailAsync(notification, cancellationToken).ConfigureAwait(false);
-				await _outboxStore.MarkSentAsync(message.Id, cancellationToken).ConfigureAwait(false);
-
-				_monitor.RecordNotificationSent();
-				sent++;
-				LogSent(message.Id);
 			}
-			catch (Exception ex) when (ex is not OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
-				await _outboxStore
-					.MarkFailedAsync(message.Id, ex.Message, message.RetryCount + 1, cancellationToken)
-					.ConfigureAwait(false);
-
-				_monitor.RecordNotificationSendRetry();
-				LogSendFailed(message.Id, ex.Message);
+				throw;
 			}
+			catch (Exception failure)
+			{
+				// Only a pre-acceptance delivery failure consumes an attempt; settlement has its own boundary.
+				try
+				{
+					var outcome = await _completion.MarkFailedAsync(acquisition.MessageId, failure.Message,
+						checked(acquisition.RetryCount + 1), acquisition.ClaimIdentity!, cancellationToken).ConfigureAwait(false);
+					if (outcome == OutboxCompletionOutcome.Applied)
+					{
+						_monitor.RecordNotificationSendRetry();
+						LogSendFailed(acquisition.MessageId, failure.Message);
+					}
+					else
+					{
+						LogCompletionRefused(acquisition.MessageId, "Failed", outcome);
+						if (outcome == OutboxCompletionOutcome.FenceRefused) { break; }
+					}
+				}
+				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+				catch (OutboxFenceRefusedException refusal) { LogAuthorityRefused(acquisition.MessageId, "Failed", refusal); break; }
+				catch (Exception settlementFailure) { LogCompletionFailed(acquisition.MessageId, "Failed", settlementFailure); }
+				continue;
+			}
+			// The sender accepted the notification. Never turn a settlement fault into another delivery failure.
+			try
+			{
+				var outcome = await _completion.MarkSentAsync(acquisition.MessageId, acquisition.ClaimIdentity!, cancellationToken).ConfigureAwait(false);
+				if (outcome == OutboxCompletionOutcome.Applied)
+				{
+					_monitor.RecordNotificationSent();
+					sent++;
+					LogSent(acquisition.MessageId);
+				}
+				else
+				{
+					LogCompletionRefused(acquisition.MessageId, "Sent", outcome);
+					if (outcome == OutboxCompletionOutcome.FenceRefused) { break; }
+				}
+			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+			catch (OutboxFenceRefusedException refusal) { LogAuthorityRefused(acquisition.MessageId, "Sent", refusal); break; }
+			catch (Exception settlementFailure) { LogCompletionFailed(acquisition.MessageId, "Sent", settlementFailure); }
 		}
 
 		_ = activity?.SetTag("sent_count", sent);
 	}
+
+	private readonly record struct NotificationAcquisition(string MessageId, string? ClaimIdentity, int RetryCount, byte[] Payload);
+
+	[LoggerMessage(1006, LogLevel.Warning, "Outbox {Operation} completion refused for {MessageId}: {Outcome}")]
+	private partial void LogCompletionRefused(string messageId, string operation, OutboxCompletionOutcome outcome);
+
+	[LoggerMessage(1007, LogLevel.Error, "Outbox {Operation} settlement failed for {MessageId}; leave the claim for lease recovery")]
+	private partial void LogCompletionFailed(string messageId, string operation, Exception exception);
+
+	[LoggerMessage(1008, LogLevel.Warning, "Outbox {Operation} authority refused for {MessageId}; stop the current drain")]
+	private partial void LogAuthorityRefused(string messageId, string operation, Exception exception);
 
 	[LoggerMessage(1001, LogLevel.Information, "Notification drain started")]
 	private partial void LogStarted();
@@ -123,7 +185,8 @@ public sealed partial class NotificationDrainService(
 public sealed partial class InventoryCheckProcessor(
 	IScheduleStore scheduleStore,
 	InventoryService inventoryService,
-	ILogger<InventoryCheckProcessor> logger) : BackgroundService
+	ILogger<InventoryCheckProcessor> logger,
+	TimeProvider? timeProvider = null) : BackgroundService
 {
 	private const int BatchSize = 20;
 	private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(250);
@@ -134,6 +197,7 @@ public sealed partial class InventoryCheckProcessor(
 		inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
 
 	private readonly ILogger<InventoryCheckProcessor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
 	/// <summary>
 	/// Whether a stored schedule is an inventory check that is due now. Also used by the run's assertions to
@@ -158,7 +222,6 @@ public sealed partial class InventoryCheckProcessor(
 			try
 			{
 				await ExecuteDueChecksAsync(stoppingToken).ConfigureAwait(false);
-				await Task.Delay(PollInterval, stoppingToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
@@ -167,6 +230,15 @@ public sealed partial class InventoryCheckProcessor(
 			catch (Exception ex)
 			{
 				LogCycleFailed(ex);
+			}
+			// Failed reads observe the same post-cycle interval as successful work.
+			try
+			{
+				await Task.Delay(PollInterval, _timeProvider, stoppingToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			{
+				break;
 			}
 		}
 

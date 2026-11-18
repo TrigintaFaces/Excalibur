@@ -26,6 +26,20 @@ public interface IScheduleSpec
 	/// </value>
 	string? TimeZoneId { get; set; }
 
+    /// <summary>Gets or sets the explicit persisted cron transition profile identifier.</summary>
+    /// <remarks>
+    /// Pair with <see cref="CronRecurrenceProfileVersion"/>. The supported pair is
+    /// <see cref="CronRecurrenceProfile.CronosCompatible"/>. A missing declaration is
+    /// permitted only for non-cron or provably transition-free installed zones. Unknown,
+    /// partial or mismatched declarations never fall back silently. Existing captured
+    /// UTC occurrences retain their admitted authority; future admissions require valid configuration.
+    /// </remarks>
+    string? CronRecurrenceProfileId { get; set; }
+
+    /// <summary>Gets or sets the semantic version paired with <see cref="CronRecurrenceProfileId"/>.</summary>
+    int? CronRecurrenceProfileVersion { get; set; }
+
+
 	/// <summary>
 	/// Gets or sets the fixed interval for simple recurring schedule patterns.
 	/// </summary>

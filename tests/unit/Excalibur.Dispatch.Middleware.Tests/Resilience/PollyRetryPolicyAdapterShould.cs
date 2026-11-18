@@ -130,8 +130,8 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<InvalidOperationException>(
-			() => adapter.ExecuteAsync<int>(_ => throw new InvalidOperationException("Persistent failure"), CancellationToken.None));
+		_ = await Should.ThrowAsync<TimeoutException>(
+			() => adapter.ExecuteAsync<int>(_ => throw new TimeoutException("Persistent failure"), CancellationToken.None));
 	}
 
 	[Fact]

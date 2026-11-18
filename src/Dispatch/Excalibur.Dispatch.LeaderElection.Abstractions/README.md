@@ -1,17 +1,17 @@
 # Excalibur.Dispatch.LeaderElection.Abstractions
 
-Core abstractions for distributed leader election in .NET 9 applications.
+Core abstractions for distributed leader election in .NET applications. See the selected package's target frameworks for deployment compatibility.
 
 ## Overview
 
 This package provides the foundational interfaces and types for implementing leader election patterns in distributed systems. It contains **no implementation** - install a provider package (Consul, Kubernetes, or InMemory) for concrete functionality.
 
 **Key Features**:
-- **Provider-agnostic** - Define your logic once, swap providers without code changes
+- **Provider abstraction** - Share application-facing contracts; verify provider-specific failure and recovery behavior when changing providers
 - **Event-driven** - React to leadership changes via events
 - **Health-aware** - Optional health-based leadership with automatic step-down
-- **AOT Compatible** - Full Native AOT support for trimmed, ahead-of-time compiled deployments
-- **Zero Dependencies** - No external dependencies beyond .NET 9 base libraries
+- **NativeAOT verification required** - The project enables AOT compatibility analysis; publish and execute the selected application and provider paths before claiming native compatibility
+- **No provider dependency** - References Dispatch abstractions and Microsoft.Extensions dependency injection, logging and options packages; install the selected provider separately
 
 ---
 
@@ -25,11 +25,11 @@ This package alone provides **no functionality**. You must also install a provid
 
 ### Choose a Provider
 
-| Provider | Package | Use Case | AOT Support |
+| Provider | Package | Use Case | Native Verification |
 |----------|---------|----------|-------------|
-| **Consul** | `Excalibur.Dispatch.LeaderElection.Consul` | Production deployments with HashiCorp Consul | ❌ No |
-| **Kubernetes** | `Excalibur.Dispatch.LeaderElection.Kubernetes` | Cloud-native apps running in Kubernetes clusters | ❌ No |
-| **InMemory** | `Excalibur.Dispatch.LeaderElection.InMemory` | Unit/integration testing, development | ✅ Yes |
+| **Consul** | `Excalibur.Dispatch.LeaderElection.Consul` | Deployments with HashiCorp Consul | Verify selected provider/dependency paths |
+| **Kubernetes** | `Excalibur.Dispatch.LeaderElection.Kubernetes` | Apps running in Kubernetes clusters | Verify selected provider/dependency paths |
+| **InMemory** | `Excalibur.Dispatch.LeaderElection.InMemory` | Unit/integration testing, development | Verify selected native application; not a distributed-provider substitute |
 
 **Example**: Install Consul provider
 
@@ -228,24 +228,31 @@ services.AddSingleton(sp =>
 Base configuration for all leader election implementations.
 
 ```csharp
-public class LeaderElectionOptions
+using Excalibur.Dispatch.LeaderElection;
+
+public static class LeaderElectionConfiguration
 {
-    // Core timing configuration
-    public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromSeconds(15);
-    public TimeSpan RenewInterval { get; set; } = TimeSpan.FromSeconds(5);
-    public TimeSpan RetryInterval { get; set; } = TimeSpan.FromSeconds(2);
-    public TimeSpan GracePeriod { get; set; } = TimeSpan.FromSeconds(5);
-
-    // Identity
-    public string InstanceId { get; set; } = Environment.MachineName;
-    public IDictionary<string, string> CandidateMetadata { get; }
-
-    // Health-based election settings
-    public bool EnableHealthChecks { get; set; } = true;
-    public double MinimumHealthScore { get; set; } = 0.8;
-    public bool StepDownWhenUnhealthy { get; set; } = true;
+    public static LeaderElectionOptions Create() => new()
+    {
+        LeaseDuration = TimeSpan.FromSeconds(15),
+        RenewInterval = TimeSpan.FromSeconds(5),
+        RetryInterval = TimeSpan.FromSeconds(2),
+        GracePeriod = TimeSpan.FromSeconds(5),
+        InstanceId = null,
+        EnableHealthChecks = true,
+        MinimumHealthScore = 0.8,
+        StepDownWhenUnhealthy = true,
+    };
 }
 ```
+
+`CandidateMetadata` is an initialized dictionary owned by these options; populate it with application-specific candidate metadata.
+
+An unset `InstanceId` resolves from `HOSTNAME`, then `POD_NAME`. If neither supplies a nonblank value,
+the resolver generates a complete 32-character GUID without separators. This fallback does not include
+the machine name, cannot lose randomness through hostname truncation, and changes on restart. Configure
+a stable identity when an instance must recognize its previous tenure. Configured and environment
+identifiers are preserved as supplied.
 
 **Configuration Example**:
 
@@ -532,7 +539,7 @@ _election.OnBecameLeader += Handler;
 
 ## Testing
 
-For unit and integration testing, use the **InMemory provider** which supports AOT and has zero external dependencies.
+For unit and integration testing, the **InMemory provider** avoids an external coordination service. It does not establish distributed failure behavior or native compatibility for a production provider; verify those paths separately.
 
 ```bash
 dotnet add package Excalibur.Dispatch.LeaderElection.InMemory

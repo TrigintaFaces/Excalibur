@@ -146,6 +146,11 @@ public sealed class RabbitMqCloudEventConformanceTests : CloudEventTransportConf
 			});
 
 		var services = new ServiceCollection();
+
+		// The conformance kit exercises a transport's own UseCloudEvents entry point, which cannot
+		// choose a consumer's serialization strategy on their behalf. Registering it here is what a
+		// host does by calling AddCloudEvents; without it the transport's fail-fast guard fires.
+		services.AddSingleton(TestCloudEventSerializers.Reflection);
 		_ = services.AddLogging();
 		_ = services.AddSingleton(channel);
 		// A connection string is REQUIRED by this transport's options validator, and supplying one is part

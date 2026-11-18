@@ -30,13 +30,78 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 /// </remarks>
 internal static class ShippedComplianceSchema
 {
-	private const string CreateScript = "SqlServer.001_CreateComplianceSchema.sql";
+	private const string ScriptPrefix = "Schema.Compliance.SqlServer.0";
 
-	/// <summary>Creates the compliance schema in its shipped, fresh-install shape.</summary>
+	/// <summary>
+	/// Provisions the compliance schema the way a consumer is told to: every shipped script, in numeric
+	/// order.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This ran ONE script -- the create script -- and that is not a path any consumer takes. The erasure
+	/// store's startup verifier requires <c>ErasureMintedKeys</c> and <c>ErasureTokenFingerprint</c>, and
+	/// only <c>006</c> and <c>007</c> create them, so a suite provisioned from the first alone was
+	/// rehearsing a configuration the README does not describe and nobody runs. Those scripts were not
+	/// even embedded in this project, so nothing could have noticed.
+	/// </para>
+	/// <para>
+	/// THE SET IS DERIVED FROM THE MANIFEST, NOT LISTED HERE. A list in this file is a second copy of the
+	/// package's script directory and is free to drift from it -- which is the defect this method is
+	/// being corrected for, one level up. Everything embedded under the dialect's folder runs, ordered by
+	/// its zero-padded number, so adding a script to the package and linking it in there is sufficient
+	/// and no edit here is required.
+	/// </para>
+	/// <para>
+	/// THE PACKAGE SEGMENT IN THAT PATH IS LOAD-BEARING. <c>Schema/SqlServer/</c> is a folder five
+	/// packages link into, so a derivation over it would also run the activity-group, grant, dead-letter
+	/// and schedule create scripts -- every one guarded, and therefore green, while claiming to be the
+	/// compliance sequence. A wildcard is only honest when the thing it globs IS the population.
+	/// </para>
+	/// <para>
+	/// KEY ESCROW (<c>002</c>) IS OUTSIDE THIS FOLDER DELIBERATELY -- it is embedded, at
+	/// <c>Schema/002_CreateKeyEscrowSchema.sql</c>, and <c>ShippedKeyEscrowSchema</c> owns it. It
+	/// provisions a different store and the README marks it conditional on registering escrow, so
+	/// pulling it in here would give one set of tables two provisioning owners.
+	/// </para>
+	/// </remarks>
 	/// <param name="connectionString">The target database.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task EnsureCreatedAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteScriptAsync(connectionString, LoadShipped(CreateScript), cancellationToken);
+	public static async Task EnsureCreatedAsync(string connectionString, CancellationToken cancellationToken)
+	{
+		foreach (var script in ShippedScriptsInOrder())
+		{
+			await ExecuteScriptAsync(connectionString, script, cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>Every embedded SQL Server provisioning script, in the order a consumer applies them.</summary>
+	private static IReadOnlyList<string> ShippedScriptsInOrder()
+	{
+		var assembly = Assembly.GetExecutingAssembly();
+		var names = Array.FindAll(
+			assembly.GetManifestResourceNames(),
+			n => n.Contains(ScriptPrefix, StringComparison.Ordinal)
+				&& n.EndsWith(".sql", StringComparison.Ordinal));
+
+		if (names.Length == 0)
+		{
+			throw new InvalidOperationException(
+				"No SQL Server compliance provisioning scripts are embedded in "
+				+ $"{assembly.GetName().Name}. They are linked in by the test project's EmbeddedResource "
+				+ "items; without them these suites would provision nothing and then report a schema "
+				+ "failure that looks like a product defect.");
+		}
+
+		// Ordinal on the resource name is numeric because the names are zero-padded to three digits.
+		Array.Sort(names, StringComparer.Ordinal);
+		var scripts = new List<string>(names.Length);
+		foreach (var name in names)
+		{
+			scripts.Add(ReadResource(assembly, name));
+		}
+
+		return scripts;
+	}
 
 	/// <summary>
 	/// Drops the two inventory tables and re-provisions them from the shipped create script.
@@ -218,6 +283,11 @@ internal static class ShippedComplianceSchema
 				"It is linked in by the test project's EmbeddedResource item; if that item was removed, " +
 				"these suites would silently fall back to a schema no consumer has.");
 
+		return ReadResource(assembly, resourceName);
+	}
+
+	private static string ReadResource(Assembly assembly, string resourceName)
+	{
 		using var stream = assembly.GetManifestResourceStream(resourceName)!;
 		using var reader = new StreamReader(stream);
 

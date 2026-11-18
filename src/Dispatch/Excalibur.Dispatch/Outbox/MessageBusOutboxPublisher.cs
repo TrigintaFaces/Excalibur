@@ -68,12 +68,12 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	private readonly IFencedClaimScopedOutboxStore? _fencedClaimScopedStore;
 	private readonly ILeaderProcessingGate? _leaderGate;
 	private readonly bool _fencingActive;
+	private readonly OutboxTenureAdmission _tenureAdmission;
 
 	// Outbox-read DoS guard limit: from OutboxDeliveryOptions; bounded 4 MiB when unconfigured
 	// (never inert), null = explicit opt-out.
 	private readonly int? _maxPayloadBytes;
 
-	private ValueStopwatch _operationStopwatch = ValueStopwatch.Empty;
 	private long _totalOperations;
 	private long _totalPublished;
 	private long _totalFailed;
@@ -111,6 +111,8 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			outboxStore.GetService(typeof(IFencedClaimScopedOutboxStore)) as IFencedClaimScopedOutboxStore;
 		_leaderGate = ResolveLeaderGate(serviceProvider);
 		_fencingActive = ResolveFencingActive(serviceProvider, _leaderGate);
+		_tenureAdmission = new OutboxTenureAdmission(_fencingActive, _leaderGate);
+		EnsureClaimCompletionCapability();
 	}
 
 	/// <summary>
@@ -145,6 +147,19 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			outboxStore.GetService(typeof(IFencedClaimScopedOutboxStore)) as IFencedClaimScopedOutboxStore;
 		_leaderGate = ResolveLeaderGate(serviceProvider);
 		_fencingActive = ResolveFencingActive(serviceProvider, _leaderGate);
+		_tenureAdmission = new OutboxTenureAdmission(_fencingActive, _leaderGate);
+		EnsureClaimCompletionCapability();
+	}
+
+	private void EnsureClaimCompletionCapability()
+	{
+		if (_fencingActive ? _fencedStore is null || _fencedClaimScopedStore is null : _claimScopedStore is null)
+		{
+			throw new InvalidOperationException($"The configured outbox publisher requires " +
+				(_fencingActive ? "IFencedOutboxStore and IFencedClaimScopedOutboxStore" : "IClaimScopedOutboxStore") +
+				$" from '{_outboxStore.GetType().FullName}'. Register a store implementing atomic acquisition-scoped completion; " +
+				"legacy direct completion methods cannot safely complete a framework worker's lease.");
+		}
 	}
 
 	// Bounded-by-default (4 MiB) unless OutboxDeliveryOptions is registered with an explicit value/opt-out.
@@ -171,65 +186,60 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	/// <summary>
 	/// Claims a batch, presenting the leadership token when both a tenure and a fencing-capable store exist.
 	/// </summary>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private ValueTask<IEnumerable<OutboundMessage>> ClaimBatchAsync(int batchSize, CancellationToken cancellationToken)
+	private ValueTask<IEnumerable<OutboundMessage>> ClaimBatchAsync(int batchSize, long? capturedToken, CancellationToken cancellationToken)
 	{
-		if (_fencingActive && _fencedStore is { } fenced && _leaderGate?.FencingToken is { } token)
+		if (_fencingActive && _fencedStore is { } fenced && capturedToken is { } token)
 		{
 			return fenced.GetUnsentMessagesAsync(batchSize, token, cancellationToken);
 		}
 
-		GuardActiveGateHasFencingToken();
+		GuardCapturedToken(capturedToken);
 		return _outboxStore.GetUnsentMessagesAsync(batchSize, cancellationToken);
 	}
 
 	/// <summary>
 	/// Marks a message sent, presenting the leadership token when both a tenure and a fencing-capable store exist.
 	/// </summary>
-	private ValueTask MarkSentFencedAsync(string messageId, CancellationToken cancellationToken)
+	private ValueTask<OutboxCompletionOutcome> MarkSentFencedAsync(OutboxClaimEvidence claim, long? capturedToken, CancellationToken cancellationToken)
 	{
-		if (_fencingActive && _fencedStore is { } fenced && _leaderGate?.FencingToken is { } token)
+		if (_fencingActive)
 		{
-			return fenced.MarkSentAsync(messageId, token, cancellationToken);
+			if (capturedToken is not { } token) { throw new OutboxFencingTokenUnavailableException(); }
+			return _fencedClaimScopedStore!.MarkSentAsync(claim.MessageId,
+				new OutboxWriteAuthority(token, claim.ClaimIdentity), cancellationToken);
 		}
-
-		GuardActiveGateHasFencingToken();
-		return _outboxStore.MarkSentAsync(messageId, cancellationToken);
+		return _claimScopedStore!.MarkSentAsync(claim.MessageId, claim.ClaimIdentity, cancellationToken);
 	}
 
-	/// <summary>
-	/// Composition guard: a leader gate that is <em>present</em> but yields no fencing token MUST fail closed
-	/// rather than fall through to the unfenced members.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// Checking leadership and then draining is check-then-act, not a fence: a dispatcher that loses its
-	/// tenure while paused resumes, observes its own stale snapshot, and writes. The token is what the store
-	/// compares against its durable high-water, so a drain that cannot present one under an active tenure has
-	/// no way to be refused and must refuse itself. With no election configured a null token is the
-	/// legitimate unfenced path and drains normally.
-	/// </para>
-	/// <para>
-	/// <b>CALL THIS ONLY FROM A <c>try</c> WHOSE <c>catch</c> HANDLES
-	/// <see cref="OutboxFenceRefusedException"/>.</b> It refuses by THROWING, and a throw raised from
-	/// inside a <c>catch</c> clause is not eligible for any sibling <c>catch</c> on the same <c>try</c> --
-	/// it propagates out of the whole construct and abandons every remaining message in the batch. The
-	/// completion paths that run inside the drain's exception handling therefore REPORT the same refusal
-	/// instead of calling this; see the refusal blocks in the failure and dead-letter members. That
-	/// asymmetry is deliberate and this is the reason for it.
-	/// </para>
-	/// </remarks>
-	private void GuardActiveGateHasFencingToken()
+	private void GuardCapturedToken(long? capturedToken)
 	{
-		if (_fencingActive && _leaderGate?.FencingToken is null)
+		if (_fencingActive && capturedToken is null)
 		{
-			throw new OutboxFencingTokenUnavailableException(
-				"The outbox leader gate is active but no fencing token is available for the current tenure; " +
-				"refusing to drain unfenced. A fenced leader election must present a monotonic fencing token. " +
-				"Draining without one would let a superseded leader publish messages a live leader has claimed.");
+			throw new OutboxFencingTokenUnavailableException("An admitted fenced drain must retain its captured token.");
 		}
 	}
+
+	private static PublishingResult IncompleteResult(int successes, int failures, int skipped,
+		IReadOnlyList<PublishingError> errors, TimeSpan duration,
+		PublishingOutcome outcome = PublishingOutcome.TenureRefused) => new()
+	{
+		SuccessCount = successes,
+		FailureCount = failures,
+		SkippedCount = skipped,
+		Errors = errors,
+		Duration = duration,
+		Outcome = outcome,
+	};
+
+	private void ObserveRefusal(long? capturedToken, OutboxFenceRefusedException? error = null)
+	{
+		// An unavailable-token guard is not evidence of a durable high-water mark.
+		if (error is not OutboxFencingTokenUnavailableException)
+		{
+			_tenureAdmission.Reject(capturedToken);
+		}
+	}
+
 
 	/// <inheritdoc />
 	public async Task<OutboundMessage> PublishAsync(
@@ -326,20 +336,14 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public Task<PublishingResult> PublishPendingMessagesAsync(CancellationToken cancellationToken) =>
 		DrainClaimedBatchAsync(cancellationToken);
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public Task<PublishingResult> PublishScheduledMessagesAsync(CancellationToken cancellationToken) =>
 		DrainClaimedBatchAsync(cancellationToken);
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public Task<PublishingResult> RetryFailedMessagesAsync(
 		int maxRetries,
 		CancellationToken cancellationToken)
@@ -355,12 +359,12 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	}
 
 	/// <summary>
-	/// Claims a batch of due messages and publishes it. This is the <b>only</b> path in this publisher that
-	/// hands a message to a transport.
+	/// Claims a batch of due messages and publishes it. All pending, scheduled and retry row drains share this path.
+	/// The per-transport drain independently uses the same tenure admission state.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// Every drain entry point funnels through here, so a message reaches a transport only after this
+	/// Every row-drain entry point funnels through here, so a claimed row reaches a transport only after this
 	/// dispatcher has won a lease on it. The store's claim is an atomic read-decide-write, so two concurrent
 	/// dispatchers receive disjoint batches and neither can publish a row the other holds.
 	/// </para>
@@ -368,7 +372,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	/// The claim is also what decides <em>which</em> rows are due, and it already admits the two categories
 	/// that once had their own loops: a scheduled row becomes claimable when its scheduled time has arrived,
 	/// and a failed row becomes claimable when the next-attempt floor written by the failure path has
-	/// elapsed. Selecting those categories with a separate plain read was check-then-act — the read observed
+	/// elapsed. Selecting those categories with a separate plain read was check-then-act â€” the read observed
 	/// a row as free without conditionally taking it, so two dispatchers could both publish it, and the
 	/// failed read consulted no floor at all and re-published a message the same drain had just deferred.
 	/// Routing them through the claim removes both, and needs no second reservation mechanism.
@@ -376,18 +380,32 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	/// <para>
 	/// Fenced drain: where a leadership tenure and a fencing-capable store are both present, the claim and the
 	/// mark-sent carry the tenure's token, so a superseded leader is refused by the store's durable high-water
-	/// rather than admitted. Checking leadership before draining is not a substitute — that is check-then-act,
+	/// rather than admitted. Checking leadership before draining is not a substitute â€” that is check-then-act,
 	/// and a dispatcher paused past the end of its tenure resumes and writes on a stale observation. Where no
 	/// election is configured the unfenced members are the legitimate path; where a tenure is active but no
 	/// token can be presented, the drain refuses rather than proceeding unfenced.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task<PublishingResult> DrainClaimedBatchAsync(CancellationToken cancellationToken)
 	{
-		var messages = await ClaimBatchAsync(100, cancellationToken).ConfigureAwait(false);
-		return await PublishMessagesAsync(AsReadOnlyList(messages), cancellationToken).ConfigureAwait(false);
+		var capturedToken = _tenureAdmission.Capture();
+		if (!_tenureAdmission.TryAdmit(capturedToken))
+		{
+			return IncompleteResult(0, 0, 0, [], TimeSpan.Zero);
+		}
+
+		IEnumerable<OutboundMessage> messages;
+		try
+		{
+			messages = await ClaimBatchAsync(100, capturedToken, cancellationToken).ConfigureAwait(false);
+		}
+		catch (OutboxFenceRefusedException error)
+		{
+			ObserveRefusal(capturedToken, error);
+			return IncompleteResult(0, 0, 0, [], TimeSpan.Zero);
+		}
+
+		return await PublishMessagesAsync(AsReadOnlyList(messages), capturedToken, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -433,6 +451,12 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				Resources.MessageBusOutboxPublisher_PerTransportRequiresRegistry);
 		}
 
+		var capturedToken = _tenureAdmission.Capture();
+		if (!_tenureAdmission.TryAdmit(capturedToken))
+		{
+			return IncompleteResult(0, 0, 0, [], TimeSpan.Zero);
+		}
+
 		var adapter = _transportRegistry.GetTransportAdapter(transportName)
 					  ?? throw new InvalidOperationException(
 						  string.Format(
@@ -440,13 +464,14 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 							  Resources.MessageBusOutboxPublisher_NoTransportAdapter,
 							  transportName));
 
-		_operationStopwatch = ValueStopwatch.StartNew();
-		_totalOperations++;
+		var stopwatch = ValueStopwatch.StartNew();
+		_ = Interlocked.Increment(ref _totalOperations);
 		_lastOperationAt = DateTimeOffset.UtcNow;
 
 		var deliveries = await _multiTransportStoreAdmin.GetPendingTransportDeliveriesAsync(transportName, batchSize, cancellationToken)
 			.ConfigureAwait(false);
 
+		var tenureRefused = false;
 		var tasks = deliveries switch
 		{
 			ICollection<(OutboundMessage Message, OutboundMessageTransport Transport)> collection =>
@@ -454,17 +479,33 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			_ => new List<Task<TransportPublishResult>>()
 		};
 
-		foreach (var delivery in deliveries)
+		var admittedIds = new List<string>();
+		Exception? admissionFailure = null;
+		try
 		{
-			tasks.Add(PublishToTransportAsync(delivery.Message, delivery.Transport, adapter, cancellationToken));
+			foreach (var delivery in deliveries)
+			{
+				if (!_tenureAdmission.TryAdmit(capturedToken))
+				{
+					tenureRefused = true;
+					break;
+				}
+				tasks.Add(PublishToTransportAsync(delivery.Message, delivery.Transport, adapter, cancellationToken));
+				admittedIds.Add(delivery.Message.Id);
+			}
+		}
+		catch (Exception error)
+		{
+			admissionFailure = error;
 		}
 
-		if (tasks.Count == 0)
+		if (tasks.Count == 0 && !tenureRefused && admissionFailure is null)
 		{
-			return PublishingResult.Success(0, 0, _operationStopwatch.Elapsed);
+			return PublishingResult.Success(0, 0, stopwatch.Elapsed);
 		}
 
-		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+		var joined = await JoinAdmittedDeliveriesAsync(tasks, admittedIds, admissionFailure, string.Empty, cancellationToken).ConfigureAwait(false);
+		var results = joined.Results;
 
 		var successCount = 0;
 		var failureCount = 0;
@@ -488,14 +529,11 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			successCount,
 			transportName,
 			failureCount,
-			(long)_operationStopwatch.ElapsedMilliseconds);
+			(long)stopwatch.ElapsedMilliseconds);
 
-		if (failureCount == 0)
-		{
-			return PublishingResult.Success(successCount, 0, _operationStopwatch.Elapsed);
-		}
 
-		var errors = new List<PublishingError>(failureCount);
+		var errors = new List<PublishingError>(failureCount + joined.InfrastructureErrors.Count);
+		errors.AddRange(joined.InfrastructureErrors);
 		for (var i = 0; i < results.Length; i++)
 		{
 			var result = results[i];
@@ -510,11 +548,26 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				result.Exception));
 		}
 
+		if (tenureRefused)
+		{
+			return IncompleteResult(successCount, failureCount, 0, errors, stopwatch.Elapsed);
+		}
+
+		if (joined.InfrastructureErrors.Count > 0)
+		{
+			return IncompleteResult(successCount, failureCount, 0, errors, stopwatch.Elapsed, PublishingOutcome.Interrupted);
+		}
+
+		if (failureCount == 0)
+		{
+			return PublishingResult.Success(successCount, 0, stopwatch.Elapsed);
+		}
+
 		return PublishingResult.WithFailures(
 			successCount,
 			failureCount,
 			errors,
-			_operationStopwatch.Elapsed);
+			stopwatch.Elapsed);
 	}
 
 	[LoggerMessage(EventId = 2400, Level = LogLevel.Debug,
@@ -571,9 +624,21 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		Message = "Fenced mark-sent for message {MessageId} was refused: this tenure's fencing token is stale (a newer leader has taken over). Aborting with no further store write; the message is left claimed for the current leader to resolve.")]
 	private partial void LogFencedMarkSentRefused(string messageId, Exception ex);
 
+	[LoggerMessage(EventId = 2411, Level = LogLevel.Warning,
+		Message = "Fenced mark-sent for message {MessageId} was refused: this tenure's fencing token is stale (a newer leader has taken over). Aborting with no further store write; the message is left claimed for the current leader to resolve.")]
+	private partial void LogFencedMarkSentRefusedOutcome(string messageId);
+
+	[LoggerMessage(EventId = 2412, Level = LogLevel.Warning,
+		Message = "Mark-sent for message {MessageId} was not applied: the store reported {Outcome}. The message was published; only the record of it did not land, so it becomes claimable again when its reservation ages out. This concerns only this message.")]
+	private partial void LogMarkSentNotApplied(string messageId, string outcome);
+
 	[LoggerMessage(EventId = 2410, Level = LogLevel.Information,
 		Message = "Failure report for outbox message {MessageId} wrote nothing ({Outcome}); continuing with the rest of the batch")]
 	private partial void LogFailureReportDeclined(string messageId, string outcome);
+
+	[LoggerMessage(EventId = 2413, Level = LogLevel.Error,
+		Message = "Transport accepted outbox message {MessageId}, but its durable completion failed. Stopping this operation without a delivery-failure report; the commit outcome may be unknown.")]
+	private partial void LogCompletionFailedAfterAcceptance(string messageId, Exception exception);
 
 	private async Task<TransportPublishResult> PublishToTransportAsync(
 		OutboundMessage message,
@@ -584,7 +649,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		try
 		{
 			// Outbox-read DoS guard: reject an oversized stored payload before handing it to the
-			// transport. Fail-closed — PayloadTooLargeException propagates to the surrounding catch, which
+			// transport. Fail-closed â€” PayloadTooLargeException propagates to the surrounding catch, which
 			// marks the message failed (rejected), never dispatches an over-limit body.
 			PayloadSizeGuard.EnsureWithinLimit(message.Payload.Length, _maxPayloadBytes);
 
@@ -649,7 +714,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 	}
 
-	// W3C propagator (BCL primitive) — used to restore the staged trace context on the outbox hop
+	// W3C propagator (BCL primitive) â€” used to restore the staged trace context on the outbox hop
 	// instead of a hand-rolled header copy (microsoft-first: never reimplement the propagation primitive).
 	private static readonly DistributedContextPropagator W3CPropagator =
 		DistributedContextPropagator.CreateW3CPropagator();
@@ -657,11 +722,11 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	/// <summary>
 	/// Restores the staged W3C <c>traceparent</c>/<c>tracestate</c> from the outbox message headers onto the
 	/// rebuilt publish context so the transport-serialized envelope carries it and the distributed trace
-	/// continues producer → consumer. Mirrors the inbound restore in <c>DispatchContextInitializer</c>.
+	/// continues producer â†’ consumer. Mirrors the inbound restore in <c>DispatchContextInitializer</c>.
 	/// </summary>
 	/// <remarks>
 	/// The trace context is <strong>captured at enqueue time</strong> (persisted in <see cref="OutboundMessage.Headers"/>)
-	/// and restored here from those stored headers — <em>not</em> from <see cref="Activity.Current"/> at flush — so a
+	/// and restored here from those stored headers â€” <em>not</em> from <see cref="Activity.Current"/> at flush â€” so a
 	/// store-and-forward message keeps its originating trace. Parsing is delegated to the BCL
 	/// <see cref="DistributedContextPropagator"/> rather than hand-formatted; a malformed stored value is skipped
 	/// (best-effort propagation, never throws).
@@ -687,7 +752,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		if (string.IsNullOrEmpty(traceParent) ||
 			!ActivityContext.TryParse(traceParent, traceState, out _))
 		{
-			// No staged trace context, or a malformed value — skip (best-effort, fail-open).
+			// No staged trace context, or a malformed value â€” skip (best-effort, fail-open).
 			return;
 		}
 
@@ -709,7 +774,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	/// baggage is written into the staged envelope (<c>OutboxStagingMiddleware.GetBaggageHeader</c>) but silently
 	/// dropped on the outbox hop, so it never reaches the next consumer. Each <c>name=value</c> member is
 	/// percent-decoded (the W3C baggage percent-encoding is folded back) and written into the context items keyed
-	/// <c>baggage.{name}</c> — the exact slot the capture (<c>DispatchContextInitializer</c>) and stage-write read.
+	/// <c>baggage.{name}</c> â€” the exact slot the capture (<c>DispatchContextInitializer</c>) and stage-write read.
 	/// Malformed members are skipped rather than throwing (best-effort propagation).
 	/// </summary>
 	private static void RestoreBaggage(MessageContext context, OutboundMessage message)
@@ -731,7 +796,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			var separator = member.IndexOf('=', StringComparison.Ordinal);
 			if (separator <= 0)
 			{
-				// No key, or empty key — malformed member, skip (best-effort).
+				// No key, or empty key â€” malformed member, skip (best-effort).
 				continue;
 			}
 
@@ -741,112 +806,39 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 	}
 
-	/// <summary>
-	/// Records a delivery failure against the CLAIM this publisher holds, rather than against the process
-	/// it runs in.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// <b>The sibling handler seven lines above already refuses an unfenced write, and this one used to
-	/// perform it.</b> That handler aborts with no store write when the fence refuses a mark-sent,
-	/// reasoning in its own comment that the plain completion carries no fence term. The general handler
-	/// beneath it then called exactly that member. The reasoning was right and only one of the two paths
-	/// acted on it.
-	/// </para>
-	/// <para>
-	/// <b>The identity is on the message and has always been.</b> This drain reads messages straight from
-	/// the store with no conversion step between the claim and the completion, so the token the claim
-	/// stamped is still on the row it was handed. It was never lost here; it was never presented.
-	/// </para>
-	/// <para>
-	/// <b>Depth follows the stamp, and this call cannot make it deeper.</b> The completion discriminates
-	/// exactly as finely as the value the claim wrote: presenting a token minted per acquisition refuses a
-	/// report from a different claim, while presenting a bare process identity refuses nothing, because
-	/// every cycle of one process presents the same string. A store whose claim does not mint a per-claim
-	/// token gets no benefit from this route until it does.
-	/// </para>
-	/// <para>
-	/// <b>Falls back rather than failing.</b> A store without the capability keeps the pre-existing
-	/// unscoped completion; that write is unrefusable, which is a known gap and not a regression
-	/// introduced here.
-	/// </para>
-	/// </remarks>
-	private async Task ReportFailureForClaimAsync(
-		OutboundMessage message,
-		string errorMessage,
-		CancellationToken cancellationToken)
+	/// <summary>Reports a failure using the evidence captured before any delivery callback.</summary>
+	private async Task<OutboxCompletionOutcome> ReportFailureForClaimAsync(
+		OutboxClaimEvidence claim, int attempt, string errorMessage, long? capturedToken, CancellationToken cancellationToken)
 	{
-		var attempt = message.RetryCount + 1;
-
-		// THE FENCED ROUTE IS PREFERRED, and it needs all three facts together: the combined capability, an
-		// active tenure holding a token, and the claim this message was handed under. Missing any one of them
-		// means this caller cannot make the stronger assertion, so it falls to the route that asserts what it
-		// can rather than to one that would assert more than it knows.
-		if (message.DispatcherId is { Length: > 0 } claim
-			&& _fencingActive
-			&& _leaderGate?.FencingToken is { } fencingToken
-			&& _fencedClaimScopedStore is { } fencedScoped)
+		OutboxCompletionOutcome outcome;
+		if (_fencingActive)
 		{
-			var fencedOutcome = await fencedScoped.MarkFailedAsync(
-					message.Id,
-					errorMessage,
-					attempt,
-					// This drain computes no backoff schedule of its own, so the visibility floor the
-					// statement applies is the store's configured one.
-					nextAttemptAt: null,
-					new OutboxWriteAuthority(fencingToken, claim),
-					cancellationToken)
-				.ConfigureAwait(false);
-
-			if (fencedOutcome is not OutboxCompletionOutcome.Applied)
-			{
-				LogFailureReportDeclined(message.Id, fencedOutcome.ToString());
-			}
-
-			return;
+			if (capturedToken is not { } token) { return OutboxCompletionOutcome.FenceRefused; }
+			outcome = await _fencedClaimScopedStore!.MarkFailedAsync(claim.MessageId, errorMessage, attempt, null,
+				new OutboxWriteAuthority(token, claim.ClaimIdentity), cancellationToken).ConfigureAwait(false);
+			if (outcome is OutboxCompletionOutcome.FenceRefused) { ObserveRefusal(capturedToken); }
 		}
-
-		// A MISSING TOKEN IS A REFUSAL, NEVER A DOWNGRADE. The guard above conjoins the token, so it is false
-		// either because fencing is off -- the legitimate unfenced drain -- or because fencing is ON and the
-		// token has gone, which under an active gate means THIS TENURE HAS BEEN SUPERSEDED. Both routes below
-		// write without a token, and the claim term the second one carries does not cover this: the
-		// dispatcher identity is fixed for the process and survives losing and regaining leadership, so it
-		// refuses a different dispatcher and never a stale tenure of the same one.
-		//
-		// Returned, never thrown, for the reason given below on the declined report: this runs inside a catch
-		// block, so an exception here would abandon every remaining message this publisher legitimately holds.
-		if (_fencingActive && _leaderGate?.FencingToken is null)
+		else
 		{
-			LogFailureReportDeclined(message.Id, "FencingTokenUnavailable");
-			return;
+			outcome = await _claimScopedStore!.MarkFailedAsync(claim.MessageId, errorMessage, attempt,
+				claim.ClaimIdentity, cancellationToken).ConfigureAwait(false);
 		}
-
-		if (_claimScopedStore is null || message.DispatcherId is not { Length: > 0 } claimIdentity)
-		{
-			await _outboxStore.MarkFailedAsync(message.Id, errorMessage, attempt, cancellationToken)
-				.ConfigureAwait(false);
-			return;
-		}
-
-		// Returned, never thrown. This runs inside a catch block, where a sibling catch clause on the same
-		// try cannot run -- so a refusal raised as an exception would escape the loop and abandon every
-		// remaining message this publisher legitimately holds. A declined report concerns one row.
-		var outcome = await _claimScopedStore
-			.MarkFailedAsync(message.Id, errorMessage, attempt, claimIdentity, cancellationToken)
-			.ConfigureAwait(false);
-
-		if (outcome is not OutboxCompletionOutcome.Applied)
-		{
-			LogFailureReportDeclined(message.Id, outcome.ToString());
-		}
+		if (outcome is not OutboxCompletionOutcome.Applied) { LogFailureReportDeclined(claim.MessageId, outcome.ToString()); }
+		return outcome;
 	}
 
 	private async Task<PublishingResult> PublishMessagesAsync(
 		IReadOnlyList<OutboundMessage> messages,
+		long? capturedToken,
 		CancellationToken cancellationToken)
 	{
-		_operationStopwatch = ValueStopwatch.StartNew();
-		_totalOperations++;
+		var claims = new (OutboxClaimEvidence Claim, int Attempt)[messages.Count];
+		for (var i = 0; i < messages.Count; i++)
+		{
+			claims[i] = (new OutboxClaimEvidence(messages[i].Id, messages[i].DispatcherId!), messages[i].RetryCount + 1);
+		}
+		var stopwatch = ValueStopwatch.StartNew();
+		_ = Interlocked.Increment(ref _totalOperations);
 		_lastOperationAt = DateTimeOffset.UtcNow;
 
 		var successCount = 0;
@@ -854,89 +846,189 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		var errors = new List<PublishingError>();
 		var publishedDelta = 0L;
 		var failedDelta = 0L;
+		var tenureRefused = false;
+		var operationOutcome = PublishingOutcome.Completed;
+		var skippedCount = 0;
 
-		foreach (var message in messages)
+		try
 		{
-			cancellationToken.ThrowIfCancellationRequested();
-
-			try
+			for (var index = 0; index < messages.Count; index++)
 			{
-				if (message.IsMultiTransport && _multiTransportStore is not null && _transportRegistry is not null)
+				var message = messages[index];
+				var claim = claims[index].Claim;
+				var attempt = claims[index].Attempt;
+				cancellationToken.ThrowIfCancellationRequested();
+				if (!_tenureAdmission.TryAdmit(capturedToken))
 				{
-					// Multi-transport publishing: publish to all transports in parallel
-					var result = await PublishMultiTransportMessageAsync(message, cancellationToken).ConfigureAwait(false);
-
-					if (result.FailureCount == 0)
+					tenureRefused = true;
+					skippedCount = messages.Count - index;
+					break;
+				}
+	
+				try
+				{
+					if (message.IsMultiTransport && _multiTransportStore is not null && _transportRegistry is not null)
 					{
-						successCount++;
-						publishedDelta++;
-					}
-					else if (result.SuccessCount == 0)
-					{
-						failureCount++;
-						failedDelta++;
-						errors.AddRange(result.Errors);
+						// Multi-transport publishing: publish to all transports in parallel
+						var result = await PublishMultiTransportMessageAsync(message, capturedToken, cancellationToken).ConfigureAwait(false);
+	
+						if (result.Outcome != PublishingOutcome.Completed)
+						{
+							operationOutcome = result.Outcome;
+							tenureRefused = result.IsTenureRefused;
+							skippedCount = messages.Count - index - 1;
+							errors.AddRange(result.Errors);
+							// A partially admitted fanout is not a fully published message.
+							if (result.SuccessCount > 0) { successCount++; publishedDelta++; }
+							else if (result.FailureCount > 0) { failureCount++; failedDelta++; }
+							break;
+						}
+						if (result.FailureCount == 0)
+						{
+							successCount++;
+							publishedDelta++;
+						}
+						else if (result.SuccessCount == 0)
+						{
+							failureCount++;
+							failedDelta++;
+							errors.AddRange(result.Errors);
+						}
+						else
+						{
+							// Partial success - count as success but record errors
+							errors.AddRange(result.Errors);
+							successCount++;
+							publishedDelta++;
+							LogMessagePartiallyDelivered(
+								message.Id,
+								result.SuccessCount,
+								result.FailureCount);
+						}
 					}
 					else
 					{
-						// Partial success - count as success but record errors
+						// Single-transport publishing (legacy mode)
+						var completion = await PublishSingleTransportMessageAsync(message, claim, capturedToken, cancellationToken).ConfigureAwait(false);
+						var markOutcome = completion.Outcome;
+						// The transport accepted this row even if its durable completion was refused.
 						successCount++;
 						publishedDelta++;
-						LogMessagePartiallyDelivered(
-							message.Id,
-							result.SuccessCount,
-							result.FailureCount);
+
+						if (completion.Failure is { } completionFailure)
+						{
+							operationOutcome = PublishingOutcome.Interrupted;
+							skippedCount = messages.Count - index - 1;
+							errors.Add(new PublishingError(claim.MessageId, completionFailure.Message, completionFailure));
+							LogCompletionFailedAfterAcceptance(claim.MessageId, completionFailure);
+							break;
+						}
+
+						if (markOutcome is OutboxCompletionOutcome.FenceRefused)
+						{
+							ObserveRefusal(capturedToken, completion.Refusal);
+							tenureRefused = true;
+							if (completion.Refusal is { } refusal) { LogFencedMarkSentRefused(message.Id, refusal); }
+							else { LogFencedMarkSentRefusedOutcome(message.Id); }
+							tenureRefused = true;
+							skippedCount = messages.Count - index - 1;
+							break;
+						}
+	
+						// A ROW-scoped refusal is different: the transport accepted the message, so it WAS
+						// published and the counters are honest. Only the record of it did not land, which the
+						// reservation ageing out resolves. Recorded, not fatal, and the batch continues.
+						if (markOutcome is not (OutboxCompletionOutcome.Applied or OutboxCompletionOutcome.ClaimLost
+							or OutboxCompletionOutcome.AlreadyTerminal or OutboxCompletionOutcome.MessageNotFound))
+						{
+							var invalidOutcome = new InvalidOperationException($"Unsupported outbox completion outcome '{markOutcome}'. The durable commit outcome is unknown.");
+							operationOutcome = PublishingOutcome.Interrupted;
+							skippedCount = messages.Count - index - 1;
+							errors.Add(new PublishingError(claim.MessageId, invalidOutcome.Message, invalidOutcome));
+							LogCompletionFailedAfterAcceptance(claim.MessageId, invalidOutcome);
+							break;
+						}
+
+						if (markOutcome is { } rowOutcome && rowOutcome is not OutboxCompletionOutcome.Applied)
+						{
+							LogMarkSentNotApplied(claim.MessageId, rowOutcome.ToString());
+						}
 					}
+	
+					LogPublishedMessageToDestination(message.Id, message.Destination);
 				}
-				else
+				catch (OutboxFenceRefusedException ex)
 				{
-					// Single-transport publishing (legacy mode)
-					await PublishSingleTransportMessageAsync(message, cancellationToken).ConfigureAwait(false);
-					successCount++;
-					publishedDelta++;
+					ObserveRefusal(capturedToken, ex);
+					LogFencedMarkSentRefused(message.Id, ex);
+					tenureRefused = true;
+					skippedCount = messages.Count - index - 1;
+					break;
 				}
-
-				LogPublishedMessageToDestination(message.Id, message.Destination);
-			}
-			catch (OutboxFenceRefusedException ex)
-			{
-				// The fence refused this tenure's mark-sent because a newer leader has taken over. This
-				// is NOT a delivery failure -- the message may already be delivered by the current leader
-				// -- so it must not be marked failed by a superseded tenure (MarkFailedAsync carries no
-				// fence term and would be an unfenced write). Abort this message with no further store
-				// write, leaving it as claimed for the live leader to resolve.
-				LogFencedMarkSentRefused(message.Id, ex);
-			}
-			catch (Exception ex)
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-				await ReportFailureForClaimAsync(message, ex.Message, cancellationToken).ConfigureAwait(false);
-
-				failureCount++;
-				failedDelta++;
-				errors.Add(new PublishingError(message.Id, ex.Message, ex));
-
-				LogFailedToPublishToDestination(message.Id, message.Destination, ex);
+				catch (Exception ex)
+				{
+					if (tenureRefused) { throw; }
+					cancellationToken.ThrowIfCancellationRequested();
+					failureCount++;
+					failedDelta++;
+					errors.Add(new PublishingError(claim.MessageId, ex.Message, ex));
+					try
+					{
+						var outcome = await ReportFailureForClaimAsync(claim, attempt, ex.Message, capturedToken, cancellationToken).ConfigureAwait(false);
+						if (outcome is OutboxCompletionOutcome.FenceRefused)
+						{
+							ObserveRefusal(capturedToken);
+							tenureRefused = true;
+							skippedCount = messages.Count - index - 1;
+							break;
+						}
+					}
+					catch (OutboxFenceRefusedException refusal)
+					{
+						ObserveRefusal(capturedToken, refusal);
+						tenureRefused = true;
+						skippedCount = messages.Count - index - 1;
+						break;
+					}
+	
+					LogFailedToPublishToDestination(message.Id, message.Destination, ex);
+				}
 			}
 		}
-
-		if (publishedDelta != 0)
+		finally
 		{
-			_ = Interlocked.Add(ref _totalPublished, publishedDelta);
+			if (publishedDelta != 0)
+			{
+				_ = Interlocked.Add(ref _totalPublished, publishedDelta);
+			}
+	
+			if (failedDelta != 0)
+			{
+				_ = Interlocked.Add(ref _totalFailed, failedDelta);
+			}
 		}
 
-		if (failedDelta != 0)
-		{
-			_ = Interlocked.Add(ref _totalFailed, failedDelta);
-		}
-
-		return failureCount > 0
-			? PublishingResult.WithFailures(successCount, failureCount, errors, _operationStopwatch.Elapsed)
-			: PublishingResult.Success(successCount, 0, _operationStopwatch.Elapsed);
+		return tenureRefused || operationOutcome != PublishingOutcome.Completed
+			? IncompleteResult(successCount, failureCount, skippedCount, errors, stopwatch.Elapsed,
+				tenureRefused ? PublishingOutcome.TenureRefused : operationOutcome)
+			: failureCount > 0
+			? PublishingResult.WithFailures(successCount, failureCount, errors, stopwatch.Elapsed)
+			: new PublishingResult { SuccessCount = successCount, Errors = errors, Duration = stopwatch.Elapsed };
 	}
 
-	private async Task PublishSingleTransportMessageAsync(
+	/// <summary>
+	/// Publishes one message through the single-transport path and marks it sent.
+	/// </summary>
+	/// <returns>
+	/// The completion outcome, authority refusal or ordinary infrastructure failure after transport acceptance.
+	/// Acceptance is counted once. A refused tenure stops tenure admissions; an ordinary completion fault
+	/// interrupts only this operation and preserves its original error without a synthetic delivery-failure
+	/// report. The durable commit outcome may be unknown. Already admitted work remains joined.
+	/// </returns>
+	private async Task<(OutboxCompletionOutcome? Outcome, OutboxFenceRefusedException? Refusal, Exception? Failure)> PublishSingleTransportMessageAsync(
 		OutboundMessage message,
+		OutboxClaimEvidence claim,
+		long? capturedToken,
 		CancellationToken cancellationToken)
 	{
 		if (_messageBus is null)
@@ -946,14 +1038,14 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 
 		// Outbox-read DoS guard: reject an oversized stored payload before handing it to the
-		// transport. Fail-closed — PayloadTooLargeException propagates to PublishMessagesAsync's catch,
+		// transport. Fail-closed â€” PayloadTooLargeException propagates to PublishMessagesAsync's catch,
 		// which marks the message failed (rejected), never dispatches an over-limit body.
 		PayloadSizeGuard.EnsureWithinLimit(message.Payload.Length, _maxPayloadBytes);
 
 		var wrappedMessage = RestoreMessage(message);
 		var context = new MessageContext(wrappedMessage, _serviceProvider)
 		{
-			MessageId = message.Id,
+			MessageId = claim.MessageId,
 			CorrelationId = message.CorrelationId,
 			CausationId = message.CausationId,
 		};
@@ -983,11 +1075,24 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		{
 			throw new InvalidOperationException(result.ErrorMessage ?? result.ProblemDetails?.Detail ?? "Outbox message publishing failed.");
 		}
-		await MarkSentFencedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+		try
+		{
+			return (await MarkSentFencedAsync(claim, capturedToken, cancellationToken).ConfigureAwait(false), null, null);
+		}
+		catch (OutboxFenceRefusedException refusal)
+		{
+			return (OutboxCompletionOutcome.FenceRefused, refusal, null);
+		}
+		catch (Exception failure)
+		{
+			// Transport acceptance is irreversible here; an unknown durable commit is not a failed send.
+			return (null, null, failure);
+		}
 	}
 
 	private async Task<PublishingResult> PublishMultiTransportMessageAsync(
 		OutboundMessage message,
+		long? capturedToken,
 		CancellationToken cancellationToken)
 	{
 		if (_multiTransportStore is null || _multiTransportStoreAdmin is null || _transportRegistry is null)
@@ -1014,36 +1119,54 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 
 		// Publish to all pending transports in parallel
 		var tasks = new List<Task<TransportPublishResult>>(deliveries.Count);
+		var tenureRefused = false;
 
-		foreach (var delivery in deliveries)
+		var admittedIds = new List<string>();
+		Exception? admissionFailure = null;
+		try
 		{
-			if (delivery.Status != TransportDeliveryStatus.Pending)
+			foreach (var delivery in deliveries)
 			{
-				continue;
+				if (delivery.Status != TransportDeliveryStatus.Pending)
+				{
+					continue;
+				}
+	
+				if (!_tenureAdmission.TryAdmit(capturedToken))
+				{
+					tenureRefused = true;
+					break;
+				}
+	
+				var adapter = _transportRegistry.GetTransportAdapter(delivery.TransportName);
+				if (adapter is null)
+				{
+					// Mark as skipped if transport adapter not found
+					await _multiTransportStore.MarkTransportSkippedAsync(
+							message.Id,
+							delivery.TransportName,
+							Resources.MessageBusOutboxPublisher_TransportAdapterNotFound,
+							cancellationToken)
+						.ConfigureAwait(false);
+					continue;
+				}
+	
+				tasks.Add(PublishToTransportAsync(message, delivery, adapter, cancellationToken));
+				admittedIds.Add(message.Id);
 			}
-
-			var adapter = _transportRegistry.GetTransportAdapter(delivery.TransportName);
-			if (adapter is null)
-			{
-				// Mark as skipped if transport adapter not found
-				await _multiTransportStore.MarkTransportSkippedAsync(
-						message.Id,
-						delivery.TransportName,
-						Resources.MessageBusOutboxPublisher_TransportAdapterNotFound,
-						cancellationToken)
-					.ConfigureAwait(false);
-				continue;
-			}
-
-			tasks.Add(PublishToTransportAsync(message, delivery, adapter, cancellationToken));
+		}
+		catch (Exception error)
+		{
+			admissionFailure = error;
 		}
 
-		if (tasks.Count == 0)
+		if (tasks.Count == 0 && !tenureRefused && admissionFailure is null)
 		{
 			return PublishingResult.Success(0, 0, TimeSpan.Zero);
 		}
 
-		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+		var joined = await JoinAdmittedDeliveriesAsync(tasks, admittedIds, admissionFailure, message.Id, cancellationToken).ConfigureAwait(false);
+		var results = joined.Results;
 
 		var successCount = 0;
 		var failureCount = 0;
@@ -1060,18 +1183,25 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			}
 		}
 
-		// Update aggregate message status
-		if (_multiTransportStoreAdmin is not null)
+		// Aggregate bookkeeping is separate from the already-settled transport effects.
+		// Preserve those effects if admission observation or the store itself fails.
+		try
 		{
-			await _multiTransportStoreAdmin.UpdateAggregateStatusAsync(message.Id, cancellationToken).ConfigureAwait(false);
+			if (!_tenureAdmission.TryAdmit(capturedToken)) { tenureRefused = true; }
+			if (!tenureRefused && joined.InfrastructureErrors.Count == 0 && _multiTransportStoreAdmin is not null)
+			{
+				await _multiTransportStoreAdmin.UpdateAggregateStatusAsync(message.Id, cancellationToken).ConfigureAwait(false);
+			}
+		}
+		catch (Exception error)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			joined.InfrastructureErrors.Add(new PublishingError(message.Id, error.Message, error));
 		}
 
-		if (failureCount == 0)
-		{
-			return PublishingResult.Success(successCount, 0, TimeSpan.Zero);
-		}
 
-		var errors = new List<PublishingError>(failureCount);
+		var errors = new List<PublishingError>(failureCount + joined.InfrastructureErrors.Count);
+		errors.AddRange(joined.InfrastructureErrors);
 		for (var i = 0; i < results.Length; i++)
 		{
 			var result = results[i];
@@ -1086,11 +1216,72 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				result.Exception));
 		}
 
+		if (tenureRefused)
+		{
+			return IncompleteResult(successCount, failureCount, 0, errors, TimeSpan.Zero);
+		}
+
+		if (joined.InfrastructureErrors.Count > 0)
+		{
+			return IncompleteResult(successCount, failureCount, 0, errors, TimeSpan.Zero, PublishingOutcome.Interrupted);
+		}
+
+		if (failureCount == 0)
+		{
+			return PublishingResult.Success(successCount, 0, TimeSpan.Zero);
+		}
+
 		return PublishingResult.WithFailures(
 			successCount,
 			failureCount,
 			errors,
 			TimeSpan.Zero);
+	}
+
+	private static async Task<(TransportPublishResult[] Results, List<PublishingError> InfrastructureErrors)> JoinAdmittedDeliveriesAsync(
+		List<Task<TransportPublishResult>> tasks, List<string> messageIds, Exception? admissionFailure,
+		string admissionMessageId, CancellationToken cancellationToken)
+	{
+		try
+		{
+			await Task.WhenAll(tasks).ConfigureAwait(false);
+		}
+		catch (Exception)
+		{
+			// All admitted tasks have settled. Inspect each outcome below without abandoning siblings.
+		}
+
+		cancellationToken.ThrowIfCancellationRequested();
+		var results = new List<TransportPublishResult>(tasks.Count);
+		var errors = new List<PublishingError>();
+		for (var index = 0; index < tasks.Count; index++)
+		{
+			var task = tasks[index];
+			if (task.IsCompletedSuccessfully)
+			{
+				results.Add(await task.ConfigureAwait(false));
+			}
+			else if (task.Exception is { } taskFailure)
+			{
+				foreach (var error in taskFailure.InnerExceptions)
+				{
+					errors.Add(new PublishingError(messageIds[index], error.Message, error));
+				}
+			}
+			else
+			{
+				try { await task.ConfigureAwait(false); }
+				catch (OperationCanceledException error)
+				{
+					errors.Add(new PublishingError(messageIds[index], error.Message, error));
+				}
+			}
+		}
+		if (admissionFailure is not null)
+		{
+			errors.Add(new PublishingError(admissionMessageId, admissionFailure.Message, admissionFailure));
+		}
+		return (results.ToArray(), errors);
 	}
 
 	private static IReadOnlyList<OutboundMessage> AsReadOnlyList(IEnumerable<OutboundMessage> messages)

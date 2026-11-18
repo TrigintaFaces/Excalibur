@@ -4,6 +4,7 @@
 #pragma warning disable IL2026 // RequiresUnreferencedCode
 #pragma warning disable IL3050 // RequiresDynamicCode
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using Amazon.SimpleNotificationService.Model;
 
 using CloudNative.CloudEvents;
@@ -33,6 +34,7 @@ public sealed class AwsSnsCloudEventAdapterShould
 
 		_adapter = new AwsSnsCloudEventAdapter(
 			options,
+			TestCloudEventSerializers.Reflection,
 			NullLogger<AwsSnsCloudEventAdapter>.Instance);
 	}
 
@@ -41,7 +43,7 @@ public sealed class AwsSnsCloudEventAdapterShould
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new AwsSnsCloudEventAdapter(
-				null!, NullLogger<AwsSnsCloudEventAdapter>.Instance));
+				null!, TestCloudEventSerializers.Reflection, NullLogger<AwsSnsCloudEventAdapter>.Instance));
 	}
 
 	[Fact]
@@ -50,7 +52,7 @@ public sealed class AwsSnsCloudEventAdapterShould
 		var options = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
 
 		Should.Throw<ArgumentNullException>(() =>
-			new AwsSnsCloudEventAdapter(options, null!));
+			new AwsSnsCloudEventAdapter(options, TestCloudEventSerializers.Reflection, null!));
 	}
 
 	[Fact]

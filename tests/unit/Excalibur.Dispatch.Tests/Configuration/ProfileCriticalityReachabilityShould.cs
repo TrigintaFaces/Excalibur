@@ -1,4 +1,5 @@
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
@@ -93,6 +94,77 @@ public sealed class ProfileCriticalityReachabilityShould
 				records.Add((logLevel, formatter(state, exception)));
 		}
 	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	[Trait("Pattern", "Regression")]
+	public async Task NameTheSelectedProfileOncePerBuildOnlyWhenOptionalMiddlewareIsMissing(bool registered)
+	{
+		const string profileName = "diagnostic-optional-profile";
+		var profile = new PipelineProfile(profileName, MessageKinds.All);
+		profile.AddMiddleware<RegisteredHarmlessMiddleware>(1, MiddlewareCriticality.Optional);
+		var capturing = new CapturingLoggerProvider();
+		var services = new ServiceCollection();
+		_ = services.AddLogging(logging =>
+		{
+			_ = logging.SetMinimumLevel(LogLevel.Trace);
+			_ = logging.AddProvider(capturing);
+		});
+		if (registered)
+		{
+			_ = services.AddSingleton<RegisteredHarmlessMiddleware>();
+		}
+
+		using var provider = services.BuildServiceProvider();
+		var builder = new PipelineBuilder("different-pipeline-name", provider).UseProfile(profile);
+		var pipeline = builder.Build();
+		var terminalCalls = 0;
+		DispatchRequestDelegate terminal = (_, _, _) =>
+		{
+			terminalCalls++;
+			return ValueTask.FromResult<IMessageResult>(MessageResult.Success());
+		};
+		var message = new SkipDiagnosticAction();
+		for (var index = 0; index < 2; index++)
+		{
+			var result = await pipeline.ExecuteAsync(message, new MessageContext(message, provider), terminal,
+				CancellationToken.None).ConfigureAwait(false);
+			result.Succeeded.ShouldBeTrue();
+		}
+
+		terminalCalls.ShouldBe(2);
+		var firstBuildRecords = capturing.Records.Where(record =>
+			record.Message.Contains(nameof(RegisteredHarmlessMiddleware), StringComparison.Ordinal)).ToArray();
+		firstBuildRecords.Length.ShouldBe(registered ? 0 : 1);
+		_ = builder.Build();
+		var allRecords = capturing.Records.Where(record =>
+			record.Message.Contains(nameof(RegisteredHarmlessMiddleware), StringComparison.Ordinal)).ToArray();
+		allRecords.Length.ShouldBe(registered ? 0 : 2);
+		allRecords.ShouldAllBe(record => record.Level == LogLevel.Warning);
+		allRecords.ShouldAllBe(record => record.Message.Contains(profileName, StringComparison.Ordinal));
+	}
+
+	[Fact]
+	[Trait("Pattern", "Regression")]
+	public void PreserveRequiredRefusalWithoutAnOptionalSkipWarning()
+	{
+		var profile = new PipelineProfile("required-diagnostic-profile", MessageKinds.All);
+		profile.AddMiddleware<RegisteredHarmlessMiddleware>(1, MiddlewareCriticality.Required);
+		var capturing = new CapturingLoggerProvider();
+		var services = new ServiceCollection();
+		_ = services.AddLogging(logging => logging.AddProvider(capturing));
+		using var provider = services.BuildServiceProvider();
+		var builder = new PipelineBuilder("required-pipeline", provider).UseProfile(profile);
+
+		var error = Should.Throw<InvalidOperationException>(() => builder.Build());
+
+		error.Message.ShouldContain(nameof(RegisteredHarmlessMiddleware));
+		capturing.Records.Where(record =>
+			record.Message.Contains(nameof(RegisteredHarmlessMiddleware), StringComparison.Ordinal)).ShouldBeEmpty();
+	}
+
+	private sealed class SkipDiagnosticAction : IDispatchAction;
 
 	/// <summary>
 	/// A skipped pipeline stage must be reported at Warning, not Debug.

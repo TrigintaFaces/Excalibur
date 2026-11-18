@@ -12,6 +12,7 @@
 // ============================================================================
 
 using System.Text.Json;
+using Excalibur.Dispatch.Aot.Sample;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Transport;
@@ -33,6 +34,36 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Excalibur.EventSourcing.InMemory;
+
+if (args.Contains("--outbox-authority-smoke", StringComparer.Ordinal))
+{
+    await Excalibur.Dispatch.Aot.Sample.OutboxAuthoritySmoke.RunAsync();
+    return;
+}
+
+if (args.Contains("--saga-correlation-smoke", StringComparer.Ordinal))
+{
+    Excalibur.Dispatch.Aot.Sample.SagaCorrelationSmoke.Run();
+    return;
+}
+
+if (args.Contains("--jobs-binding-smoke", StringComparer.Ordinal))
+{
+    await Excalibur.Dispatch.Aot.Sample.JobsBindingSmoke.RunAsync();
+    return;
+}
+
+if (args.Contains("--native-sql-paths-smoke", StringComparer.Ordinal))
+{
+    await Excalibur.Dispatch.Aot.Sample.NativeSqlPathsSmoke.RunAsync();
+    return;
+}
+
+if (args.Contains("--mqtt-cloud-events-smoke", StringComparer.Ordinal))
+{
+    await Excalibur.Dispatch.Aot.Sample.MqttCloudEventsSmoke.RunAsync();
+    return;
+}
 
 if (args.Contains("--crypto-shred-smoke", StringComparer.Ordinal))
 {
@@ -110,6 +141,7 @@ var dispatcher = provider.GetRequiredService<IDispatcher>();
 var contextFactory = provider.GetService<IMessageContextFactory>();
 await Excalibur.Dispatch.Aot.Sample.PipelineVerification.RunAsync(dispatcher, provider).ConfigureAwait(false);
 await Excalibur.Dispatch.Aot.Sample.DataProcessingSmoke.RunAsync().ConfigureAwait(false);
+Excalibur.Dispatch.Aot.Sample.CloudEventsSmoke.Run();
 
 // ============================================================================
 // Demo 1: Command with Response
@@ -138,6 +170,7 @@ Console.WriteLine();
 var result = await dispatcher.DispatchAsync(createOrder, cancellationToken: default)
 	.ConfigureAwait(false);
 var orderId = result.ReturnValue;
+DemoOutcomes.Verify(1, result.Succeeded && orderId != Guid.Empty);
 Console.WriteLine($"Order created: {orderId}");
 Console.WriteLine();
 
@@ -146,6 +179,7 @@ Console.WriteLine();
 // ============================================================================
 Console.WriteLine("--- Demo 2: Event with Multiple Handlers ---");
 Console.WriteLine("(OrderCreatedEvent was dispatched by CreateOrderHandler)");
+DemoOutcomes.VerifyOrderHandlers(orderId, createOrder);
 Console.WriteLine("Both OrderCreatedHandler and OrderAnalyticsHandler processed it.");
 Console.WriteLine();
 
@@ -173,6 +207,7 @@ var queryResult = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(query,
 	.ConfigureAwait(false);
 var order = queryResult.ReturnValue;
 contextFactory?.Return(queryContext);
+DemoOutcomes.VerifyQuery(queryResult.Succeeded, order, orderId, createOrder);
 Console.WriteLine("Order retrieved (source-generated serialization):");
 var orderJson = JsonSerializer.Serialize(order, AppJsonSerializerContext.Default.OrderDto);
 Console.WriteLine($"  {orderJson}");
@@ -202,6 +237,7 @@ finally
 {
 	contextFactory?.Return(missingContext);
 }
+DemoOutcomes.Verify(4, true);
 
 Console.WriteLine();
 
@@ -249,6 +285,7 @@ Console.WriteLine($"Shared defaults (AOT-safe): {JsonSerializer.Serialize(origin
 // Reading DispatchJsonSerializerOptions.Web is itself part of what this demo proves: touching the
 // cached shared instance must not drag in a reflection-based converter.
 Console.WriteLine($"Web writes indented: {DispatchJsonSerializerOptions.Web.WriteIndented}");
+DemoOutcomes.VerifyRoundTrip(originalCommand, deserialized);
 Console.WriteLine();
 
 // ============================================================================
@@ -259,6 +296,7 @@ Console.WriteLine("--- Demo 6: InMemory Transport Registration ---");
 var transport = provider.GetRequiredKeyedService<InMemoryTransportAdapter>("demo");
 Console.WriteLine($"Transport registered: Name={transport.Name}, Type={transport.TransportType}");
 Console.WriteLine($"Transport running: {transport.IsRunning}");
+DemoOutcomes.VerifyTransportRegistration(transport);
 Console.WriteLine();
 
 // ============================================================================
@@ -281,6 +319,7 @@ Console.WriteLine($"Balance: {account.Balance:C}");
 Console.WriteLine($"Version: {account.Version}");
 Console.WriteLine($"Events:  {account.GetUncommittedEvents().Count}");
 Console.WriteLine($"AOT:     Pattern-matching apply (zero reflection)");
+DemoOutcomes.VerifyAccount(account);
 Console.WriteLine();
 
 // ============================================================================
@@ -307,6 +346,9 @@ var storedEvents = await eventStore.LoadAsync(
 	CancellationToken.None).ConfigureAwait(false);
 
 Console.WriteLine($"Stored events loaded: {storedEvents.Count}");
+DemoOutcomes.VerifyStoredEvents(appendResult.Success
+    && storedEvents.Select(item => item.EventId).SequenceEqual(uncommittedEvents.Select(item => item.EventId)),
+    storedEvents, account.Id);
 foreach (var stored in storedEvents)
 {
 	Console.WriteLine($"  [{stored.Version}] {stored.EventType} @ {stored.Timestamp:HH:mm:ss}");
@@ -342,6 +384,9 @@ var stateMatch = reconstructed.Balance == account.Balance
 	&& reconstructed.Id == account.Id;
 Console.WriteLine($"State matches original: {stateMatch}");
 Console.WriteLine($"Uncommitted after replay: {reconstructed.GetUncommittedEvents().Count} (expected: 0)");
+// This reconstruction deliberately pairs ORIGINAL events with the stored versions.
+// Demo 8 separately checks the persisted payload; this is not a persisted-payload replay.
+DemoOutcomes.VerifyReconstruction(account, reconstructed);
 Console.WriteLine();
 
 // ============================================================================
@@ -400,6 +445,7 @@ Console.WriteLine($"Transport health: {health.Status}");
 // Clean stop
 await transport.StopAsync(CancellationToken.None).ConfigureAwait(false);
 Console.WriteLine($"Transport stopped: IsRunning={transport.IsRunning}");
+DemoOutcomes.VerifyInventory(inventoryEvent, received, transport, health);
 Console.WriteLine();
 
 
@@ -459,6 +505,7 @@ static async Task RunComplianceDemoAsync()
 
 	Console.WriteLine($"Bound system name: {soc2Options.SystemDescription?.Name}");
 	Console.WriteLine($"Bound services:    {string.Join(", ", soc2Options.SystemDescription?.Services ?? [])}");
+DemoOutcomes.Verify(11, true);
 
 	// ============================================================================
 	// Demo 12: SOC 2 Report Export (Reflection-Free Formats)
@@ -482,6 +529,7 @@ static async Task RunComplianceDemoAsync()
 	var soc2Export = await soc2Exporter.ExportAsync(soc2Report, ExportFormat.Json, null, CancellationToken.None)
 		.ConfigureAwait(false);
 	Console.WriteLine($"Exported: {soc2Export.FileName} ({soc2Export.Data.Length} bytes, {soc2Export.ContentType})");
+DemoOutcomes.VerifyReport(soc2Export.Data, soc2Export.ContentType, soc2Report.ReportId, soc2Report.Title);
 	Console.WriteLine();
 }
 

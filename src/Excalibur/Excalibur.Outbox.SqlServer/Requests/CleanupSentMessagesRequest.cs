@@ -29,6 +29,11 @@ public sealed class CleanupTransportDeliveriesRequest : DataRequestBase<IDbConne
 	/// <param name="transaction">Optional transaction to participate in.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public CleanupTransportDeliveriesRequest(
 		string outboxTableName,
 		string transportsTableName,
@@ -57,7 +62,11 @@ public sealed class CleanupTransportDeliveriesRequest : DataRequestBase<IDbConne
 		Command = CreateCommand(sql, parameters, transaction, commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			await StaticDbCommand.ExecuteAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "BatchSize", StaticDbCommand.Input<int>(Parameters, "BatchSize"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "OlderThan", StaticDbCommand.Input<DateTimeOffset>(Parameters, "OlderThan"), DbType.DateTimeOffset);
+			}).ConfigureAwait(false);
 	}
 }
 
@@ -79,6 +88,11 @@ public sealed class CleanupSentMessagesRequest : DataRequestBase<IDbConnection, 
 	/// <param name="transaction">Optional transaction to participate in.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public CleanupSentMessagesRequest(
 		string tableName,
 		DateTimeOffset olderThan,
@@ -101,6 +115,10 @@ public sealed class CleanupSentMessagesRequest : DataRequestBase<IDbConnection, 
 		Command = CreateCommand(sql, parameters, transaction, commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			await StaticDbCommand.ExecuteAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "BatchSize", StaticDbCommand.Input<int>(Parameters, "BatchSize"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "OlderThan", StaticDbCommand.Input<DateTimeOffset>(Parameters, "OlderThan"), DbType.DateTimeOffset);
+			}).ConfigureAwait(false);
 	}
 }

@@ -120,11 +120,18 @@ public sealed class OutboxUnfencedDeadLetterRefusalShould
 			BatchProcessing = { ParallelProcessingDegree = 1 },
 		});
 
+		var store = new RefusingDeadLetterStore(outcome);
+		// This routing/compensation fixture requires a recognized transient failure so MaxAttempts=1
+		// reaches terminal completion; a missing DI service is now Unknown and correctly held instead.
+		var services = A.Fake<IServiceProvider>();
+		A.CallTo(() => services.GetService(typeof(IServiceScopeFactory)))
+			.Throws(new TimeoutException("CONTROLLED-DISPATCH-SCOPE-TIMEOUT"));
+
 		await using var processor = new OutboxProcessor(
 			options,
-			new RefusingDeadLetterStore(outcome),
+			store,
 			new DispatchJsonSerializer(),
-			A.Fake<IServiceProvider>(),
+			services,
 			NullLogger<OutboxProcessor>.Instance,
 			envelopeDeserializer: null,
 			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance,
@@ -134,6 +141,7 @@ public sealed class OutboxUnfencedDeadLetterRefusalShould
 
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 		_ = await processor.DispatchPendingMessagesAsync(cts.Token);
+		store.ClaimsVerified.ShouldBeGreaterThan(0, "the selected completion outcome must actually be exercised");
 	}
 
 	/// <summary>
@@ -147,9 +155,43 @@ public sealed class OutboxUnfencedDeadLetterRefusalShould
 	/// under test.
 	/// </remarks>
 	private sealed class RefusingDeadLetterStore(OutboxCompletionOutcome outcome)
-		: IOutboxStore, IDeadLetterableOutboxStore
+		: IOutboxStore, IDeadLetterableOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore
 	{
 		private int _served;
+
+        private readonly Dictionary<string, string> _claimed = new(StringComparer.Ordinal);
+        public int ClaimsVerified { get; private set; }
+
+        private void VerifyClaim(string messageId, string claimIdentity)
+        {
+            _claimed.TryGetValue(messageId, out var expected).ShouldBeTrue("completion must name a row actually acquired by this fixture");
+            claimIdentity.ShouldBe(expected, "the worker must present this row's exact captured acquisition");
+            ClaimsVerified++;
+        }
+
+        public async ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            await MarkSentAsync(messageId, cancellationToken);
+            return OutboxCompletionOutcome.Applied;
+        }
+
+        public async ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string messageId, string errorMessage, int retryCount, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            await MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken);
+            return OutboxCompletionOutcome.Applied;
+        }
+
+        public ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffAsync(string messageId, string errorMessage, int retryCount, DateTimeOffset nextAttemptAt, string claimIdentity, CancellationToken cancellationToken)
+            => MarkFailedAsync(messageId, errorMessage, retryCount, claimIdentity, cancellationToken);
+
+        public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            return MarkDeadLetteredAsync(messageId, reason, attemptCount, cancellationToken);
+        }
+
 
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 			int batchSize, CancellationToken cancellationToken)
@@ -171,6 +213,8 @@ public sealed class OutboxUnfencedDeadLetterRefusalShould
 				DispatcherId = "claim-alpha",
 			};
 
+			message.DispatcherId = "claim-" + message.Id;
+			_claimed.Add(message.Id, message.DispatcherId);
 			return new ValueTask<IEnumerable<OutboundMessage>>([message]);
 		}
 

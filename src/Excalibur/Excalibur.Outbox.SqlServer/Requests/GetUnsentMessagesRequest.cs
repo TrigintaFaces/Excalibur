@@ -13,6 +13,12 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <summary>
 /// Data request to get unsent messages from the outbox.
 /// </summary>
+/// <remarks>
+/// This framework-owned request uses its fixed constructor-defined primitive input schema. Replacing a
+/// known parameter value through <c>Parameters</c> is observed at execution; parameter DbType,
+/// direction, size, templates and output callbacks are not an extensibility contract of this request.
+/// Custom <c>IDataRequest</c> implementations retain their own execution behavior.
+/// </remarks>
 [NoTenantTerm(
 	TenantConfinement.EstateWide,
 	"the outbox drain is cross-tenant by design: one dispatcher serves every tenant, and the row carries TenantId so the handler can re-establish the owning tenant per message. Scoping this read to the ambient tenant would stall delivery for every other tenant")]
@@ -56,6 +62,21 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 		string fenceTableName,
 		string fenceScope,
 		CancellationToken cancellationToken)
+		: this(tableName, batchSize, commandTimeout, leaseTimeoutSeconds, processorId, fencingToken,
+			fenceTableName, fenceScope, transaction: null, cancellationToken)
+	{
+	}
+
+	internal GetUnsentMessagesRequest(
+		string tableName,
+		int batchSize,
+		int commandTimeout,
+		int leaseTimeoutSeconds,
+		string processorId,
+		long? fencingToken,
+		string fenceTableName,
+		string fenceScope,
+		IDbTransaction? transaction, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
@@ -76,7 +97,7 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 		var sql = $"""
 			WITH Claimable AS (
 				SELECT TOP (@BatchSize) *
-				FROM {tableName} WITH (READPAST, UPDLOCK, ROWLOCK)
+				FROM {tableName} WITH (READPAST, UPDLOCK, READCOMMITTEDLOCK)
 				WHERE Status IN (0, 3, 4) -- Staged, Failed, PartiallyFailed
 					-- Visibility is decided on the SERVER clock, like the lease below and like the
 					-- failure floor that writes NextAttemptAt. Comparing a server-stamped column against
@@ -120,14 +141,26 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 		// same process -- a claim whose lease lapsed while a dispatch hung, then re-taken by the next cycle.
 		// Consumers match this by PREFIX for bulk operations, never by splitting on the separator: the
 		// processor half may itself contain colons.
-		parameters.Add("@ProcessorId", FormattableString.Invariant($"{processorId}:{Guid.NewGuid():N}"));
+		var acquisition = FormattableString.Invariant($"{processorId}:{Guid.NewGuid():N}");
+		if (acquisition.Length > 255)
+		{
+			throw new ArgumentException("The processor identity plus acquisition generation exceeds the NVARCHAR(255) lease column.", nameof(processorId));
+		}
+		parameters.Add("@ProcessorId", acquisition);
 		parameters.Add("@FencingToken", fencingToken);
 		parameters.Add("@FenceScope", fenceScope);
 
-		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, transaction, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.QueryAsync<OutboxMessageRow>(Command).ConfigureAwait(false);
+			await StaticDbCommand.QueryAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "BatchSize", StaticDbCommand.Input<int>(Parameters, "BatchSize"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "LeaseTimeoutSeconds", StaticDbCommand.Input<int>(Parameters, "LeaseTimeoutSeconds"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "ProcessorId", StaticDbCommand.Input<string>(Parameters, "ProcessorId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "FencingToken", StaticDbCommand.Input<long?>(Parameters, "FencingToken"), DbType.Int64);
+				StaticDbCommand.AddParameter(command, "FenceScope", StaticDbCommand.Input<string>(Parameters, "FenceScope"), DbType.String);
+			}, reader => SqlServerOutboxRowReader.Read(reader, includeDispatcher: true)).ConfigureAwait(false);
 	}
 }
 

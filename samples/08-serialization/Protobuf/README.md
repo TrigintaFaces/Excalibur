@@ -1,10 +1,10 @@
 # Protobuf Serialization Sample
 
-This sample demonstrates Protocol Buffers (Protobuf) serialization with `Excalibur.Dispatch.Serialization.Protobuf` for high-performance, cross-language messaging using Google.Protobuf.
+This sample demonstrates Protocol Buffers (Protobuf) serialization with `Excalibur.Dispatch.Serialization.Protobuf` for schema-based messaging using Google.Protobuf. Measure the actual payload and configuration before drawing performance conclusions.
 
 ## Prerequisites
 
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- The repository-pinned SDK supporting this sample's `net10.0` target
 
 ## Quick Start
 
@@ -46,7 +46,7 @@ public sealed class OrderPlacedEvent : IMessage<OrderPlacedEvent>, IDispatchEven
 
 ### Binary Format Efficiency
 
-Protobuf provides significant size reduction compared to JSON:
+Earlier unverified size illustration; these values are not a current matched measurement of this sample. Compare actual encoded payloads, including contract and encoding differences:
 
 ```
 Serialization Size Comparison:
@@ -163,13 +163,13 @@ message OrderCancelledEvent {
 
 | Option | Values | Description |
 |--------|--------|-------------|
-| `WireFormat` | `Binary`, `Text` | Binary is default and more efficient |
+| `WireFormat` | `Binary`, `Text` | Binary is the default wire format; measure size and serialization cost for the payload |
 | `IgnoreMissingFields` | `true`/`false` | Ignore unknown fields during deserialization |
 
 ## Related Samples
 
-- [MessagePack](../MessagePackSample/) - High-performance binary serialization
-- [MemoryPack](../MemoryPackSample/) - Zero-copy serialization (.NET-only)
+- [MessagePack](../MessagePackSample/) - Binary serialization; measure the payload and configuration
+- [MemoryPack](../MemoryPackSample/) - Binary serialization for .NET
 
 ## Learn More
 

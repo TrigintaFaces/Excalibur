@@ -15,7 +15,7 @@ dotnet add package Excalibur.EventSourcing
 - `ISnapshotManager` and `ISnapshotStrategy` - Snapshot support for performance optimization
 - `IUpcastingPipeline` - Event versioning and migration support
 - `InMemoryEventStore` - In-memory implementation for testing
-- AOT-compatible with full Native AOT support
+- NativeAOT compatibility depends on configured providers, payload metadata and dependencies; validate by publishing and executing the application’s native binary.
 
 ## Usage
 

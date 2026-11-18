@@ -42,6 +42,11 @@ internal sealed class SchedulerOptionsValidator : IValidateOptions<SchedulerOpti
 			failures.Add($"{nameof(SchedulerOptions.PollingJitterRatio)} must be between 0.0 and 1.0 (was {options.PollingJitterRatio}).");
 		}
 
+		if (options.MaxAdmissionAttemptsPerOccurrence < 1)
+		{
+			failures.Add($"{nameof(SchedulerOptions.MaxAdmissionAttemptsPerOccurrence)} must be >= 1 (was {options.MaxAdmissionAttemptsPerOccurrence}).");
+		}
+
 		return failures.Count > 0
 			? ValidateOptionsResult.Fail(failures)
 			: ValidateOptionsResult.Success;

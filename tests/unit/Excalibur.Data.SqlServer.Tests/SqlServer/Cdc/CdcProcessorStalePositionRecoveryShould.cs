@@ -19,13 +19,13 @@ public sealed class CdcProcessorStalePositionRecoveryShould
     [Fact]
     public async Task RetryAtAQuiescentBoundaryWhenHeadChangesAfterInitialization()
     {
-        var (processor, repo, config) = Create();
+        var resets = 0;
+        var (processor, repo, _) = Create(configureRecovery: recovery =>
+            recovery.OnPositionReset = (_, _) => { resets++; return Task.CompletedTask; });
         await using var owned = processor;
         // Initial bounds accept checkpoint 5; detector observes restored maximum 3.
         var heads = new Queue<byte[]>([new byte[] { 10 }, new byte[] { 3 }, new byte[] { 3 }, new byte[] { 3 }]);
         A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).ReturnsLazily(() => heads.Dequeue());
-        var resets = 0;
-        config.RecoveryOptions!.OnPositionReset = (_, _) => { resets++; return Task.CompletedTask; };
         (await processor.ProcessBatchAsync((_, _) => Task.CompletedTask, CancellationToken.None)).ShouldBe(0);
         resets.ShouldBe(1);
         heads.ShouldBeEmpty();
@@ -34,9 +34,8 @@ public sealed class CdcProcessorStalePositionRecoveryShould
     [Fact]
     public async Task BoundRetriesWhenHistoryKeepsChanging()
     {
-        var (processor, repo, config) = Create();
+        var (processor, repo, _) = Create(configureRecovery: recovery => recovery.MaxRecoveryAttempts = 2);
         await using var owned = processor;
-        config.RecoveryOptions!.MaxRecoveryAttempts = 2;
         var calls = 0;
         A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._))
             .ReturnsLazily(() => new byte[] { ++calls % 2 == 1 ? (byte)10 : (byte)3 });
@@ -235,7 +234,8 @@ public sealed class CdcProcessorStalePositionRecoveryShould
         await processor.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
     }
 
-    private static (CdcProcessor Processor, ICdcRepository Repo, IDatabaseOptions Config) Create(IHostApplicationLifetime? lifetime = null)
+    private static (CdcProcessor Processor, ICdcRepository Repo, IDatabaseOptions Config) Create(
+        IHostApplicationLifetime? lifetime = null, Action<CdcRecoveryOptions>? configureRecovery = null)
     {
         var config = A.Fake<IDatabaseOptions>();
         A.CallTo(() => config.QueueSize).Returns(2);
@@ -244,7 +244,9 @@ public sealed class CdcProcessorStalePositionRecoveryShould
         A.CallTo(() => config.CaptureInstances).Returns(["dbo_items"]);
         A.CallTo(() => config.DatabaseName).Returns("source");
         A.CallTo(() => config.DatabaseConnectionIdentifier).Returns("consumer");
-        A.CallTo(() => config.RecoveryOptions).Returns(new CdcRecoveryOptions { RecoveryAttemptDelay = TimeSpan.Zero });
+        var recovery = new CdcRecoveryOptions { RecoveryAttemptDelay = TimeSpan.Zero };
+        configureRecovery?.Invoke(recovery);
+        A.CallTo(() => config.RecoveryOptions).Returns(recovery);
         var policy = A.Fake<IDataAccessPolicyFactory>();
         A.CallTo(() => policy.GetComprehensivePolicy()).Returns(Policy.NoOpAsync());
         var processor = new CdcProcessor(lifetime ?? A.Fake<IHostApplicationLifetime>(), config,
@@ -259,12 +261,13 @@ public sealed class CdcProcessorStalePositionRecoveryShould
         A.CallTo(() => mapping.GetNextLsnAsync(A<string>._, A<byte[]>._, A<CancellationToken>._)).Returns(Task.FromResult<byte[]?>(null));
         A.CallTo(() => state.GetLastProcessedPositionAsync(A<string>._, A<string>._, A<CancellationToken>._))
             .Returns(new[] { new CdcProcessingState { TableName = "dbo_items", LastProcessedLsn = [5] } });
-        var checkpoints = new CdcCheckpointManager(config, repo, state, NullLogger.Instance, policy);
+        var captured = (IDatabaseOptions)typeof(CdcProcessor).GetField("_dbConfig", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(processor)!;
+        var checkpoints = new CdcCheckpointManager(captured, repo, state, NullLogger.Instance, policy);
         // Inject storage seams into the composed components; exercise the PUBLIC batch operation.
         Set(processor, "_checkpointManager", checkpoints);
-        Set(processor, "_changeDetector", new CdcChangeDetector(repo, mapping, config, policy, checkpoints, NullLogger.Instance));
+        Set(processor, "_changeDetector", new CdcChangeDetector(repo, mapping, captured, policy, checkpoints, NullLogger.Instance));
         var ordered = (OrderedEventProcessor)typeof(CdcProcessor).GetField("_orderedEventProcessor", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(processor)!;
-        Set(processor, "_changeApplier", new CdcChangeApplier(config, policy, checkpoints, ordered, NullLogger.Instance, null, null));
+        Set(processor, "_changeApplier", new CdcChangeApplier(captured, policy, checkpoints, ordered, NullLogger.Instance, null, null));
         return (processor, repo, config);
     }
     private static void Set(CdcProcessor processor, string field, object value) =>

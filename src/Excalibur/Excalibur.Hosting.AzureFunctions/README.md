@@ -14,6 +14,8 @@ dotnet add package Excalibur.Hosting.AzureFunctions
 services.AddExcaliburAzureFunctionsServerless();
 ```
 
+`AddExcaliburAzureFunctionsServerless()` is a thin forwarding bootstrap over `AddAzureFunctionsServerless()`: it registers the platform host provider and cold-start optimizer, with no additional Excalibur-layer services. It does not automatically compose a complete Dispatch pipeline, saga persistence, event sourcing, or an outbox. Configure messaging and handlers explicitly with `AddDispatch(...)`, and select domain/persistence services through the [Excalibur hosting builder](../Excalibur.Hosting/README.md) (`AddExcalibur(...)`) and the relevant provider packages. See the [Dispatch AzureFunctions registration boundary](../../Dispatch/Excalibur.Dispatch.Hosting.AzureFunctions/README.md) for the forwarded services and their prerequisites.
+
 ## Documentation
 
 See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for detailed guides and API reference.

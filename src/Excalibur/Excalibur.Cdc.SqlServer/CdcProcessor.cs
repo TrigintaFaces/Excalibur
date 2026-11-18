@@ -181,7 +181,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		ArgumentNullException.ThrowIfNull(timeProvider);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		_dbConfig = dbConfig;
+		_dbConfig = DatabaseOptionsSnapshot.Capture(dbConfig);
 		_cdcRepository = cdcRepository;
 		_timeProvider = timeProvider;
 		_stateStore = stateStoreOptions is null
@@ -198,12 +198,12 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		// the batch (set at the batch-start leadership gate in ProcessBatchAsync), so the state-store CAS rejects
 		// a demoted (split-brain) leader's stale-token write instead of a mid-batch-null token silently bypassing it.
 		_checkpointManager = new CdcCheckpointManager(
-			dbConfig,
+			_dbConfig,
 			cdcRepository,
 			_stateStore,
 			logger, policyFactory);
-		_changeDetector = new CdcChangeDetector(cdcRepository, cdcRepository, dbConfig, policyFactory, _checkpointManager, logger);
-		_changeApplier = new CdcChangeApplier(dbConfig, policyFactory, _checkpointManager, _orderedEventProcessor, logger, _onFatalError, idempotencyFilter, _failureClassifier);
+		_changeDetector = new CdcChangeDetector(cdcRepository, cdcRepository, _dbConfig, policyFactory, _checkpointManager, logger);
+		_changeApplier = new CdcChangeApplier(_dbConfig, policyFactory, _checkpointManager, _orderedEventProcessor, logger, _onFatalError, idempotencyFilter, _failureClassifier);
 
 		_stoppingToken = _producerCancellationTokenSource.Token;
 		_stoppingRegistration = appLifetime.ApplicationStopping.Register(() =>

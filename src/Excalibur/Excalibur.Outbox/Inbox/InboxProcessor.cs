@@ -428,7 +428,36 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 				return new InboxMessage
 				{
-					ExternalMessageId = envelope.MessageId.ToString(),
+					// THE ENTRY KEY, NOT THE ENVELOPE'S OWN ID. This drain already holds a lease keyed on
+					// entry.MessageId, and the dispatch below seeds context.MessageId from this field, which
+					// the inbox stage resolves and compares against the lease it was handed. Carrying the
+					// envelope's producer-minted Guid here made those two values different, so the stage
+					// asked the store for a lease this caller was already holding and was refused. The
+					// legacy path above has always used entry.MessageId; only the envelope path diverged.
+					//
+					// WHAT THAT ACTUALLY COST, measured against a real store rather than reasoned, because
+					// the first account of it written here was wrong and is quoted below so anyone who
+					// absorbed it recognises it: "suppressed the handler as a duplicate, and the drain then
+					// finalized the entry Processed while reporting success."
+					//
+					// It did not. The refusal check below returns BEFORE both the deduplication record and
+					// the finalize, precisely so that an invocation which never happened is not marked
+					// processed. The two real consequences were:
+					//
+					//   * a PHANTOM SECOND ROW per delivery. With no row under the producer's Guid the
+					//     store GRANTS a fresh lease, so the stage claimed and finalized an entry keyed by
+					//     an identity no caller addresses, while the real entry's accounting happened
+					//     elsewhere. The handler did run, once.
+					//   * an entry LEFT IN Processing. Where a row under that Guid already existed -- which
+					//     is the normal state, since the receive path keys an envelope delivery by the
+					//     envelope's own id -- the refusal arrived after this drain had already claimed the
+					//     entry, so it was abandoned mid-transition rather than returned to Failed. An
+					//     entry in Processing looks in flight to whoever reads it.
+					//
+					// Both are loud rather than silent: the refusal is logged on every pass. The second was
+					// observed, not predicted -- the arm that catches it asserts the entry's terminal state
+					// as its own subject so the observation cannot be skipped by an earlier assertion.
+					ExternalMessageId = entry.MessageId,
 					MessageType = envelope.MessageType ?? entry.MessageType,
 					MessageMetadata = metadataJson,
 					MessageBody = body,

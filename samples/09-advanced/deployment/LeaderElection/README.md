@@ -1,167 +1,148 @@
 # Leader Election Sample
 
-This sample demonstrates distributed leader election using Redis with the Excalibur.LeaderElection.Redis package.
+This sample uses the framework's Redis registration, acquisition fencing tokens, leadership notifications and joined shutdown. Its three work batches are simulations; they do not mutate a protected shared resource.
 
-## Overview
+## Run the sample
 
-Leader election is a distributed systems pattern where multiple instances of an application coordinate to ensure that only one instance (the "leader") performs certain tasks at any given time. This is essential for:
+Use the repository's .NET 10 SDK and Docker for Redis:
 
-- **Background job processing** - Only one instance should process scheduled jobs
-- **Singleton services** - Tasks that must run in exactly one place
-- **Cluster coordination** - Managing state across distributed nodes
-- **Cache warming** - One instance pre-populates caches for all
+```bash
+docker compose up -d
+dotnet run
+```
 
-## Prerequisites
+Run the sample in several terminals to see candidates contend for the same lock key. Each process prints its identity, acquisition/loss events, exact acquisition fence and current status. The demo stops its election after the simulated batches, then keeps the host running until Ctrl+C. Stop a leader while the demonstrations are running to observe another candidate acquire leadership.
 
-- .NET 9.0 SDK
-- Docker (for Redis)
+For a single complete demonstration followed by host shutdown, run `dotnet run -- --Once true`. This mode performs the same election, monitoring, fenced batch simulations and joined shutdown without waiting for Ctrl+C.
 
-## Quick Start
+## Registration and connection ownership
 
-1. **Start Redis:**
-   ```bash
-   docker-compose up -d
-   ```
+The connection string is selected once, in this order:
 
-2. **Run the sample:**
-   ```bash
-   dotnet run
-   ```
+1. `ConnectionStrings:Redis` (`ConnectionStrings__Redis` in environment configuration).
+2. `Redis:ConnectionString` (`Redis__ConnectionString`), as supplied by this sample's `appsettings.json`.
+3. `localhost:6379`.
 
-3. **Multi-instance test:** Open multiple terminals and run `dotnet run` in each. Only one will become the leader.
+The Generic Host already loads JSON, environment and command-line providers in their standard precedence, so the sample does not append JSON again after environment overrides. See [Microsoft configuration guidance](https://learn.microsoft.com/dotnet/core/extensions/configuration).
 
-## Key Concepts
-
-### ILeaderElection Interface
+The sample passes that same value into `UseRedis`. The framework registers and owns the multiplexer created from this connection string, so the sample does not open a second client or hand-register one. Connection strings are not logged because they can contain credentials. Applications supplying their own multiplexer should follow the provider's connection-ownership contract.
 
 ```csharp
-public interface ILeaderElection
+using Microsoft.Extensions.DependencyInjection;
+
+public static class RedisLeaderElectionRegistration
 {
-    // Events
-    event EventHandler<LeaderElectionEventArgs>? BecameLeader;
-    event EventHandler<LeaderElectionEventArgs>? LostLeadership;
-    event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
-
-    // Properties
-    string CandidateId { get; }
-    bool IsLeader { get; }
-    string? CurrentLeaderId { get; }
-
-    // Lifecycle
-    Task StartAsync(CancellationToken cancellationToken);
-    Task StopAsync(CancellationToken cancellationToken);
+    public static IServiceCollection Configure(IServiceCollection services, string redisConnectionString)
+    {
+        services.AddExcalibur(excalibur =>
+            excalibur.AddLeaderElection(le => le
+                .UseRedis(redis => redis
+                    .ConnectionString(redisConnectionString)
+                    .LockKey("myapp:leader"))
+                .WithOptions(options =>
+                {
+                    options.LeaseDuration = TimeSpan.FromSeconds(30);
+                    options.RenewInterval = TimeSpan.FromSeconds(10);
+                    options.GracePeriod = TimeSpan.FromSeconds(15);
+                    options.InstanceId = $"{Environment.MachineName}-{Environment.ProcessId}";
+                })));
+        return services;
+    }
 }
 ```
 
-### Configuration Options
+Built-in registration enables the matching fencing provider. The sample does not opt out.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `LeaseDuration` | 15s | Time before the leader lock expires if not renewed |
-| `RenewInterval` | 5s | How often the leader renews its lease |
-| `GracePeriod` | 5s | Time to wait before declaring a leader dead |
-| `InstanceId` | MachineName | Unique identifier for this candidate |
+## Timing and ownership
 
-### Registration
+| Option | Framework default | Sample value | Meaning for Redis |
+|--------|-------------------|--------------|-------------------|
+| `LeaseDuration` | 15s | 30s | TTL used by the Redis key |
+| `RenewInterval` | 5s | 10s | Normal renewal request-start interval |
+| `GracePeriod` | 5s | 15s | Added to renewal interval for the local proof budget |
+| `InstanceId` | Unset | Machine name and process ID | Public candidate identity; private tenure ownership is separate |
 
-```csharp
-// 1. Register leader election with the Redis provider (fluent builder)
-services.AddExcalibur(excalibur =>
-    excalibur.AddLeaderElection(le =>
-        le.UseRedis(redis => redis
-            .ConnectionString("localhost:6379")
-            .LockKey("myapp:leader"))));
+The sample's local proof budget is `RenewInterval + GracePeriod`, or 25 seconds. It starts at the conservative monotonic request-start timestamp of the latest successful acquisition or ownership renewal. Response latency does not extend it. Normal renewals and ambiguous-failure retries use serialized request-start cadence. Ambiguous failures retain the current proof only until its existing deadline; they do not refresh that deadline. A definite owner mismatch or a classified permanent failure retires the local tenure earlier.
 
-// 2. Configure timing options.
-//    Validated at startup (ValidateOnStart): RenewInterval + GracePeriod + 1s
-//    clock-skew margin must be strictly less than LeaseDuration, otherwise the
-//    host fails fast to prevent a split-brain overlap window.
-services.Configure<LeaderElectionOptions>(options =>
-{
-    options.LeaseDuration = TimeSpan.FromSeconds(30);
-    options.RenewInterval = TimeSpan.FromSeconds(10);
-    options.GracePeriod = TimeSpan.FromSeconds(15);   // 10 + 15 + 1 = 26s < 30s ✓
-    options.InstanceId = Environment.MachineName;
-});
-```
+An independent timer clears local authority even while a renewal reply remains pending. Process suspension can delay timer execution, so this is not a hard real-time guarantee or proof that stale work cannot run. `GracePeriod` is not a timeout for deciding whether a remote candidate is dead.
 
-## Demo Scenarios
+Configuration validation requires `RenewInterval + GracePeriod + 1s < LeaseDuration`. Here, `10 + 15 + 1 = 26 < 30`. That reserves configuration headroom; it does not bound network calls, machine pauses, Redis failover or protected writes.
 
-### 1. Single-Leader Election Lifecycle
+Redis uses a private, opaque owner value that changes on every acquisition, even when the public candidate ID remains the same. Renewal compares the complete value before extending TTL; release compares it before deletion. Old cleanup therefore cannot delete a successor merely because both tenures have the same public ID. Do not construct or overwrite that private value yourself.
 
-The sample demonstrates the complete lifecycle:
-- Start participating in election
-- Acquire leadership (if available)
-- Maintain leadership through renewal
-- Release leadership on shutdown
+## Pin the acquisition fence for work
 
-### 2. Leadership Change Callbacks
-
-Events fire when leadership changes:
-- `BecameLeader` - This instance is now the leader
-- `LostLeadership` - This instance lost leadership
-- `LeaderChanged` - Any leadership change (useful for followers)
-
-### 3. Leader Work Pattern
+`CurrentLeadership` is one complete snapshot containing the acquisition's fence and start time. Pin it once for a work batch:
 
 ```csharp
-if (leaderElection.IsLeader)
+using Excalibur.Dispatch.LeaderElection;
+
+public static class LeaderProtectedWork
 {
-    // Perform leader-only work
-    await ProcessBackgroundJobsAsync();
-}
-else
-{
-    // Follower mode - wait or perform follower tasks
-    await WaitForLeadershipAsync();
+    public static async Task ApplyBatchAsync(
+        ILeaderElection leaderElection,
+        Func<long, CancellationToken, Task> applyFencedBatch,
+        CancellationToken cancellationToken)
+    {
+        if (leaderElection.CurrentLeadership is { } leadership &&
+            leadership.FencingToken is { } token)
+        {
+            // Optional local cancellation check; this cannot make a remote write atomic.
+            if (leaderElection.CurrentLeadership != leadership)
+                return;
+
+            // The application delegate must reject stale tokens and commit the batch
+            // atomically at the protected resource, using this pinned token.
+            await applyFencedBatch(token, cancellationToken);
+        }
+    }
 }
 ```
 
-### 4. Graceful Shutdown
+The application supplies the delegate implementing the atomic protected-resource operation; this sample does not implement that resource. Never fetch a newer token halfway through old work. `IsLeader` alone, or `ValidateTokenAsync` followed by an independent write, leaves a check/write race. The resource must enforce its fencing high-water mark atomically with the write. Leadership election alone is not exactly-once execution; retries may also require a durable idempotency key.
 
-On shutdown, the leader gracefully releases its lock, allowing another instance to take over immediately rather than waiting for the lease to expire.
+`LeaderChanged.FencingToken` is the exact token for that acquisition. A relinquishment notification carries no acquisition token. Notifications describe ordered transition history; a delayed callback is not a current authorization to write. Read and pin `CurrentLeadership` when starting work.
 
-## Provider Comparison
+## Shutdown and restart
 
-| Provider | Best For | Infrastructure | Failover Speed |
-|----------|----------|----------------|----------------|
-| **Redis** | High availability, fast failover | Redis cluster | Sub-second |
-| SQL Server | Existing SQL infrastructure | SQL Server | 5-15 seconds |
-| Kubernetes | K8s-native deployments | Kubernetes API | 15-30 seconds |
-| Consul | Service mesh integration | Consul cluster | 1-5 seconds |
+Stop clears local authority, joins admitted Redis operations, and conditionally releases the captured tenure's owner value. It retains cleanup ownership if the caller cancels its wait. A canceled `StopAsync` wait does not mean cleanup finished; a subsequent wait or disposal must observe the retained result. A hung driver can keep cleanup pending even though local leadership is already false.
 
-## How Redis Leader Election Works
+This demonstration awaits `StopAsync(CancellationToken.None)` so it does not report successful shutdown before owned cleanup finishes. Restart requires successful prior cleanup and notification drain. Subscriber exceptions cannot skip owned cleanup; an active notification callback can stop its election but cannot restart it inline.
 
-1. **Acquire**: Uses `SET key value NX PX milliseconds` (set if not exists with TTL)
-2. **Renew**: Lua script extends TTL only if the caller owns the lock
-3. **Release**: Lua script deletes the key only if the caller owns it
+### Permanent completion and application lifetime
 
-```redis
-# Acquire lock
-SET myapp:leader "Instance-12345" NX PX 30000
+`NotificationsCompleted` is one stable task from construction through permanent disposal. `StopAsync` is restartable and does not complete it. Resource disposal seals further work and joins admitted Redis operations; its task is independent of the terminal notification task, so a synchronous event callback may dispose its own election without joining itself.
 
-# Check current leader
-GET myapp:leader
+The sample runs every demo inside `RunAndShutdownAsync`, then joins both resource disposal and `NotificationsCompleted` while the host, logger and instrumentation owners remain alive. It waits for both even when one fails, then captures host shutdown and final host disposal failures before rethrowing one original failure or aggregating distinct failures. Final callbacks finish before host shutdown or logger teardown. DI may dispose the already-disposed singleton during host teardown; the application owner records that outcome instead of letting a hidden `using` finally replace earlier failures. Repeated reports of the same memoized exception are retained once by reference.
 
-# Check TTL
-TTL myapp:leader
-```
+Callers must not await their own `NotificationsCompleted` from an election callback: that task includes the callback currently executing. It covers synchronous delegate invocations only; `async void` continuations and tasks started by consumers require their own application-level joining. Keep borrowed logging and instrumentation owners alive until terminal delivery if their final output is needed.
 
-## Redis Commands
+## Provider differences
 
-Connect to Redis CLI:
+| Provider | Server-side ownership | Separate considerations |
+|----------|-----------------------|-------------------------|
+| Redis | Key TTL plus conditional owner-value scripts | Private owner value changes per acquisition |
+| SQL Server | Session-owned application lock | `LeaseDuration` is not a server lock TTL; proof requires the original session's exact exclusive lock |
+| PostgreSQL | Session-owned advisory lock | Exact bigint key, namespace, database and backend matter; renewal does not reconnect |
+| Consul | Session TTL and KV session ownership | Uses its separate `SessionTTL`, private session/nonce proof and a bounded read-only monitor |
+
+Failover timing depends on the backend, configured cadence, remote cleanup and scheduling. This sample does not publish fixed failover latency claims. Stale protected writes still require resource-side fencing for every provider.
+
+## Inspect Redis
+
 ```bash
 docker exec -it leader-election-redis redis-cli
 ```
 
-Inspect leader state:
 ```redis
-KEYS *leader*
+SCAN 0 MATCH *leader*
 GET myapp:leader
 TTL myapp:leader
 ```
 
-## Configuration (appsettings.json)
+`GET` returns the framework's opaque ownership value, not just the public candidate ID. Use framework status and events for candidate display. Inspect the key without replacing or deleting another live candidate's ownership.
+
+## Configuration
 
 ```json
 {
@@ -177,122 +158,13 @@ TTL myapp:leader
 }
 ```
 
-## Best Practices
-
-### 1. Lease Duration vs. Renew Interval
-
-- `LeaseDuration` should be 2-3x `RenewInterval`
-- Allows for network hiccups without losing leadership
-- Example: 30s lease with 10s renewal
-
-### 2. Grace Period
-
-- Time to wait for renewal before declaring leader dead
-- Should be less than `LeaseDuration`
-- Prevents flapping during temporary network issues
-
-### 3. Instance ID
-
-- Use a stable, unique identifier
-- Machine name + process ID works well for most cases
-- In Kubernetes, use pod name
-
-### 4. Handle Lost Leadership
-
-Always check `IsLeader` before performing leader work:
-
-```csharp
-while (!cancellationToken.IsCancellationRequested)
-{
-    if (!leaderElection.IsLeader)
-    {
-        await Task.Delay(1000, cancellationToken);
-        continue;
-    }
-
-    // Perform work, but check periodically
-    for (int i = 0; i < 10; i++)
-    {
-        if (!leaderElection.IsLeader) break;
-        await ProcessBatchAsync(i);
-    }
-}
-```
-
 ## Troubleshooting
 
-### Cannot connect to Redis
+- **Connection fails:** confirm Redis is healthy and the selected configuration points to it. Check both supported configuration keys in their stated precedence; avoid pasting credentials into logs.
+- **Local leadership disappears while Redis still has the key:** local proof expiry and remote TTL/cleanup are different events. Inspect renewal failures and the pinned fence; do not continue writes merely because the key exists.
+- **A paused candidate resumes after takeover:** abandon its old work when possible and rely on the protected resource to reject its old fence. Clock synchronization alone cannot prevent stale writes.
+- **Takeover is slow:** distinguish graceful joined release from waiting for Redis expiry after a crash, then consider retry cadence and infrastructure behavior. A pending Stop wait is not successful cleanup.
 
-```
-Failed to connect to Redis. Ensure Redis is running (docker-compose up -d)
-```
+The related packages are `Excalibur.Dispatch.LeaderElection.Abstractions`, `Excalibur.LeaderElection` and `Excalibur.LeaderElection.Redis`. SQL Server, PostgreSQL, Consul and Kubernetes have their own provider packages and deployment requirements.
 
-**Solution:** Start Redis with `docker-compose up -d`
-
-### Multiple leaders
-
-This should never happen with Redis leader election. If it does:
-1. Check network connectivity between instances
-2. Ensure clocks are synchronized (NTP)
-3. Verify lease duration is appropriate for your network latency
-
-### Leadership not transferring
-
-If an instance stops but leadership doesn't transfer:
-1. Wait for lease to expire (`LeaseDuration`)
-2. Check Redis connectivity for remaining instances
-3. Verify the lock key is correct
-
-## Related Packages
-
-| Package | Description |
-|---------|-------------|
-| `Excalibur.Dispatch.LeaderElection.Abstractions` | Core interfaces (`ILeaderElection`) |
-| `Excalibur.LeaderElection` | Base implementation and DI extensions |
-| `Excalibur.LeaderElection.Redis` | Redis provider (this sample) |
-| `Excalibur.LeaderElection.SqlServer` | SQL Server provider |
-| `Excalibur.LeaderElection.Kubernetes` | Kubernetes Lease API provider |
-| `Excalibur.LeaderElection.Consul` | Consul provider |
-
-## Sample Output
-
-```
-=================================================
-  Leader Election Sample
-=================================================
-
-=== Demo 1: Subscribe to Leadership Events ===
-
-Candidate ID: Instance-12345
-Lock Key: myapp:leader
-Lease Duration: 00:00:30
-Renew Interval: 00:00:10
-Grace Period: 00:00:15
-
-Event handlers registered for:
-  - BecameLeader
-  - LostLeadership
-  - LeaderChanged
-
-=== Demo 2: Start Leader Election ===
-
-Starting leader election...
-
-*** LEADERSHIP ACQUIRED ***
-  Candidate: Instance-12345
-  Lock Key: myapp:leader
-  This instance is now the leader!
-
-Initial election result:
-  Is Leader: True
-  Current Leader: Instance-12345
-
-=== Demo 3: Monitor Leadership Status ===
-
-Monitoring leadership status for 10 seconds...
-
-Status check 1/5:
-  Is Leader: True
-  Current Leader: Instance-12345
-...
-```
+The application lifetime owner takes responsibility immediately after building the host, including service resolution and startup logging. A known demo or cleanup failure skips the interactive shutdown wait. Cancellation retains the actual exception/token, and an empty aggregate remains an observable failure.

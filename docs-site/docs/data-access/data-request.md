@@ -6,7 +6,7 @@ description: Encapsulated, testable data access with Dapper and automatic connec
 
 # IDataRequest
 
-`IDataRequest` is Excalibur's abstraction for encapsulated, reusable database operations using Dapper. Each request class packages its SQL, parameters, and execution logic into a single, testable unit.
+`IDataRequest` is Excalibur's abstraction for encapsulated, reusable database operations with Dapper execution or explicit ADO binding and row projections. Each request class packages its SQL, parameters, and execution logic into a single, testable unit.
 
 ## Before You Start
 
@@ -64,7 +64,18 @@ public interface IDataRequest<in TConnection, TModel> : IDataRequest
 The recommended way to implement data requests. Extends `DataRequestBase<IDbConnection, TModel>` and provides the `CreateCommand` helper:
 
 ```csharp
-public abstract class DataRequest<TModel> : DataRequestBase<IDbConnection, TModel>;
+using Dapper;
+using Excalibur.Data;
+
+// A consumer derives from the shipped DataRequest<TModel> base class.
+public sealed class CountOrders : DataRequest<int>
+{
+    public CountOrders(CancellationToken cancellationToken)
+    {
+        Command = CreateCommand("SELECT COUNT(*) FROM Orders", cancellationToken: cancellationToken);
+        ResolveAsync = connection => connection.QuerySingleAsync<int>(Command);
+    }
+}
 ```
 
 `CreateCommand` builds a `CommandDefinition`. Its parameters, transaction, timeout and command type
@@ -77,6 +88,61 @@ Command = CreateCommand(
     parameters: parameters,
     cancellationToken: cancellationToken);
 ```
+
+## Explicit ADO execution
+
+`DataRequestBase<TConnection, TModel>` also exposes protected methods for operations whose
+parameters and row shape are known in the request:
+
+| Method | Result |
+|--------|--------|
+| `ExecuteNonQueryAsync(connection, bind)` | Affected row count |
+| `ExecuteScalarAsync(connection, bind)` | Provider scalar value, which can be `DBNull.Value` |
+| `ReadRowsAsync(connection, bind, materialize)` | Fully buffered, explicitly projected rows |
+
+These methods execute the existing `Command` through ADO rather than Dapper's command initialization
+or runtime row mapper. Keep `CreateCommand`, `Parameters` and the normal `ResolveAsync` path;
+the binder explicitly supplies each parameter's name, type and current value:
+
+```csharp
+using System.Data;
+using Dapper;
+using Excalibur.Data;
+
+public sealed class GetOrderNumbers : DataRequest<IEnumerable<long>>
+{
+    public GetOrderNumbers(Guid customerId, IDbTransaction? transaction,
+        CancellationToken cancellationToken)
+    {
+        Parameters.Add("CustomerId", customerId, DbType.Guid);
+        Command = CreateCommand(
+            "SELECT OrderNumber FROM Orders WHERE CustomerId = @CustomerId ORDER BY OrderNumber",
+            transaction: transaction, cancellationToken: cancellationToken);
+
+        ResolveAsync = connection => ReadRowsAsync(connection, command =>
+        {
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "CustomerId";
+            parameter.DbType = DbType.Guid;
+            parameter.Value = Parameters.Get<Guid>("CustomerId");
+            command.Parameters.Add(parameter);
+        }, static row => row.GetInt64(0));
+    }
+}
+```
+
+Reading `Parameters` inside the binder observes the request's current values at execution.
+Use `DBNull.Value` for SQL nulls and specify the operation's appropriate sizes, precision and scale.
+The supplied command retains its transaction, command type, timeout and cancellation token.
+An already-open connection stays open; a connection opened for the request is closed afterward.
+The caller retains transaction ownership and decides when to commit or roll back. Rows are buffered
+before reader cleanup; reader/command cleanup failures do not replace an existing primary operation
+exception. An asynchronous provider command is required.
+
+The Dapper execution examples below remain supported. Explicit binding removes Dapper's dynamic
+execution at the calls that use it; it does **not** certify the driver, payload codecs or complete
+application for NativeAOT. Publish and execute the actual selected database path with its real driver
+and infrastructure. See [Native AOT](../advanced/native-aot.md#database-request-execution).
 
 ## Writing Data Requests
 

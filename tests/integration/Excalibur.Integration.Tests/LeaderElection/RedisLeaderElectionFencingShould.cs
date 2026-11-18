@@ -65,10 +65,10 @@ public sealed class RedisLeaderElectionFencingShould : IntegrationTestBase, ICla
 		var options = Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions
 		{
 			InstanceId = "candidate-A",
-			LeaseDuration = TimeSpan.FromMinutes(5),
+			LeaseDuration = TimeSpan.FromMinutes(10),
 			// Neutralize the background renewal loop for the deterministic test window: its first iteration
 			// waits one RenewInterval, so a long interval guarantees the loop never re-attempts acquire+mint
-			// before we assert and StopAsync. (Direct construction bypasses the ValidateOnStart timing gate.)
+			// before we assert and StopAsync. The lease remains longer than the renewal interval.
 			RenewInterval = TimeSpan.FromMinutes(5),
 			GracePeriod = TimeSpan.FromSeconds(5),
 		});
@@ -119,17 +119,17 @@ public sealed class RedisLeaderElectionFencingShould : IntegrationTestBase, ICla
 		services.AddSingleton<IConnectionMultiplexer>(connection);
 		services.AddRedisFencingTokenProvider();
 		await using var serviceProvider = services.BuildServiceProvider();
-		var fencing = serviceProvider.GetRequiredService<IFencingTokenProvider>();
+		var fencing = serviceProvider.GetRequiredService<IFencingTokenIssuer>();
 
 		var options = Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions
 		{
 			InstanceId = "candidate-A",
-			LeaseDuration = TimeSpan.FromMinutes(5),
+			LeaseDuration = TimeSpan.FromMinutes(10),
 			RenewInterval = TimeSpan.FromMinutes(5),
 			GracePeriod = TimeSpan.FromSeconds(5),
 		});
 
-		long? highWaterMarkAtEventTime = null;
+		var delivered = new TaskCompletionSource<long?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		await using var election = new RedisLeaderElection(
 			connection,
 			lockKey,
@@ -137,18 +137,29 @@ public sealed class RedisLeaderElectionFencingShould : IntegrationTestBase, ICla
 			NullLogger<RedisLeaderElection>.Instance,
 			new RedisLeaderElectionContext { FencingTokenProvider = fencing });
 
-		// Capture the resource's fence high-water mark AT the instant the leadership event fires. The handler
-		// is synchronous; reading the (already-advanced) token via the public contract is a quick Redis GET.
+		// Keep the real GET inside the delivered callback. Notification delivery is queued independently
+		// of StartAsync, so await the captured observation rather than assume Start joined the callback.
 		election.BecameLeader += (_, _) =>
+		{
+			try
+			{
 			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
-			highWaterMarkAtEventTime = fencing.GetTokenAsync(lockKey, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+				var observed = fencing.GetTokenAsync(lockKey, CancellationToken.None).AsTask().GetAwaiter().GetResult();
 			#pragma warning restore RS0030
+				delivered.TrySetResult(observed);
+			}
+			catch (Exception error)
+			{
+				delivered.TrySetException(error);
+			}
+		};
 
 		// Act — StartAsync mints the fence (INCR -> 1) BEFORE declaring leadership, firing BecameLeader.
 		await election.StartAsync(TestCancellationToken);
+		var highWaterMarkAtEventTime = await delivered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestCancellationToken);
 
 		// Assert (before StopAsync relinquishes) — leadership achieved AND the fence was already advanced when
-		// the event fired. Pre-fix (event before mint) -> the mark is null at handler time -> RED.
+		// the callback observed it. This does not establish when a delayed notification was originally queued.
 		election.IsLeader.ShouldBeTrue("with a working fence provider the candidate must become leader");
 		highWaterMarkAtEventTime.ShouldNotBeNull(
 			"the fence high-water mark must already be advanced when BecameLeader fires (event strictly AFTER the mint)");
@@ -161,7 +172,7 @@ public sealed class RedisLeaderElectionFencingShould : IntegrationTestBase, ICla
 	/// <summary>
 	/// A fencing-token provider whose mint always fails — drives the 762uzn fail-CLOSED relinquish path.
 	/// </summary>
-	private sealed class AlwaysThrowingFencingTokenProvider : IFencingTokenProvider
+	private sealed class AlwaysThrowingFencingTokenProvider : IFencingTokenIssuer
 	{
 		public ValueTask<long> IssueTokenAsync(string resourceId, CancellationToken cancellationToken)
 			=> throw new InvalidOperationException("Simulated fencing-store outage: token mint unavailable.");

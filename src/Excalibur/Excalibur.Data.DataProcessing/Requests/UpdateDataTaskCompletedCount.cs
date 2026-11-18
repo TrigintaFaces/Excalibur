@@ -57,6 +57,11 @@ internal sealed class UpdateDataTaskCompletedCount : DataRequest<int>
 		parameters.Add("ProcessedCursor", processedCursor, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, parameters: parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = conn => DataTaskCommandExecutor.ExecuteAsync(conn, Command, command =>
+		{
+			DataTaskCommandExecutor.Add(command, "DataTaskId", DbType.Guid, parameters.Get<Guid>("DataTaskId"));
+			DataTaskCommandExecutor.Add(command, "CompletedCount", DbType.Int64, parameters.Get<long>("CompletedCount"));
+			DataTaskCommandExecutor.Add(command, "ProcessedCursor", DbType.String, parameters.Get<string?>("ProcessedCursor"));
+		});
 	}
 }

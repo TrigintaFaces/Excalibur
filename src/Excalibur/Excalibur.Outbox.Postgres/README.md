@@ -54,6 +54,46 @@ Every statement is guarded with `IF NOT EXISTS`, so the script is safe to re-run
 - `outbox_fence.scope_key` must keep its primary key — the fenced claim and fenced delete upsert
   with `ON CONFLICT (scope_key)`, which requires a matching unique constraint.
 
+## Enqueue payloads and message identity
+
+`EnqueueAsync` serializes the message's runtime type using the framework's canonical JSON
+contract. It keeps PostgreSQL's existing envelope framing and propagated headers, and uses
+`context.GetDestination()` when supplied; otherwise the destination is the message's
+namespace-qualified type name.
+
+The owning store exposes `IOutboxPayloadTransformStore` for decorators such as
+`AddOutboxEncryption`. The provider prepares the envelope before the transform runs; the
+transform receives its exact serialized payload, prepared tenant and cancellation token.
+A failed, canceled or null-result transform accepts no row. The provider copies a successful
+result before persistence. Encryption decorators mediate this capability rather than
+exposing an unencrypted write path. Register all stores before adding encryption.
+
+Message identity follows these rules:
+
+- On `EnqueueAsync`, a null or empty context message ID requests a new identity. A nonempty
+  ID consisting only of whitespace is rejected before payload serialization or persistence.
+- A nonblank supplied ID is opaque and preserved exactly, including surrounding spaces.
+  The provider captures it before serialization so a message getter cannot change the
+  identity used in the persisted row or its framing header.
+- Both `StageMessageAsync` overloads and `SaveMessagesAsync` require an explicit nonblank
+  ID. Invalid IDs are rejected before accepting a write. `SaveMessagesAsync` validates the
+  entire input collection first and uses each captured, validated identity for its insert.
+
+Collection validation does not make a save batch transactional. Once database writes begin,
+backend failures retain the existing per-message behavior and can leave earlier valid rows
+persisted. A stage using an external `NpgsqlTransaction` borrows the caller's connection and
+transaction; the caller remains responsible for commit or rollback. A successful write in
+that transaction is provisional until the caller commits.
+
+The convenience enqueue path still uses reflective payload serialization and retains its
+trimming and dynamic-code annotations. It is not certified for NativeAOT.
+
+Pre-serialized `StageMessageAsync` avoids payload serialization, but this provider still
+encodes envelope headers through its legacy JSON metadata path. PostgreSQL staging does not
+currently expose a generated-metadata configuration contract; it is not a NativeAOT
+workaround or certification. Verify trimming and NativeAOT requirements against the full
+application path.
+
 ## Dead-letter retirement
 
 Retirement records the absolute observed logical send count and preserves a greater

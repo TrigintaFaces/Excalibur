@@ -8,6 +8,8 @@ description: Native AOT compilation guide for Excalibur
 
 Dispatch provides Native AOT paths through generated handler registration and invocation, together with explicit serialization metadata. Compatibility depends on the handlers, middleware, serializers, and integrations your application selects. Publish and execute your application to verify those paths.
 
+The compiler-checked examples on this page use the optional dependency/compiler profile of the existing `samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj` project, together with the normal Dispatch runtime references. They do not borrow its application types or demonstrate a deployed cloud host or successful NativeAOT publication. The real Dispatch analyzers and SDK JSON generator must run. Generated implementation classes are not application source to copy; application messages and service implementations remain your responsibility.
+
 ## Before You Start
 
 - **.NET 10.0**
@@ -24,9 +26,9 @@ Native AOT compiles your application directly to machine code, eliminating the J
 | Benefit | Description |
 |---------|-------------|
 | **Startup** | No JIT warm-up; measure total application startup on your deployment target |
-| **Smaller binaries** | IL trimming removes unused code |
-| **Lower memory** | No JIT compiler loaded in memory |
-| **Predictable perf** | No JIT-related latency spikes |
+| **Binary size** | Trimming removes unused code; measure the published artifact |
+| **Memory** | No runtime JIT compiler; measure total application memory |
+| **Latency** | Removes JIT compilation, not other sources of latency variation |
 
 Dispatch's generators cover supported handler shapes and generate direct invocation paths. Inaccessible or open generic shapes require a supported registration strategy; generated coverage is not a guarantee that every application dependency is AOT compatible. See [source generator coverage](./source-generators.md).
 
@@ -47,12 +49,24 @@ For pipeline validation, run `samples/10-aot/Excalibur.Dispatch.Aot.Sample` as a
 
 ```csharp
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery;
+
+public sealed record CreateOrderCommand(Guid OrderId) : IDispatchAction;
+public sealed record GetOrderQuery(Guid OrderId) : IDispatchAction<OrderDto>;
+public sealed record OrderCreatedEvent(Guid OrderId) : IDispatchEvent;
+public sealed record OrderDto(Guid OrderId);
+
+// The application implements and registers this contract; this example does not simulate an order write.
+public interface IOrderApplication
+{
+    Task CreateAsync(Guid orderId, CancellationToken cancellationToken);
+}
 
 [AutoRegister]
-public class CreateOrderHandler : IActionHandler<CreateOrderCommand>
+public sealed class CreateOrderHandler(IOrderApplication application) : IActionHandler<CreateOrderCommand>
 {
-    public Task HandleAsync(CreateOrderCommand message, CancellationToken cancellationToken)
-        => Task.CompletedTask;
+    public Task HandleAsync(CreateOrderCommand message, CancellationToken cancellationToken) =>
+        application.CreateAsync(message.OrderId, cancellationToken);
 }
 ```
 
@@ -142,7 +156,8 @@ checks establish functional behavior, not NativeAOT performance.
 dotnet publish -c Release
 ```
 
-Expected: zero IL2XXX/IL3XXX trimming or AOT warnings.
+Review every trimming/AOT diagnostic and execute the published application. This command alone
+does not establish compatibility; a clean publish is an acceptance objective, not an assured outcome.
 
 ---
 
@@ -152,133 +167,69 @@ When you build with `Excalibur.Dispatch` referenced, its bundled generators prod
 
 ### Handler Factory (`PrecompiledHandlerRegistry.g.cs`)
 
-The `HandlerRegistrySourceGenerator` discovers all handler implementations and generates AOT-safe resolution:
+The `HandlerRegistrySourceGenerator` discovers supported handler implementations and generates resolution code:
 
-```csharp
-// Generated — switch expression, zero reflection
-public static class PrecompiledHandlerRegistry
-{
-    public static void RegisterAll(IHandlerRegistry registry)
-    {
-        registry.Register(typeof(CreateOrderCommand), typeof(CreateOrderHandler), false);
-    }
-
-    public static Type? ResolveHandlerType(Type messageType)
-    {
-        return messageType switch
-        {
-            Type t when t == typeof(global::MyApp.CreateOrderCommand)
-                => typeof(global::MyApp.CreateOrderHandler),
-            _ => null
-        };
-    }
-
-    public static object? CreateHandler(Type messageType, IServiceProvider provider)
-    {
-        ArgumentNullException.ThrowIfNull(provider);
-        var handlerType = ResolveHandlerType(messageType);
-        return handlerType is not null ? provider.GetRequiredService(handlerType) : null;
-    }
-
-    public static int HandlerCount => 1;
-}
-```
+The generator emits its own `PrecompiledHandlerRegistry` implementation from application handlers. Do not paste a handwritten registry into the application: it would compete with generated declarations. See `src/Dispatch/Excalibur.Dispatch.SourceGenerators/` for the implementation; the application-facing registration calls above remain the consumer entry point.
 
 `ResolveHandlerType` uses a compiler-generated switch expression — no `Type.GetType()`, no reflection, no runtime assembly scanning.
 
 ### Message Type Metadata (`DiscoveredMessageTypeMetadata.g.cs`)
 
-The `JsonSerializationSourceGenerator` produces compile-time metadata for all discovered `IDispatchMessage` types:
+The `JsonSerializationSourceGenerator` produces a compile-time registry of eligible discovered `IDispatchMessage` types:
 
-```csharp
-// Generated — compile-time type registry
-public static class DiscoveredMessageTypeMetadata
-{
-    public static IReadOnlyList<Type> MessageTypes { get; } = ImmutableArray.Create(new Type[]
-    {
-        typeof(CreateOrderCommand),
-        typeof(GetOrderQuery),
-        typeof(OrderCreatedEvent),
-    });
+The generator also discovers application message types at compilation. Its generated metadata is an implementation output, not an application class to copy; declare the real messages and handlers instead.
 
-    public static bool IsMessageType(Type type)
-    {
-        return type switch
-        {
-            Type t when t == typeof(CreateOrderCommand) => true,
-            Type t when t == typeof(GetOrderQuery) => true,
-            Type t when t == typeof(OrderCreatedEvent) => true,
-            _ => false
-        };
-    }
-}
-```
-
-This metadata is consumed by the framework's `CoreMessageJsonContext` and `CompositeAotJsonSerializer` for AOT-safe JSON serialization.
+This registry does not supply JSON contracts for those types. Define an application
+`JsonSerializerContext` with explicit `[JsonSerializable]` declarations and configure serialization
+to use that context.
 
 **Type filtering:** The generator automatically skips abstract types, open generic types, and non-public or nested types.
 
-### Result Factory (`ResultFactoryRegistry.g.cs`)
+### Result Factory Registration
 
-The `MessageResultExtractorGenerator` generates AOT-safe result creation, replacing the reflection-based `ResultFactoryCache`:
+`MessageResultExtractorGenerator` emits an application module initializer that calls the framework's
+public typed registration API. `ResultFactoryRegistry` itself is framework-owned, not a second
+consumer-generated registry. The generated initializer body contains calls such as:
 
 ```csharp
-// Generated — no MakeGenericMethod(), no MethodInfo.Invoke()
-public static partial class ResultFactoryRegistry
-{
-    internal static Func<object?, RoutingDecision?, object?, IAuthorizationResult?, bool, IMessageResult>?
-        GetFactory(Type resultType)
-    {
-        return _factories.TryGetValue(resultType, out var factory) ? factory : null;
-    }
+using Excalibur.Dispatch.Delivery.Handlers;
 
-    public static object? ExtractReturnValue(IMessageResult result)
-    {
-        return result switch
-        {
-            global::Excalibur.Dispatch.IMessageResult<Guid> r => r.ReturnValue,
-            global::Excalibur.Dispatch.IMessageResult<OrderDto> r => r.ReturnValue,
-            _ => null
-        };
-    }
-}
+ResultFactoryRegistry.RegisterFactory<Guid>();
+ResultFactoryRegistry.RegisterFactory<OrderDto>();
 ```
 
-When publishing with NativeAOT, `FinalDispatchHandler.CreateTypedResult()` automatically uses `ResultFactoryRegistry.GetFactory()` instead of reflection.
+`FinalDispatchHandler` consumes those registered full and lean factories; applications do not call
+its internal `GetFactory` methods. Result extraction helpers generated for caching are separate.
 
 ### Service Registration (`GeneratedServiceCollectionExtensions.g.cs`)
 
 The `ServiceRegistrationSourceGenerator` generates DI registrations for `[AutoRegister]` types:
 
-```csharp
-namespace Microsoft.Extensions.DependencyInjection;
-
-public static class GeneratedServiceCollectionExtensions
-{
-    public static IServiceCollection AddGeneratedServices(this IServiceCollection services)
-    {
-        services.AddScoped<global::MyApp.CreateOrderHandler>();
-        services.AddScoped<global::Excalibur.Dispatch.Delivery.IActionHandler<global::MyApp.CreateOrderCommand>,
-            global::MyApp.CreateOrderHandler>();
-        return services;
-    }
-}
-```
+`AddGeneratedServices()` is emitted by the service-registration generator from `[AutoRegister]` application types. Do not declare a competing `GeneratedServiceCollectionExtensions` implementation. The real analyzer must be referenced as an analyzer, as in the existing `samples/10-aot/Excalibur.Dispatch.Aot.Sample` project.
 
 **Key enhancement:** Uses `AllInterfaces` to discover handler interfaces from base types, so a handler inheriting from `BaseHandler<T>` that implements `IActionHandler<T>` will have the interface registration generated automatically.
 
 ---
 
+## Database request execution
+
+For request-owned fixed SQL, [protected ADO execution](../data-access/data-request.md#explicit-ado-execution)
+keeps the DataRequest contract while explicitly binding parameters and projecting row ordinals.
+It avoids Dapper's dynamic execution at those migrated calls. This does not establish NativeAOT
+support for the selected database driver or the complete SQL profile: publish and execute that exact
+application path against real infrastructure. Existing Dapper request execution remains available.
+
 ## JSON Serialization
 
-For AOT, JSON serialization requires `JsonSerializerContext` instead of runtime reflection. Dispatch provides two framework-level contexts:
+For generated JSON paths, supply explicit metadata instead of reflection fallback. Dispatch has two internal implementation contexts; the factory composes their declared metadata, and consumers do not resolve these types from DI:
 
 | Context | Covers |
 |---------|--------|
-| `CoreMessageJsonContext` | Framework message types (`MessageResult`, `MessageContext`, etc.) |
-| `CloudEventJsonContext` | CloudEvents envelope types |
+| `CoreMessageJsonContext` | Declared dictionaries and basic value types; inspect its explicit contracts |
+| `CloudEventJsonContext` | Declared CLR metadata, including `Uri`; root metadata is not proof the SDK's whole object graph is generically serializable |
 
-The `DiscoveredMessageTypeMetadata` generated class provides the compile-time type registry that these contexts use.
+`DiscoveredMessageTypeMetadata` lists eligible message types; it does not generate their JSON
+serialization contracts. Supply those contracts in an application `JsonSerializerContext`.
 
 SQL Server outbox header reads use package-generated metadata for the persisted JSON dictionary.
 Non-null header values reload as `JsonElement`; null values remain null, and header keys remain case-sensitive.
@@ -292,6 +243,9 @@ for arbitrary runtime objects written into headers or message payloads.
 For your own DTOs, create a `JsonSerializerContext`:
 
 ```csharp
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     UseStringEnumConverter = true,
@@ -302,96 +256,123 @@ For your own DTOs, create a `JsonSerializerContext`:
 public partial class AppJsonSerializerContext : JsonSerializerContext { }
 ```
 
-:::warning Wire-shape parity is your responsibility
-The three options above (`PropertyNamingPolicy = CamelCase`, `UseStringEnumConverter = true`,
-`DefaultIgnoreCondition = WhenWritingNull`) are **required** to match the reflection-based
-`JsonEventSerializer`'s wire shape — camelCase property names, enums serialized as strings, and
-nulls omitted. The `[JsonSourceGenerationOptions]` attribute is plain source-generated JSON config;
-nothing in the framework validates or enforces your choices here. If your `JsonSerializerContext`
-omits or diverges from these options (e.g. leaves the default PascalCase naming, or serializes
-enums as numbers), events written under one serialization path (source-generated, AOT) and read
-under the other (reflection-based) will silently mis-read — property names won't match and enum
-values may not round-trip. Always copy the options block above verbatim unless you have
-deliberately standardized on a different wire shape across *all* readers and writers.
+:::warning Persisted events have their own wire policy
+The generated context above can supply application metadata. Persisted event serialization is a separate
+contract: use `AddAotEventSerializer` with its canonical naming/null/enum requirements. That registration
+validates its required policy; selecting application JSON does not change the persisted event codec.
+Do not change persisted readers and writers by copying an unrelated application options object.
 :::
 
-Register it:
+### One explicit application JSON policy
+
+The parallel `AotJsonSerializer`/`CompositeAotJsonSerializer` classes and their four registration helpers
+have been removed before RC. Select the existing JSON codec with a complete owned policy, then use the
+existing registry/current-serializer path:
 
 ```csharp
-services.AddSingleton(AppJsonSerializerContext.Default.Options);
+using System.Text.Json;
+using Excalibur.Dispatch.Serialization;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class AppSerializationRegistration
+{
+    public static void Configure(IServiceCollection services)
+    {
+        var json = SystemTextJsonSerializer.CreateWithMetadata(new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            TypeInfoResolver = AppJsonSerializerContext.Default,
+        });
+        services.AddPluggableSerializer(SerializerIds.SystemTextJson, json, setAsCurrent: true);
+    }
+}
 ```
 
-### Direct JSON serializers
+The factory snapshots options, converter-list membership and resolver-chain membership, adds generated
+Core/CLR CloudEvents metadata fallbacks after your resolvers, and freezes its own snapshot. One supplied
+policy applies across the graph: a generated context's defaults are not an additional per-type options
+policy. Declare every runtime payload type; a resolver for a nested runtime child can participate in the
+same chain. Missing metadata fails rather than adding reflection. Custom resolvers/converters remain
+your responsibility for thread safety and AOT safety; their arbitrary mutable internals are not cloned.
 
-`AotJsonSerializer` and `CompositeAotJsonSerializer` expose byte-array and span
-APIs backed by explicit source-generated metadata. Both byte-array APIs can be
-called from a NativeAOT application without dynamic-code or trimming-warning
-suppression. Register every payload type in the supplied context; missing metadata
-produces `NotSupportedException` rather than reflection fallback.
+This registers the selected codec for `ISerializerRegistry`/`IPayloadSerializer`; it does not implicitly
+register that object as a direct `ISerializer` service. Resolve the current codec from the registry, or
+explicitly register your codec when direct injection is needed. Duplicate serializer IDs remain an
+actionable refusal; repeated registrations are not a last-wins way to change one format's wire policy.
+
+For a deliberately context-owned policy, retain the existing advanced route:
 
 ```csharp
-using var serializer = new AotJsonSerializer(AppJsonSerializerContext.Default);
-byte[] json = serializer.Serialize(order);
-OrderDto restored = serializer.Deserialize<OrderDto>(json);
+using Excalibur.Dispatch.Serialization;
+
+public static class OrderSerialization
+{
+    public static OrderDto RoundTrip(OrderDto order)
+    {
+        var json = SystemTextJsonSerializer.Create(AppJsonSerializerContext.Default);
+        byte[] bytes = json.SerializeToBytes(order);
+        return json.Deserialize<OrderDto>(bytes);
+    }
+}
 ```
 
-Both deserialization overloads consume one complete JSON document. Trailing
-whitespace is accepted; a second value or malformed suffix is rejected. Parsing
-uses the selected context's options, including `AllowTrailingCommas`,
-`ReadCommentHandling` and `MaxDepth`. Composite serialization selects the first
-supporting context and keeps its options after cache warmup. A parsing or converter
-failure does not retry a later, more permissive context.
+The advanced route borrows returned metadata and its actual effective options, without modifying or
+disposing the context. It requires that context to cover the complete runtime graph. Both routes use
+the same existing codec and consume one complete JSON document; a second value or malformed suffix
+is rejected. Reader/converter options and LF/CRLF/tab formatting apply through the selected policy.
+The codec reports `SerializationException`, retaining underlying errors where present; a null
+result is a serialization failure. Conversion may run before later invalid input is discovered, and
+those application-side converter/constructor effects are not rolled back.
 
-This corrects earlier behavior that ignored context reader options and could
-accept the first value while ignoring a suffix. Custom converters now follow the
-standard System.Text.Json span-reader position and validation order. Conversion
-can invoke a converter, constructor or setter before later malformed input fails;
-deserialization does not roll those side effects back. JSON `null` that produces
-a null result still raises `InvalidOperationException`.
+Generic CLR `CloudEvent` JSON is not the standard CloudEvents wire representation. The SDK object graph
+contains metadata that a generic serializer can refuse (including `System.Type`); a nonnull root
+`JsonTypeInfo` does not certify that graph. Use the existing `AddCloudEvents(resolver)` and its formatter
+for standard envelope/payload encoding. Neither the new factory nor its finite known-root checks are
+full native transport or CloudEvents interoperability certification.
 
-The runnable `tests/harnesses/AotJsonContractProbe` sample publishes and executes
-both serializers with reflection-based JSON disabled under NativeAOT. It covers
-byte-array/span round trips, writer parity, complete-input checks, context
-selection, configured parsing, selected depth cases and a custom converter. These
-are functional checks, separate from managed or native performance measurements.
+The existing `tests/harnesses/AotJsonContractProbe` exercises the selected owned-policy registry/framing
+and advanced context routes, full-input/reader/converter behavior, and M07 formatting. Publish and run
+that current source; earlier native receipts do not verify a changed codec. These are functional checks,
+not performance measurements or full-framework certification.
 
 ---
 
 ## Type Resolution
 
-Dispatch replaces all `Type.GetType()` calls with AOT-safe `TypeResolver.ResolveType()`:
+Framework internals can use the internal `TypeResolver` with registered metadata. This is an implementation excerpt, not an application-callable API:
 
-```csharp
-// AOT-safe — does not use Type.GetType()
-var type = TypeResolver.ResolveType(typeName);     // returns null if not found
-var type = TypeResolver.ResolveTypeRequired(typeName); // throws if not found
-```
+`TypeResolver` is an internal framework helper (`src/Dispatch/Excalibur.Dispatch/TypeResolution/TypeResolver.cs`), not a public application API. Application code should use typed Dispatch registration and generated serialization metadata; this helper is not a consumer recipe for resolving arbitrary configured types.
 
-This affects serialization (`SpanEventSerializer`, `SerializerMigrationService`), CloudEvents processing (`EnvelopeCloudEventBridge`), and poison message handling (`PoisonMessageHandler`).
+Internal serialization and poison-message paths use this helper. `EnvelopeCloudEventBridge` instead uses preclosed transport adapters.
 
 ---
 
 ## How AOT Works Under the Hood
 
-When you publish with `PublishAot=true`, the framework automatically switches internal code paths from reflection to source-generated registries. No consumer action is needed beyond referencing the source generators package.
+Supported generated paths require the appropriate registrations, payload metadata,
+and compatible dependencies. Referencing the generators package alone does not
+establish application compatibility: publish with `PublishAot=true` and execute
+the application's relevant scenarios under NativeAOT.
 
 Key behaviors:
 
 - **Enum serialization** uses typed `JsonStringEnumConverter<TEnum>` and source-generated JSON contexts -- zero reflection.
 - **Event serialization** uses `JsonSerializerContext.GetTypeInfo()` for type-safe serialization without `Type.GetType()`.
-- **Handler resolution**, **saga coordination**, **caching**, and **projection invalidation** all use pre-compiled registries instead of `MakeGenericType()`.
-- **Runtime branching** via `RuntimeFeature.IsDynamicCodeSupported` ensures JIT builds keep their existing behavior with zero overhead, while AOT builds use the source-generated path.
-- **Annotation propagation**: the core dispatch *implementations* (`Dispatcher`, including its local fast path, and `FinalDispatchHandler`) carry `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` attributes so the trimmer accurately reports any reflection-dependent call sites. The `IDispatcher` abstraction itself carries no such attributes. Source-generated alternatives eliminate these warnings when the generators package is referenced.
+- Selected generated paths use precompiled registrations. Compatibility also depends on serializers and integration dependencies; verify each configured path. See the [scoped caching NativeAOT limitations](../performance/caching.md).
+- **Runtime branching** via `RuntimeFeature.IsDynamicCodeSupported` selects supported implementations according to dynamic-code availability. Its cost depends on the executed path and configuration.
+- **Annotation propagation**: the core dispatch *implementations* (`Dispatcher`, including its local fast path, and `FinalDispatchHandler`) carry `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` attributes so the trimmer reports reflection-dependent call sites. The `IDispatcher` abstraction itself carries no such attributes. Supported generated alternatives can avoid reflection-dependent paths; inspect the application's publish diagnostics.
 
-All of this is transparent to consumers. The same `AddDispatch()`, `AddSaga()`, and `AddProjection()` DI entry points work identically under both JIT and AOT.
+The `AddDispatch()`, `AddSaga()`, and `AddProjection()` DI entry points support
+generated paths where available. Their use does not certify every registered
+handler, provider, serializer, or dependency for NativeAOT.
 
-### How this is kept true
+### Verification scope
 
-Every change to the framework is published ahead-of-time with `PublishAot=true` and rejected if it
-introduces a new IL2XXX or IL3XXX trim or AOT warning. The only warnings tolerated are a fixed,
-recorded set originating in third-party dependencies we cannot change; nothing new joins that set
-silently. **So the AOT compatibility described on this page is enforced on every change, not asserted
-once.**
+NativeAOT evidence applies to the source revision, toolchain, publish configuration,
+and scenarios actually exercised by a probe. Review IL2XXX and IL3XXX diagnostics
+and execute the published native application. A managed test or successful
+compilation alone does not verify native behavior. Check the applicable CI run
+and its artifacts rather than assuming every change or package has been verified.
 
 ---
 
@@ -408,14 +389,16 @@ once.**
   </assembly>
 
   <assembly fullname="Excalibur.Dispatch">
-    <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerRegistry" preserve="all" />
     <type fullname="Excalibur.Dispatch.Delivery.Handlers.ResultFactoryRegistry" preserve="all" />
     <!-- ... -->
+  </assembly>
+  <assembly fullname="YourApplication">
+    <type fullname="Excalibur.Dispatch.Generated.PrecompiledHandlerRegistry" preserve="all" />
   </assembly>
 </linker>
 ```
 
-You typically do not need to modify this file. If you have custom types that must survive trimming, add them to your own `TrimmerRoots.xml` or use `[DynamicDependency]` attributes.
+The generated registry is in the application assembly; replace `YourApplication` with its actual assembly name. You typically do not need to modify this file. If you have custom types that must survive trimming, add them to your own `TrimmerRoots.xml` or use `[DynamicDependency]` attributes.
 
 ---
 
@@ -447,24 +430,27 @@ The sample showcases:
 - `PrecompiledHandlerRegistry` with `ResolveHandlerType` and `CreateHandler`
 - `ResultFactoryRegistry` for AOT result creation
 - `DiscoveredMessageTypeMetadata` for compile-time type registry
-- Full pipeline dispatch via `IDispatcher.DispatchAsync()` (AOT-safe via source-generated interceptors)
+- Configured dispatch scenarios through `IDispatcher.DispatchAsync()`; publish and run the current sample and inspect its diagnostics
 
 ---
 
 ## Transport AOT Compatibility
 
-All 7 transport packages have been classified for AOT compatibility. The builder pattern (`Action<IXxxTransportBuilder>`) used by all transports avoids generic type parameters on public DI methods, making some transports inherently AOT-safe. Others have third-party SDK dependencies that use reflection.
+The classifications below are historical investigation leads. Builder-shaped registration does
+not establish native transport compatibility, and a reflection-dependent integration does not
+establish that every configuration of its transport is unsupported. Verify the selected application
+configuration through native publish and execution.
 
 ### Transport Status
 
 | Transport | AOT Status | Notes |
 |-----------|-----------|-------|
-| RabbitMQ | **AOT-safe** | Builder pattern only, no reflection |
-| AWS SQS | **AOT-safe** | Builder pattern only, no reflection |
-| Azure Service Bus | **Not compatible** | Azure SDK dependency uses reflection internally |
-| Google Pub/Sub | **Not compatible** | Google Cloud SDK dependency uses reflection internally |
-| Kafka | **Not compatible** | Confluent.Kafka SchemaRegistry uses `Activator.CreateInstance` |
-| gRPC | **Not compatible** | gRPC code generation not AOT-safe |
+| RabbitMQ | Current execution unverified | Builder registration alone is not proof |
+| AWS SQS | Current execution unverified | Verify selected SDK and serialization paths |
+| Azure Service Bus | Current execution unverified | Revalidate historical SDK reflection concerns |
+| Google Pub/Sub | Current execution unverified | Revalidate historical SDK reflection concerns |
+| Kafka | Configuration-dependent; execution unverified | Inspect the selected SchemaRegistry path |
+| gRPC | Current execution unverified | Verify generated code and dependencies |
 
 See the [AOT Compatibility Matrix](aot-compatibility.md) for the full per-package table.
 
@@ -498,16 +484,24 @@ services.AddKafkaTransport("kafka", builder => { ... });
 
 ### AOT Coverage
 
-| Package | AOT Status |
+| Package | Compatibility declaration or known constraint (not execution proof) |
 |---------|-----------|
 | `Excalibur.Dispatch` | Annotated (`[RequiresUnreferencedCode]` on reflection paths, source-gen alternative) |
-| `Excalibur.Dispatch.Abstractions` | Fully AOT-compatible |
-| `Excalibur.Dispatch.Transport.RabbitMQ` | AOT-safe |
-| `Excalibur.Dispatch.Transport.AwsSqs` | AOT-safe |
-| `Excalibur.Dispatch.Transport.Kafka` | Not compatible (SchemaRegistry reflection) |
-| `Excalibur.Dispatch.Transport.AzureServiceBus` | Not compatible (Azure SDK reflection) |
-| `Excalibur.Dispatch.Transport.GooglePubSub` | Not compatible (Google Cloud SDK reflection) |
-| `Excalibur.Dispatch.Transport.Grpc` | Not compatible (gRPC code generation) |
+| `Excalibur.Dispatch.Abstractions` | Included in the targeted native scenarios below; not every consumer path is verified |
+| `Excalibur.Dispatch.Transport.RabbitMQ` | Native transport execution not verified by this campaign |
+| `Excalibur.Dispatch.Transport.AwsSqs` | Native cloud transport execution not verified by this campaign |
+| `Excalibur.Dispatch.Transport.Kafka` | Selected SchemaRegistry path requires verification; no whole-transport verdict |
+| `Excalibur.Dispatch.Transport.AzureServiceBus` | Native SDK/transport execution not verified by this campaign |
+| `Excalibur.Dispatch.Transport.GooglePubSub` | Native SDK/transport execution not verified by this campaign |
+| `Excalibur.Dispatch.Transport.Grpc` | Native generated-code/transport execution not verified by this campaign |
+
+On November 1, 2026, the local win-x64 campaign published and executed a focused
+upcasting/snapshot probe on .NET 10.0.14 with SDK 10.0.403. All 18 checks passed
+with dynamic code disabled, including typed multihop serialization order and bytes.
+Evidence: `artifacts/benchmarks/current-refresh-20261101/upcasting-native-publish-r4`
+and `upcasting-native-execution-r2`. This is scenario-specific compatibility evidence,
+not a package-wide guarantee, cloud verification or NativeAOT benchmark result.
+Consumer serializers and transport dependencies require their own native verification.
 
 ### Known Constraints
 
@@ -558,7 +552,7 @@ The `ResultFactoryRegistry` is generated from `IDispatchAction<T>` and `IActionH
 
 ## Related Documentation
 
-- [AOT Compatibility Matrix](./aot-compatibility.md) - Per-package AOT status for all 194 packages
+- [AOT Compatibility Matrix](./aot-compatibility.md) - Per-package declarations and verification scope
 - [Source Generators](./source-generators.md) - Full generator reference
 - [Viewing Generated Code](./viewing-generated-code.md) - Inspect generated output
 - [Deployment](./deployment.md) - Deployment patterns

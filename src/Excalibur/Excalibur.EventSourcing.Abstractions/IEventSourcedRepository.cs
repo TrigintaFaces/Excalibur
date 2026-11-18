@@ -46,7 +46,14 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 	/// </summary>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	/// <returns>The aggregate if found, otherwise <see langword="null"/>.</returns>
+	/// <returns>
+	/// The aggregate if found; <see langword="null"/> if no stream exists for the identifier; or an
+	/// aggregate in its initial state -- <c>Version</c> 0, no history applied -- if the stream exists
+	/// but has been erased. The erased case is deliberately distinct from both: it is not
+	/// <see langword="null"/>, because the subject did exist, and it does not throw, because the
+	/// erasure was lawful rather than a corruption. A caller that only null-checks will treat an
+	/// erased stream as a live aggregate that happens to have no history.
+	/// </returns>
 	Task<TAggregate?> GetByIdAsync(TKey aggregateId, CancellationToken cancellationToken);
 
 	/// <summary>

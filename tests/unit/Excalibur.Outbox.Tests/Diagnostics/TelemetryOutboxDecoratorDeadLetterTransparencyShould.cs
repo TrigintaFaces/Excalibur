@@ -51,7 +51,8 @@ public sealed class TelemetryOutboxDecoratorDeadLetterTransparencyShould
 	[Fact]
 	public async Task ForwardMarkDeadLettered_ToACapableInner()
 	{
-		var inner = FakeInnerStore(b => b.Implements<IDeadLetterableOutboxStore>());
+		var inner = FakeInnerStore(b => b.Implements<IDeadLetterableOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 
 		var deadLetterable = Discover(new TelemetryOutboxStoreDecorator(inner), typeof(IDeadLetterableOutboxStore))
 			as IDeadLetterableOutboxStore;
@@ -67,6 +68,25 @@ public sealed class TelemetryOutboxDecoratorDeadLetterTransparencyShould
 		A.CallTo(() => ((IDeadLetterableOutboxStore)inner)
 				.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+
+		var strongInner = (IClaimScopedDeadLetterableOutboxStore)inner;
+		A.CallTo(() => strongInner.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7, "claim-A", A<CancellationToken>._))
+			.Returns(new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied));
+		A.CallTo(() => strongInner.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7, "claim-B", A<CancellationToken>._))
+			.Returns(new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.ClaimLost));
+		var strong = Discover(new TelemetryOutboxStoreDecorator(inner), typeof(IClaimScopedDeadLetterableOutboxStore))
+			.ShouldBeAssignableTo<IClaimScopedDeadLetterableOutboxStore>();
+		(await strong.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7, "claim-A", CancellationToken.None))
+			.ShouldBe(OutboxCompletionOutcome.Applied);
+		(await strong.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7, "claim-B", CancellationToken.None))
+			.ShouldBe(OutboxCompletionOutcome.ClaimLost);
+		A.CallTo(() => strongInner.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7, "claim-A", CancellationToken.None))
+			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => strongInner.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7, "claim-B", CancellationToken.None))
+			.MustHaveHappenedOnceExactly();
+		// The original weak call above is still exactly one: neither typed call may downgrade to it.
+		A.CallTo(() => ((IDeadLetterableOutboxStore)inner)
+			.MarkDeadLetteredAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -74,6 +94,7 @@ public sealed class TelemetryOutboxDecoratorDeadLetterTransparencyShould
 	{
 		var inner = FakeInnerStore(); // implements IOutboxStore only — NOT IDeadLetterableOutboxStore
 		var decorator = new TelemetryOutboxStoreDecorator(inner);
+		Discover(decorator, typeof(IClaimScopedDeadLetterableOutboxStore)).ShouldBeNull();
 
 		// LIVENESS. Replaces the retired ThrowNotSupported arm. The consumer must learn the capability is absent by
 		// probing, not by catching. An honest null is information; a NotSupportedException raised from a capability
@@ -93,8 +114,11 @@ public sealed class TelemetryOutboxDecoratorDeadLetterTransparencyShould
 		// the inner genuinely has. That decorator would be catastrophically broken and this file would be green.
 		// So: the same decorator, over a CAPABLE inner, must still answer. Absence must be reported because the
 		// capability is absent, not because the decorator reports absence for everything.
-		var capable = FakeInnerStore(b => b.Implements<IDeadLetterableOutboxStore>());
+		var capable = FakeInnerStore(b => b.Implements<IDeadLetterableOutboxStore>()
+			.Implements<IClaimScopedDeadLetterableOutboxStore>());
 		var nonCapable = FakeInnerStore();
+		Discover(new TelemetryOutboxStoreDecorator(capable), typeof(IClaimScopedDeadLetterableOutboxStore)).ShouldNotBeNull();
+		Discover(new TelemetryOutboxStoreDecorator(nonCapable), typeof(IClaimScopedDeadLetterableOutboxStore)).ShouldBeNull();
 
 		Discover(new TelemetryOutboxStoreDecorator(capable), typeof(IDeadLetterableOutboxStore)).ShouldNotBeNull(
 			"A dead-letterable inner must yield a discoverable capability. If this is null, the null in the arm " +
@@ -103,4 +127,39 @@ public sealed class TelemetryOutboxDecoratorDeadLetterTransparencyShould
 		Discover(new TelemetryOutboxStoreDecorator(nonCapable), typeof(IDeadLetterableOutboxStore)).ShouldBeNull(
 			"A non-dead-letterable inner must yield an honest absence.");
 	}
+
+    [Theory]
+    [InlineData(false, OutboxCompletionOutcome.Applied)]
+    [InlineData(true, OutboxCompletionOutcome.Applied)]
+    [InlineData(true, OutboxCompletionOutcome.ClaimLost)]
+    public async Task HonorTheOwningStoreConditionalClaimTerminalAdmission(bool advertised, OutboxCompletionOutcome outcome)
+    {
+        var inner = A.Fake<IOutboxStore>(options => options.Implements<IClaimScopedDeadLetterableOutboxStore>()
+            .Implements<IDeadLetterableOutboxStore>());
+        var admitted = (IClaimScopedDeadLetterableOutboxStore)inner;
+        A.CallTo(() => inner.GetService(A<Type>._)).ReturnsLazily((Type type) =>
+            advertised && type == typeof(IClaimScopedDeadLetterableOutboxStore) ? admitted : null);
+        using var cancellation = new CancellationTokenSource();
+        const string persistedId = "recorded-tenant-B-id";
+        const string receipt = "opaque-exact-acquisition ";
+        A.CallTo(() => admitted.MarkDeadLetteredAsync(persistedId, "terminal", 7, receipt, cancellation.Token))
+            .Returns(new ValueTask<OutboxCompletionOutcome>(outcome));
+        var outer = new TelemetryOutboxStoreDecorator(inner);
+        var capability = outer.GetService(typeof(IClaimScopedDeadLetterableOutboxStore));
+        if (advertised)
+        {
+            var strong = capability.ShouldBeAssignableTo<IClaimScopedDeadLetterableOutboxStore>();
+            (await strong.MarkDeadLetteredAsync(persistedId, "terminal", 7, receipt, cancellation.Token)).ShouldBe(outcome);
+            A.CallTo(() => admitted.MarkDeadLetteredAsync(persistedId, "terminal", 7, receipt, cancellation.Token))
+                .MustHaveHappenedOnceExactly();
+        }
+        else
+        {
+            capability.ShouldBeNull("concrete assignability cannot override the owning store's admission decision");
+            A.CallTo(() => admitted.MarkDeadLetteredAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._))
+                .MustNotHaveHappened();
+        }
+        A.CallTo(() => ((IDeadLetterableOutboxStore)inner).MarkDeadLetteredAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+    }
 }

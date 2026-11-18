@@ -40,7 +40,7 @@ Production-grade persistence for event-sourced systems. Shows event store provid
 |----------|----------|-------------|---------|
 | **In-Memory** | Testing, development, learning | Strong | N/A |
 | **SQL Server** | Enterprise, ACID transactions | Strong | Vertical |
-| **Cosmos DB** | Global distribution, high throughput | Tunable | Horizontal |
+| **Cosmos DB** | Global distribution and partitioned storage | Tunable | Horizontal |
 | **Cloud storage snapshots** | Low-cost long-term retention | Eventual | N/A (blob) |
 
 ## Learning Path

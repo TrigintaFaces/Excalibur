@@ -177,8 +177,12 @@ public sealed class ConsulLeaderElectionOptionsExtendedShould
 		// Act
 		var options = new ConsulLeaderElectionOptions();
 
-		// Assert - base class properties should be accessible
-		options.InstanceId.ShouldNotBeNull();
+		// Assert - base class properties should be accessible.
+		// InstanceId is deliberately NULL when unconfigured: that is what makes "nobody chose an
+		// identity" expressible, so a provider can tell a configured identity from a generated one.
+		// The identity itself is resolved once, by LeaderCandidateIdentity, not by this property.
+		options.InstanceId.ShouldBeNull(
+			"an unconfigured identity must be distinguishable from a chosen one");
 		options.RenewInterval.ShouldBeGreaterThan(TimeSpan.Zero);
 	}
 }

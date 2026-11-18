@@ -72,10 +72,12 @@ public sealed class ScheduledMessageCancellationShould
 		await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
 		row.MessageBody = "administrative replacement";
 		row.NextExecutionUtc = host.Clock.GetUtcNow().AddDays(1);
-		await host.Store.Inner.StoreAsync(row, CancellationToken.None);
+		var conflict = await Should.ThrowAsync<InvalidOperationException>(() => host.Store.Inner.StoreAsync(row, CancellationToken.None));
+		conflict.Message.ShouldContain("unsettled");
 		resume.TrySetResult();
 		await host.Store.Released.Task.WaitAsync(TimeSpan.FromSeconds(10));
-		host.Store.ProgressAccepted.ShouldBe((bool?)false);
+		host.Store.ProgressAccepted.ShouldBe((bool?)true);
+		await host.Store.Inner.StoreAsync(row, CancellationToken.None);
 		var current = await host.ReadAsync();
 		current.Enabled.ShouldBeTrue();
 		current.MessageBody.ShouldBe("administrative replacement");
@@ -146,22 +148,26 @@ internal sealed class ScheduleWorkerTestLogger : ILogger<ScheduledMessageService
 	}
 }
 
-internal sealed class ScheduleWorkerTestHandler : IDocumentHandler<ScheduleWorkerTestDocument>
+internal sealed class ScheduleWorkerTestHandler : IDocumentHandler<ScheduleWorkerTestDocument>, IMessageContextAware
 {
 	private int _calls;
+	private IMessageContext? _context;
+	public Action<IMessageContext>? ContextObserved { get; set; }
+	public void SetContext(IMessageContext context) => _context = context;
 	public int Calls => Volatile.Read(ref _calls);
 	public Func<CancellationToken, Task>? Callback { get; set; }
 	public Func<ScheduleWorkerTestDocument, CancellationToken, Task>? MessageCallback { get; set; }
 	public async Task HandleAsync(ScheduleWorkerTestDocument document, CancellationToken cancellationToken)
 	{
 		Interlocked.Increment(ref _calls);
+		if (ContextObserved is { } observe) { observe(_context ?? throw new InvalidOperationException("Handler context was not bound.")); }
 		if (MessageCallback is { } messageCallback) { await messageCallback(document, cancellationToken); }
 		if (Callback is { } callback) { await callback(cancellationToken); }
 	}
 }
 
 // Barriers wrap the real authority; no mutation, generation check or ownership check is mocked.
-internal sealed class ScheduleWorkerTestStore(TimeProvider? clock = null) : IScheduleExecutionStore, IAsyncDisposable
+internal sealed class ScheduleWorkerTestStore(TimeProvider? clock = null) : IScheduleExecutionFailureStore, IAsyncDisposable
 {
 	// The backing store judges occurrence due-ness against its OWN clock, so it has to be the same clock
 	// the host drives. Left on TimeProvider.System it sits in the real present while these harnesses
@@ -176,8 +182,13 @@ internal sealed class ScheduleWorkerTestStore(TimeProvider? clock = null) : ISch
 	public int Disposals { get; private set; }
 	public int Acquisitions { get; private set; }
 	public int ProgressWrites { get; private set; }
+	public int FailureReads { get; private set; }
+	public Func<ScheduleExecutionLease, ScheduleOccurrenceFailure, CancellationToken, Task<bool>>? FailureRecord { get; set; }
+	public Func<Guid, Guid, DateTimeOffset, int, CancellationToken, Task<ScheduleFailureExecutionAdmission?>>? BudgetedAdmission { get; set; }
+	public Func<ScheduleExecutionLease, ScheduleExecutionResult, ScheduleExecutionCompletionDisposition, CancellationToken, Task<bool>>? Completion { get; set; }
 	public int Releases { get; private set; }
 	public ConcurrentDictionary<Guid, int> ProgressById { get; } = new();
+	public ConcurrentDictionary<Guid, int> FailuresById { get; } = new();
 	public ConcurrentDictionary<Guid, int> ReleasesById { get; } = new();
 	public ConcurrentQueue<ScheduleExecutionLease> Admitted { get; } = new();
 	public async Task<IReadOnlyList<ScheduleExecutionSnapshot>> GetExecutionSnapshotsAsync(CancellationToken ct)
@@ -210,6 +221,38 @@ internal sealed class ScheduleWorkerTestStore(TimeProvider? clock = null) : ISch
 		Released.TrySetResult();
 		return released;
 	}
+	public async Task<ScheduleFailureExecutionAdmission?> TryAcquireExecutionAsync(Guid id, Guid generation, DateTimeOffset occurrence, int maximum, CancellationToken ct)
+	{
+		Acquisitions++;
+		var admission = BudgetedAdmission is { } acquire ? await acquire(id, generation, occurrence, maximum, ct)
+			: await Inner.TryAcquireExecutionAsync(id, generation, occurrence, maximum, ct);
+		if (admission is not null) { Admitted.Enqueue(admission.Lease); }
+		Admission.TrySetResult();
+		return admission;
+	}
+	public async Task<bool> TryCompleteExecutionAsync(ScheduleExecutionLease lease, ScheduleExecutionResult result, ScheduleExecutionCompletionDisposition disposition, CancellationToken ct)
+	{
+		ProgressAccepted = Completion is { } complete ? await complete(lease, result, disposition, ct)
+			: await Inner.TryCompleteExecutionAsync(lease, result, disposition, ct);
+		ProgressWrites++;
+		ProgressById.AddOrUpdate(lease.ScheduleId, 1, static (_, count) => count + 1);
+		return ProgressAccepted.Value;
+	}
+	public async Task<bool> TryRecordFailureAsync(ScheduleExecutionLease lease, ScheduleOccurrenceFailure failure, CancellationToken ct)
+	{
+		FailuresById.AddOrUpdate(lease.ScheduleId, 1, static (_, count) => count + 1);
+		var recorded = FailureRecord is { } hook ? await hook(lease, failure, ct) : await Inner.TryRecordFailureAsync(lease, failure, ct);
+		return recorded;
+	}
+	public Task<ScheduleQuarantineRecoveryReceipt?> TryResumeQuarantinedOccurrenceAsync(ScheduleQuarantineToken token, Guid command, CancellationToken ct) =>
+		Inner.TryResumeQuarantinedOccurrenceAsync(token, command, ct);
+	public Task<ScheduleOccurrenceFailureSnapshot?> GetOccurrenceFailureAsync(Guid id, Guid generation, DateTimeOffset occurrence, string? tenant, CancellationToken ct)
+	{
+		FailureReads++;
+		return Inner.GetOccurrenceFailureAsync(id, generation, occurrence, tenant, ct);
+	}
+	public Task<IReadOnlyList<ScheduleOccurrenceFailureSnapshot>> GetQuarantinesAsync(string? tenant, Guid? cursor, int maximum, CancellationToken ct) =>
+		Inner.GetQuarantinesAsync(tenant, cursor, maximum, ct);
 	public Task<IEnumerable<IScheduledMessage>> GetAllAsync(CancellationToken ct) => Inner.GetAllAsync(ct);
 	public Task StoreAsync(IScheduledMessage message, CancellationToken ct) => Inner.StoreAsync(message, ct);
 	public Task CompleteAsync(Guid id, CancellationToken ct) => Inner.CompleteAsync(id, ct);
@@ -227,9 +270,14 @@ internal sealed class ScheduleWorkerTestHost : IAsyncDisposable
 	public RecurringDispatchScheduler Scheduler { get; }
 	public CronScheduleOptions CronOptions { get; } = new();
 	public ScheduleWorkerTestLogger Logger { get; } = new();
-	public ScheduleWorkerTestHost(ScheduleWorkerTestStore? store = null, bool borrowed = false, ITimePolicy? timePolicy = null)
+	public ScheduleDispositionHealth Health { get; } = new();
+	public ScheduleWorkerTestHost(ScheduleWorkerTestStore? store = null, bool borrowed = false, ITimePolicy? timePolicy = null,
+		int maxAdmissionAttemptsPerOccurrence = 5, FakeTimeProvider? clock = null, TimeProvider? timeProvider = null, ScheduleDispositionHealth? dispositionHealth = null)
 	{
-		Store = store ?? new ScheduleWorkerTestStore(Clock);
+		if (clock is not null) { Clock = clock; }
+		if (dispositionHealth is not null) { Health = dispositionHealth; }
+		var workerClock = timeProvider ?? Clock;
+		Store = store ?? new ScheduleWorkerTestStore(workerClock);
 		MessageTypeRegistry.RegisterType<ScheduleWorkerTestDocument>();
 		var services = new ServiceCollection();
 		services.AddLogging();
@@ -242,13 +290,17 @@ internal sealed class ScheduleWorkerTestHost : IAsyncDisposable
 		_provider = services.BuildServiceProvider();
 		var configuredStore = _provider.GetRequiredService<IScheduleStore>();
 		var options = Microsoft.Extensions.Options.Options.Create(new SchedulerOptions
-			{ PollInterval = TimeSpan.FromSeconds(1), EnableAdaptivePolling = false });
+		{
+			PollInterval = TimeSpan.FromSeconds(1),
+			EnableAdaptivePolling = false,
+			MaxAdmissionAttemptsPerOccurrence = maxAdmissionAttemptsPerOccurrence,
+		});
 		var cronOptions = Microsoft.Extensions.Options.Options.Create(CronOptions);
 		var cron = new CronScheduler(cronOptions, NullLogger<CronScheduler>.Instance);
 		Service = new ScheduledMessageService(configuredStore, _provider.GetRequiredService<IDispatcher>(),
-			Serializer, cron, options, cronOptions, Logger, _provider.GetRequiredService<IServiceScopeFactory>(), timePolicy: timePolicy, timeProvider: Clock);
+			Serializer, cron, options, cronOptions, Logger, _provider.GetRequiredService<IServiceScopeFactory>(), timePolicy: timePolicy, timeProvider: workerClock, dispositionHealth: Health);
 		Scheduler = new RecurringDispatchScheduler(configuredStore, Serializer, options, cron, cronOptions,
-			NullLogger<RecurringDispatchScheduler>.Instance, Clock);
+			NullLogger<RecurringDispatchScheduler>.Instance, workerClock);
 	}
 	public async Task<ScheduledMessage> StoreRowAsync(string marker = "persisted")
 	{

@@ -151,7 +151,89 @@ internal readonly struct SubjectKeyHandle : IEquatable<SubjectKeyHandle>
 		// 64 hex characters whatever the input length, so neither the key store's name-length limit nor the
 		// retained-handle budget can be moved by an escape.
 		return new SubjectKeyHandle(
-			hasher.HashDataSubjectId(SegmentedKey.Compose(tenant.Value, dataSubjectIdHash)));
+			RequireHandleShape(
+				hasher.HashDataSubjectId(SegmentedKey.Compose(tenant.Value, dataSubjectIdHash)),
+				hasher));
+	}
+
+	/// <summary>The width every handle has, which four safety arguments in this file depend on.</summary>
+	private const int HandleLength = 64;
+
+	/// <summary>
+	/// Refuses a hasher whose OUTPUT cannot be a handle, naming the registered implementation.
+	/// </summary>
+	/// <param name="value">What the registered hasher returned for the composed input.</param>
+	/// <param name="hasher">The registered hasher, named in the failure so it is actionable.</param>
+	/// <returns>The value, once it is known to have the handle shape.</returns>
+	/// <exception cref="InvalidOperationException">
+	/// The registered hasher returned something that is not exactly <see cref="HandleLength"/> characters
+	/// drawn from <c>0-9A-F</c>.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// <b>The constructor validated its INPUTS and then built a handle out of an unvalidated OUTPUT.</b>
+	/// The width and alphabet are stated as a type invariant on this struct and relied on by four separate
+	/// safety arguments here, and nothing established them: they were delegated to a public,
+	/// consumer-implementable interface whose published contract asked for "an uppercase hex-encoded keyed
+	/// hash" and required no width, no single case and no injectivity. The one in-box implementation happens
+	/// to satisfy all three, so every argument held by coincidence rather than by construction.
+	/// </para>
+	/// <para>
+	/// <b>What the shape actually buys, and why a violation is silent rather than loud.</b> A retained
+	/// handle is composed by appending <c>-</c> and a discriminator to this value, so the plain and retained
+	/// namespaces are disjoint only because 64 hexadecimal characters cannot contain a <c>-</c> and cannot
+	/// vary in length. Give the derivation a hasher with identifier-shaped output and a subject whose own
+	/// identifier spells another subject's retained handle derives that retained handle — so erasing the
+	/// first destroys the key a declared retention exists to preserve. That is the retention guarantee, and
+	/// it would fail with no error at all. A consumer has a plausible reason to register such a hasher
+	/// ("our subject identifiers are already opaque"), which is what makes this reachable rather than
+	/// theoretical.
+	/// </para>
+	/// <para>
+	/// <b>Refusing here discharges several silent catastrophes at once</b> — truncation, a second case,
+	/// base64, pass-through, empty and null. The null case was the worst of them: it produced a handle whose
+	/// backing value was <see langword="null"/>, which is byte-identical to a <see langword="default"/>
+	/// instance, so the handle compared equal to <see langword="default"/> and <see cref="Value"/> threw a
+	/// message asserting the handle had not come from a derivation when it had.
+	/// </para>
+	/// <para>
+	/// <b>Cost:</b> one length test and at most 64 character tests per handle derivation — once per
+	/// subject-key provisioning and once per handle an erasure derives, never per message or per field byte.
+	/// No allocation, and no regular expression, so nothing here costs a trimmed or ahead-of-time build.
+	/// </para>
+	/// </remarks>
+	private static string RequireHandleShape(string? value, IDataSubjectHasher hasher)
+	{
+		if (value is not null && value.Length == HandleLength)
+		{
+			var conforming = true;
+			foreach (var character in value)
+			{
+				// The BCL predicate for exactly this alphabet, rather than a hand-rolled range test.
+				if (!char.IsAsciiHexDigitUpper(character))
+				{
+					conforming = false;
+					break;
+				}
+			}
+
+			if (conforming)
+			{
+				return value;
+			}
+		}
+
+		throw new InvalidOperationException(
+			$"The registered {nameof(IDataSubjectHasher)} ({hasher.GetType().FullName}) returned "
+			+ (value is null
+				? "null"
+				: $"{value.Length} character(s) that are not all uppercase hexadecimal")
+			+ $", and a per-subject key handle must be exactly {HandleLength} characters drawn from 0-9A-F. "
+			+ "A handle of any other shape is not merely unusual: a retained handle is composed by appending "
+			+ "a separator and a discriminator to this value, so a varying width, a second case or a "
+			+ "separator inside the value lets one data subject's handle collide with another's retained "
+			+ "handle — and erasing the one destroys the key the other's declared retention exists to "
+			+ "preserve. Register a hasher that returns a fixed-width uppercase hexadecimal keyed digest.");
 	}
 
 	/// <summary>

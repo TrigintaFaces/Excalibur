@@ -978,7 +978,15 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 				+ "advertises, and every assertion below would hold vacuously.");
 		}
 
-        var authority = new OutboxWriteAuthority(token, claimIdentity);
+		var claimedStillLive = claimed.FirstOrDefault(m => string.Equals(m.Id, stillLive.Id, StringComparison.Ordinal));
+		if (claimedStillLive?.DispatcherId is not { Length: > 0 } liveClaimIdentity)
+		{
+			throw new TestFixtureAssertionException(
+				$"The live control row {stillLive.Id} was not returned with its own acquisition identity.");
+		}
+
+		var authority = new OutboxWriteAuthority(token, claimIdentity);
+		var liveAuthority = new OutboxWriteAuthority(token, liveClaimIdentity);
 
 		await fenced.MarkSentAsync(delivered.Id, token, CancellationToken.None).ConfigureAwait(false);
 
@@ -1027,7 +1035,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 			"a genuine delivery failure",
 			retryCount: 1,
 			nextAttemptAt: null,
-			authority,
+			liveAuthority,
 			CancellationToken.None).ConfigureAwait(false);
 
 		if (applied != OutboxCompletionOutcome.Applied)
@@ -1448,6 +1456,84 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 				+ $"drain returned tenant-a={sawFirst}, tenant-b={sawSecond}. One dispatcher serves every "
 				+ "tenant on this contract, so a scoped drain stalls delivery permanently for every tenant it "
 				+ "excludes while the rows remain staged and no other assertion fails.");
+		}
+	}
+
+	/// <summary>
+	/// A RECORD'S TENANT IS PART OF THE RECORD: the cross-tenant admin read of failed messages must carry
+	/// each message's own tenant.
+	/// </summary>
+	/// <returns>The arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>This read is the one place where losing the tenant costs the most, because the read itself spans
+	/// tenants.</b> Every other drain is already scoped, so the caller knows whose message it is holding.
+	/// Here the row's own tenant is the only thing that says which partition a message belongs to, and two
+	/// consequences follow from dropping it: an encrypted message cannot be decrypted, because the tenant
+	/// is bound as additional authenticated data and the value it must be checked against is gone; and
+	/// republishing a message obtained from this list re-emits it with no tenant at all, silently, which is
+	/// an isolation defect that needs no encryption to be wrong.
+	/// </para>
+	/// <para>
+	/// <b>It asserts the REPRESENTATION, not merely presence, for the same reason the round-trip arm below
+	/// does.</b> A drained message never carries null, and untenanted is the reserved sentinel VALUE rather
+	/// than an absence. A store that assigns the raw column introduces a second spelling of "no tenant",
+	/// and every fold is a place two paths can disagree about which partition a message belongs to. Fold
+	/// the stored value through <c>KeyedTenantPartition.FromStoredValue</c> on the way out and this passes.
+	/// </para>
+	/// <para>
+	/// <b>Why the existing arms on this read do not cover it.</b> They assert the error message and the
+	/// retry count: a store that reconstructs the message without its tenant satisfies all of them, which
+	/// is how two providers shipped this read with the tenant dropped while deriving this kit.
+	/// </para>
+	/// </remarks>
+	public virtual async Task FailedMessagesAdminRead_MustCarryEachMessageOwnTenant()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
+		{
+			SkipArm(
+				nameof(FailedMessagesAdminRead_MustCarryEachMessageOwnTenant),
+				typeof(IOutboxStoreAdmin),
+				"Admin interface not supported");
+			return;
+		}
+
+		RecordArmExecuted(nameof(FailedMessagesAdminRead_MustCarryEachMessageOwnTenant));
+
+		var message = CreateTestMessage();
+
+		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+		await store.MarkFailedAsync(message.Id, "tenant carry probe", 1, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var failed = await admin.GetAllTenantsFailedMessagesAsync(100, null, 100, CancellationToken.None)
+			.ConfigureAwait(false);
+		var own = failed.FirstOrDefault(m => string.Equals(m.Id, message.Id, StringComparison.Ordinal));
+
+		if (own is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"The failed-message admin read did not return message {message.Id}, so this arm cannot "
+				+ "say anything about the tenant it carries. Fix that first: the arms asserting the error "
+				+ "message depend on the same read.");
+		}
+
+		if (!string.Equals(own.TenantId, TenantScope.UntenantedSentinel, StringComparison.Ordinal))
+		{
+			var carried = own.TenantId is null ? "<null>" : $"'{own.TenantId}'";
+
+			throw new TestFixtureAssertionException(
+				$"The cross-tenant failed-message read returned message {message.Id} carrying tenant "
+				+ $"{carried}, but the contract requires the reserved untenanted partition "
+				+ $"'{TenantScope.UntenantedSentinel}'. "
+				+ (own.TenantId is null || string.IsNullOrWhiteSpace(own.TenantId)
+					? "The tenant was dropped while reconstructing the message from the row. Because this "
+					+ "read spans tenants, the row's own tenant is the only thing that identifies the "
+					+ "partition: an encrypted message can no longer be decrypted, and republishing one "
+					+ "from this list re-emits it with no tenant."
+					: "The store substituted a tenant the caller never staged, so a republish from this "
+					+ "list would deliver one tenant's message into another's partition."));
 		}
 	}
 
@@ -3170,28 +3256,22 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		// A valid tenure marks one message sent, which advances the high-water mark to its token.
 		await fenced.MarkSentAsync(decoy.Id, current, CancellationToken.None).ConfigureAwait(false);
 
-		StaleOutboxFencingTokenException? refusal = null;
-		try
-		{
-			await fenced.MarkSentAsync(survivor.Id, stale, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException ex)
-		{
-			refusal = ex;
-		}
+		// THE REFUSAL IS A RETURNED VALUE, AND THIS ARM IS WHAT STOPS IT BEING AN EXCEPTION AGAIN. A store
+		// that throws here instead of reporting fails the arm rather than passing it by a different route:
+		// a thrown refusal is indistinguishable from an infrastructure fault to the caller that must decide
+		// whether to keep draining, and that ambiguity is what let four implementations each pick a
+		// different wrong encoding.
+		var refusal = await fenced.MarkSentAsync(survivor.Id, stale, CancellationToken.None).ConfigureAwait(false);
 
-		if (refusal is null)
+		if (refusal is not OutboxCompletionOutcome.FenceRefused)
 		{
 			throw new TestFixtureAssertionException(
-				$"A mark-sent presenting token {stale} was accepted after the high-water mark had advanced to "
-				+ $"{current}. A superseded leader can still mutate, so two leaders act on the same message.");
-		}
-
-		if (refusal.PresentedToken != stale)
-		{
-			throw new TestFixtureAssertionException(
-				$"The refusal reported PresentedToken {refusal.PresentedToken?.ToString() ?? "<null>"} where "
-				+ $"{stale} was presented.");
+				$"A mark-sent presenting token {stale} reported {refusal} after the high-water mark had advanced "
+				+ $"to {current}, where FenceRefused was required. "
+				+ (refusal is OutboxCompletionOutcome.Applied
+					? "A superseded leader can still mutate, so two leaders act on the same message."
+					: "A superseded tenure told anything other than FenceRefused reads the answer as "
+						+ "row-scoped and carries on draining, which is exactly what the fence exists to stop."));
 		}
 
 		var staleClaim = await fenced.GetUnsentMessagesAsync(10, stale, CancellationToken.None)
@@ -3241,29 +3321,33 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 
 		await fenced.MarkSentAsync(decoy.Id, current, CancellationToken.None).ConfigureAwait(false);
 
-		StaleOutboxFencingTokenException? refusal = null;
-		try
-		{
-			await fenced.MarkSentAsync(target.Id, stale, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException ex)
-		{
-			refusal = ex;
-		}
+		var refusal = await fenced.MarkSentAsync(target.Id, stale, CancellationToken.None).ConfigureAwait(false);
 
-		if (refusal is null)
+		if (refusal is not OutboxCompletionOutcome.FenceRefused)
 		{
 			throw new TestFixtureAssertionException(
-				$"A mark-sent presenting the stale token {stale} was accepted after the high-water mark had "
-				+ $"advanced to {current}.");
+				$"A mark-sent presenting the stale token {stale} reported {refusal} after the high-water mark "
+				+ $"had advanced to {current}, where FenceRefused was required.");
 		}
 
-		if (refusal.HighWaterToken != current)
+		// WHICH TENURE WON IS NOW ASKED OF THE DIAGNOSTIC, NOT OF THE REFUSAL, and that is a deliberate
+		// trade rather than a weakened arm. The refusal used to carry the presented and recorded tokens as
+		// exception properties; an outcome value carries neither, which is the one capability the exception
+		// had and the enumeration does not. The information itself is not lost -- it was never the
+		// mutation's to report in the first place, and the fenced failure and dead-letter members on this
+		// same contract have always returned a bare outcome without it. A store that cannot answer the
+		// question through its diagnostic capability fails here, so the property is still enforced; it is
+		// enforced at the member whose job it is.
+		if (ValidateCapability<IFencedOutboxStoreDiagnostics>(store, store.GetService(typeof(IFencedOutboxStoreDiagnostics))) is IFencedOutboxStoreDiagnostics diagnostics)
 		{
-			throw new TestFixtureAssertionException(
-				$"The refusal reported HighWaterToken {refusal.HighWaterToken?.ToString() ?? "<null>"} where "
-				+ $"{current} was the mark it was refused against. An operator reading this field cannot tell "
-				+ "which tenure won.");
+			var recorded = await diagnostics.GetFencingHighWaterAsync(CancellationToken.None).ConfigureAwait(false);
+			if (recorded != current)
+			{
+				throw new TestFixtureAssertionException(
+					$"After refusing the stale token {stale}, the recorded high-water reported "
+					+ $"{recorded?.ToString() ?? "<null>"} where {current} was the mark it was refused against. "
+					+ "An operator reading this cannot tell which tenure won.");
+			}
 		}
 	}
 
@@ -3300,17 +3384,17 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 				+ "that refuses every token is 'safe' by never delivering anything.");
 		}
 
-		// The same token again: an equal token is the same tenure and must be honoured.
-		try
-		{
-			await fenced.MarkSentAsync(message.Id, current, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException ex)
+		// The same token again: an equal token is the same tenure and must be honoured. Applied is matched
+		// BY NAME, so a store that reports any refusal here -- including one this build was not compiled
+		// against -- fails the arm. Accepting "anything but FenceRefused" would let a store that answered
+		// ClaimLost for its own live claim pass a liveness arm while delivering nothing.
+		var applied = await fenced.MarkSentAsync(message.Id, current, CancellationToken.None).ConfigureAwait(false);
+		if (applied is not OutboxCompletionOutcome.Applied)
 		{
 			throw new TestFixtureAssertionException(
-				$"A mark-sent presenting the same token that claimed the message ({current}) was refused "
-				+ $"against a high-water of {ex.HighWaterToken?.ToString() ?? "<null>"}. An equal token is the "
-				+ "same tenure; the comparison must be strictly-less-than or a leader fences itself off.");
+				$"A mark-sent presenting the same token that claimed the message ({current}) reported "
+				+ $"{applied} where Applied was required. An equal token is the same tenure; the comparison "
+				+ "must be strictly-less-than or a leader fences itself off.");
 		}
 
 		var remaining = await store.GetUnsentMessagesAsync(100, CancellationToken.None).ConfigureAwait(false);
@@ -3364,21 +3448,13 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		var target = CreateTestMessage();
 		await store.StageMessageAsync(target, CancellationToken.None).ConfigureAwait(false);
 
-		StaleOutboxFencingTokenException? refusal = null;
-		try
-		{
-			await fenced.MarkSentAsync(target.Id, stale, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException ex)
-		{
-			refusal = ex;
-		}
+		var refusal = await fenced.MarkSentAsync(target.Id, stale, CancellationToken.None).ConfigureAwait(false);
 
-		if (refusal is null)
+		if (refusal is not OutboxCompletionOutcome.FenceRefused)
 		{
 			throw new TestFixtureAssertionException(
 				$"After cleanup removed the rows carrying token {current}, a mark-sent presenting the stale "
-				+ $"token {stale} was accepted, so a routine cleanup left the fence unable to refuse it. "
+				+ $"token {stale} reported {refusal}, so a routine cleanup left the fence unable to refuse it. "
 				+ "This states what was OBSERVED, not why: the cause is store-specific. A store that derives "
 				+ "its high-water from the message rows loses it with them, but a store holding the high-water "
 				+ "in a separate durable record can fail this same arm for an unrelated reason — read that "
@@ -3386,16 +3462,12 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		// LIVENESS: the fence is durable, not stuck — the current leader still works after cleanup.
-		try
-		{
-			await fenced.MarkSentAsync(target.Id, current, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException ex)
+		var afterCleanup = await fenced.MarkSentAsync(target.Id, current, CancellationToken.None).ConfigureAwait(false);
+		if (afterCleanup is not OutboxCompletionOutcome.Applied)
 		{
 			throw new TestFixtureAssertionException(
-				$"After cleanup the current leader's token ({current}) was itself refused against a high-water "
-				+ $"of {ex.HighWaterToken?.ToString() ?? "<null>"}. The fence is not merely durable, it is "
-				+ "stuck, and delivery stops for everyone.");
+				$"After cleanup the current leader's token ({current}) reported {afterCleanup} where Applied "
+				+ "was required. The fence is not merely durable, it is stuck, and delivery stops for everyone.");
 		}
 	}
 
@@ -3431,21 +3503,14 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		// touching or claiming the one under test.
 		await fenced.MarkSentAsync(handoverCarrier.Id, fresher, CancellationToken.None).ConfigureAwait(false);
 
-		var refused = false;
-		try
-		{
-			await fenced.MarkSentAsync(message.Id, superseded, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException)
-		{
-			refused = true;
-		}
+		var refused = await fenced.MarkSentAsync(message.Id, superseded, CancellationToken.None).ConfigureAwait(false);
 
-		if (!refused)
+		if (refused is not OutboxCompletionOutcome.FenceRefused)
 		{
 			throw new TestFixtureAssertionException(
-				$"The superseded leader (token {superseded}) completed a message after the mark had advanced "
-				+ $"to {fresher}. Both leaders acted on it.");
+				$"The superseded leader (token {superseded}) reported {refused} after the mark had advanced "
+				+ $"to {fresher}, where FenceRefused was required. Anything else tells a superseded tenure "
+				+ "the answer was about this one row, so it carries on draining.");
 		}
 
 		var staleClaim = await fenced.GetUnsentMessagesAsync(50, superseded, CancellationToken.None)
@@ -3465,16 +3530,13 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 				+ "Refusing a stale mutation must not delete the message it refused to complete.");
 		}
 
-		try
-		{
-			await fenced.MarkSentAsync(message.Id, fresher, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException ex)
+		var byCurrentLeader = await fenced.MarkSentAsync(message.Id, fresher, CancellationToken.None).ConfigureAwait(false);
+		if (byCurrentLeader is not OutboxCompletionOutcome.Applied)
 		{
 			throw new TestFixtureAssertionException(
 				$"The current leader (token {fresher}) could not complete message '{message.Id}' after the "
-				+ $"handover; it was refused against a high-water of "
-				+ $"{ex.HighWaterToken?.ToString() ?? "<null>"}. The message is stranded rather than protected.");
+				+ $"handover; it reported {byCurrentLeader} where Applied was required. The message is "
+				+ "stranded rather than protected.");
 		}
 	}
 
@@ -3546,17 +3608,9 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		await fenced.MarkSentAsync(handoverCarrier.Id, fresher, CancellationToken.None).ConfigureAwait(false);
 
 		// SAFETY: the claim is not a licence to complete. The fence must be re-judged at the mutation.
-		var refused = false;
-		try
-		{
-			await fenced.MarkSentAsync(message.Id, superseded, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException)
-		{
-			refused = true;
-		}
+		var refused = await fenced.MarkSentAsync(message.Id, superseded, CancellationToken.None).ConfigureAwait(false);
 
-		if (!refused)
+		if (refused is not OutboxCompletionOutcome.FenceRefused)
 		{
 			throw new TestFixtureAssertionException(
 				$"The superseded leader (token {superseded}) completed message '{message.Id}' after the "
@@ -3574,26 +3628,21 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		// The current leader completing the message proves both properties at once: it can only succeed if
 		// the message is still there AND still unsent, so a superseded write that landed anyway surfaces
 		// here as the store refusing the CURRENT leader.
-		try
-		{
-			await fenced.MarkSentAsync(message.Id, fresher, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException ex)
-		{
-			throw new TestFixtureAssertionException(
-				$"The current leader (token {fresher}) could not complete message '{message.Id}' after the "
-				+ $"handover; it was refused against a high-water of "
-				+ $"{ex.HighWaterToken?.ToString() ?? "<null>"}. A message claimed by a leader that then lost "
-				+ "its tenure is stranded rather than protected, and delivery stops for that message.");
-		}
-		catch (InvalidOperationException ex)
+		// ONE assertion now covers what two catch clauses used to. A refusal and a missing-or-terminal row
+		// are both values on this member, so the distinction the two clauses drew -- refused-against-a-
+		// high-water versus the mutation having landed anyway -- is carried by the outcome itself and is
+		// reported in the message rather than inferred from which exception arrived.
+		var byCurrentLeader = await fenced.MarkSentAsync(message.Id, fresher, CancellationToken.None).ConfigureAwait(false);
+		if (byCurrentLeader is not OutboxCompletionOutcome.Applied)
 		{
 			throw new TestFixtureAssertionException(
-				$"The superseded leader's mark-sent threw as required, but the current leader (token "
-				+ $"{fresher}) then could not complete message '{message.Id}': {ex.Message} That means the "
-				+ "refusal was reported while the mutation was applied anyway, or the message was lost — "
-				+ "both strictly worse than the race this arm exists to catch, because the store denied "
-				+ "doing the thing it did.");
+				$"The superseded leader's mark-sent was refused as required, but the current leader (token "
+				+ $"{fresher}) then could not complete message '{message.Id}': it reported {byCurrentLeader} "
+				+ "where Applied was required. FenceRefused here means a message claimed by a leader that "
+				+ "then lost its tenure is stranded rather than protected. Anything else means the refusal "
+				+ "was reported while the mutation was applied anyway, or the message was lost -- both "
+				+ "strictly worse than the race this arm exists to catch, because the store denied doing "
+				+ "the thing it did.");
 		}
 	}
 
@@ -3668,20 +3717,13 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 
 		// The superseded tenure now issues the mutation, presenting the very token its own fence check
 		// already validated — on a message that (per-document) a fresher tenure has since reclaimed.
-		StaleOutboxFencingTokenException? refusal = null;
-		try
-		{
-			await fenced.MarkSentAsync(message.Id, superseded, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException ex)
-		{
-			refusal = ex;
-		}
+		var refusal = await fenced.MarkSentAsync(message.Id, superseded, CancellationToken.None).ConfigureAwait(false);
 
-		if (refusal is null)
+		if (refusal is not OutboxCompletionOutcome.FenceRefused)
 		{
 			throw new TestFixtureAssertionException(
-				$"The superseded token ({superseded}) completed mark-sent on message '{message.Id}' even though "
+				$"The superseded token ({superseded}) reported {refusal} on mark-sent for message '{message.Id}' "
+				+ "where FenceRefused was required, even though "
 				+ $"a fresher tenure ({fresher}) had reclaimed it. The fence check and the mutation it guards "
 				+ "were evaluated as two separate round trips with no fence term in the mutation itself, so a "
 				+ "reclaim landing between them is invisible to it — a superseded leader can still complete a "
@@ -3689,16 +3731,13 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		}
 
 		// LIVENESS: the fresher tenure that actually holds the reclaim can still complete it.
-		try
-		{
-			await fenced.MarkSentAsync(message.Id, fresher, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (StaleOutboxFencingTokenException ex)
+		var byFresherTenure = await fenced.MarkSentAsync(message.Id, fresher, CancellationToken.None).ConfigureAwait(false);
+		if (byFresherTenure is not OutboxCompletionOutcome.Applied)
 		{
 			throw new TestFixtureAssertionException(
 				$"The fresher tenure ({fresher}) that legitimately reclaimed message '{message.Id}' could not "
-				+ $"complete it; refused against a high-water of {ex.HighWaterToken?.ToString() ?? "<null>"}. "
-				+ "The message is stranded rather than protected.");
+				+ $"complete it; it reported {byFresherTenure} where Applied was required. The message is "
+				+ "stranded rather than protected.");
 		}
 	}
 

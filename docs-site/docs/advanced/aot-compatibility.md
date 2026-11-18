@@ -22,7 +22,7 @@ The column describes known warning contracts when trim/AOT analysis is enabled, 
 |--------|------------------------------|------------|
 | **Clean** | No public `RequiresDynamicCode` / `RequiresUnreferencedCode` annotation or internal suppression is recorded by these inventories. This does not guarantee a clean publish. | Publish and exercise your application's paths. |
 | **Warns you** | Exported declarations carry trim/AOT warning annotations. Some are conservative interface contracts rather than reflective operations in every implementation. | Read the warning and use an appropriate alternative. A suppression requires evidence for the specific configuration. |
-| **Doesn't warn you** | Reflection is present, but it is internal and **suppressed here**, so **your build will say nothing about it**. | Your compiler cannot help you for this package. Publish an ahead-of-time binary and exercise these paths before you ship. |
+| **Doesn't warn you** | Known internal suppressions can hide diagnostics for particular reflection paths. | Other diagnostics may still appear. Review suppressions, publish a native binary and exercise the configured paths. |
 | **Not compatible** | `IsAotCompatible=false`. The package does not claim ahead-of-time compatibility — usually a blocking dependency, sometimes reflection in its own code. |
 | **N/A** | Tooling package (analyzer, source generator) — runs at compile time, not at runtime. |
 
@@ -45,8 +45,8 @@ The column describes known warning contracts when trim/AOT analysis is enabled, 
 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
-| `Excalibur.Dispatch.Caching` | Warns you | `CachingMiddleware` uses `RuntimeFeature.IsDynamicCodeSupported` branching. Review this package's warning contracts and internal suppressions for the paths you use. Annotated declarations include `CachingDispatchBuilderExtensions.UseCaching`, `CachingDispatchBuilderExtensions.WithCachingOptions`, `CachingServiceCollectionExtensions.AddCachePolicy` and 7 more. Other paths still require their own trim/AOT validation. |
-| `Excalibur.Dispatch.Resilience.Polly` | Warns you | Polly v8 is AOT-compatible. Annotated declarations include `DispatchBuilderResilienceExtensions.UseResilience`, `PollyResilienceServiceCollectionExtensions.AddPollyResilience`. Other paths still require their own trim/AOT validation. |
+| `Excalibur.Dispatch.Caching` | Warns you | `CachingMiddleware` uses `RuntimeFeature.IsDynamicCodeSupported` branching. See the [scoped HybridCache 10.5.0 default-serializer publish failure](../performance/caching.md); it is not a verdict on every caching configuration. Review this package's warning contracts and internal suppressions for the paths you use. Annotated declarations include `CachingDispatchBuilderExtensions.UseCaching`, `CachingDispatchBuilderExtensions.WithCachingOptions`, `CachingServiceCollectionExtensions.AddCachePolicy` and 7 more. Other paths still require their own trim/AOT validation. |
+| `Excalibur.Dispatch.Resilience.Polly` | Warns you | Verify the selected Polly version and configured resilience paths. Annotated declarations include `DispatchBuilderResilienceExtensions.UseResilience`, `PollyResilienceServiceCollectionExtensions.AddPollyResilience`. Other paths still require their own trim/AOT validation. |
 | `Excalibur.Dispatch.Validation.FluentValidation` | Warns you | Dual-path: `AotFluentValidatorResolver` + source-gen `IAotValidationDispatcher`. Annotated declarations include `FluentValidationServiceCollectionExtensions.WithFluentValidation`. Other paths still require their own trim/AOT validation. |
 
 ### Serialization
@@ -56,18 +56,18 @@ The column describes known warning contracts when trim/AOT analysis is enabled, 
 | `Excalibur.Dispatch.Serialization.MemoryPack` | Warns you | MemoryPack uses source generation. Annotated declarations include `MemoryPack.MemoryPackSerializer`. Other paths still require their own trim/AOT validation. |
 | `Excalibur.Dispatch.Serialization.Avro` | **Not compatible** | Apache.Avro uses runtime code generation |
 | `Excalibur.Dispatch.Serialization.MessagePack` | **Not compatible** | MessagePack reflection-based resolvers |
-| `Excalibur.Dispatch.Serialization.Protobuf` | Warns you | Uses Google.Protobuf (v3.32.1+), which is AOT-compatible. Annotated declarations include `Protobuf.ProtobufSerializer`. Other paths still require their own trim/AOT validation. |
+| `Excalibur.Dispatch.Serialization.Protobuf` | Warns you | Verify the selected Google.Protobuf version and generated-message serialization paths. Annotated declarations include `Protobuf.ProtobufSerializer`. Other paths still require their own trim/AOT validation. |
 
 ### Transport
 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
-| `Excalibur.Dispatch.Transport.Abstractions` | Warns you | `CloudEventEncoderAdapter<TOutbound>` forwards to the registered `ICloudEventEncoder<TOutbound>`, which may serialize reflectively. Annotated declarations include `ICloudEventEncoder.ToTransportMessageAsync`. Other paths still require their own trim/AOT validation. |
-| `Excalibur.Dispatch.Transport.RabbitMQ` | Warns you | Builder registration includes the annotated CloudEvents paths listed here. Annotated declarations include `RabbitMqCloudEventsServiceCollectionExtensions.AddCloudEventsForRabbitMq`. Other paths still require their own trim/AOT validation. |
-| `Excalibur.Dispatch.Transport.AwsSqs` | Warns you | Builder registration includes the annotated CloudEvents paths listed here. Annotated declarations include `AwsCloudEventsServiceCollectionExtensions.AddCloudEventsForEventBridge`, `AwsCloudEventsServiceCollectionExtensions.AddCloudEventsForSns`, `AwsCloudEventsServiceCollectionExtensions.AddCloudEventsForSqs` and 2 more. Other paths still require their own trim/AOT validation. |
-| `Excalibur.Dispatch.Transport.AzureServiceBus` | Warns you | `MessageDeserializerRegistry` typed pattern; `EventGridTransportSender` annotated. Annotated declarations include `AzureCloudEventsServiceCollectionExtensions.AddCloudEventsForEventHubs`, `AzureCloudEventsServiceCollectionExtensions.AddCloudEventsForServiceBus`, `AzureCloudEventsServiceCollectionExtensions.UseCloudEvents`. Other paths still require their own trim/AOT validation. |
-| `Excalibur.Dispatch.Transport.GooglePubSub` | **Not compatible** | Google Cloud SDK dependency uses reflection. `UseCloudEvents` and `AddCloudEventsForPubSub` are separately annotated: the bundled mapper serializes payloads reflectively |
-| `Excalibur.Dispatch.Transport.Kafka` | **Not compatible** | Confluent.Kafka SchemaRegistry uses `Activator.CreateInstance`. `AddCloudEventsForKafka` is separately annotated: the bundled mapper serializes payloads reflectively |
+| `Excalibur.Dispatch.Transport.Abstractions` | Clean | `CloudEventEncoderAdapter<TOutbound>` forwards to the registered `ICloudEventEncoder<TOutbound>`. CloudEvents payload serialization is reflection-free when you register it with the `AddCloudEvents(IJsonTypeInfoResolver)` overload, which composes your source-generated context; the parameterless overload is the reflective path and carries the warning at your call site. The encoder interface itself carries no trim/AOT annotation: an annotation on an interface member must be matched by every implementation, which would propagate it to every transport and from there to you. Other paths still require their own trim/AOT validation. |
+| `Excalibur.Dispatch.Transport.RabbitMQ` | Doesn't warn you | CloudEvents payload serialization is reflection-free when you register it with the `AddCloudEvents(IJsonTypeInfoResolver)` overload, which composes your source-generated context; the parameterless overload is the reflective path and carries the warning at your call site. This package records baselined internal AOT suppressions on other paths, so review them for the paths you use. Other paths still require their own trim/AOT validation. |
+| `Excalibur.Dispatch.Transport.AwsSqs` | Doesn't warn you | CloudEvents payload serialization is reflection-free when you register it with the `AddCloudEvents(IJsonTypeInfoResolver)` overload, which composes your source-generated context; the parameterless overload is the reflective path and carries the warning at your call site. This package records baselined internal AOT suppressions on other paths, so review them for the paths you use. Other paths still require their own trim/AOT validation. |
+| `Excalibur.Dispatch.Transport.AzureServiceBus` | Doesn't warn you | `MessageDeserializerRegistry` typed pattern. CloudEvents payload serialization is reflection-free when you register it with the `AddCloudEvents(IJsonTypeInfoResolver)` overload, which composes your source-generated context; the parameterless overload is the reflective path and carries the warning at your call site. This package records baselined internal AOT suppressions on other paths, so review them for the paths you use. Other paths still require their own trim/AOT validation. |
+| `Excalibur.Dispatch.Transport.GooglePubSub` | **Not compatible** | Google Cloud SDK dependency uses reflection, which is why this package is not compatible regardless of CloudEvents. CloudEvents payload serialization is reflection-free when you register it with the `AddCloudEvents(IJsonTypeInfoResolver)` overload, which composes your source-generated context; the parameterless overload is the reflective path and carries the warning at your call site. |
+| `Excalibur.Dispatch.Transport.Kafka` | **Not compatible** | Confluent.Kafka SchemaRegistry uses `Activator.CreateInstance`, which is why this package is not compatible regardless of CloudEvents. CloudEvents payload serialization is reflection-free when you register it with the `AddCloudEvents(IJsonTypeInfoResolver)` overload, which composes your source-generated context; the parameterless overload is the reflective path and carries the warning at your call site. |
 | `Excalibur.Dispatch.Transport.Grpc` | Doesn't warn you | `GrpcJsonSerializerContext` source-gen JSON for all 10 transport types |
 
 ### Hosting
@@ -92,7 +92,7 @@ The column describes known warning contracts when trim/AOT analysis is enabled, 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
 | `Excalibur.Security` | Warns you | Annotated declarations include `Argon2ServiceCollectionExtensions.AddPasswordHasher`, `SecurityExcaliburBuilderExtensions.UseSecurity`, `SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware` and 7 more. Other paths still require their own trim/AOT validation. |
-| `Excalibur.Security.Aws` | **Not compatible** | AWS SDK v3 (`AWSSDK.Core`, `AWSSDK.SecretsManager`) is reflection-based and declares no trim or AOT properties, so the analyzer cannot see its reflection and reports nothing while a native publish fails at link time |
+| `Excalibur.Security.Aws` | **Not compatible** | Recorded dependency concern; verify the selected SDK version and application paths. This row does not establish a current native link failure. |
 | `Excalibur.Security.Azure` | Clean | |
 
 ### Compliance
@@ -161,8 +161,8 @@ The column describes known warning contracts when trim/AOT analysis is enabled, 
 | `Excalibur.Data.Abstractions` | Clean | |
 | `Excalibur.Data` | Warns you | Annotated declarations include `Serialization.ExcaliburJsonSerializerOptions`. Other paths still require their own trim/AOT validation. |
 | `Excalibur.Data.InMemory` | Warns you | Review this package's warning contracts and internal suppressions for the paths you use. Annotated declarations include `InMemoryPersistenceProvider.InitializeAsync`, `InMemoryPersistenceProvider.PersistToDiskAsync`, `InMemoryServiceCollectionExtensions.AddExcaliburInMemory`. Other paths still require their own trim/AOT validation. |
-| `Excalibur.Data.SqlServer` | Warns you | Dapper itself is AOT-compatible. The dead-letter property bag uses a source-generated JSON context; configuration-binding registration can still warn. Annotated path: `AddSqlServerPersistence`. Annotated declarations include `SqlServerPersistenceExtensions.AddSqlServerPersistence`. Other paths still require their own trim/AOT validation. |
-| `Excalibur.Data.Postgres` | Warns you | Dapper itself is AOT-compatible. The dead-letter property bag uses a source-generated JSON context; configuration-binding registration can still warn. Annotated declarations include `PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence`, `PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistenceFromSection`, `PostgresServiceCollectionExtensions.AddPostgresDeadLetterStore`. Other paths still require their own trim/AOT validation. |
+| `Excalibur.Data.SqlServer` | Warns you | Verify the selected Dapper integration and generated or reflection-based mapping paths. The dead-letter property bag uses a source-generated JSON context; configuration-binding registration can still warn. Annotated path: `AddSqlServerPersistence`. Annotated declarations include `SqlServerPersistenceExtensions.AddSqlServerPersistence`. Other paths still require their own trim/AOT validation. |
+| `Excalibur.Data.Postgres` | Warns you | Verify the selected Dapper integration and generated or reflection-based mapping paths. The dead-letter property bag uses a source-generated JSON context; configuration-binding registration can still warn. Annotated declarations include `PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence`, `PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistenceFromSection`, `PostgresServiceCollectionExtensions.AddPostgresDeadLetterStore`. Other paths still require their own trim/AOT validation. |
 | `Excalibur.Data.MySql` | Doesn't warn you | |
 | `Excalibur.Data.MongoDB` | Warns you | Review this package's warning contracts and internal suppressions for the paths you use. Annotated declarations include `MongoDbMaterializedViewStore.GetAsync`, `MongoDbMaterializedViewStore.SaveAsync`, `MongoDbMaterializedViewStore.SaveViewAndPositionAsync` and 9 more. Other paths still require their own trim/AOT validation. |
 | `Excalibur.Data.Redis` | Doesn't warn you | |
@@ -206,7 +206,7 @@ The column describes known warning contracts when trim/AOT analysis is enabled, 
 | `Excalibur.Outbox.CosmosDb` | **Not compatible** | CosmosDB SDK dependency |
 | `Excalibur.Outbox.DynamoDb` | **Not compatible** | DynamoDB SDK dependency |
 | `Excalibur.Outbox.Firestore` | **Not compatible** | Firestore SDK dependency |
-| `Excalibur.Outbox.MongoDB` | **Not compatible** | MongoDB driver dependency |
+| `Excalibur.Outbox.MongoDB` | **Not compatible** | Current provider default BSON mapping depends on runtime metadata and generic serializer construction; provider NativeAOT compatibility is unverified. Construction and registration retain analyzer warnings. |
 
 ### Inbox
 
@@ -255,10 +255,12 @@ The column describes known warning contracts when trim/AOT analysis is enabled, 
 | `Excalibur.LeaderElection.InMemory` | Warns you | Annotated path: the `IConfiguration`-binding overload of `AddInMemoryLeaderElection`, which reflects over the options type. The overload taking options in code avoids that configuration-binding path. Annotated declarations include `InMemoryLeaderElectionServiceCollectionExtensions.AddInMemoryLeaderElection`. Other paths still require their own trim/AOT validation. |
 | `Excalibur.LeaderElection.SqlServer` | Clean | `UseSqlServer` no longer binds configuration for you, so that registration does not perform reflective binding. To read options from configuration, call `services.AddOptions<SqlServerLeaderElectionOptions>().BindConfiguration("Section:Path")` alongside the registration — binding is reflective, so the trim/AOT warning belongs at your own call site where the trimmer can see it. |
 | `Excalibur.LeaderElection.Postgres` | Clean | `UsePostgres` no longer binds configuration for you, so that registration does not perform reflective binding. To read options from configuration, call `services.AddOptions<PostgresLeaderElectionOptions>().BindConfiguration("Section:Path")` alongside the registration — binding is reflective, so the trim/AOT warning belongs at your own call site where the trimmer can see it. |
-| `Excalibur.LeaderElection.Redis` | Doesn't warn you | |
+| `Excalibur.LeaderElection.Redis` | Doesn't warn you | A Windows NativeAOT consumer has exercised the public registration, real Redis renewals, successive fenced tenures, stale-token rejection and joined shutdown with reflection-based JSON disabled. This does not certify every Redis deployment or authentication configuration. |
 | `Excalibur.LeaderElection.MongoDB` | Doesn't warn you | |
 | `Excalibur.LeaderElection.Consul` | **Not compatible** | Consul SDK dependency |
 | `Excalibur.LeaderElection.Kubernetes` | **Not compatible** | Kubernetes SDK dependency |
+
+Windows NativeAOT consumers have also exercised the public PostgreSQL and SQL Server registrations with real databases: successive fenced tenures, renewal beyond the initial local deadline, independent-session lock exclusion, joined shutdown, and fencing-counter durability while a caller's business transaction rolls back. Both consumers disable reflection-based JSON serialization. The PostgreSQL publish emitted no raw trim/AOT warnings. The SQL Server publish retained existing member-specific upstream SqlClient/runtime warnings accepted by the repository baseline; its successful runtime check does not establish warning-free support for every SqlClient feature. Validate your own authentication, diagnostic, data-type and deployment paths separately.
 
 ### Hosting
 
@@ -295,7 +297,7 @@ The column describes known warning contracts when trim/AOT analysis is enabled, 
 | `Excalibur.Security.Abstractions` | Clean | |
 | `Excalibur.Compliance.SqlServer` | Warns you | Annotated path: the `IConfiguration`-binding overload of `AddSqlServerKeyEscrow`, which reflects over the options type. The overload taking options in code avoids that configuration-binding path. Annotated declarations include `SqlServerKeyEscrowServiceCollectionExtensions.AddSqlServerKeyEscrow`. Other paths still require their own trim/AOT validation. |
 | `Excalibur.Compliance.Postgres` | Clean | |
-| `Excalibur.Caching` | **Not compatible** | HybridCache uses reflection |
+| `Excalibur.Caching` | **Not compatible** | Recorded package declaration; verify selected serializers and dependency paths. See the separate [Dispatch caching probe's scoped HybridCache default-serializer failure](../performance/caching.md); it does not certify or reject every configuration of this package. |
 
 ### Jobs
 
@@ -341,11 +343,11 @@ The column describes known warning contracts when trim/AOT analysis is enabled, 
 
 ---
 
-## Blocking Dependencies
+## Dependency Constraints to Verify
 
-These third-party dependencies prevent AOT compatibility in the affected packages:
+The following matrix records dependency paths that require verification for the versions selected by your application. It is not proof that every path in a dependency is compatible or incompatible with NativeAOT. Publish and execute the paths you use, and inspect their trimming and AOT diagnostics.
 
-| Dependency | Blocking Reason | Affected Packages |
+| Dependency | Path to Verify | Related Packages |
 |------------|----------------|-------------------|
 | Azure CosmosDB SDK | `Expression.Compile()` in LINQ provider | CosmosDb data, event sourcing, outbox, inbox, saga, CDC |
 | AWS DynamoDB SDK | Reflection-based marshalling | DynamoDb data, event sourcing, outbox |
@@ -354,12 +356,12 @@ These third-party dependencies prevent AOT compatibility in the affected package
 | FluentValidation | `Expression.Compile()` for validators | FluentValidation middleware |
 | Apache.Avro | Runtime code generation | Avro serialization |
 | MessagePack-CSharp | Reflection-based resolvers | MessagePack serialization |
-| protobuf-net | `Expression.Compile()` | *(none currently — `Excalibur.Dispatch.Serialization.Protobuf` uses Google.Protobuf, which is AOT-safe)* |
+| protobuf-net | `Expression.Compile()` | *(none currently — `Excalibur.Dispatch.Serialization.Protobuf` uses Google.Protobuf; verify the selected generated-message and serialization paths)* |
 | OpenSearch SDK | Reflection-based serialization | OpenSearch data |
 | Consul SDK | Reflection-based HTTP client | Consul leader election |
 | Kubernetes SDK | Reflection-based client | Kubernetes leader election |
 
-When these dependencies release AOT-compatible versions, the affected packages will be updated.
+Recheck these constraints when dependency versions or application paths change.
 
 ---
 
@@ -367,7 +369,7 @@ When these dependencies release AOT-compatible versions, the affected packages w
 
 To publish an AOT application with Excalibur:
 
-1. **Verify all referenced packages are AOT-safe** using the matrix above
+1. **Review known package constraints** using the matrix above, then publish and execute your application’s selected paths
 2. **Add source generators** to your project:
    ```xml
    <!-- The generators and DISP analyzers are bundled in Excalibur.Dispatch; no extra reference needed. -->
@@ -388,8 +390,8 @@ To publish an AOT application with Excalibur:
    paths especially carefully for a **Doesn't warn you** package.
 
 7. **For any package in the "Doesn't warn you" column, test the binary, not the build log.** Run the
-   published ahead-of-time output and exercise the paths you depend on. That is the only signal available
-   to you for those packages, because the compile-time one has been turned off.
+   published ahead-of-time output and exercise the paths you depend on. Known internal suppressions
+   can hide diagnostics for those paths; other call sites or dependencies may still produce warnings.
 
 For a **Warns you** package, `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` propagate the warning
 to your call site, so you can make the decision where you can see it. That propagation is what the
@@ -398,8 +400,8 @@ to your call site, so you can make the decision where you can see it. That propa
 
 ## Additional Packages
 
-These packages ship from this repository and were absent from the matrix above. Status is read
-directly from each project's `IsAotCompatible` property, the same source the sections above use.
+These additional package entries combine recorded compatibility metadata, public warning
+annotations and internal suppressions. They are not native execution certificates.
 
 | Package | AOT Status | Notes |
 |---------|------------|-------|
@@ -407,7 +409,7 @@ directly from each project's `IsAotCompatible` property, the same source the sec
 | `Excalibur.Dispatch.Compat.MediatR` | Clean | `AddMediatRCompat` registers a fixed set of adapters and needs no reflection over consumer types, so no exported warning contract is recorded for that adapter registration. |
 | `Excalibur.Dispatch.Migration` | **Not compatible** |  |
 | `Excalibur.Dispatch.Transport.IbmMq` | **Not compatible** | NOT compatible. The IBM MQ managed client uses runtime reflection and dynamic assembly loading. |
-| `Excalibur.Dispatch.Transport.Mqtt` | Warns you | Builder registration includes the annotated CloudEvents paths listed here. The CloudEvents encoder serializes the payload through reflection-based JSON. Annotated declarations include `MqttCloudEventsServiceCollectionExtensions.AddCloudEventsForMqtt`. Other paths still require their own trim/AOT validation. |
+| `Excalibur.Dispatch.Transport.Mqtt` | Clean | CloudEvents payload serialization is reflection-free when you register it with the `AddCloudEvents(IJsonTypeInfoResolver)` overload, which composes your source-generated context; the parameterless overload is the reflective path and carries the warning at your call site. The named sender supports binary and structured CloudEvents. The NativeAOT sample verifies both outbound modes against a real local broker with generated payload metadata and reflection-based JSON disabled. Other paths still require their own trim/AOT validation. |
 | `Excalibur.Dispatch.Transport.Pulsar` | Clean |  |
 | `Excalibur.AuditLogging.Abstractions` | Clean |  |
 | `Excalibur.Compliance.MongoDb` | Clean |  |
@@ -418,18 +420,18 @@ directly from each project's `IsAotCompatible` property, the same source the sec
 | `Excalibur.EventSourcing.Handlers` | Clean |  |
 | `Excalibur.EventSourcing.Oracle` | Doesn't warn you | Review this package's warning contracts and internal suppressions for the paths you use. |
 | `Excalibur.Inbox.Oracle` | Doesn't warn you | `UseOracle` no longer binds configuration for you, so that registration does not perform reflective binding. To read options from configuration, call `services.AddOptions<OracleInboxOptions>().BindConfiguration("Section:Path")` alongside the registration — binding is reflective, so the trim/AOT warning belongs at your own call site where the trimmer can see it. |
-| `Excalibur.MultiTenancy` | **Not compatible** | Row-discriminator decoration of open-generic IProjectionStore&lt;T&gt; uses reflective MakeGenericType over the DI descriptor set, so this composition |
+| `Excalibur.MultiTenancy` | **Not compatible** | Row-discriminator decoration of open-generic IProjectionStore&lt;T&gt; uses reflective MakeGenericType over the DI descriptor set; verify the required closed generic instantiations and metadata for that composition. |
 | `Excalibur.Operations.Dashboard.EventSourcing` | Clean |  |
 | `Excalibur.Operations.Dashboard.Spa` | Clean |  |
 | `Excalibur.Operations.Dashboard` | Clean |  |
-| `Excalibur.Outbox.Marten` | **Not compatible** |  |
+| `Excalibur.Outbox.Marten` | **Not compatible** | Marten 9 supports NativeAOT configurations upstream; this provider does not claim compatibility for its internal document-mapping path. Construction and registration retain analyzer warnings. |
 | `Excalibur.Outbox.Oracle` | Warns you | Annotated declarations include `OracleOutboxStore.EnqueueAsync`, `OracleOutboxStore.GetUnsentMessagesAsync`. Other paths still require their own trim/AOT validation. |
 | `Excalibur.Saga.Oracle` | Warns you | Annotated declarations include `OracleSagaExtensions.AddOracleSagaStore`, `OracleSagaExtensions.UseOracleSagaStore`, `OracleSagaStore.SaveAsync` and 2 more. Other paths still require their own trim/AOT validation. |
 | `Excalibur.Security.AuditLogging` | Clean |  |
 | `Excalibur.Testing.Containers` | **Not compatible** | Fixtures run under a test host, not a trimmed consumer app; reflection in Testcontainers is acceptable here. |
 | `Excalibur.Workflows.Abstractions` | Clean |  |
 | `Excalibur.Workflows.SqlServer` | Clean |  |
-| `Excalibur.Workflows` | Doesn't warn you |  |
+| `Excalibur.Workflows` | Warns you | Parameterless `AddWorkflows()` declares reflection trim/dynamic-code requirements. Use `AddWorkflows(YourPayloadContext.Default)` for explicit metadata; the selected consumer workload still requires its own publish/runtime verification. |
 | `Excalibur.Dispatch.AspNetCore` | Warns you | Annotated declarations include `DispatchAspNetCoreServiceCollectionExtensions.AddDispatchAspNetCore`. Other paths still require their own trim/AOT validation. |
 
 ---

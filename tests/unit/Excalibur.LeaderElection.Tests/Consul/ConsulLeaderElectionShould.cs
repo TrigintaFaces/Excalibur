@@ -1,161 +1,140 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Collections.Concurrent;
-using System.Reflection;
-using System.Runtime.CompilerServices;
-
-using Consul;
-
-using Microsoft.Extensions.Logging.Abstractions;
+using global::Consul;
+using Harness = Excalibur.LeaderElection.Tests.Consul.ConsulTenureProtocolShould.Harness;
 
 namespace Excalibur.LeaderElection.Tests.Consul;
 
-/// <summary>
-/// Tests for Sprint 542 P0 fixes in <see cref="ConsulLeaderElection"/>:
-/// S542.2 (bd-gdn8z): async void timer callbacks -> ConcurrentBag Task tracking
-/// S542.3 (bd-o5xhh): fire-and-forget Dispose -> IAsyncDisposable
-/// S542.4 (bd-a4aph): blocking CurrentLeaderId -> volatile cached property
-/// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait("Component", "LeaderElection")]
+[Trait("Pattern", "Regression")]
 public sealed class ConsulLeaderElectionShould
 {
-	private static ConsulLeaderElection CreateSut()
-	{
-		var options = Microsoft.Extensions.Options.Options.Create(new ConsulLeaderElectionOptions
-		{
-			ConsulAddress = "http://localhost:8500",
-			InstanceId = "test-instance",
-		});
+    [Fact]
+    public async Task JoinActualRenewalWorkBeforeStopCompletes()
+    {
+        var h = new Harness();
+        var reply = new TaskCompletionSource<WriteResult<SessionEntry>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        h.Renew = (number, session, _) => number == 1 ? Task.FromResult(Harness.Renewed(session)) : reply.Task;
+        Task stopping = Task.CompletedTask;
+        try
+        {
+            await h.Sut.StartAsync(CancellationToken.None);
+            await h.Clock.WaitForDelayAsync(TimeSpan.FromSeconds(5), 1);
+            h.Clock.Advance(TimeSpan.FromSeconds(5));
+            await h.WaitForRenewalsAsync(2);
+            stopping = h.Sut.StopAsync(CancellationToken.None);
+            h.Sut.IsLeader.ShouldBeFalse();
+            stopping.IsCompleted.ShouldBeFalse();
+            h.Released.ShouldBeEmpty(); h.Destroyed.ShouldBeEmpty();
+        }
+        finally
+        {
+            reply.TrySetResult(Harness.Renewed("session-1"));
+            await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+            await h.DisposeAsync();
+        }
+        h.Released.ShouldHaveSingleItem().ShouldBe("session-1");
+        h.Destroyed.ShouldHaveSingleItem().ShouldBe("session-1");
+    }
 
-		var fakeConsulClient = A.Fake<IConsulClient>();
-		return new ConsulLeaderElection("test-resource", options, fakeConsulClient, NullLogger<ConsulLeaderElection>.Instance);
-	}
+    [Fact]
+    public async Task RetainShutdownOwnershipWhenTheCallerCancelsItsWait()
+    {
+        var h = new Harness();
+        var reply = new TaskCompletionSource<WriteResult<SessionEntry>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        h.Renew = (number, session, _) => number == 1 ? Task.FromResult(Harness.Renewed(session)) : reply.Task;
+        try
+        {
+            await h.Sut.StartAsync(CancellationToken.None);
+            await h.Clock.WaitForDelayAsync(TimeSpan.FromSeconds(5), 1);
+            h.Clock.Advance(TimeSpan.FromSeconds(5)); await h.WaitForRenewalsAsync(2);
+            using var canceled = new CancellationTokenSource(); canceled.Cancel();
+            await Should.ThrowAsync<OperationCanceledException>(() => h.Sut.StopAsync(canceled.Token));
+            h.Sut.IsLeader.ShouldBeFalse();
+            h.Destroyed.ShouldBeEmpty();
+            await Should.ThrowAsync<InvalidOperationException>(() => h.Sut.StartAsync(CancellationToken.None));
+        }
+        finally
+        {
+            reply.TrySetResult(Harness.Renewed("session-1"));
+            await h.Sut.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+            await h.DisposeAsync();
+        }
+        h.Destroyed.ShouldHaveSingleItem().ShouldBe("session-1");
+    }
 
-	// --- S542.2 (bd-gdn8z): ConcurrentBag<Task> tracking for async void callbacks ---
+    [Fact]
+    public async Task ObserveRenewalFaultsWithoutUntrackedAsyncVoidWork()
+    {
+        await using var h = new Harness();
+        var failed = new IOException("renewal unavailable");
+        h.Renew = (number, session, _) => number == 1 ? Task.FromResult(Harness.Renewed(session)) : Task.FromException<WriteResult<SessionEntry>>(failed);
+        await h.Sut.StartAsync(CancellationToken.None);
+        await h.Clock.WaitForDelayAsync(TimeSpan.FromSeconds(5), 1);
+        h.Clock.Advance(TimeSpan.FromSeconds(5)); await h.WaitForRenewalsAsync(2);
+        await h.Clock.WaitForDelayAsync(TimeSpan.FromSeconds(2), 2);
+        h.Sut.IsLeader.ShouldBeTrue();
+        await h.Sut.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+        h.Destroyed.ShouldHaveSingleItem();
+    }
 
-	[Fact]
-	public void HaveTrackedTasksField()
-	{
-		// Arrange & Act
-		var field = typeof(ConsulLeaderElection)
-			.GetField("_trackedTasks", BindingFlags.NonPublic | BindingFlags.Instance);
+    [Fact]
+    public async Task RefuseNewAdmissionFromAnotherThreadAfterCompletedDisposal()
+    {
+        var h = new Harness();
+        await h.Sut.StartAsync(CancellationToken.None);
+        await h.DisposeAsync();
+        await Task.Run(async () =>
+        {
+            h.Sut.IsLeader.ShouldBeFalse(); h.Sut.CurrentLeadership.ShouldBeNull(); h.Sut.CurrentLeaderId.ShouldBeNull();
+            await Should.ThrowAsync<ObjectDisposedException>(() => h.Sut.StartAsync(CancellationToken.None));
+            await h.Sut.StopAsync(CancellationToken.None);
+        });
+        h.Created.ShouldHaveSingleItem();
+    }
 
-		// Assert — ConcurrentBag<Task> field must exist
-		field.ShouldNotBeNull("ConsulLeaderElection should have _trackedTasks field for async void task tracking");
-		field.FieldType.ShouldBe(typeof(ConcurrentBag<Task>));
-	}
+    [Fact]
+    public async Task ReadCurrentLeaderWithoutWaitingForAnOutstandingMonitorRpc()
+    {
+        var h = new Harness();
+        var reply = new TaskCompletionSource<QueryResult<KVPair>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        h.Read = (number, _, _) => number == 2 ? reply.Task : Task.FromResult(new QueryResult<KVPair> { Response = h.Current! });
+        try
+        {
+            await h.Sut.StartAsync(CancellationToken.None);
+            await h.Clock.WaitForDelayAsync(TimeSpan.FromSeconds(2), 1);
+            h.Clock.Advance(TimeSpan.FromSeconds(2)); await h.WaitForReadsAsync(2);
+            await Task.Run(() =>
+            {
+                for (var i = 0; i < 1000; i++) { h.Sut.CurrentLeaderId.ShouldBe(h.Sut.CandidateId); }
+            }).WaitAsync(TimeSpan.FromSeconds(5));
+            A.CallTo(() => h.Kv.Get(A<string>._, A<QueryOptions>._, A<CancellationToken>._)).MustHaveHappened(2, Times.Exactly);
+        }
+        finally { reply.TrySetResult(new QueryResult<KVPair> { Response = h.Current! }); await h.DisposeAsync(); }
+    }
 
-	[Fact]
-	public void HaveShutdownTokenSourceField()
-	{
-		// Arrange & Act
-		var field = typeof(ConsulLeaderElection)
-			.GetField("_shutdownTokenSource", BindingFlags.NonPublic | BindingFlags.Instance);
+    [Fact]
+    public void ImplementIAsyncDisposable() => typeof(IAsyncDisposable).IsAssignableFrom(typeof(ConsulLeaderElection)).ShouldBeTrue();
 
-		// Assert
-		field.ShouldNotBeNull("ConsulLeaderElection should have _shutdownTokenSource field");
-		field.FieldType.ShouldBe(typeof(CancellationTokenSource));
-	}
+    [Fact]
+    public async Task ReturnNullFromUnstartedCurrentLeaderWithoutContactingTheAgent()
+    {
+        await using var h = new Harness();
+        for (var i = 0; i < 1000; i++) { h.Sut.CurrentLeaderId.ShouldBeNull(); }
+        A.CallTo(() => h.Kv.Get(A<string>._, A<QueryOptions>._, A<CancellationToken>._)).MustNotHaveHappened();
+        h.Created.ShouldBeEmpty();
+    }
 
-	[Fact]
-	public void HaveNonAsyncVoidTimerCallbacks()
-	{
-		// The RenewSession and MonitorLeadership methods should be void (not async void)
-		// They should use Task.Run internally to track async work
-		var renewMethod = typeof(ConsulLeaderElection)
-			.GetMethod("RenewSession", BindingFlags.NonPublic | BindingFlags.Instance);
-		var monitorMethod = typeof(ConsulLeaderElection)
-			.GetMethod("MonitorLeadership", BindingFlags.NonPublic | BindingFlags.Instance);
-
-		renewMethod.ShouldNotBeNull();
-		monitorMethod.ShouldNotBeNull();
-
-		// Both should return void (not Task — they are TimerCallback delegates)
-		renewMethod.ReturnType.ShouldBe(typeof(void));
-		monitorMethod.ReturnType.ShouldBe(typeof(void));
-
-		// Neither should be marked as async void — check for AsyncStateMachineAttribute
-		// If present, the method is async void (bad). If absent, it's a plain void that uses Task.Run (good).
-		renewMethod.GetCustomAttribute<AsyncStateMachineAttribute>().ShouldBeNull(
-			"RenewSession should NOT be async void — use Task.Run tracking instead");
-		monitorMethod.GetCustomAttribute<AsyncStateMachineAttribute>().ShouldBeNull(
-			"MonitorLeadership should NOT be async void — use Task.Run tracking instead");
-	}
-
-	// --- S542.3 (bd-o5xhh): IAsyncDisposable ---
-
-	[Fact]
-	public void ImplementIAsyncDisposable()
-	{
-		// Assert
-		typeof(IAsyncDisposable).IsAssignableFrom(typeof(ConsulLeaderElection)).ShouldBeTrue(
-			"ConsulLeaderElection should implement IAsyncDisposable for safe timer disposal");
-	}
-
-	[Fact]
-	public void HaveDisposedField()
-	{
-		var field = typeof(ConsulLeaderElection)
-			.GetField("_disposed", BindingFlags.NonPublic | BindingFlags.Instance);
-
-		field.ShouldNotBeNull("ConsulLeaderElection should have _disposed field");
-
-		// Should be volatile
-		var modifiers = field.GetRequiredCustomModifiers();
-		modifiers.ShouldContain(typeof(IsVolatile),
-			"_disposed field should be volatile for thread-safe disposal checks");
-	}
-
-	// --- S542.4 (bd-a4aph): Cached CurrentLeaderId (no blocking I/O) ---
-
-	[Fact]
-	public void HaveCachedCurrentLeaderIdField()
-	{
-		// The _cachedCurrentLeaderId field should exist and be volatile
-		var field = typeof(ConsulLeaderElection)
-			.GetField("_cachedCurrentLeaderId", BindingFlags.NonPublic | BindingFlags.Instance);
-
-		field.ShouldNotBeNull("ConsulLeaderElection should have _cachedCurrentLeaderId field");
-
-		// Should be volatile
-		var modifiers = field.GetRequiredCustomModifiers();
-		modifiers.ShouldContain(typeof(IsVolatile),
-			"_cachedCurrentLeaderId should be volatile for thread-safe reads");
-	}
-
-	[Fact]
-	public void ReturnCachedValueFromCurrentLeaderId()
-	{
-		// Arrange
-		using var sut = CreateSut();
-
-		// Act — CurrentLeaderId should return null by default (no blocking I/O)
-		var result = sut.CurrentLeaderId;
-
-		// Assert — should return quickly without blocking
-		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
-		// If it was still using .GetAwaiter().GetResult(), this would potentially hang
-		#pragma warning restore RS0030
-		result.ShouldBeNull("Default CurrentLeaderId should be null (cached value)");
-	}
-
-	[Fact]
-	public void NotUseGetAwaiterGetResultInCurrentLeaderId()
-	{
-		// Verify via reflection that CurrentLeaderId property getter doesn't call GetAwaiter().GetResult()
-		var propertyGetter = typeof(ConsulLeaderElection)
-			.GetProperty("CurrentLeaderId")?.GetGetMethod();
-		propertyGetter.ShouldNotBeNull();
-
-		// Get the IL body and check it doesn't reference GetAwaiter
-		var methodBody = propertyGetter.GetMethodBody();
-		methodBody.ShouldNotBeNull();
-
-		// The method body should be very short (just returning a field) — not a complex async chain
-		// A simple field return is typically < 20 bytes of IL
-		methodBody.GetILAsByteArray().Length.ShouldBeLessThan(50,
-			"CurrentLeaderId getter should be a simple field return, not a complex async chain");
-	}
+    [Fact]
+    public async Task ReturnNullFromCompletedStopWithoutIssuingAnotherRead()
+    {
+        await using var h = new Harness();
+        await h.Sut.StartAsync(CancellationToken.None);
+        await h.Sut.StopAsync(CancellationToken.None);
+        A.CallTo(() => h.Kv.Get(A<string>._, A<QueryOptions>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+        for (var i = 0; i < 1000; i++) { h.Sut.CurrentLeaderId.ShouldBeNull(); }
+        A.CallTo(() => h.Kv.Get(A<string>._, A<QueryOptions>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+    }
 }

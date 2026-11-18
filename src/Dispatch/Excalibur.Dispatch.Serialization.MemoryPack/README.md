@@ -1,10 +1,10 @@
 # Excalibur.Dispatch.Serialization.MemoryPack
 
-High-performance MemoryPack binary serialization for Excalibur framework.
+MemoryPack binary serialization for Excalibur framework.
 
 ## Purpose
 
-Provides **opt-in** high-performance binary serialization for:
+Provides **opt-in** binary serialization for:
 - Workloads where matched measurements favor this binary format
 - .NET-to-.NET communication
 - Internal persistence (Outbox, Inbox, Event Store)
@@ -28,14 +28,14 @@ One call does everything -- DI registration, serializer registry entry, and sett
 services.AddMemoryPackSerializer();
 ```
 
-That is all you need. JSON is the default serializer; calling `AddMemoryPackSerializer()` opts you into MemoryPack for high-performance binary serialization.
+Calling `AddMemoryPackSerializer()` registers MemoryPack. Verify provider selection in the application registration path; measure the configured serializer against the required workload.
 
 ## Performance Characteristics
 
 The [October 16 verification report](../../../docs/performance/memorypack-2026-10-16.md)
 records scoped first-pass results for the framework's envelope APIs, including
 712–65,704 allocated bytes per accepted outbox-envelope deserialization operation.
-Two cases failed and three finite sibling results remain withheld. These measurements
+Two cases failed and three finite sibling results were withheld in that capture. These measurements
 do not establish a general serializer ranking, zero-allocation guarantee, repeated
 latency comparison or NativeAOT performance. Measure the actual payload and API
 before selecting a serializer for a performance requirement.

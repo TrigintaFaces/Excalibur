@@ -34,7 +34,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 [Trait("Component", "Core")]
 [Trait("Database", "Oracle")]
 [Trait("Pattern", "STORE")]
-public sealed class OracleSagaTimeoutStoreConformanceShould
+public sealed partial class OracleSagaTimeoutStoreConformanceShould
 	: SagaTimeoutStoreConformanceTestBase, IClassFixture<OracleSagaTimeoutStoreContainerFixture>
 {
 	private readonly OracleSagaTimeoutStoreContainerFixture _fixture;

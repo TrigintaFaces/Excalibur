@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
@@ -37,6 +37,11 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequestBase<IDbConnec
 	/// predicate is applied: the drain is cross-tenant infrastructure and must always be able to mark the row
 	/// it claimed, regardless of any ambient tenant context. Tenant isolation lives on the write/stage path
 	/// (<c>TenantId</c> stamping) and on tenant-facing queries.
+	/// <para>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </para>
 	/// </remarks>
 	public MarkMessageDeadLetteredRequest(
 		string tableName,
@@ -91,6 +96,12 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequestBase<IDbConnec
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.QuerySingleAsync<ClaimMutationResult>(Command).ConfigureAwait(false);
+			await StaticDbCommand.SingleAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "Reason", StaticDbCommand.Input<string>(Parameters, "Reason"), DbType.String);
+				StaticDbCommand.AddParameter(command, "AttemptCount", StaticDbCommand.Input<int>(Parameters, "AttemptCount"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "LastAttemptAt", StaticDbCommand.Input<DateTimeOffset>(Parameters, "LastAttemptAt"), DbType.DateTimeOffset);
+			}, static reader => new ClaimMutationResult { UpdatedCount = StaticDbValue.Int32(reader, 0), RowExists = StaticDbValue.Boolean(reader, 1), IsTerminal = StaticDbValue.Boolean(reader, 2) }).ConfigureAwait(false);
 	}
 }

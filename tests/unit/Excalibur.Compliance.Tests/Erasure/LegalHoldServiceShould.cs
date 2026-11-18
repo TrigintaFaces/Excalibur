@@ -247,7 +247,7 @@ public sealed class LegalHoldServiceShould
 	public async Task Check_holds_returns_no_holds_when_none_active()
 	{
 		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(
-			A<string>._, A<string?>._, CancellationToken.None))
+			A<string>._, A<string?>._, A<DateTimeOffset>._, CancellationToken.None))
 			.Returns(new List<LegalHold>());
 
 		var result = await _sut.CheckHoldsAsync("user-1", DataSubjectIdType.UserId, null, CancellationToken.None);
@@ -272,7 +272,7 @@ public sealed class LegalHoldServiceShould
 		};
 
 		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(
-			A<string>._, A<string?>._, CancellationToken.None))
+			A<string>._, A<string?>._, A<DateTimeOffset>._, CancellationToken.None))
 			.Returns(new List<LegalHold> { hold });
 
 		var result = await _sut.CheckHoldsAsync("user-1", DataSubjectIdType.UserId, null, CancellationToken.None);
@@ -311,10 +311,10 @@ public sealed class LegalHoldServiceShould
 		};
 
 		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(
-			A<string>._, A<string?>._, CancellationToken.None))
+			A<string>._, A<string?>._, A<DateTimeOffset>._, CancellationToken.None))
 			.Returns(new List<LegalHold> { subjectHold });
 
-		A.CallTo(() => _queryStore.GetActiveHoldsForTenantAsync("tenant-1", CancellationToken.None))
+		A.CallTo(() => _queryStore.GetActiveHoldsForTenantAsync("tenant-1", A<DateTimeOffset>._, CancellationToken.None))
 			.Returns(new List<LegalHold> { tenantHold });
 
 		var result = await _sut.CheckHoldsAsync("user-1", DataSubjectIdType.UserId, "tenant-1", CancellationToken.None);
@@ -371,7 +371,7 @@ public sealed class LegalHoldServiceShould
 			}
 		};
 
-		A.CallTo(() => _queryStore.ListActiveHoldsAsync("tenant-1", CancellationToken.None))
+		A.CallTo(() => _queryStore.ListActiveHoldsAsync("tenant-1", A<DateTimeOffset>._, CancellationToken.None))
 			.Returns(holds);
 
 		var result = await _sut.ListActiveHoldsAsync("tenant-1", CancellationToken.None);
@@ -487,9 +487,9 @@ public sealed class LegalHoldServiceShould
 			CreatedAt = DateTimeOffset.UtcNow
 		};
 
-		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(A<string>._, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(A<string>._, A<string?>._, A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns<IReadOnlyList<LegalHold>>([]);
-		A.CallTo(() => _queryStore.ListActiveHoldsAsync(A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => _queryStore.ListActiveHoldsAsync(A<string?>._, A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns<IReadOnlyList<LegalHold>>([tenantWide]);
 
 		var result = await _sut.CheckHoldsAsync(
@@ -519,9 +519,9 @@ public sealed class LegalHoldServiceShould
 			CreatedAt = DateTimeOffset.UtcNow
 		};
 
-		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(A<string>._, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(A<string>._, A<string?>._, A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns<IReadOnlyList<LegalHold>>([]);
-		A.CallTo(() => _queryStore.ListActiveHoldsAsync(A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => _queryStore.ListActiveHoldsAsync(A<string?>._, A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns<IReadOnlyList<LegalHold>>([otherSubject]);
 
 		var result = await _sut.CheckHoldsAsync(
@@ -534,17 +534,17 @@ public sealed class LegalHoldServiceShould
 	public async Task Still_use_the_tenant_scoped_lookup_when_a_tenant_is_supplied()
 	{
 		// The supplied-tenant path must be unchanged: scoped lookup, not the whole estate.
-		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(A<string>._, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(A<string>._, A<string?>._, A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns<IReadOnlyList<LegalHold>>([]);
-		A.CallTo(() => _queryStore.GetActiveHoldsForTenantAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _queryStore.GetActiveHoldsForTenantAsync(A<string>._, A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns<IReadOnlyList<LegalHold>>([]);
 
 		_ = await _sut.CheckHoldsAsync(
 			"user-123", DataSubjectIdType.UserId, tenantId: "tenant-a", CancellationToken.None);
 
-		A.CallTo(() => _queryStore.GetActiveHoldsForTenantAsync("tenant-a", A<CancellationToken>._))
+		A.CallTo(() => _queryStore.GetActiveHoldsForTenantAsync("tenant-a", A<DateTimeOffset>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => _queryStore.ListActiveHoldsAsync(A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => _queryStore.ListActiveHoldsAsync(A<string?>._, A<DateTimeOffset>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 }

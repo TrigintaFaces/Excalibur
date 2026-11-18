@@ -51,36 +51,36 @@ builder.Services.AddOpenTelemetry()
 
 ## The Five Signals That Matter
 
-Out of 100+ available metrics, these are the ones that tell you whether your system is working.
+Use these signals alongside application outcomes. Verify which instruments your configured providers emit. Alert limits below are example starting points; calibrate them against application SLOs and representative workload measurements.
 
 ### 1. Message Processing Latency
 
 **Metric:** `dispatch.messages.duration` (histogram, milliseconds)
 
-This is the single most important metric. If processing latency increases, something is degrading -- slow database, overloaded handler, or resource contention.
+Processing latency is an important signal. Increases warrant checking workload mix, dependency duration, handler work and contention alongside application outcomes.
 
 **What to watch:**
 - **p50** (median): Your typical processing time
-- **p99**: Your worst-case processing time
-- **p99 / p50 ratio**: If this ratio suddenly increases, you have a tail latency problem
+- **p99**: The 99th-percentile processing duration; approximately 1% of observations exceed it
+- **p99 / p50 ratio**: Investigate changes in the ratio alongside absolute percentiles, sample volume and workload mix
 
-**Alert when:** p99 exceeds 2x your normal baseline for 5+ minutes.
+**Example alert:** p99 exceeds 2x your normal baseline for 5+ minutes.
 
 ### 2. Message Failure Rate
 
 **Metric:** `dispatch.messages.failed` (counter) vs `dispatch.messages.processed` (counter)
 
-Calculate the failure rate: `failed / (processed + failed) * 100`. A healthy system should have a failure rate under 1%. Spikes indicate handler bugs, external service outages, or bad data.
+Define the failure-rate denominator from distinct attempted outcomes in the same observation window. These counters are not disjoint: a returned failure with problem details increments both `processed` and `failed`, while a thrown failure increments `failed` separately. Do not use `failed / (processed + failed)` as a universal rate. Validate outcome accounting and the acceptable rate against your application SLO.
 
-**Alert when:** Failure rate exceeds 5% over a 5-minute window.
+**Example alert:** Failure rate exceeds 5% over a 5-minute window.
 
 ### 3. Dead Letter Queue Depth
 
-**Metric:** `dispatch.dlq.depth` (gauge)
+**Metric:** A queue-depth gauge verified against the configured dead-letter provider. This guide does not establish a universally emitted `dispatch.dlq.depth` instrument.
 
 A growing DLQ means messages are failing faster than they are being reviewed and replayed. A flat, non-zero DLQ is normal (pending review). A continuously growing DLQ is an incident.
 
-**Alert when:** DLQ depth increases by more than 50 entries in 15 minutes.
+**Example alert:** DLQ depth increases by more than 50 entries in 15 minutes.
 
 ### 4. Circuit Breaker State
 
@@ -88,19 +88,19 @@ A growing DLQ means messages are failing faster than they are being reviewed and
 
 An open circuit breaker means a downstream dependency is unhealthy and messages to that transport are being rejected. This is the circuit breaker doing its job, but you need to know about it.
 
-**Alert when:** Any circuit breaker enters `Open` state.
+**Example alert:** Any circuit breaker enters `Open` state.
 
 ### 5. Outbox Lag
 
-**Metric:** `dispatch.transport.pending_messages` (gauge)
+**Metric:** Durable outbox pending-row count and oldest-pending age from the configured outbox provider. `dispatch.transport.pending_messages` reports transport-supplied state; it does not by itself measure durable outbox rows.
 
-If you use the outbox pattern, this tells you how many messages are waiting to be published. A small, stable number is normal (outbox processor is keeping up). A growing number means the processor is falling behind.
+Measure durable outbox backlog separately from transport queue state. Sustained growth or increasing oldest-pending age can indicate that publication is falling behind; interpret both against arrival rate and your delivery SLO.
 
-**Alert when:** Pending count exceeds 1,000 for more than 10 minutes.
+**Example alert:** Pending count exceeds 1,000 for more than 10 minutes.
 
 ## What Traces Look Like
 
-When `UseOpenTelemetry()` is enabled, each message creates a span that flows through the middleware pipeline:
+Configured instrumentation and sampling determine which spans are recorded and exported. The following trace shape and durations, including the 47 ms total, are illustrative; they are not captured framework measurements:
 
 ```
 [Excalibur.Dispatch.Pipeline] ProcessMessage OrderCreatedEvent
@@ -213,11 +213,11 @@ A single dashboard that answers "is the system healthy?" at a glance:
 | Panel | Metric | Visualization |
 |-------|--------|--------------|
 | Messages/sec | `rate(dispatch.messages.processed)` | Time series |
-| Failure rate | `failed / (processed + failed) * 100` | Gauge (0-100%) |
+| Failure rate | Failed distinct outcomes / attempted distinct outcomes, with verified accounting | Gauge (0-100%) |
 | p99 latency | `dispatch.messages.duration` p99 | Time series |
-| DLQ depth | `dispatch.dlq.depth` | Single stat |
+| DLQ depth | Configured provider's verified queue-depth gauge | Single stat |
 | Circuit breakers | `dispatch.circuitbreaker.state` per transport | Status map |
-| Outbox lag | `dispatch.transport.pending_messages` | Single stat |
+| Outbox lag | Durable pending-row count and oldest-pending age | Single stat |
 
 ### The Debug Dashboard
 
@@ -262,7 +262,7 @@ Start with these thresholds and tune based on your system's baseline:
 
 ### "Messages are processing but nothing happens"
 
-1. Check `dispatch.transport.pending_messages` -- is the outbox processor running?
+1. Check durable outbox pending rows and oldest-pending age, then verify that the outbox processor is running. Inspect transport queue state separately.
 2. Check transport health checks -- is the broker reachable?
 3. Check `dispatch.messages.processed` -- are messages actually being consumed?
 

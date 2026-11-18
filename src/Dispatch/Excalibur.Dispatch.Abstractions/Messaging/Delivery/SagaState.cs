@@ -27,6 +27,20 @@ public abstract class SagaState
 	/// </value>
 	public Guid SagaId { get; set; } = Guid.NewGuid();
 
+    /// <summary>Gets or sets the persisted ordinary timer-recovery incarnation.</summary>
+    /// <remarks>New state gets a fresh identity; stored values survive reload and must participate in Save CAS.</remarks>
+    public Guid TimerRecoveryIncarnationId { get; set; } = Guid.NewGuid();
+
+    /// <summary>Gets or sets the last original ordinary timer-batch sequence.</summary>
+    public long TimerRecoverySequence { get; set; }
+
+    /// <summary>Gets or sets the original timer intents still owed after state commit.</summary>
+    public SagaTimerRecoveryJournal? PendingTimerRecovery { get; set; }
+
+    /// <summary>Gets or sets the last acknowledged original timer-batch identity.</summary>
+    public Guid LastTimerRecoveryBatchId { get; set; }
+
+
 	/// <summary>
 	/// Gets or sets a value indicating whether this saga workflow has completed successfully. When set to true, the saga will not process
 	/// further events and may be eligible for cleanup operations.
@@ -95,6 +109,32 @@ public abstract class SagaState
 	/// </summary>
 	/// <value>The current concurrency version of the saga state. Starts at 0 for new sagas.</value>
 	public long Version { get; set; }
+
+	/// <summary>
+	/// Gets or sets the business key this saga instance was correlated on, for querying and diagnosis.
+	/// </summary>
+	/// <value>The correlation key, or <see langword="null"/> when the instance was addressed by identifier.</value>
+	/// <remarks>
+	/// <para>
+	/// This is NOT how an event finds its saga. Routing is by identifier, derived from the key through
+	/// <see cref="SagaCorrelation.ToSagaId(string, string)"/>, so the load path needs no query and every provider can
+	/// correlate without implementing one. What this carries is the key itself, which the identifier is a
+	/// one-way function of and therefore cannot be recovered from.
+	/// </para>
+	/// <para>
+	/// <b>Without it, an operator holding a business key cannot find the saga.</b> They can derive the
+	/// identifier if they know the exact type name and key, and they cannot go the other way at all: given
+	/// a saga in a dashboard, nothing says which order it belongs to. That is the gap this closes, and it
+	/// is a diagnosis concern rather than a routing one.
+	/// </para>
+	/// <para>
+	/// The SQL Server provider already ships a persisted computed column over <c>$.CorrelationId</c> in the
+	/// state JSON, with a filtered index on it. Until this property existed that column was always null and
+	/// the index permanently empty, so the migration had been shipping an index over nothing.
+	/// </para>
+	/// </remarks>
+	public string? CorrelationId { get; set; }
+
 
 	/// <summary>
 	/// Gets the set of event IDs that have been processed by this saga instance.
@@ -170,4 +210,93 @@ public abstract class SagaState
 	/// <param name="eventId">The unique event identifier.</param>
 	/// <returns><see langword="true"/> if this id is already in the guard; otherwise <see langword="false"/>.</returns>
 	public bool HasProcessedEvent(string eventId) => ProcessedEventIds.Contains(eventId);
+
+	/// <summary>
+	/// Gets the names of completed steps that have a compensating action still owed, oldest first.
+	/// </summary>
+	/// <value>The pending compensation names, in the order the steps completed.</value>
+	/// <remarks>
+	/// <para>
+	/// <b>This has to be part of the persisted state, not an in-memory list.</b> A saga runs for hours or
+	/// days across any number of processes, so the knowledge of what has been committed and still needs
+	/// undoing cannot live in the instance that committed it. A compensation log held in memory is lost by
+	/// the one event that makes it matter — a crash — and the work it would have undone stays done with
+	/// nothing recording that it should not have.
+	/// </para>
+	/// <para>
+	/// <b>Unbounded, deliberately, and unlike <see cref="ProcessedEventIds"/>.</b> That guard is a bounded
+	/// window because evicting an old id costs a re-execution, which is recoverable. Evicting a pending
+	/// compensation costs committed work that is never undone, which is not. A saga with more outstanding
+	/// compensations than is reasonable is a modelling problem to surface, never a list to silently trim.
+	/// </para>
+	/// <para>
+	/// <b>The initializer copies rather than replaces, and that is load-bearing for the same reason it is
+	/// on <see cref="ProcessedEventIds"/>.</b> A get-only collection is written by System.Text.Json and
+	/// then discarded on read under its default Replace handling, so without this every durable store
+	/// would reload an empty log — and an empty log is indistinguishable from a saga that owes no
+	/// compensation at all. That is the failure this property exists to prevent, arriving through the
+	/// serializer.
+	/// </para>
+	/// </remarks>
+	public IList<string> PendingCompensations
+	{
+		get => _pendingCompensations;
+		init
+		{
+			ArgumentNullException.ThrowIfNull(value);
+
+			_pendingCompensations.Clear();
+			_pendingCompensations.AddRange(value);
+		}
+	}
+
+	private readonly List<string> _pendingCompensations = [];
+
+	/// <summary>
+	/// Records that <paramref name="stepName"/> completed work that a later failure must undo.
+	/// </summary>
+	/// <param name="stepName">The step name whose compensating action is now owed.</param>
+	/// <remarks>
+	/// Call this AFTER the step's work has been performed, never before: recording it first and failing
+	/// second would owe a compensation for work that never happened, and compensating work that was never
+	/// done is its own defect. Duplicates are kept rather than collapsed, because two executions of a step
+	/// that each committed something owe two undos.
+	/// </remarks>
+	public void RecordPendingCompensation(string stepName)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(stepName);
+
+		_pendingCompensations.Add(stepName);
+	}
+
+	/// <summary>
+	/// Takes the pending compensations in the order they must run — most recent first — and clears the log.
+	/// </summary>
+	/// <returns>The owed step names, newest first.</returns>
+	/// <remarks>
+	/// <para>
+	/// Reverse order is the whole point: a later step's work frequently depends on an earlier step's, so
+	/// undoing forwards can fail on a dependency that is still in place, or succeed and leave the earlier
+	/// work orphaned.
+	/// </para>
+	/// <para>
+	/// <b>It takes rather than reads.</b> The caller is handed the list and the state no longer owes it, so
+	/// a compensation pass that is interrupted after persisting cannot run the same undo twice on the next
+	/// load. The cost is the mirror risk — an interruption BEFORE the state is persisted re-runs the pass —
+	/// which is why compensating actions carry the same idempotency obligation as handlers, stated in the
+	/// consumer obligations of the saga guarantee contract.
+	/// </para>
+	/// </remarks>
+	public IReadOnlyList<string> TakePendingCompensations()
+	{
+		if (_pendingCompensations.Count == 0)
+		{
+			return [];
+		}
+
+		var owed = new List<string>(_pendingCompensations);
+		owed.Reverse();
+		_pendingCompensations.Clear();
+		return owed;
+	}
 }

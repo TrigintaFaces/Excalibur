@@ -156,7 +156,7 @@ AwsLambda/
 
 ## Cold Start Optimization
 
-This sample uses `Excalibur.Dispatch.Hosting.AwsLambda` with cold start optimization:
+This sample configures cold-start options in `Excalibur.Dispatch.Hosting.AwsLambda`; enabling an option does not establish a measured startup improvement:
 
 ```csharp
 services.AddExcaliburAwsLambdaServerless(opts =>
@@ -171,11 +171,11 @@ services.AddExcaliburAwsLambdaServerless(opts =>
 
 ### Best Practices
 
-1. **Use .NET 8** - Best cold start performance for managed runtime
-2. **Consider ARM64** - Lower cost and often better cold start
+1. **Choose the runtime** - Use a supported runtime compatible with the application; measure deployed cold-start latency.
+2. **Choose the architecture** - Verify application compatibility and measure latency and cost for that deployment.
 3. **Minimize dependencies** - Only include necessary packages
 4. **Use Provisioned Concurrency** - For latency-sensitive workloads
-5. **Keep Lambda warm** - Use EventBridge ping for critical functions
+5. **Measure scheduled invocations** - Scheduled invocations are not evidence that every subsequent invocation avoids cold start.
 
 ## Deployment to AWS
 

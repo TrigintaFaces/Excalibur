@@ -18,6 +18,50 @@ Excalibur's data processing module provides a producer-consumer pipeline for bat
 
 
 
+## Regular and bulk projection waits
+
+Use `DataProcessor<TRecord>` when handlers need projections updated by their own writes or earlier
+records. For backfills without that dependency, derive from `BulkDataProcessor<TRecord>` instead.
+Both process handlers sequentially and await the same durable cursor checkpoints. Bulk processing
+defers inline projection waits; it does not make record handling parallel or reduce checkpoint durability.
+
+The constructor and `FetchBatchAsync` contract are unchanged. Explicit registration remains:
+
+```csharp
+services.AddDataProcessing(builder => builder
+    .AddProcessor<MyBulkProcessor>()
+    .AddRecordHandler<MyRecordHandler, MyRecord>());
+// Register the actual IProjectionProcessor and subscriptions used by this application as well.
+```
+
+The bulk path requires `IProjectionProcessor` before the first record. It suppresses inline waits
+during record processing and calls `ProcessPendingAsync` once after successful records and checkpoints.
+Normal processors require no projection processor. Do not use bulk mode for read-after-write projection
+dependencies within the run.
+
+Handler or checkpoint failure skips catch-up. Catch-up exceptions or cancellation fail the run;
+committed events and durable cursor checkpoints remain intact. Restart may replay the last page,
+so handlers must remain idempotent. Other non-caught-up results are warnings and allow the record task
+to complete. Successful record processing therefore does not promise fresh projections. A caught-up
+result covers the configured subscription's captured target, not unrelated projections or future writes.
+
+The final catch-up and scope cleanup are owned by the run: disposal cancels and joins them. The
+orchestrator's stall and total deadlines still apply, without synthetic checkpoint progress during
+catch-up. Account for catch-up duration when choosing the stall timeout.
+
+If migrating an application-owned bulk wrapper, remove its extra `RunAsync`/`ProcessPendingAsync`
+wrapper and inherit the framework base directly to avoid two final catch-up calls. The native sample
+`samples/10-aot/Excalibur.Dispatch.Aot.Sample/DataProcessingSmoke.cs` demonstrates registration and
+checks ordering, checkpoints, suppression and final catch-up with an explicitly fake projection
+processor; applications must register their real processor. This is a correctness sample, not a
+production throughput measurement.
+
+For a runnable comparison using real repository saves and persisted inline projections, see
+`samples/09-advanced/persistence-patterns/BulkDataProcessing`. It asserts projection execution order in both
+modes with in-memory stores. The standalone `samples/10-aot/BulkDataProcessing` contains the separate
+native contract probe; its recorded publish attempts remain blocked. See its README for the separate
+broader native execution evidence and publish-gate limitations. Neither sample claims crash-durable SQL verification or measured throughput.
+
 ## Before You Start
 
 
@@ -362,7 +406,7 @@ builder.Services.AddRecordHandler<CustomerMigrationHandler, CustomerRecord>(
 
 | `ProducerBatchSize` | `int` | 100 | Records fetched per producer iteration |
 
-| `ConsumerBatchSize` | `int` | 10 | Records dequeued per consumer iteration |
+| `ConsumerBatchSize` | `int` | 10 | Records dequeued per consumer iteration; handling and durable accounting remain sequential |
 
 | `MaxAttempts` | `int` | 3 | Maximum retry attempts per data task |
 
@@ -424,7 +468,7 @@ An `IValidateOptions<DataProcessingOptions>` validator enforces inter-property c
 | `ConsumerBatchSize` must not exceed `QueueSize` | Prevents impossible dequeue sizes |
 
 | `ProcessingStallTimeout` must be 1 second to 1 hour | Bounds the stall budget |
-| `ProcessingTotalTimeout` must not be below `ProcessingStallTimeout` | A cap under the stall budget can never be satisfied |
+| `ProcessingTotalTimeout` must not be below `ProcessingStallTimeout` | Configuration validation requires the total cap to be at least the stall budget |
 
 
 
@@ -722,7 +766,7 @@ The base class handles:
 
 - Channel-based producer-consumer coordination
 
-- Batch sizing (configurable via `DataProcessingOptions`)
+- Batch sizing (configurable via `DataProcessingOptions`): `ConsumerBatchSize` controls dequeue grouping, not parallel record handling or checkpoint coalescing
 
 - Cursor-based progress tracking (via `UpdateCompletedCount` delegate with opaque cursor tokens)
 
@@ -850,7 +894,7 @@ public interface IRecordHandler<in TRecord>
 
 | Batch sizes | Set `ProducerBatchSize` and `ConsumerBatchSize` at or below `QueueSize` (validated at startup) |
 
-| Timeouts | `ProcessingStallTimeout` bounds SILENCE, not duration — a task that keeps completing records is never cancelled by it, so the default 60s suits batches of any size. Leave `ProcessingTotalTimeout` unset unless you have a specific runaway to bound. |
+| Timeouts | `ProcessingStallTimeout` restarts after durable record progress. Choose an interval that accommodates the entire gap between durable progress updates, including handler plus checkpoint time; that combined gap can exceed the default 60s and trigger cancellation. Batch size alone does not exhaust this budget. Leave `ProcessingTotalTimeout` unset unless you need an absolute cap. |
 
 | Error handling | Orchestration DB calls are automatically retried when `Excalibur.Data.SqlServer` is registered; implement domain-level retry in `IRecordHandler<T>.ProcessAsync`; `MaxAttempts` controls task-level retries |
 
@@ -1334,13 +1378,17 @@ app.Run();
 
 | Dependencies | Requires `Excalibur.Jobs` + Quartz.NET | Built-in, no extra packages |
 
-| Concurrency control | Job disallow concurrent execution | Single hosted service instance |
+| Concurrency control within a host | Job disallow concurrent execution | Single hosted service instance |
 
 | Health monitoring | Via Quartz job listeners | Built-in `IHealthCheck` with Healthy/Degraded/Unhealthy tiers |
 
 | Graceful shutdown | Quartz scheduler shutdown | `DrainTimeout` with linked cancellation |
 
 | Best for | Complex schedules, multi-job orchestration | Simple polling, minimal dependencies |
+
+These scheduling controls apply within a host. SQL task ownership uses the
+database-scoped session claim described below. Consumer dequeue grouping does
+not combine durable checkpoints or permit parallel record handling.
 
 
 
@@ -1402,7 +1450,7 @@ The SQL Server orchestrator requires a factory that returns a new, closed connec
 
 A lost database session fences subsequent task-state writes. It cannot undo external handler effects already underway. Handlers must remain idempotent and tolerate replay and, after connection loss, overlapping external effects. All workers must use the ownership-aware implementation; older workers do not honor these locks. Drain tasks outside ambient transactions; enqueue may participate in a business transaction.
 
-`ProcessingStallTimeout` bounds how long a claimed task may make NO PROGRESS, not how long it may take: it restarts every time the task durably accounts for a record, so a large batch does not fail merely for being large. A total wall-clock deadline cannot distinguish a wedged task from a healthy one with a lot to do — under one there is always a record count above which the task fails regardless of per-record speed. Set `ProcessingTotalTimeout` only if you need an absolute cap as well. Cancellation requests a stop, including scope cleanup. Cancellation is cooperative: a handler that ignores it can delay completion. The manager joins processing before releasing ownership. An observed timeout consumes a failed attempt; host cancellation does not. `Attempts` counts observed failures, not process crashes. `CompletedCount` counts successful processing attempts and may include replayed records, rather than distinct records.
+`ProcessingStallTimeout` bounds how long a claimed task may make NO PROGRESS, not how long it may take: it restarts every time the task durably accounts for a record, so a large batch does not fail merely for being large. The entire gap between durable progress updates, including handler plus checkpoint time, must fit the stall interval; either operation alone, or their combined duration, can trigger cancellation. A total wall-clock deadline cannot distinguish a wedged task from a healthy one with a lot to do — under one there is always a record count above which the task fails regardless of per-record speed. Set `ProcessingTotalTimeout` only if you need an absolute cap as well. Cancellation requests a stop, including scope cleanup. Cancellation is cooperative: a handler that ignores it can delay completion. The manager joins processing before releasing ownership. An observed timeout consumes a failed attempt; host cancellation does not. `Attempts` counts observed failures, not process crashes. `CompletedCount` counts successful processing attempts and may include replayed records, rather than distinct records.
 
 Repeated failed hosted cycles degrade health and become unhealthy at `UnhealthyThreshold`; a successful cycle resets the failure streak. Exceeding shutdown drain time reports the service as stopped and unhealthy even if noncooperative work has not yet finished.
 

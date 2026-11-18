@@ -20,8 +20,8 @@ namespace Excalibur.LeaderElection.Tests.TimeProviderHonoured;
 /// <remarks>
 /// <para>
 /// This needs no cluster. The provider takes <see cref="IKubernetes"/> through its constructor, so a fake
-/// carries a candidate all the way through acquisition: the lease read returns an expired lease, the
-/// replace echoes back what it was handed, and the candidate becomes leader — which is what opens the
+/// carries a candidate all the way through acquisition: the fake server preserves native UID/resourceVersion and the private owner across reads and
+/// conditional writes, and the candidate becomes leader — which is what opens the
 /// health path, since that path is reached only while this candidate holds the lease.
 /// </para>
 /// <para>
@@ -38,7 +38,10 @@ public sealed class KubernetesLeaderElectionHonoursTimeProviderShould
 
 	private readonly IKubernetes _client = A.Fake<IKubernetes>();
 	private readonly ICoordinationV1Operations _coordination = A.Fake<ICoordinationV1Operations>();
-	private readonly List<V1Lease> _written = [];
+    private readonly List<V1Lease> _written = [];
+    private readonly Lock _serverGate = new();
+    private V1Lease _record = Acquirable();
+    private int _version = 1;
 
 	public KubernetesLeaderElectionHonoursTimeProviderShould() =>
 		A.CallTo(() => _client.CoordinationV1).Returns(_coordination);
@@ -46,7 +49,11 @@ public sealed class KubernetesLeaderElectionHonoursTimeProviderShould
 	/// <summary>An unheld, long-expired lease: this candidate sees it as acquirable.</summary>
 	private static V1Lease Acquirable() => new()
 	{
-		Metadata = new V1ObjectMeta { Name = LeaseName, ResourceVersion = "1" },
+		Metadata = new V1ObjectMeta
+        {
+            Name = LeaseName, NamespaceProperty = "default", Uid = "timestamp-test-uid", ResourceVersion = "1",
+            Annotations = new Dictionary<string, string>(StringComparer.Ordinal),
+        },
 		Spec = new V1LeaseSpec
 		{
 			HolderIdentity = null,
@@ -61,20 +68,36 @@ public sealed class KubernetesLeaderElectionHonoursTimeProviderShould
 		_ = A.CallTo(() => _coordination.ReadNamespacedLeaseWithHttpMessagesAsync(
 				A<string>._, A<string>._, A<bool?>._,
 				A<IReadOnlyDictionary<string, IReadOnlyList<string>>>._, A<CancellationToken>._))
-			.ReturnsLazily(() => Task.FromResult(new HttpOperationResponse<V1Lease> { Body = Acquirable() }));
+			.ReturnsLazily(() => Task.FromResult(new HttpOperationResponse<V1Lease> { Body = Snapshot() }));
 
-		// Echo the written lease back, which is what a successful write looks like, and keep every one so
-		// the arm can read the bytes that crossed the boundary.
-		_ = A.CallTo(() => _coordination.ReplaceNamespacedLeaseWithHttpMessagesAsync(
-				A<V1Lease>._, A<string>._, A<string>._, A<string>._, A<string>._, A<string>._, A<bool?>._,
-				A<IReadOnlyDictionary<string, IReadOnlyList<string>>>._, A<CancellationToken>._))
-			.ReturnsLazily(call =>
-			{
-				var lease = (V1Lease)call.Arguments[0]!;
-				_written.Add(lease);
-				return Task.FromResult(new HttpOperationResponse<V1Lease> { Body = lease });
-			});
-	}
+        // Model actual native UID/resourceVersion CAS and return separate immutable snapshots.
+        _ = A.CallTo(() => _coordination.ReplaceNamespacedLeaseWithHttpMessagesAsync(
+                A<V1Lease>._, A<string>._, A<string>._, A<string>._, A<string>._, A<string>._, A<bool?>._,
+                A<IReadOnlyDictionary<string, IReadOnlyList<string>>>._, A<CancellationToken>._))
+            .ReturnsLazily(call =>
+            {
+                var requested = (V1Lease)call.Arguments[0]!;
+                lock (_serverGate)
+                {
+                    if (requested.Metadata.Uid != _record.Metadata.Uid || requested.Metadata.ResourceVersion != _record.Metadata.ResourceVersion)
+                    {
+                        throw new HttpOperationException("native CAS conflict")
+                        {
+                            Response = new HttpResponseMessageWrapper(new HttpResponseMessage(System.Net.HttpStatusCode.Conflict), string.Empty),
+                        };
+                    }
+                    _record = KubernetesLeaseProtocol.Clone(requested);
+                    _record.Metadata.ResourceVersion = (++_version).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    _written.Add(KubernetesLeaseProtocol.Clone(_record));
+                    return Task.FromResult(new HttpOperationResponse<V1Lease> { Body = KubernetesLeaseProtocol.Clone(_record) });
+                }
+            });
+    }
+
+    private V1Lease Snapshot()
+    {
+        lock (_serverGate) { return KubernetesLeaseProtocol.Clone(_record); }
+    }
 
 	private KubernetesLeaderElection CreateSut(TimeProvider? clock) =>
 		new(
@@ -88,6 +111,8 @@ public sealed class KubernetesLeaderElectionHonoursTimeProviderShould
 
 				// Far longer than the arm, so the background loop makes a single pass and no renewal
 				// timer fires: every write this arm reads is one it provoked.
+                LeaseDuration = TimeSpan.FromHours(2),
+                GracePeriod = TimeSpan.FromSeconds(5),
 				RenewInterval = TimeSpan.FromHours(1),
 				RetryInterval = TimeSpan.FromHours(1),
 			}),
@@ -99,11 +124,11 @@ public sealed class KubernetesLeaderElectionHonoursTimeProviderShould
 	/// </summary>
 	private static async Task WaitUntilLeaderAsync(KubernetesLeaderElection sut)
 	{
-		// Real time, deliberately: the loop delays on the system clock, not on the injected provider, so
-		// advancing a fake here would not move it.
+        // Poll the actual public publication using a bounded real-time controller. The injected clock
+        // remains unchanged until the test's explicit23-minute advance.
 		for (var attempt = 0; attempt < 100 && !sut.IsLeader; attempt++)
 		{
-			await Task.Delay(20); // delay-ok: poll pacing over 100 attempts; the loop exits on sut.IsLeader, and the election loop runs on the SYSTEM clock so a fake cannot move it
+			await Task.Delay(20); // delay-ok: poll pacing over 100 attempts; the loop exits on sut.IsLeader, and the test waits for the actual published acquisition without advancing its injected clock
 		}
 
 		sut.IsLeader.ShouldBeTrue(

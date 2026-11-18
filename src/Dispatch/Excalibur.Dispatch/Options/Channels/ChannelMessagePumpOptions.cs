@@ -3,7 +3,6 @@
 
 
 using System.ComponentModel.DataAnnotations;
-using System.Threading.Channels;
 
 namespace Excalibur.Dispatch.Options.Channels;
 
@@ -18,12 +17,6 @@ public sealed class ChannelMessagePumpOptions
 	/// <value>The current <see cref="Capacity"/> value.</value>
 	[Range(1, int.MaxValue)]
 	public int Capacity { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets the behavior when the channel is full.
-	/// </summary>
-	/// <value>The current <see cref="FullMode"/> value.</value>
-	public BoundedChannelFullMode FullMode { get; set; } = BoundedChannelFullMode.Wait;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to allow synchronous continuations.

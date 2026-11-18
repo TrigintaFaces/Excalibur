@@ -18,7 +18,7 @@ namespace Excalibur.Tests.A3.Authorization;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "A3")]
-public sealed class ActivityGroupGrantSyncAtomicityShould
+public sealed partial class ActivityGroupGrantSyncAtomicityShould
 {
 	/// <summary>
 	/// A store that cannot replace grants atomically is refused at start-up under the default option, and the

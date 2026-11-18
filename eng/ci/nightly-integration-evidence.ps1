@@ -14,10 +14,12 @@ param(
     [Parameter(Mandatory)][string]$Source,
     [Parameter(Mandatory)][string]$Shard,
     [Parameter(Mandatory)][string]$ResultsDirectory,
-    [string]$RunnerOutcome = ''
+    [string]$RunnerOutcome = '',
+    [string]$MinimumExecutedTests = '1'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ($MinimumExecutedTests -cnotmatch '\A[1-9][0-9]*\z' -or $MinimumExecutedTests.Length -gt 10 -or [long]$MinimumExecutedTests -gt 2147483647) { throw 'Invalid nightly lane minimum.' }
 $PSNativeCommandUseErrorActionPreference = $false
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $root = [IO.Path]::GetFullPath($ResultsDirectory)
@@ -30,6 +32,7 @@ if ($LASTEXITCODE -ne 0 -or $head -cne $env:GITHUB_SHA) { throw 'Checkout differ
 if ($Shard -notmatch '^[a-z0-9-]+$') { throw 'Invalid shard identity.' }
 $sourcePath = (Resolve-Path -LiteralPath $Source).Path
 $context = @{
+    minimumExecutedTests = [int]$MinimumExecutedTests
     candidateSha = $env:GITHUB_SHA; runId = $env:GITHUB_RUN_ID; runAttempt = $env:GITHUB_RUN_ATTEMPT
     job = $env:GITHUB_JOB; shard = $Shard; os = $env:RUNNER_OS; provider = 'mixed-integration'
     source = [IO.Path]::GetRelativePath($repo,$sourcePath).Replace('\','/')
@@ -83,7 +86,7 @@ if ($Mode -eq 'Run') {
     # test; this bound only has to sit under the 120-minute job cap with room for checkout and build.
     $arguments = @('-NoProfile','-File',(Join-Path $repo 'eng/build.ps1'),'-Test','-NoRestore','-NoBuild',
         '-Project',$sourcePath,'-TestFilter',$context.filter,'-ResultsDirectory',$root,'-ResultsPrefix',$prefix,
-        '-MaxCpuCount','1','-BlameTimeout','10m','-TestSessionTimeout','6000000','-RequiredTestContext',$contextPath)
+        '-MaxCpuCount','1','-BlameTimeout','10m','-TestSessionTimeout','6000000','-RequiredTestContext',$contextPath,'-MinimumExecutedTests',$MinimumExecutedTests)
     $started = [DateTimeOffset]::UtcNow.ToString('O')
     & $shell @arguments 2>&1 | Tee-Object -FilePath (Join-Path $root "$prefix.runner.log")
     $runnerExit = $LASTEXITCODE

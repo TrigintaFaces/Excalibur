@@ -178,32 +178,41 @@ public sealed class InMemoryLeaderElectionStoppedAcquireShould
 	/// already stopped returns without releasing, so a tenure begun after the shutdown survives its own
 	/// dispose.
 	/// </remarks>
-	private static async Task<bool> RunStartStopRaceAsync()
-	{
-		var state = new InMemoryLeaderElectionSharedState();
-		var candidate = NewCandidate(RacingCandidate, state);
-
-		using (var barrier = new Barrier(2))
-		{
-			var starting = Task.Run(async () =>
-			{
-				barrier.SignalAndWait();
-				await candidate.StartAsync(CancellationToken.None);
-			});
-
-			var stopping = Task.Run(async () =>
-			{
-				barrier.SignalAndWait();
-				await candidate.StopAsync(CancellationToken.None);
-			});
-
-			await Task.WhenAll(starting, stopping);
-		}
-
-		await candidate.DisposeAsync();
-
-		return HoldsResource(state, RacingCandidate);
-	}
+    private static async Task<bool> RunStartStopRaceAsync()
+    {
+        var state = new InMemoryLeaderElectionSharedState();
+        var candidate = NewCandidate(RacingCandidate, state);
+        try
+        {
+            using var barrier = new Barrier(2);
+            var starting = Task.Run(async () =>
+            {
+                barrier.SignalAndWait();
+                await candidate.StartAsync(CancellationToken.None);
+            });
+            var stopping = Task.Run(async () =>
+            {
+                barrier.SignalAndWait();
+                await candidate.StopAsync(CancellationToken.None);
+            });
+            await stopping;
+            var startOutcome = await Record.ExceptionAsync(() => starting);
+            if (startOutcome is not null)
+            {
+                var cancellation = startOutcome.ShouldBeAssignableTo<OperationCanceledException>("the joined Stop may cancel its own admitted startup");
+                cancellation.CancellationToken.CanBeCanceled.ShouldBeTrue();
+                cancellation.CancellationToken.IsCancellationRequested.ShouldBeTrue();
+            }
+        }
+        finally
+        {
+            await candidate.DisposeAsync();
+            await candidate.NotificationsCompleted;
+        }
+        // The start-line barrier permits a valid Stop-before-Start restart. Preserve the original
+        // final-cleanup oracle rather than claiming an unproven earlier-generation admission order.
+        return HoldsResource(state, RacingCandidate);
+    }
 
 	/// <summary>
 	/// Races a lease-renewal tick against a stop. The contender is kept off the resource while its timer

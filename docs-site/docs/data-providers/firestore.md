@@ -119,7 +119,16 @@ services.AddExcalibur(excalibur =>
             firestore.ProjectId("my-project")
                      .CollectionName("outbox")));
 });
+
+// The outbox processor requires an explicitly registered dead-letter queue for messages
+// that exhaust their retries, or it throws on its first poll.
+services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
 ```
+
+`NullDeadLetterQueue` **discards** exhausted messages: they are dropped, and nothing retains
+them for inspection or replay. Registering it is a deliberate choice to accept that loss, not
+boilerplate. No store-backed dead-letter queue ships for Firestore, so a deployment that must
+keep exhausted messages registers its own `IDeadLetterQueue` implementation instead.
 
 The event store writes each event's declared `[MessageName]` -- not its CLR type name -- to the stored event-type field, and resolves that name back to a CLR type through the registered event-type registry on read. See [Stable Message Names](../event-sourcing/domain-events.md#stable-message-names).
 

@@ -4,10 +4,10 @@
 // MessagePack Serialization Sample
 // =================================
 // This sample demonstrates MessagePack serialization with Excalibur.Dispatch.Serialization.MessagePack:
-// - High-performance binary serialization
-// - LZ4 compression for reduced payload size
+// - Binary serialization
+// - Optional LZ4 compression; compare payload size and processing cost
 // - Union types for polymorphic serialization
-// - AOT-compatible source generation
+// - Source generation; verify native publishing and execution
 //
 // Prerequisites:
 // 1. Run the sample: dotnet run
@@ -281,7 +281,7 @@ logger.LogInformation("For cross-language polymorphism, use a type discriminator
 logger.LogInformation("");
 logger.LogInformation("=== Performance Notes ===");
 logger.LogInformation("");
-logger.LogInformation("Typical serialization performance comparison:");
+logger.LogInformation("Legacy illustrative constants only: these are not measured results from this sample.");
 logger.LogInformation("");
 logger.LogInformation("  | Serializer      | Serialize (us) | Deserialize (us) | Size (bytes) |");
 logger.LogInformation("  |-----------------|----------------|------------------|--------------|");
@@ -290,9 +290,10 @@ logger.LogInformation("  | Protobuf        | 5.1            | 4.8              |
 logger.LogInformation("  | MessagePack     | 3.8            | 3.2              | 112          |");
 logger.LogInformation("  | MessagePack+LZ4 | 4.5            | 4.0              | 85           |");
 logger.LogInformation("  | MemoryPack      | 1.2            | 0.8              | 86           |");
+logger.LogInformation("Do not use these constants for rankings or capacity planning. Measure your actual payload and API.");
 logger.LogInformation("");
 logger.LogInformation("MessagePack excels when:");
-logger.LogInformation("  - High throughput is required (3-5x faster than JSON)");
+logger.LogInformation("  - Binary serialization with optional compression suits the measured workload");
 logger.LogInformation("  - Bandwidth matters (LZ4 compression available)");
 logger.LogInformation("  - Cross-language support is needed");
 logger.LogInformation("  - Polymorphic messages are common (Union types)");

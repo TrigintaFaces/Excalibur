@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
@@ -29,6 +29,7 @@ public sealed class HostingBridgeBoundaryShould : UnitTestBase
 		"Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions",
 		"Excalibur.Dispatch.Hosting.AspNetCore.HttpContextExtensions",
 		"Excalibur.Dispatch.Hosting.AspNetCore.MessageResultExtensions",
+		"Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions",
 		"Excalibur.Dispatch.Hosting.AspNetCore.RouteMessageHandlerFactory",
 		"Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler",
 		"Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions",
@@ -36,7 +37,8 @@ public sealed class HostingBridgeBoundaryShould : UnitTestBase
 		"Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreAuthorizationExtensions",
 		"Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreScopeExtensions",
 		"Microsoft.Extensions.DependencyInjection.DispatchContentNegotiationExtensions",
-		"Microsoft.Extensions.DependencyInjection.DispatchExceptionServiceCollectionExtensions"
+		"Microsoft.Extensions.DependencyInjection.DispatchExceptionServiceCollectionExtensions",
+		"Microsoft.Extensions.DependencyInjection.RequestHeaderCaptureServiceCollectionExtensions"
 	};
 
 	private static readonly string[] ForbiddenAssemblyPatterns =

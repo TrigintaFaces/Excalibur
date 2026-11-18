@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
+using System.Data;
+
 using Dapper;
 
 using Excalibur.Data;
@@ -17,6 +19,11 @@ namespace Excalibur.Outbox.Postgres;
 	"the fence is keyed on the outbox table, not on a tenant: a fencing token orders competing processors of one table and has no tenant dimension to scope to")]
 internal sealed class GetOutboxFenceHighWaterRequest : DataRequest<long?>
 {
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public GetOutboxFenceHighWaterRequest(
 		string fenceTableName,
 		string scope,
@@ -29,7 +36,10 @@ internal sealed class GetOutboxFenceHighWaterRequest : DataRequest<long?>
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds,
 			cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QuerySingleOrDefaultAsync<long?>(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.SingleOrDefaultAsync(conn, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "ScopeKey", StaticDbCommand.Input<string>(Parameters, "ScopeKey"), DbType.String);
+			}, static reader => reader.IsDBNull(0) ? (long?)null : StaticDbValue.Int64(reader, 0)).ConfigureAwait(false);
 	}
 }
 
@@ -48,6 +58,11 @@ internal sealed class GetOutboxFenceHighWaterRequest : DataRequest<long?>
 	"the fence is keyed on the outbox table, not on a tenant: a fencing token orders competing processors of one table and has no tenant dimension to scope to")]
 internal sealed class ResetOutboxFenceHighWaterRequest : DataRequest<bool>
 {
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public ResetOutboxFenceHighWaterRequest(
 		string fenceTableName,
 		string scope,
@@ -72,6 +87,10 @@ internal sealed class ResetOutboxFenceHighWaterRequest : DataRequest<bool>
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds,
 			cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QuerySingleOrDefaultAsync<bool?>(Command).ConfigureAwait(false) == true;
+		ResolveAsync = async conn => await StaticDbCommand.SingleOrDefaultAsync(conn, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "ScopeKey", StaticDbCommand.Input<string>(Parameters, "ScopeKey"), DbType.String);
+				StaticDbCommand.AddParameter(command, "NewHighWater", StaticDbCommand.Input<long>(Parameters, "NewHighWater"), DbType.Int64);
+			}, static reader => reader.IsDBNull(0) ? (bool?)null : StaticDbValue.Boolean(reader, 0)).ConfigureAwait(false) == true;
 	}
 }

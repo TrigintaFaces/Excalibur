@@ -20,6 +20,16 @@
           "System.Management": "9.0.5"
         }
       },
+      "BenchmarkDotNet.Diagnostics.Windows": {
+        "type": "Direct",
+        "requested": "[0.15.8, )",
+        "resolved": "0.15.8",
+        "contentHash": "XI3wyymiXAd/BW8NTmiX7jaT38vQy/q3odiQ6LQnhZSN+qcqXYgeH+xT1bgnhkvWq6f2zHKePqeBHPpi0lx5hw==",
+        "dependencies": {
+          "BenchmarkDotNet": "0.15.8",
+          "Microsoft.Diagnostics.Tracing.TraceEvent": "3.1.21"
+        }
+      },
       "MassTransit": {
         "type": "Direct",
         "requested": "[8.5.9, )",
@@ -90,6 +100,30 @@
         "contentHash": "llRPgmA1fhC0I0QyFLEcjvtM2239QzKr/tcnbsjArLMJxJlu0AA5G7Fft0OI30pHF3MW63Gf4aSSsjc5m82J1Q==",
         "dependencies": {
           "StyleCop.Analyzers.Unstable": "1.2.0.556"
+        }
+      },
+      "System.Drawing.Common": {
+        "type": "Direct",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "s8JRuC+ec1djwT471SbZRXWCBFXCKkNNGILWD/OCmIcdL0KP0w4arMjyEZzNUuKxolperKtlxHhS+34rA4N3XA==",
+        "dependencies": {
+          "Microsoft.Win32.SystemEvents": "10.0.13"
+        }
+      },
+      "System.Formats.Nrbf": {
+        "type": "Direct",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "sKdW9UAUGT9Xmtf9HPy+7IdXs8B6Yr5NpqbB1mTjislf8oGkEyyUyJUtH36qGNBxBnNkGGbdqc6cPbVq5Te2uQ=="
+      },
+      "System.Security.Permissions": {
+        "type": "Direct",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "RRyTWLzyZhC8PhiIov8V4PRUwO1Ku781t/eF4vqxGRuuCmuvSljMSgiEmIFY0qkkY/Si3IQoXVUghpUPn2wExA==",
+        "dependencies": {
+          "System.Windows.Extensions": "10.0.13"
         }
       },
       "Testcontainers.MsSql": {
@@ -481,6 +515,11 @@
         "resolved": "1.0.0",
         "contentHash": "N4KeF3cpcm1PUHym1RmakkzfkEv3GRMyofVv40uXsQhCQeglr2OHNcUk2WOG51AKpGO8ynGpo9M/kFXSzghwug=="
       },
+      "Microsoft.Win32.SystemEvents": {
+        "type": "Transitive",
+        "resolved": "10.0.13",
+        "contentHash": "rtd1rRf5uiusn/r+hNsODiCjvA+nErw+1EQb2uCv0EedLi2GEYWgLK0V31SXzcZ2b0D7VeoOrHJ0WCQqfbO67Q=="
+      },
       "NewId": {
         "type": "Transitive",
         "resolved": "4.0.1",
@@ -617,6 +656,11 @@
         "type": "Transitive",
         "resolved": "9.0.18",
         "contentHash": "1/iz9Eex1TBMYdAk+m3igaMvL+nk+rY1EqL6u93an/j1ghxmB24vGOKXkVFy3NSPA39s1H/+SNoK257tHoXoLA=="
+      },
+      "System.Windows.Extensions": {
+        "type": "Transitive",
+        "resolved": "10.0.13",
+        "contentHash": "/PgQPr51A/DDy8JQbyl+ihrsVlePn+nRAs9wN26AHWJ5nSW9LIDqG30O7VCfm4y0p5qcTUFQiKONsHZSgM9jNQ=="
       },
       "excalibur.a3.abstractions": {
         "type": "Project",

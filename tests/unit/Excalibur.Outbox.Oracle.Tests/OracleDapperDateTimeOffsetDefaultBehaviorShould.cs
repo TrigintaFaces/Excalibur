@@ -14,19 +14,11 @@ using Xunit;
 namespace Excalibur.Outbox.Oracle.Tests;
 
 /// <summary>
-/// eg3gz8 diagnostic — measures Dapper's DEFAULT (no custom type handler) round-trip of
-/// <see cref="DateTimeOffset"/> against a real Oracle <c>TIMESTAMP WITH TIME ZONE</c> column, which is
-/// exactly what SHIPPED production code gets: <c>OracleOutboxStore</c>'s request classes (e.g.
-/// <c>GetScheduledOutboxMessages</c>) map query results straight into a <c>DateTimeOffset</c>/<c>DateTimeOffset?</c>
-/// property via <c>Dapper.SqlMapper.QueryAsync&lt;T&gt;</c> and register NO type handler anywhere in
-/// <c>src/Excalibur/Excalibur.Outbox.Oracle</c>. <c>OracleOutboxStoreContainerFixture</c>'s static constructor
-/// DOES register a custom <c>DateTimeOffsetTypeHandler</c> via <c>SqlMapper.AddTypeHandler</c> — a process-wide,
-/// static Dapper registration — so every OTHER test in this assembly that has touched that fixture type runs
-/// under a handler production code does not have. This class deliberately never references
-/// <c>OracleOutboxStoreContainerFixture</c> and must be run in isolation
-/// (<c>--filter FullyQualifiedName~OracleDapperDateTimeOffsetDefaultBehaviorShould</c>) so its own static
-/// constructor is the only thing touched, and Dapper's built-in behavior — not the test fixture's
-/// override — is what gets measured.
+/// Direct Dapper dependency diagnostic: measures default DateTimeOffset mapping against a real
+/// Oracle TIMESTAMP WITH TIME ZONE column at three offsets. The current Oracle outbox provider uses
+/// statically bound commands and OracleDataReader.GetDateTimeOffset instead of this generic mapper.
+/// Run this class in a fresh isolated process: OracleOutboxStoreContainerFixture installs a global
+/// Dapper DateTimeOffset type handler, so an assembly-wide run cannot establish default behavior.
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
@@ -80,12 +72,12 @@ public sealed class OracleDapperDateTimeOffsetDefaultBehaviorShould : IAsyncLife
 		var id = $"probe-{offsetHours}-{Guid.NewGuid():N}";
 		var written = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(offsetHours));
 
-		// WRITE — mirrors production: parameters.Add("X", DateTimeOffset value, ...), no custom handler.
+		// WRITE — direct Dapper anonymous-object parameter binding, without a custom handler.
 		await connection.ExecuteAsync(
 			"INSERT INTO DTO_PROBE (ID, TS) VALUES (:Id, :Ts)",
 			new { Id = id, Ts = written }).ConfigureAwait(false);
 
-		// READ — Dapper's generic QueryAsync<T> object mapping, exactly what GetScheduledOutboxMessages does.
+		// READ — direct Dapper scalar mapping; independent of the provider static-reader path.
 		DateTimeOffset read;
 		try
 		{
@@ -98,14 +90,14 @@ public sealed class OracleDapperDateTimeOffsetDefaultBehaviorShould : IAsyncLife
 			throw new TestFixtureDiagnosticException(
 				$"Dapper's DEFAULT DateTimeOffset mapping THREW reading offset={offsetHours:+00;-00}h back from "
 				+ $"Oracle TIMESTAMP WITH TIME ZONE, with no custom type handler registered — this is what "
-				+ $"shipped production code (GetScheduledOutboxMessages et al.) would hit. Exception: {ex}", ex);
+				+ $"this direct dependency probe observed. Exception: {ex}", ex);
 		}
 
 		read.ToUniversalTime().ShouldBe(
 			written.ToUniversalTime(),
 			TimeSpan.FromMilliseconds(1),
 			$"the instant must survive the round trip at offset={offsetHours:+00;-00}h under Dapper's default "
-			+ "(no custom handler) DateTimeOffset mapping — the exact path production code runs.");
+			+ "(no custom handler) DateTimeOffset mapping in this isolated dependency probe.");
 	}
 
 	private sealed class TestFixtureDiagnosticException(string message, Exception inner) : Exception(message, inner);

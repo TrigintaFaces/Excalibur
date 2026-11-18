@@ -405,6 +405,103 @@ public sealed class AadTenantBindingShould
 			NullLogger<EncryptionDecryptionService>.Instance));
 	}
 
+	/// <summary>
+	/// SAFETY — FAIL CLOSED ON AN UNRESOLVED TENANT, and detected at the RESOLUTION seam rather than absorbed
+	/// at the point of use.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The bulk service copied the ambient tenant into the context without asking whether one had been
+	/// resolved, so a caller that never established a scope bound <see langword="null"/>. The provider's
+	/// associated-data builder then coalesced that to the empty string — the same authenticated data for every
+	/// unresolved caller, forever, on the field whose stated purpose is to separate tenants.
+	/// </para>
+	/// <para>
+	/// <b>The assertion that the provider was never reached is the load-bearing half.</b> A guard that let the
+	/// call proceed and merely substituted a value at the point of use is the defect, not the fix.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task RefuseToEncryptOrDecryptWhenNoTenantWasResolved()
+	{
+		var captured = new List<string?>();
+
+		var sut = new EncryptionDecryptionService(
+			DecryptingRegistry(captured),
+			EncryptingOptions(),
+			new MutableTenantContext(tenantId: null),
+			NullLogger<EncryptionDecryptionService>.Instance);
+
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			async () => await sut.DecryptEntityAsync(NewEntity(), new DecryptionOptions(), CancellationToken.None)
+				.ConfigureAwait(false));
+
+		captured.ShouldBeEmpty(
+			"an unresolved tenant must be refused BEFORE any provider is consulted. Reaching the provider "
+			+ "means the absence was carried into the authenticated data and resolved there into a value "
+			+ "nobody decided, identical for every unresolved caller");
+	}
+
+	/// <summary>
+	/// LIVENESS — a RESOLVED tenant whose identifier is a well-known constant is a resolved tenant, and the
+	/// arm above must not reach it. Without this, a single-tenant consumer has no legal configuration.
+	/// </summary>
+	/// <remarks>
+	/// Bound through the framework's real single-tenant registration rather than a stand-in, because the
+	/// distinction being protected is "nobody decided" versus "the value is a constant" — and only the real
+	/// context can establish which side of it the framework default sits on.
+	/// </remarks>
+	[Fact]
+	public async Task StillDecryptUnderTheFrameworkSingleTenantIdentity()
+	{
+		var captured = new List<string?>();
+
+		var services = new ServiceCollection();
+		_ = services.AddDefaultTenantContext();
+		using var serviceProvider = services.BuildServiceProvider();
+
+		var sut = new EncryptionDecryptionService(
+			DecryptingRegistry(captured),
+			EncryptingOptions(),
+			serviceProvider.GetRequiredService<ITenantContext>(),
+			NullLogger<EncryptionDecryptionService>.Instance);
+
+		_ = await sut.DecryptEntityAsync(NewEntity(), new DecryptionOptions(), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		captured.ShouldHaveSingleItem().ShouldBe(
+			TenantDefaults.DefaultTenantId,
+			"a single-tenant host resolves the framework's one canonical identity and must keep working. "
+			+ "Refusing it would leave a single-tenant consumer with no legal configuration");
+	}
+
+	/// <summary>
+	/// LIVENESS — a caller that legitimately runs outside any tenant scope supplies the context itself, and
+	/// must keep working. Background replay and a bulk export over another tenant's records both take this
+	/// path, and a projection or export that cannot run cannot recover.
+	/// </summary>
+	[Fact]
+	public async Task StillDecryptWithNoAmbientTenantWhenTheCallerSuppliesTheContext()
+	{
+		var captured = new List<string?>();
+
+		var sut = new EncryptionDecryptionService(
+			DecryptingRegistry(captured),
+			EncryptingOptions(),
+			new MutableTenantContext(tenantId: null),
+			NullLogger<EncryptionDecryptionService>.Instance);
+
+		_ = await sut.DecryptEntityAsync(
+			NewEntity(),
+			new DecryptionOptions { Context = For(TenantA) },
+			CancellationToken.None).ConfigureAwait(false);
+
+		captured.ShouldHaveSingleItem().ShouldBe(
+			TenantA,
+			"an explicitly supplied context names the tenant of the DATA, which is the whole point of the "
+			+ "escape hatch -- the ambient tenant of whoever is replaying is not that tenant");
+	}
+
 	private static EncryptedEntity NewEntity() => new() { Secret = Envelope() };
 
 	/// <summary>A registry whose DECRYPTION provider records the tenant each operation hands it.</summary>

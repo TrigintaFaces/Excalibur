@@ -80,11 +80,13 @@ internal sealed class PurgeCompletedSagasRequest : DataRequestBase<IDbConnection
 		// The sentinel is a non-empty reserved string, not '', specifically so this comparison works on every
 		// engine: Oracle stores the empty string AS NULL, so an `= ''` predicate could never match there.
 		var partition = KeyedTenantPartition.FromScope(scope);
-		var tenantPredicate = allTenants ? string.Empty : " AND TenantId = @TenantId";
+		var tenantPredicate = allTenants ? string.Empty : " AND TenantId = @TenantId"
+			+ " AND DATALENGTH(TenantId) = DATALENGTH(@TenantId)"
+			+ " AND CONVERT(VARBINARY(128), TenantId) = CONVERT(VARBINARY(128), @TenantId)";
 
 		// Keys on the indexed CompletedAt column (SA ruling), not IsCompleted+UpdatedUtc: retention
 		// correctness must not be coupled to the "completed sagas never re-save" invariant via a proxy column.
-		var sql = $"DELETE FROM {qualifiedTableName} WHERE CompletedAt IS NOT NULL AND CompletedAt < @Threshold{tenantPredicate};";
+		var sql = $"DELETE FROM {qualifiedTableName} WHERE CompletedAt IS NOT NULL AND CompletedAt < @Threshold AND TimerRecoveryPendingBatch IS NULL{tenantPredicate};";
 
 		Parameters.Add("Threshold", threshold);
 		if (!allTenants)

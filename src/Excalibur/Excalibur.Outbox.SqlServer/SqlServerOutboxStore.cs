@@ -14,6 +14,7 @@ using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Metadata;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Inbox.SqlServer;
+using Excalibur.Outbox.SqlServer.Requests;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,14 +48,17 @@ namespace Excalibur.Outbox.SqlServer;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class implements multiple ISP sub-interfaces (IMultiTransportOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch, ITransactionalOutboxWriter) by design.")]
-public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, ITenantPartitionedStore
+public sealed partial class SqlServerOutboxStore : IOutboxPayloadTransformStore, IMultiTransportOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore, IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, ITenantPartitionedStore
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerOutboxOptions _options;
 	private readonly SqlServerInboxOptions? _inboxOptions;
+	private readonly SqlServerInboxSchema? _inboxSchema;
 	private readonly ILogger<SqlServerOutboxStore> _logger;
 	private readonly IPayloadSerializer? _payloadSerializer;
-	private readonly JsonSerializerOptions _jsonOptions;
+	private readonly JsonSerializerOptions? _legacyJsonOptions;
+	private readonly Func<OutboundMessage, OutboxMessage> _convertMessage;
+	private readonly Func<IDictionary<string, object>, string> _serializeMetadata;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerOutboxStore" /> class.
@@ -66,6 +70,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// <see cref="Func{TResult}" /> connection factory together with a <see cref="SqlServerOutboxOptions" />
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
+	[RequiresUnreferencedCode("Legacy outbox metadata serialization uses reflection. Use an explicit OutboxMetadataSerialization registration overload.")]
+	[RequiresDynamicCode("Legacy outbox metadata serialization may require runtime code generation. Use an explicit OutboxMetadataSerialization registration overload.")]
 	internal SqlServerOutboxStore(
 		IOptions<SqlServerOutboxOptions> options,
 		ILogger<SqlServerOutboxStore> logger)
@@ -82,6 +88,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// effectively-once processing via <see cref="TryMarkSentAndReceivedAsync" />. Delivery remains at-least-once.
 	/// </param>
 	/// <param name="logger"> The logger instance. </param>
+	[RequiresUnreferencedCode("Legacy outbox metadata serialization uses reflection. Use an explicit OutboxMetadataSerialization registration overload.")]
+	[RequiresDynamicCode("Legacy outbox metadata serialization may require runtime code generation. Use an explicit OutboxMetadataSerialization registration overload.")]
 	internal SqlServerOutboxStore(
 		IOptions<SqlServerOutboxOptions> options,
 		IOptions<SqlServerInboxOptions>? inboxOptions,
@@ -102,21 +110,25 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// effectively-once processing via <see cref="TryMarkSentAndReceivedAsync" />. Delivery remains at-least-once.
 	/// </param>
 	/// <param name="logger"> The logger instance. </param>
+	/// <param name="requireInboxTenant">The captured inbox deployment mode.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users; use the connection-factory overload for advanced scenarios
 	/// like multi-database setups or custom connection pooling.
 	/// </remarks>
+	[RequiresUnreferencedCode("Legacy outbox metadata serialization uses reflection. Use an explicit OutboxMetadataSerialization registration overload.")]
+	[RequiresDynamicCode("Legacy outbox metadata serialization may require runtime code generation. Use an explicit OutboxMetadataSerialization registration overload.")]
 	internal SqlServerOutboxStore(
 		IOptions<SqlServerOutboxOptions> options,
 		IPayloadSerializer? payloadSerializer,
 		IOptions<SqlServerInboxOptions>? inboxOptions,
-		ILogger<SqlServerOutboxStore> logger)
+		ILogger<SqlServerOutboxStore> logger,
+		bool requireInboxTenant = false)
 		: this(
 			CreateConnectionFactory((options ?? throw new ArgumentNullException(nameof(options))).Value),
 			options.Value,
 			payloadSerializer,
 			inboxOptions?.Value,
-			logger)
+			logger, requireInboxTenant)
 	{
 	}
 
@@ -151,6 +163,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// </code>
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("Legacy outbox metadata serialization uses reflection. Use an explicit OutboxMetadataSerialization registration overload.")]
+	[RequiresDynamicCode("Legacy outbox metadata serialization may require runtime code generation. Use an explicit OutboxMetadataSerialization registration overload.")]
 	internal SqlServerOutboxStore(
 		Func<SqlConnection> connectionFactory,
 		SqlServerOutboxOptions options,
@@ -188,6 +202,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// </para>
 	/// <para> To enable transactional outbox+inbox completion, use the overload that accepts <see cref="SqlServerInboxOptions" />. </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("Legacy outbox metadata serialization uses reflection. Use an explicit OutboxMetadataSerialization registration overload.")]
+	[RequiresDynamicCode("Legacy outbox metadata serialization may require runtime code generation. Use an explicit OutboxMetadataSerialization registration overload.")]
 	internal SqlServerOutboxStore(
 		Func<SqlConnection> connectionFactory,
 		SqlServerOutboxOptions options,
@@ -214,6 +230,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// effectively-once processing via <see cref="TryMarkSentAndReceivedAsync" />. Delivery remains at-least-once.
 	/// </param>
 	/// <param name="logger"> The logger instance. </param>
+	/// <param name="requireInboxTenant">The captured inbox deployment mode.</param>
 	/// <remarks>
 	/// <para> This is the advanced constructor for scenarios that need custom connection management: </para>
 	/// <list type="bullet">
@@ -238,31 +255,113 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// </code>
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("Legacy outbox metadata serialization uses reflection. Use an explicit OutboxMetadataSerialization registration overload.")]
+	[RequiresDynamicCode("Legacy outbox metadata serialization may require runtime code generation. Use an explicit OutboxMetadataSerialization registration overload.")]
 	internal SqlServerOutboxStore(
 		Func<SqlConnection> connectionFactory,
 		SqlServerOutboxOptions options,
 		IPayloadSerializer? payloadSerializer,
 		SqlServerInboxOptions? inboxOptions,
-		ILogger<SqlServerOutboxStore> logger)
+		ILogger<SqlServerOutboxStore> logger,
+		bool requireInboxTenant = false)
+		: this(connectionFactory, options, payloadSerializer, inboxOptions, logger,
+			OutboxMessage.FromOutboundMessage, SerializeLegacyMetadata, PrepareLegacyJsonOptions(), requireInboxTenant)
+	{
+	}
+
+	internal SqlServerOutboxStore(
+		IOptions<SqlServerOutboxOptions> options,
+		IPayloadSerializer? payloadSerializer,
+		IOptions<SqlServerInboxOptions>? inboxOptions,
+		ILogger<SqlServerOutboxStore> logger,
+		OutboxMetadataSerialization metadataSerialization,
+		bool requireInboxTenant = false)
+		: this(CreateConnectionFactory((options ?? throw new ArgumentNullException(nameof(options))).Value),
+			options.Value, payloadSerializer, inboxOptions?.Value, logger, metadataSerialization, requireInboxTenant)
+	{
+	}
+
+	internal SqlServerOutboxStore(
+		Func<SqlConnection> connectionFactory,
+		SqlServerOutboxOptions options,
+		IPayloadSerializer? payloadSerializer,
+		SqlServerInboxOptions? inboxOptions,
+		ILogger<SqlServerOutboxStore> logger,
+		OutboxMetadataSerialization metadataSerialization,
+		bool requireInboxTenant = false)
+		: this(connectionFactory, options, payloadSerializer, inboxOptions, logger,
+			(metadataSerialization ?? throw new ArgumentNullException(nameof(metadataSerialization))).CreateWriter(), requireInboxTenant)
+	{
+	}
+
+	private SqlServerOutboxStore(
+		Func<SqlConnection> connectionFactory,
+		SqlServerOutboxOptions options,
+		IPayloadSerializer? payloadSerializer,
+		SqlServerInboxOptions? inboxOptions,
+		ILogger<SqlServerOutboxStore> logger,
+		OutboxMetadataWriter writer,
+		bool requireInboxTenant)
+		: this(connectionFactory, options, payloadSerializer, inboxOptions, logger,
+			writer.FromOutboundMessage, writer.Serialize, legacyJsonOptions: null, requireInboxTenant)
+	{
+	}
+
+	private SqlServerOutboxStore(
+		Func<SqlConnection> connectionFactory,
+		SqlServerOutboxOptions options,
+		IPayloadSerializer? payloadSerializer,
+		SqlServerInboxOptions? inboxOptions,
+		ILogger<SqlServerOutboxStore> logger,
+		Func<OutboundMessage, OutboxMessage> convertMessage,
+		Func<IDictionary<string, object>, string> serializeMetadata,
+		JsonSerializerOptions? legacyJsonOptions,
+		bool requireInboxTenant)
 	{
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
-
 		_connectionFactory = connectionFactory;
 		_options = options;
-		_inboxOptions = inboxOptions;
+		_inboxOptions = inboxOptions is null ? null : new SqlServerInboxOptions
+		{
+			ConnectionString = inboxOptions.ConnectionString,
+			SchemaName = inboxOptions.SchemaName,
+			TableName = inboxOptions.TableName,
+			CommandTimeoutSeconds = inboxOptions.CommandTimeoutSeconds
+		};
+		_inboxSchema = _inboxOptions is null ? null : new SqlServerInboxSchema(
+			_inboxOptions.QualifiedTableName, _inboxOptions.CommandTimeoutSeconds, requireInboxTenant);
 		_payloadSerializer = payloadSerializer;
 		_logger = logger;
-		// Canonical event-serialization contract (camelCase + enum-as-string + omit-null), shared with every
-		// store and the default serializer, so persisted payloads/headers/metadata round-trip byte-for-byte.
-		_jsonOptions = EventSerializationDefaults.Canonical;
+		_convertMessage = convertMessage;
+		_serializeMetadata = serializeMetadata;
+		_legacyJsonOptions = legacyJsonOptions;
 	}
+
+	[RequiresUnreferencedCode("The legacy JSON path discovers arbitrary consumer metadata.")]
+	[RequiresDynamicCode("The legacy JSON path may require runtime code generation.")]
+	private static JsonSerializerOptions PrepareLegacyJsonOptions()
+	{
+		if (!JsonSerializer.IsReflectionEnabledByDefault)
+		{
+			throw new InvalidOperationException(
+				"JSON reflection is disabled. Select the SQL Server outbox registration overload with an explicit OutboxMetadataSerialization configuration.");
+		}
+
+		return EventSerializationDefaults.Canonical;
+	}
+
+	[RequiresUnreferencedCode("The legacy metadata writer discovers arbitrary consumer metadata.")]
+	[RequiresDynamicCode("The legacy metadata writer may require runtime code generation.")]
+	private static string SerializeLegacyMetadata(IDictionary<string, object> metadata) =>
+		JsonSerializer.Serialize(metadata, PrepareLegacyJsonOptions());
 
 	/// <inheritdoc />
 	public async ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
+		var outboxMessage = _convertMessage(message);
 
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
@@ -274,7 +373,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		try
 		{
 			// Insert main message
-			await InsertMessageAsync(connection, transaction, message, cancellationToken).ConfigureAwait(false);
+			await InsertMessageAsync(connection, transaction, outboxMessage, cancellationToken).ConfigureAwait(false);
 
 			// Insert transport delivery records if multi-transport
 			if (message.IsMultiTransport && message.TransportDeliveries.Count > 0)
@@ -334,26 +433,51 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
+	public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, transformPayload: null, transformRequested: false, cancellationToken);
+
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	ValueTask IOutboxPayloadTransformStore.EnqueueWithPayloadTransformAsync(
+		IDispatchMessage message, IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transformPayload,
+		CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, transformPayload, transformRequested: true, cancellationToken);
+
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private async ValueTask EnqueueCoreAsync(
+		IDispatchMessage message, IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>>? transformPayload,
+		bool transformRequested, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
+		if (transformRequested)
+		{
+			ArgumentNullException.ThrowIfNull(transformPayload);
+			cancellationToken.ThrowIfCancellationRequested();
+		}
 
 		var stopwatch = ValueStopwatch.StartNew();
-		var result = WriteStoreTelemetry.Results.Success;
+		var outboundMessage = PrepareEnqueueMessage(message, context);
+		if (transformRequested)
+		{
+			// A configured serializer may own/reuse its returned buffer. The borrowed callback input
+			// must remain stable while the callback awaits, independently of that serializer's buffer.
+			outboundMessage.Payload = (byte[])outboundMessage.Payload.Clone();
+		}
 
-		// Derive the routing destination from the message context — falling back to the message
-		// type name rather than a hardcoded "default", so a consumer's configured destination is persisted
-		// and honored on dispatch (identical fix to the Postgres provider).
-		var messageTypeName = message.GetType().FullName ?? message.GetType().Name;
-		var outboundMessage = OutboundMessage.FromContext(
-			messageTypeName,
-			SerializePayload(message),
-			context.ExtractMetadata().GetDestination() ?? messageTypeName,
-			context,
-			context.Items.ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal));
+		var result = WriteStoreTelemetry.Results.Success;
 		try
 		{
+			if (transformPayload is not null)
+			{
+				var transformed = await transformPayload(outboundMessage.Payload, outboundMessage.TenantId, cancellationToken).ConfigureAwait(false)
+					?? throw new InvalidOperationException("transformPayload returned a null payload; the message was not enqueued.");
+				outboundMessage.Payload = (byte[])transformed.Clone();
+				cancellationToken.ThrowIfCancellationRequested();
+			}
 			await StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
 		}
 		catch
@@ -367,9 +491,22 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		}
 	}
 
-	/// <inheritdoc />
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private OutboundMessage PrepareEnqueueMessage(IDispatchMessage message, IMessageContext context)
+	{
+		// Derive the routing destination from the message context — falling back to the message
+		// type name rather than a hardcoded "default", so a consumer's configured destination is persisted
+		// and honored on dispatch (identical fix to the Postgres provider).
+		var messageTypeName = message.GetType().FullName ?? message.GetType().Name;
+		return OutboundMessage.FromContext(
+			messageTypeName,
+			SerializePayload(message),
+			context.ExtractMetadata().GetDestination() ?? messageTypeName,
+			context);
+	}
+
+	/// <inheritdoc />
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 		GetUnsentMessagesCoreAsync(batchSize, fencingToken: null, cancellationToken);
 
@@ -380,8 +517,6 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// cleanup has purged the sent, token-bearing rows. The per-message lease independently prevents two
 	/// processors from claiming the same row.
 	/// </remarks>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, long fencingToken, CancellationToken cancellationToken) =>
 		GetUnsentMessagesCoreAsync(batchSize, fencingToken, cancellationToken);
 
@@ -400,40 +535,9 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		try
 		{
-			// Fence FIRST: advance the durable high-water and detect supersession before any claim. A stale
-			// (superseded) token yields ZERO claimable rows and MUST NOT throw — throwing would crash-loop a
-			// superseded leader's drain. The claim below re-guards against the same durable high-water, so a
-			// leader superseded between this advance and the claim still claims nothing (no TOCTOU window).
-			if (fencingToken.HasValue)
-			{
-				var highWater = await connection.ResolveAsync(
-						new Requests.EnforceOutboxFenceRequest(
-							_options.Tables.QualifiedFenceTableName,
-							_options.Tables.QualifiedOutboxTableName,
-							fencingToken.Value,
-							_options.Processing.CommandTimeoutSeconds,
-							transaction: null,
-							cancellationToken))
-					.ConfigureAwait(false);
-
-				if (highWater > fencingToken.Value)
-				{
-					return [];
-				}
-			}
-
-			var rows = await connection.ResolveAsync(
-					new Requests.GetUnsentMessagesRequest(
-						_options.Tables.QualifiedOutboxTableName,
-						batchSize,
-						_options.Processing.CommandTimeoutSeconds,
-						_options.Processing.LeaseTimeoutSeconds,
-						_options.ProcessorId,
-						fencingToken,
-						_options.Tables.QualifiedFenceTableName,
-						_options.Tables.QualifiedOutboxTableName,
-						cancellationToken))
-				.ConfigureAwait(false);
+			// Scope authority and row acquisition share one owned transaction; returned rows are
+			// buffered and committed before any envelope can be handed to delivery code.
+			var rows = await ClaimRowsAsync(connection, batchSize, fencingToken, cancellationToken).ConfigureAwait(false);
 
 			var messages = new List<OutboundMessage>();
 
@@ -469,86 +573,60 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	}
 
 	/// <inheritdoc />
-	public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken) =>
-		MarkSentCoreAsync(messageId, fencingToken: null, cancellationToken);
+	public async ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken)
+	{
+		// The unfenced member reports by THROWING, and that asymmetry is the contract rather than an
+		// oversight: IOutboxStore.MarkSentAsync returns void, so it has nowhere to put an outcome, and a
+		// caller on this path presented no token and therefore cannot be a superseded tenure. The refusals
+		// reachable here are a missing row and an already-terminal one, both of which this member has always
+		// raised. Translating them back from the shared core keeps that behaviour byte-identical.
+		var outcome = await MarkSentCoreAsync(messageId, fencingToken: null, cancellationToken).ConfigureAwait(false);
+		if (outcome is not OutboxCompletionOutcome.Applied)
+		{
+			throw new InvalidOperationException(
+				outcome is OutboxCompletionOutcome.MessageNotFound
+					? $"Message {messageId} not found."
+					: $"Message {messageId} was already sent or dead-lettered.");
+		}
+	}
 
 	/// <inheritdoc />
 	/// <remarks>
 	/// Leadership fencing is durable: the high-water mark lives in the dedicated <c>OutboxFence</c> control
-	/// table, which cleanup never touches, so a superseded leader's stale token is still rejected after a
+	/// table, which cleanup never touches, so a superseded leader's stale token is still refused after a
 	/// cleanup has purged the sent, token-bearing rows. The per-message lease independently prevents two
 	/// processors from marking the same row.
 	/// </remarks>
-	public ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken) =>
+	public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken) =>
 		MarkSentCoreAsync(messageId, fencingToken, cancellationToken);
 
-	private async ValueTask MarkSentCoreAsync(string messageId, long? fencingToken, CancellationToken cancellationToken)
+	private async ValueTask<OutboxCompletionOutcome> MarkSentCoreAsync(string messageId, long? fencingToken, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
 		try
 		{
-			// ONE round trip. The fence advance, the guarded mutation and the existence check all run in
-			// the single transaction below, and it returns all three values. There used to be a separate
-			// untransacted advance here whose only remaining purpose was to capture a high-water for the
-			// DIAGNOSTIC -- its MERGE was already duplicated inside that transaction, so it advanced
-			// nothing new, and the value it captured was read before the mutation ran. A fresher tenure
-			// advancing between the two round trips left that value stale-low, so a genuine fencing
-			// refusal was reported as a generic not-found and a superseded leader learned nothing and
-			// kept draining. This is the shape Postgres and Oracle already use, and the shape the fenced
-			// failure and dead-letter paths in this same store already use.
-			var mutation = await connection.ResolveAsync(
-					new Requests.MarkMessageSentRequest(
-						_options.Tables.QualifiedOutboxTableName,
-						messageId,
-						_options.Processing.CommandTimeoutSeconds,
-						fencingToken,
-						_options.Tables.QualifiedFenceTableName,
-						_options.Tables.QualifiedOutboxTableName,
-						cancellationToken))
-				.ConfigureAwait(false);
+			// Token-only completion deliberately retains its weaker claim contract, but its fence
+			// authority and actual state transition still share one real owned transaction.
+			var outcome = await CompleteClaimAsync(messageId, null, fencingToken,
+				SqlServerClaimTransition.Sent, null, 0, null, cancellationToken).ConfigureAwait(false);
 
-			// Fence FIRST. The order is load-bearing and matches ClassifyFenced, which the fenced failure
-			// and dead-letter paths use: a refused fence is the only outcome meaning "stop draining
-			// entirely", because a newer tenure exists and every remaining claim this caller holds is
-			// void. Reading the rowcount first reports a not-found for a superseded tenure, which tells
-			// the caller to carry on with the rest of its batch -- exactly the wrong instruction.
-			//
-			// The comparison is equality, not ">". The MERGE advanced the stored high-water to
-			// MAX(presented, existing), so the returned value equals the presented token exactly when the
-			// token was accepted, and is strictly greater exactly when a successor had already advanced
-			// past it. There is no third case, and equality says so without inviting a reader to wonder
-			// about a "below" branch that cannot occur.
-			if (fencingToken.HasValue && mutation.HighWaterToken != fencingToken.Value)
+			result = outcome switch
 			{
-				result = WriteStoreTelemetry.Results.Conflict;
-				throw new StaleOutboxFencingTokenException(
-					$"The presented outbox fencing token ({fencingToken.Value}) for message '{messageId}' was rejected as stale (recorded high-water {mutation.HighWaterToken}).")
-				{
-					PresentedToken = fencingToken.Value,
-					HighWaterToken = mutation.HighWaterToken,
-				};
+				OutboxCompletionOutcome.Applied => WriteStoreTelemetry.Results.Success,
+				OutboxCompletionOutcome.FenceRefused => WriteStoreTelemetry.Results.Conflict,
+				_ => WriteStoreTelemetry.Results.NotFound,
+			};
+
+			if (outcome is OutboxCompletionOutcome.Applied)
+			{
+				_logger.LogDebug("Marked message {MessageId} as sent", messageId);
 			}
 
-			if (mutation.UpdatedCount == 0)
-			{
-				// The fence accepted the token, so this is genuinely a not-found or an already-terminal row.
-				// RowExists was evaluated inside the mutating transaction rather than by a follow-up probe on
-				// this connection, so it cannot disagree with the rowcount it is being used to explain.
-				result = WriteStoreTelemetry.Results.NotFound;
-				throw new InvalidOperationException(
-					mutation.RowExists
-						? $"Message {messageId} was already sent or dead-lettered."
-						: $"Message {messageId} not found.");
-			}
-
-			_logger.LogDebug("Marked message {MessageId} as sent", messageId);
+			return outcome;
 		}
 		catch
 		{
@@ -627,12 +705,15 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 				WHERE Id IN @Ids AND Status NOT IN (2, 5)
 				""";
 
-			var affected = await connection.ExecuteAsync(
-				new CommandDefinition(
-					sql,
-					new { Ids = messageIds, SentAt = DateTimeOffset.UtcNow },
-					commandTimeout: _options.Processing.CommandTimeoutSeconds,
-					cancellationToken: cancellationToken)).ConfigureAwait(false);
+			var sentAt = DateTimeOffset.UtcNow;
+			var batchCommand = new CommandDefinition(sql + SqlServerAffectedRows.Capture, commandTimeout: _options.Processing.CommandTimeoutSeconds,
+				cancellationToken: cancellationToken);
+			var affected = await StaticDbCommand.ExecuteOutputsAsync(connection, batchCommand, command =>
+			{
+				SqlServerOutboxIdList.Bind(command, messageIds);
+				StaticDbCommand.AddParameter(command, "SentAt", sentAt, DbType.DateTimeOffset);
+				SqlServerAffectedRows.Bind(command);
+			}, command => SqlServerAffectedRows.Read(command)).ConfigureAwait(false);
 
 			_logger.LogDebug("Batch marked {Count}/{Total} messages as sent", affected, messageIds.Count);
 		}
@@ -753,6 +834,28 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			return false;
 		}
 
+		// Explicit handoff owns the incoming key. Freeze all SQL values before any await.
+		ArgumentNullException.ThrowIfNull(inboxEntry.Payload);
+		ArgumentNullException.ThrowIfNull(inboxEntry.Metadata);
+		var inboxValues = new
+				{
+					inboxEntry.MessageId,
+					inboxEntry.HandlerType,
+					inboxEntry.MessageType,
+					Payload = inboxEntry.Payload.ToArray(),
+					Metadata = SerializeMetadataForInbox(inboxEntry.Metadata),
+					inboxEntry.ReceivedAt,
+					ProcessedAt = inboxEntry.ProcessedAt ?? DateTimeOffset.UtcNow,
+					Status = (int)inboxEntry.Status,
+					inboxEntry.RetryCount,
+					inboxEntry.CorrelationId,
+					inboxEntry.TenantId,
+					inboxEntry.Source
+				};
+		ArgumentException.ThrowIfNullOrWhiteSpace(inboxValues.MessageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(inboxValues.HandlerType);
+		ArgumentException.ThrowIfNullOrWhiteSpace(inboxValues.MessageType);
+
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
@@ -763,25 +866,36 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		try
 		{
+			var hasTenantColumn = await _inboxSchema!.EnsureAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+			_inboxSchema.VerifyEntryTenant(hasTenantColumn, inboxValues.TenantId);
+			var tenantColumn = hasTenantColumn ? ", TenantId" : string.Empty;
+			var tenantValue = hasTenantColumn ? ", @TenantId" : string.Empty;
+
 			// Step 1: Mark outbox message as sent
 			var markSentSql = $"""
 			                   UPDATE {_options.Tables.QualifiedOutboxTableName}
-			                   SET Status = 2, SentAt = @SentAt, LastError = NULL
+			                   SET Status = 2, SentAt = @SentAt, LastError = NULL, LeasedAt = NULL, LeasedBy = NULL
 			                   WHERE Id = @MessageId
 			                   AND Status NOT IN (2, 5)
 			                   """;
 
+			var markSentValues = new { MessageId = messageId, SentAt = DateTimeOffset.UtcNow };
+
 			var markSentCommand = new CommandDefinition(
-				markSentSql,
-				new { MessageId = messageId, SentAt = DateTimeOffset.UtcNow },
+				markSentSql + SqlServerAffectedRows.Capture,
+				markSentValues,
 				transaction,
 				_options.Processing.CommandTimeoutSeconds,
 				cancellationToken: cancellationToken);
 
-			var affected = await connection.ExecuteAsync(markSentCommand).ConfigureAwait(false);
-			if (affected == 0)
+			var affected = await StaticDbCommand.ExecuteOutputsAsync(connection, markSentCommand, dbCommand =>
 			{
-				await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+				StaticDbCommand.AddParameter(dbCommand, "MessageId", markSentValues.MessageId, DbType.String);
+				StaticDbCommand.AddParameter(dbCommand, "SentAt", markSentValues.SentAt, DbType.DateTimeOffset);
+				SqlServerAffectedRows.Bind(dbCommand);
+			}, dbCommand => SqlServerAffectedRows.Read(dbCommand)).ConfigureAwait(false);
+			if (affected != 1)
+			{
 				result = WriteStoreTelemetry.Results.NotFound;
 				throw new InvalidOperationException($"Message {messageId} not found, already sent, or dead-lettered.");
 			}
@@ -789,33 +903,38 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			// Step 2: Insert inbox entry for deduplication
 			var insertInboxSql = $"""
 			                      INSERT INTO {_inboxOptions!.QualifiedTableName}
-			                      	(MessageId, HandlerType, MessageType, Payload, Metadata, ReceivedAt, ProcessedAt, Status, RetryCount, CorrelationId, TenantId, Source)
+			                      	(MessageId, HandlerType, MessageType, Payload, Metadata, ReceivedAt, ProcessedAt, Status, RetryCount, CorrelationId, Source{tenantColumn})
 			                      VALUES
-			                      	(@MessageId, @HandlerType, @MessageType, @Payload, @Metadata, @ReceivedAt, @ProcessedAt, @Status, @RetryCount, @CorrelationId, @TenantId, @Source)
+			                      	(@MessageId, @HandlerType, @MessageType, @Payload, @Metadata, @ReceivedAt, @ProcessedAt, @Status, @RetryCount, @CorrelationId, @Source{tenantValue})
 			                      """;
+
+
 
 			var insertInboxCommand = new CommandDefinition(
 				insertInboxSql,
-				new
-				{
-					inboxEntry.MessageId,
-					inboxEntry.HandlerType,
-					inboxEntry.MessageType,
-					inboxEntry.Payload,
-					Metadata = SerializeMetadataForInbox(inboxEntry.Metadata),
-					inboxEntry.ReceivedAt,
-					ProcessedAt = inboxEntry.ProcessedAt ?? DateTimeOffset.UtcNow,
-					Status = (int)inboxEntry.Status,
-					inboxEntry.RetryCount,
-					inboxEntry.CorrelationId,
-					inboxEntry.TenantId,
-					inboxEntry.Source
-				},
+				inboxValues,
 				transaction,
 				_options.Processing.CommandTimeoutSeconds,
 				cancellationToken: cancellationToken);
 
-			_ = await connection.ExecuteAsync(insertInboxCommand).ConfigureAwait(false);
+			_ = await StaticDbCommand.ExecuteAsync(connection, insertInboxCommand, dbCommand =>
+			{
+				StaticDbCommand.AddParameter(dbCommand, "MessageId", inboxValues.MessageId, DbType.String);
+				StaticDbCommand.AddParameter(dbCommand, "HandlerType", inboxValues.HandlerType, DbType.String);
+				StaticDbCommand.AddParameter(dbCommand, "MessageType", inboxValues.MessageType, DbType.String);
+				StaticDbCommand.AddParameter(dbCommand, "Payload", inboxValues.Payload, DbType.Binary);
+				StaticDbCommand.AddParameter(dbCommand, "Metadata", inboxValues.Metadata, DbType.String);
+				StaticDbCommand.AddParameter(dbCommand, "ReceivedAt", inboxValues.ReceivedAt, DbType.DateTimeOffset);
+				StaticDbCommand.AddParameter(dbCommand, "ProcessedAt", inboxValues.ProcessedAt, DbType.DateTimeOffset);
+				StaticDbCommand.AddParameter(dbCommand, "Status", inboxValues.Status, DbType.Int32);
+				StaticDbCommand.AddParameter(dbCommand, "RetryCount", inboxValues.RetryCount, DbType.Int32);
+				StaticDbCommand.AddNullableStringParameter(dbCommand, "CorrelationId", inboxValues.CorrelationId);
+				if (hasTenantColumn)
+				{
+					StaticDbCommand.AddParameter(dbCommand, "TenantId", inboxValues.TenantId!, DbType.String);
+				}
+				StaticDbCommand.AddNullableStringParameter(dbCommand, "Source", inboxValues.Source);
+			}).ConfigureAwait(false);
 
 			// Commit both operations atomically
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -823,13 +942,13 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			_logger.LogDebug(
 				"Transactional completion succeeded for message {MessageId} with inbox entry for handler {HandlerType}",
 				messageId,
-				inboxEntry.HandlerType);
+				inboxValues.HandlerType);
 
 			return true;
 		}
 		catch (SqlException ex) when (ex.Number is 2627 or 2601) // Unique constraint violation on inbox
 		{
-			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+			await TryRollbackCompletionAsync().ConfigureAwait(false);
 			result = WriteStoreTelemetry.Results.Conflict;
 			using var scope = WriteStoreTelemetry.BeginLogScope(
 				_logger,
@@ -837,31 +956,53 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 				WriteStoreTelemetry.Providers.SqlServer,
 				"mark_sent_and_received",
 				messageId,
-				inboxEntry.CorrelationId);
+				inboxValues.CorrelationId);
 			_logger.LogWarning(
 				"Transactional completion failed for message {MessageId}: inbox entry already exists for handler {HandlerType}",
 				messageId,
-				inboxEntry.HandlerType);
+				inboxValues.HandlerType);
 			throw new InvalidOperationException(
-				$"Inbox entry already exists for message '{messageId}' and handler '{inboxEntry.HandlerType}'.", ex);
+				$"Inbox entry already exists for message '{messageId}' and handler '{inboxValues.HandlerType}'.", ex);
 		}
 		catch (Exception ex)
 		{
-			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-			result = WriteStoreTelemetry.Results.Failure;
+			await TryRollbackCompletionAsync().ConfigureAwait(false);
+			if (result != WriteStoreTelemetry.Results.NotFound)
+			{
+				result = WriteStoreTelemetry.Results.Failure;
+			}
 			using var scope = WriteStoreTelemetry.BeginLogScope(
 				_logger,
 				WriteStoreTelemetry.Stores.OutboxStore,
 				WriteStoreTelemetry.Providers.SqlServer,
 				"mark_sent_and_received",
 				messageId,
-				inboxEntry.CorrelationId);
+				inboxValues.CorrelationId);
 			_logger.LogError(ex, "Transactional completion failed for message {MessageId}", messageId);
 			throw;
 		}
 		finally
 		{
 			RecordOperation("mark_sent_and_received", result, stopwatch.Elapsed);
+		}
+
+		async Task TryRollbackCompletionAsync()
+		{
+			// Cleanup owns its own bounded token: caller cancellation must not prevent rollback or
+			// replace the original refusal, SQL failure or cancellation with a cleanup exception.
+			try
+			{
+				// SQL command timeouts permit int.MaxValue seconds; timer budgets do not. Cleanup
+				// remains finite even when the operation's timeout is very large or unlimited.
+				var cleanupSeconds = Math.Clamp(_options.Processing.CommandTimeoutSeconds, 1, 30);
+				using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(cleanupSeconds));
+				await transaction.RollbackAsync(cleanupCts.Token).ConfigureAwait(false);
+			}
+			catch (Exception rollbackException)
+			{
+				_logger.LogWarning(rollbackException,
+					"Rollback failed after transactional completion failed for message {MessageId}; preserving the original exception.", messageId);
+			}
 		}
 	}
 
@@ -1079,25 +1220,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(authority.FencingToken);
 		ArgumentException.ThrowIfNullOrWhiteSpace(authority.ClaimIdentity);
 
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		var result = await connection.ResolveAsync(
-				new Requests.FencedMarkMessageFailedRequest(
-					_options.Tables.QualifiedOutboxTableName,
-					_options.Tables.QualifiedFenceTableName,
-					messageId,
-					errorMessage,
-					retryCount,
-					nextAttemptAt,
-					_options.Processing.FailureBackoffFloorSeconds,
-					authority.FencingToken,
-					authority.ClaimIdentity,
-					_options.Processing.CommandTimeoutSeconds,
-					cancellationToken))
-			.ConfigureAwait(false);
-
-		return ClassifyFenced(result, authority.FencingToken);
+		return await CompleteClaimAsync(messageId, authority.ClaimIdentity, authority.FencingToken,
+			SqlServerClaimTransition.Failed, errorMessage, retryCount, nextAttemptAt, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -1118,39 +1242,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		// legitimate is rejected.
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fencingToken);
 
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		var result = await connection.ResolveAsync(
-				new Requests.FencedMarkMessageDeadLetteredRequest(
-					_options.Tables.QualifiedOutboxTableName,
-					_options.Tables.QualifiedFenceTableName,
-					messageId,
-					reason,
-					attemptCount,
-					fencingToken,
-					_options.Processing.CommandTimeoutSeconds,
-					cancellationToken))
-			.ConfigureAwait(false);
-
-		return ClassifyFenced(result, fencingToken);
+		return await CompleteClaimAsync(messageId, null, fencingToken,
+			SqlServerClaimTransition.DeadLettered, reason, attemptCount, null, cancellationToken).ConfigureAwait(false);
 	}
 
-	/// <summary>
-	/// Maps a fenced completion result onto the outcome the caller acts on.
-	/// </summary>
-	/// <remarks>
-	/// The order is load-bearing. A refused fence is checked FIRST because it is the only outcome meaning
-	/// "stop draining entirely" -- a newer tenure exists and every remaining claim this caller holds is
-	/// void. Reading the row count first would report ClaimLost for a superseded tenure, which tells the
-	/// caller to continue with the rest of its batch: exactly the wrong instruction, and indistinguishable
-	/// from the benign case in a log.
-	/// </remarks>
-	private static OutboxCompletionOutcome ClassifyFenced(
-		Requests.FencedClaimMutationResult result,
-		long presentedToken) =>
-		Excalibur.Outbox.FencedCompletionClassifier.Classify(
-			result.HighWaterToken, presentedToken, result.UpdatedCount, result.RowExists, result.IsTerminal);
 
 	/// <inheritdoc />
 	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(
@@ -1357,12 +1452,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			StringComparison.OrdinalIgnoreCase);
 	}
 
-	private string SerializeMetadataForInbox(IDictionary<string, object> metadata)
-	{
-#pragma warning disable IL2026, IL3050 // JsonSerializer with Type parameter requires unreferenced code
-		return JsonSerializer.Serialize(metadata, _jsonOptions);
-#pragma warning restore IL2026, IL3050
-	}
+	private string SerializeMetadataForInbox(IDictionary<string, object> metadata) => _serializeMetadata(metadata);
 
 	#region Per-Transport Methods
 
@@ -1517,7 +1607,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		var command = new CommandDefinition(
 			sql,
-			new { TransportName = transportName, BatchSize = batchSize, MaxRetries = _options.Processing.MaxRetryCount },
+			new Dictionary<string, object?> { ["TransportName"] = transportName, ["BatchSize"] = batchSize, ["MaxRetries"] = _options.Processing.MaxRetryCount },
 			commandTimeout: _options.Processing.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
@@ -1525,11 +1615,13 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		{
 			var results = new List<(OutboundMessage, OutboundMessageTransport)>();
 
-			var rows = await connection
-				.QueryAsync<Requests.OutboxMessageRow, TransportDeliveryRow, (Requests.OutboxMessageRow, TransportDeliveryRow)>(
-					command,
-					(messageRow, transportRow) => (messageRow, transportRow),
-					splitOn: "TransportId").ConfigureAwait(false);
+			var rows = await StaticDbCommand.QueryAsync(connection, command, dbCommand =>
+			{
+				var values = (Dictionary<string, object?>)command.Parameters!;
+				StaticDbCommand.AddParameter(dbCommand, "TransportName", values["TransportName"], DbType.String);
+				StaticDbCommand.AddParameter(dbCommand, "BatchSize", values["BatchSize"], DbType.Int32);
+				StaticDbCommand.AddParameter(dbCommand, "MaxRetries", values["MaxRetries"], DbType.Int32);
+			}, ReadJoinedTransportRows).ConfigureAwait(false);
 
 			foreach (var (messageRow, transportRow) in rows)
 			{
@@ -1564,6 +1656,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(transports);
+		var outboxMessage = _convertMessage(message);
 
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
@@ -1575,7 +1668,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
-			await InsertMessageAsync(connection, transaction, message, cancellationToken).ConfigureAwait(false);
+			await InsertMessageAsync(connection, transaction, outboxMessage, cancellationToken).ConfigureAwait(false);
 
 			foreach (var transport in transportsList)
 			{
@@ -1629,13 +1722,14 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		var connection = sqlTransaction.Connection
 			?? throw new InvalidOperationException("The transaction's connection is null or has been disposed.");
+		var outboxMessage = _convertMessage(message);
 
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 
 		try
 		{
-			await InsertMessageAsync(connection, sqlTransaction, message, cancellationToken).ConfigureAwait(false);
+			await InsertMessageAsync(connection, sqlTransaction, outboxMessage, cancellationToken).ConfigureAwait(false);
 
 			if (message.IsMultiTransport && message.TransportDeliveries.Count > 0)
 			{
@@ -1848,7 +1942,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		var command = new CommandDefinition(
 			sql,
-			new { TransportName = transportName, MaxRetries = maxRetries, OlderThan = olderThan, BatchSize = batchSize },
+			new Dictionary<string, object?> { ["TransportName"] = transportName, ["MaxRetries"] = maxRetries, ["OlderThan"] = olderThan, ["BatchSize"] = batchSize },
 			commandTimeout: _options.Processing.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
@@ -1856,11 +1950,14 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		{
 			var results = new List<(OutboundMessage, OutboundMessageTransport)>();
 
-			var rows = await connection
-				.QueryAsync<Requests.OutboxMessageRow, TransportDeliveryRow, (Requests.OutboxMessageRow, TransportDeliveryRow)>(
-					command,
-					(messageRow, transportRow) => (messageRow, transportRow),
-					splitOn: "TransportId").ConfigureAwait(false);
+			var rows = await StaticDbCommand.QueryAsync(connection, command, dbCommand =>
+			{
+				var values = (Dictionary<string, object?>)command.Parameters!;
+				StaticDbCommand.AddParameter(dbCommand, "TransportName", values["TransportName"], DbType.String);
+				StaticDbCommand.AddParameter(dbCommand, "BatchSize", values["BatchSize"], DbType.Int32);
+				StaticDbCommand.AddParameter(dbCommand, "MaxRetries", values["MaxRetries"], DbType.Int32);
+				StaticDbCommand.AddParameter(dbCommand, "OlderThan", values["OlderThan"], DbType.DateTimeOffset);
+			}, ReadJoinedTransportRows).ConfigureAwait(false);
 
 			foreach (var (messageRow, transportRow) in rows)
 			{
@@ -1958,7 +2055,20 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		try
 		{
-			var row = await connection.QuerySingleOrDefaultAsync<TransportStatisticsRow>(command).ConfigureAwait(false);
+			var row = await StaticDbCommand.SingleOrDefaultAsync(connection, command, dbCommand =>
+			{
+				if (transportName is not null)
+				{
+					StaticDbCommand.AddParameter(dbCommand, "TransportName", transportName, DbType.String);
+				}
+			}, static reader => new TransportStatisticsRow
+			{
+				PendingCount = StaticDbValue.Int32(reader, 0),
+				SentCount = StaticDbValue.Int32(reader, 1),
+				FailedCount = StaticDbValue.Int32(reader, 2),
+				SkippedCount = StaticDbValue.Int32(reader, 3),
+				OldestPendingCreatedAt = StaticDbValue.DateTimeOffset(reader, 4),
+			}).ConfigureAwait(false);
 
 			return new TransportDeliveryStatistics
 			{
@@ -2008,6 +2118,22 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		return id is (>= 1 and <= 4) or (>= 200 and <= 254);
 	}
 
+	private static (Requests.OutboxMessageRow, TransportDeliveryRow) ReadJoinedTransportRows(System.Data.Common.DbDataReader reader) =>
+		(Requests.SqlServerOutboxRowReader.Read(reader, includeDispatcher: false), new TransportDeliveryRow
+		{
+			TransportId = StaticDbValue.String(reader, 21),
+			MessageId = StaticDbValue.String(reader, 22) ?? string.Empty,
+			TransportName = StaticDbValue.String(reader, 23) ?? string.Empty,
+			TransportDestination = StaticDbValue.String(reader, 24),
+			TransportStatus = reader.IsDBNull(25) ? null : StaticDbValue.Int32(reader, 25),
+			TransportCreatedAt = StaticDbValue.DateTimeOffset(reader, 26),
+			AttemptedAt = StaticDbValue.DateTimeOffset(reader, 27),
+			TransportSentAt = StaticDbValue.DateTimeOffset(reader, 28),
+			TransportRetryCount = reader.IsDBNull(29) ? null : StaticDbValue.Int32(reader, 29),
+			TransportLastError = StaticDbValue.String(reader, 30),
+			TransportMetadata = StaticDbValue.String(reader, 31),
+		});
+
 	private static OutboundMessageTransport MapRowToTransport(TransportDeliveryRow row)
 	{
 		return new OutboundMessageTransport
@@ -2032,6 +2158,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// <typeparam name="T"> The message type. </typeparam>
 	/// <param name="message"> The message to serialize. </param>
 	/// <returns> The serialized payload bytes with magic byte header (if using IPayloadSerializer). </returns>
+	[RequiresUnreferencedCode("Payload convenience may use the legacy reflection serializer when no codec is registered.")]
+	[RequiresDynamicCode("The legacy payload serializer may require runtime code generation.")]
 	private byte[] SerializePayload<T>(T message)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -2045,9 +2173,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		}
 
 		// Fallback to System.Text.Json for backward compatibility
-#pragma warning disable IL2026, IL3050 // JsonSerializer with Type parameter requires unreferenced code
-		return JsonSerializer.SerializeToUtf8Bytes(message, message.GetType(), _jsonOptions);
-#pragma warning restore IL2026, IL3050
+		return JsonSerializer.SerializeToUtf8Bytes(message, message.GetType(), _legacyJsonOptions ?? PrepareLegacyJsonOptions());
 	}
 
 	/// <summary>
@@ -2065,6 +2191,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// <item> Otherwise, assume System.Text.Json legacy format (no magic byte) </item>
 	/// </list>
 	/// </remarks>
+	[RequiresUnreferencedCode("Legacy payload detection may require reflection metadata.")]
+	[RequiresDynamicCode("The legacy payload serializer may require runtime code generation.")]
 	private T DeserializePayload<T>(byte[] payload)
 	{
 		ArgumentNullException.ThrowIfNull(payload);
@@ -2091,10 +2219,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		}
 
 		// Fallback to System.Text.Json for legacy payloads
-#pragma warning disable IL2026, IL3050 // JsonSerializer with generic type requires unreferenced code
-		return JsonSerializer.Deserialize<T>(payload, _jsonOptions)
+		return JsonSerializer.Deserialize<T>(payload, _legacyJsonOptions ?? PrepareLegacyJsonOptions())
 			   ?? throw new InvalidOperationException($"Deserialization returned null for type {typeof(T).Name}.");
-#pragma warning restore IL2026, IL3050
 	}
 
 	/// <summary>
@@ -2121,7 +2247,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	private async Task InsertMessageAsync(
 		SqlConnection connection,
 		SqlTransaction transaction,
-		OutboundMessage message,
+		OutboxMessage message,
 		CancellationToken cancellationToken)
 	{
 		_ = await connection.ResolveAsync(
@@ -2172,12 +2298,14 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		// Read back after the fact: this reports the state the row is in now, not necessarily the state that
 		// caused the mark to miss. That is enough to separate a missing row - which is a defect - from a lease
 		// hand-off, which is routine, and that is the distinction the single warning could not express.
-		var status = await connection.QuerySingleOrDefaultAsync<int?>(
-			new CommandDefinition(
-				$"SELECT Status FROM {_options.Tables.QualifiedOutboxTableName} WHERE Id = @MessageId",
-				new { MessageId = messageId },
-				commandTimeout: _options.Processing.CommandTimeoutSeconds,
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
+		var statusCommand = new CommandDefinition(
+			$"SELECT Status FROM {_options.Tables.QualifiedOutboxTableName} WHERE Id = @MessageId",
+			new { MessageId = messageId },
+			commandTimeout: _options.Processing.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+		var status = await StaticDbCommand.SingleOrDefaultAsync(connection, statusCommand,
+			command => StaticDbCommand.AddParameter(command, "MessageId", messageId, DbType.String),
+			static reader => reader.IsDBNull(0) ? (int?)null : StaticDbValue.Int32(reader, 0)).ConfigureAwait(false);
 
 		if (status is null)
 		{

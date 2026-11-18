@@ -4,6 +4,7 @@
 #pragma warning disable IL2026 // RequiresUnreferencedCode
 #pragma warning disable IL3050 // RequiresDynamicCode
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using CloudNative.CloudEvents;
 
 using Excalibur.Dispatch.CloudEvents;
@@ -31,6 +32,7 @@ public sealed class AwsEventBridgeCloudEventAdapterShould
 
 		_adapter = new AwsEventBridgeCloudEventAdapter(
 			options,
+			TestCloudEventSerializers.Reflection,
 			EventBridgeOptions(),
 			NullLogger<AwsEventBridgeCloudEventAdapter>.Instance);
 	}
@@ -44,7 +46,7 @@ public sealed class AwsEventBridgeCloudEventAdapterShould
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new AwsEventBridgeCloudEventAdapter(
-				null!, EventBridgeOptions(), NullLogger<AwsEventBridgeCloudEventAdapter>.Instance));
+				null!, TestCloudEventSerializers.Reflection, EventBridgeOptions(), NullLogger<AwsEventBridgeCloudEventAdapter>.Instance));
 	}
 
 	[Fact]
@@ -54,7 +56,7 @@ public sealed class AwsEventBridgeCloudEventAdapterShould
 
 		Should.Throw<ArgumentNullException>(() =>
 			new AwsEventBridgeCloudEventAdapter(
-				options, null!, NullLogger<AwsEventBridgeCloudEventAdapter>.Instance));
+				options, TestCloudEventSerializers.Reflection, null!, NullLogger<AwsEventBridgeCloudEventAdapter>.Instance));
 	}
 
 	[Fact]
@@ -63,7 +65,7 @@ public sealed class AwsEventBridgeCloudEventAdapterShould
 		var options = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
 
 		Should.Throw<ArgumentNullException>(() =>
-			new AwsEventBridgeCloudEventAdapter(options, EventBridgeOptions(), null!));
+			new AwsEventBridgeCloudEventAdapter(options, TestCloudEventSerializers.Reflection, EventBridgeOptions(), null!));
 	}
 
 	[Fact]
@@ -73,7 +75,7 @@ public sealed class AwsEventBridgeCloudEventAdapterShould
 			Microsoft.Extensions.Options.Options.Create(new CloudEventOptions
 			{
 				DefaultSource = new Uri("https://test.excalibur.io"),
-			}),
+			}), TestCloudEventSerializers.Reflection,
 			EventBridgeOptions(new AwsEventBridgeCloudEventOptions { EventBusName = "orders-bus" }),
 			NullLogger<AwsEventBridgeCloudEventAdapter>.Instance);
 

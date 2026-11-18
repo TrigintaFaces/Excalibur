@@ -25,6 +25,8 @@ public static class AzureFunctionsServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		_ = services.AddValidatedServerlessHostOptions();
+
 		// Register Azure Functions specific services
 		services.TryAddSingleton<IServerlessHostProvider, AzureFunctionsHostProvider>();
 		services.TryAddSingleton<IColdStartOptimizer, AzureFunctionsColdStartOptimizer>();

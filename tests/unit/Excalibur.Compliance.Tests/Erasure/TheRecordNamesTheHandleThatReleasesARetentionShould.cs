@@ -347,6 +347,10 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 			// store actually spells an untenanted request -- which is the disagreement that reached this
 			// code.
 			_ = services.AddDefaultTenantContext();
+						// The store reads the instant a claim lapse is decided against from a clock no caller can
+			// supply, so a container that registers it by type owes that clock. The production
+			// registration supplies it; this fixture builds its own container and must too.
+			_ = services.AddSingleton(TimeProvider.System);
 			_ = services.AddSingleton<InMemoryErasureStore>();
 			_ = services.AddSingleton<IErasureStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
 
@@ -355,6 +359,18 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 			// constructed -- and with it, a destruction the erasure service performs is recorded where a later
 			// read can find it.
 			_ = services.AddSingleton<IKeyDestructionLedger>(sp => sp.GetRequiredService<InMemoryErasureStore>());
+
+			// The write path records a mint intent for every first write per subject and obligation class,
+			// so the crypto-shredding stack cannot encrypt anything without one. Resolved from the same
+			// store as the destruction ledger, which is what the production registration does.
+			_ = services.AddSingleton<IKeyMintLedger>(sp => sp.GetRequiredService<InMemoryErasureStore>());
+
+			// This fixture wires a VOLATILE mint ledger by hand rather than through
+			// AddInMemoryErasureStore(), so nothing in its registration announces that the rows are lost on
+			// restart -- and startup correctly refuses that. These arms are about which handles an erasure
+			// destroys within a single process, so the statement is true here and stated rather than
+			// side-stepped by relaxing the guard.
+			_ = services.AcknowledgeNonDurableErasureLedger();
 
 			_provider = services.BuildServiceProvider();
 		}
@@ -533,6 +549,12 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 				null,
 				null,
 				_provider.GetRequiredService<IErasureRetentionRegistry>(),
+				// THE SAME INSTANCE as the destruction ledger and the erasure store, deliberately. The
+				// production registration resolves all three from one InMemoryErasureStore, so handing the
+				// service a separate mint ledger here would let these arms pass against a composition the
+				// framework cannot produce -- the write path would record into one object and the erasure
+				// enumerate another, which is the wiring defect rather than the behaviour under test.
+				Store,
 				[new RetainedContributor(_contributorReports)]);
 
 		/// <summary>

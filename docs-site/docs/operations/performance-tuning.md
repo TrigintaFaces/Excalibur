@@ -18,44 +18,46 @@ This guide covers performance optimization for event sourcing, outbox processing
 
 ### Dispatch Measurements by Code Epoch
 
-Current figures are the dated October 2026 measurements described in the
+The figures below are historical October 2026 measurements described in the
 [performance overview](../performance/index.md); rows marked as the September 2026 epoch
 have not been re-measured against the current source. None of these are production
 latencies -- the command handler is a no-op and query handlers double an input ID.
 
 The October 19 command and typed query rows each come from three
-separate original-observation processes. The query uses the selected current
-runtime after the fixture rental-lifecycle repair. Timing increased on both peers
+separate original-observation processes. The query uses the runtime selected for that historical run after the fixture rental-lifecycle repair. Timing increased on both peers
 from the earlier isolated-marker experiment; its cause remains unresolved. These
 observations do not certify the entire rebuilt checkout or NativeAOT performance.
 
 | Operation | Mean | Allocated | Source |
 |-----------|---------|-----------|-------|
-| Single command dispatch | ~65 ns | 96 B | Current observation, 19 October 2026 |
-| Typed query dispatch, default pipeline | ~136 ns | 288 B | Current observation, 19 October 2026 |
+| Single command dispatch | ~65 ns | 96 B | Historical observation, 19 October 2026 |
+| Typed query dispatch, default pipeline | ~136 ns | 288 B | Historical observation, 19 October 2026 |
 | Untyped query dispatch completion | 63.7 ns | 192 B | September 2026 epoch; returned-payload parity unverified |
-| Command with 3 middleware | 71.7 ns | 240 B | September 2026 epoch |
+| Nominal three-middleware fixture | 71.7 ns | 240 B | September 2026 epoch |
 
-Only the untyped query and three-middleware rows come from the WarmPath comparison epoch of 2026-09-05
+Historical pipeline stage execution and parity remain unverified. Current-source
+controls found that profile selection cleared the Dispatch stages; corrected setup
+is a separate workload epoch (`artifacts/benchmarks/current-refresh-20261101/pipeline-fixture-fix-evidence-r1.json`).
+
+Only the untyped query and nominal three-middleware rows come from the WarmPath comparison epoch of 2026-09-05
 (`benchmarks/baselines/net10.0/dispatch-comparative-20260905/results/`): respectively
 `MediatRWarmPathComparisonBenchmarks` and `PipelineWarmPathComparisonBenchmarks`.
 
 The untyped query result does not establish that the returned object carries the
 handler response. See the separate
-[current measurements](../performance/competitor-comparison.md#current-query-observations-19-october-2026)
+[October 19 observations](../performance/competitor-comparison.md#current-query-observations-19-october-2026)
 for payload-verified response APIs; their results do not replace this historical epoch.
 
-**Measure allocation in the consuming application.** Every dispatch publishes an ambient message context
-so a nested dispatch inherits causation, correlation, tenant and user rather than starting a fresh
-root. That costs one `ExecutionContext` copy-on-write, and the copy is of the whole async-local value
-map — so the real per-dispatch allocation scales with how many `AsyncLocal` values your application
-keeps live. A historical diagnostic attributed 72 of its 96 measured bytes to
-that copy with no other values, and observed roughly 160 B with one other value
-and 992 B with fifteen. These are observations from that code/runtime/configuration,
-not universal floors. Size the allocation budget from the application's own measurements.
+**Measure allocation in the consuming application.** Dispatch supports ambient message context
+for nested causation, correlation, tenant and user propagation. Earlier diagnostic notes attributed
+72 B of a 96 B command result to ambient-context publication and reported approximately 160 B
+with one additional `AsyncLocal` value and 992 B with fifteen. That attribution and scaling
+have not been re-established for the current source and runtime; they do not prove a fixed
+number of `ExecutionContext` copies or a universal allocation floor. Measure the complete
+application workload.
 
-Latency varied about 4% across the historical runs. Allocation figures describe that
-benchmark workload; measure the application's configuration before setting budgets.
+Allocation figures describe that benchmark workload; measure the application's configuration
+and run-to-run variation before setting budgets.
 
 A long-run allocation figure of **64.88 MB per 100K dispatches** was measured on 2026-03-11 and has
 not been re-taken since. Treat it as historical rather than current: it measures a different workload
@@ -66,11 +68,11 @@ by arithmetic.
 
 :::caution These are planning placeholders, not measurements
 
-The figures below have **not** been measured against this framework. Every operation in this
-table is dominated by a storage round-trip -- your database, your network, your hardware -- and
-the dispatch overhead measured above is three to five orders of magnitude smaller than any of
-them. Treat the numbers as a starting shape for your own budget, replace each one with your
-measured p99 as soon as you have it, and do not quote them as characteristics of Excalibur.
+The figures below have **not** been measured against this framework. Storage, network, handler,
+and queueing costs depend on the application; the historical dispatch microbenchmarks do not
+establish their relative contributions. Treat these as independent planning placeholders, replace
+them with measured latency distributions and sustained completed throughput, and do not quote them
+as characteristics of Excalibur. A latency budget alone does not establish throughput capacity.
 :::
 
 | Operation | Starting latency budget | Starting throughput budget |
@@ -85,38 +87,34 @@ measured p99 as soon as you have it, and do not quote them as characteristics of
 
 ### Snapshot Tuning
 
-The most impactful optimization for read performance:
+Snapshots can reduce event replay work. Measure read savings against snapshot creation, storage,
+and loading costs before choosing an interval:
 
 ```csharp
 es.UseCompositeSnapshotStrategy(composite =>
 {
     // Snapshot every 100 events OR every hour
-    composite.AddInterval(100)
-             .AddTimeInterval(TimeSpan.FromHours(1));
+    composite.AddIntervalStrategy(100)
+             .AddTimeBasedStrategy(TimeSpan.FromHours(1));
 });
 ```
 
 #### Measuring Snapshot Effectiveness
 
-Monitor snapshot effectiveness by querying the event store database directly:
-
-```sql
--- SQL Server: Find aggregates with many events since last snapshot
-SELECT e.StreamId, COUNT(*) AS EventsSinceSnapshot
-FROM [dbo].[Events] e
-LEFT JOIN [dbo].[Snapshots] s ON e.StreamId = s.StreamId
-WHERE e.Version > ISNULL(s.Version, 0)
-GROUP BY e.StreamId
-HAVING COUNT(*) > 100
-ORDER BY COUNT(*) DESC;
-```
+Measure replayed event counts and load duration with and without snapshots for equivalent streams.
+For database analysis, use the provider's deployed schema and complete stream identity, including tenant
+and aggregate type where applicable. Select the latest applicable snapshot and handle streams without a
+snapshot using the provider's initial-version convention; a join on stream ID alone may miscount events.
 
 ### Index Optimization
 
 #### SQL Server
 
+The index definitions below are illustrative shapes, not migration scripts for a verified provider schema.
+Match deployed column names, complete stream identity, existing indexes and query plans before applying them.
+
 ```sql
--- Most important: stream lookup
+-- Candidate stream lookup
 CREATE NONCLUSTERED INDEX IX_Events_StreamId_Version
 ON EventSourcing.Events (StreamId, Version)
 INCLUDE (EventType, Data, Timestamp);
@@ -127,8 +125,7 @@ ON EventSourcing.Events (SequenceNumber);
 
 -- For time-based queries
 CREATE NONCLUSTERED INDEX IX_Events_Timestamp
-ON EventSourcing.Events (Timestamp)
-WHERE Timestamp > DATEADD(DAY, -30, GETDATE());  -- Filtered for recent data
+ON EventSourcing.Events (Timestamp);
 ```
 
 #### PostgreSQL
@@ -142,34 +139,37 @@ INCLUDE (event_type, data, timestamp);
 CREATE INDEX idx_events_timestamp_brin
 ON event_sourcing.events USING BRIN (timestamp);
 
--- Partial index for recent events
-CREATE INDEX idx_events_recent
-ON event_sourcing.events (stream_id, version)
-WHERE timestamp > NOW() - INTERVAL '30 days';
 ```
+
+These are alternative index candidates. PostgreSQL index predicates require immutable expressions;
+a moving `NOW()` cutoff is unsuitable. See [CREATE INDEX](https://www.postgresql.org/docs/current/sql-createindex.html).
 
 ### Query Optimization
 
 #### Batch Loading
 
+The following illustrates different application read models, not equivalent benchmark workloads.
+Use projections only when their data and consistency contract meet the request. These application-specific
+APIs do not establish a query count; inspect the implementation and generated queries.
+
 ```csharp
-// DON'T: Load aggregates one by one
+// Load aggregate state when the operation requires it
 foreach (var id in orderIds)
 {
-    var order = await repository.GetByIdAsync(id, ct);  // N queries
+    var order = await repository.GetByIdAsync(id, ct);
 }
 
-// DO: Use projections for read-heavy scenarios
-var orders = await orderProjection.GetByIdsAsync(orderIds, ct);  // Single query
+// Illustrative application projection API for a compatible read contract
+var orders = await orderProjection.GetByIdsAsync(orderIds, ct);
 ```
 
 #### Projection Queries
 
 ```csharp
-// DON'T: Load from event store for read-heavy scenarios
+// Load events when event history is required
 var events = await _eventStore.LoadAsync("customer-123", "Order", ct);
 
-// DO: Query projections directly
+// Query a projection when its data and consistency meet the request
 var orders = await _orderProjection.GetByCustomerAsync("customer-123", ct);
 ```
 
@@ -184,7 +184,9 @@ outbox.WithProcessing(p =>
 });
 ```
 
-| Scenario | Recommended Batch Size |
+The following values are unverified tuning starting points. Measure completed work, latency and resource use for your workload.
+
+| Scenario | Candidate Batch Size |
 |----------|------------------------|
 | Low latency | 10-50 |
 | Balanced | 100-200 |
@@ -200,7 +202,9 @@ outbox.WithProcessing(p =>
 });
 ```
 
-| CPU Cores | Recommended Parallelism |
+These are unverified starting points, not measured optima. Use parallel processing only when the workload's ordering and concurrency contracts permit it.
+
+| CPU Cores | Candidate Parallelism |
 |-----------|------------------------|
 | 2 | 2 |
 | 4 | 4 |
@@ -215,7 +219,9 @@ outbox.WithProcessing(p =>
 });
 ```
 
-| Latency Requirement | Polling Interval |
+These intervals are unverified starting points. Polling interval alone does not guarantee end-to-end latency; include queueing, processing and downstream delays.
+
+| Latency Goal | Candidate Polling Interval |
 |---------------------|------------------|
 | Real-time (`<100ms`) | 50-100ms |
 | Near real-time (`<1s`) | 200-500ms |
@@ -224,18 +230,19 @@ outbox.WithProcessing(p =>
 
 ### Message Size
 
-Keep messages small for better throughput:
+Include the data required by the consumer contract. Measure serialization, transport and additional
+lookup costs before reducing payloads; removing required state changes the work and may break consumers.
 
 ```csharp
-// DON'T: Include full aggregate state
+// A contract that carries item and state data
 public record OrderCreated(
     Guid OrderId,
     string CustomerId,
-    List<OrderItem> Items,    // Avoid large payloads
-    string FullJsonState      // Never do this
+    List<OrderItem> Items,
+    string FullJsonState
 );
 
-// DO: Include only necessary data
+// Alternative only when consumers do not require the omitted data
 public record OrderCreated(
     Guid OrderId,
     string CustomerId
@@ -295,16 +302,19 @@ builder.AddProjection<OrderProjection>(p => p
     .WhenHandledBy<OrderCreated, OrderCreatedHandler>());
 ```
 
-Handler cost lands on the projection host, not on `SaveAsync` — a slow handler shows up as projection
-lag and as session-consistent reads reporting `BoundExpired`, never as a slower write.
+Asynchronous projection handlers execute on the projection host. Slow handlers can increase projection
+lag and cause session-consistent reads to report `BoundExpired`. Shared database, CPU, or connection-pool
+contention can also affect write latency; measure the complete application under load.
 
 ### Batch Projection Updates
 
-For high-throughput scenarios, batch your projection writes:
+The example below registers CDC processing. It does not implement batched projection writes.
+If batching is appropriate, implement it in the projection writer and verify ordering, failure recovery,
+and completed throughput with equivalent work.
 
 ```csharp
 // EnableProjectionProcessing() applies events per projection as the host reads the global stream.
-// For cross-aggregate batch scenarios, configure CDC-based projections instead:
+// Illustrative CDC registration; projection-write batching requires a separate implementation.
 services.AddCdcProcessor(cdc =>
 {
     cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
@@ -319,10 +329,10 @@ services.AddCdcProcessor(cdc =>
 
 ### Denormalization
 
-Trade storage for query speed:
+Denormalization may reduce query work at the cost of update and storage work; measure the actual queries:
 
 ```csharp
-// Denormalized projection for fast queries
+// Illustrative denormalized projection; measure read and update costs
 public record OrderProjection
 {
     public Guid OrderId { get; init; }
@@ -361,26 +371,24 @@ max_client_conn = 1000
 default_pool_size = 50
 ```
 
+These are configuration examples, not measured sizing recommendations. Verify application
+compatibility with transaction pooling and measure database capacity, connection waits and resource use.
+
 ### Connection Health
 
-```csharp
-services.AddHealthChecks()
-    .AddCheck("connection-pool", () =>
-    {
-        var stats = SqlConnection.GetPoolStatistics(connectionString);
-        var utilization = (double)stats.CurrentFree / stats.MaxPoolSize;
-
-        return utilization > 0.1
-            ? HealthCheckResult.Healthy($"Pool {utilization:P0} free")
-            : HealthCheckResult.Degraded($"Pool exhausted: {utilization:P0} free");
-    });
-```
+Use [SqlClient event counters](https://learn.microsoft.com/en-us/sql/connect/ado-net/event-counters)
+to observe connection resources, including `number-of-free-connections`. Correlate these with connection
+acquisition latency and timeout errors. A low free-connection count alone does not prove pool exhaustion,
+and provider-wide counters should not be interpreted as a specific connection string's pool capacity.
 
 ## Caching
 
 ### Aggregate Caching
 
-Use `IDistributedCache` or `IMemoryCache` to cache loaded aggregates and reduce event store reads:
+Caching may reduce repeated reads, but mutable aggregates require ownership isolation, version checks,
+and invalidation consistent with the write contract. Do not share a mutable aggregate instance across
+independent operations. The decorator below is an application-specific illustration, not a complete
+implementation of those safeguards:
 
 ```csharp
 services.AddMemoryCache();
@@ -396,12 +404,15 @@ services.Decorate<IEventSourcedRepository<OrderAggregate, Guid>>(
 
 ### Snapshot Caching
 
-Snapshot stores benefit from caching since snapshots change infrequently:
+Snapshot caching may reduce repeated reads when hit rates justify its memory and invalidation costs.
+Absolute expiration limits entry age; it does not guarantee that a cached snapshot is current after a
+write. Choose versioned keys or invalidation consistent with the application's read contract. See
+[Microsoft's .NET 10 memory-cache guidance](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/memory?view=aspnetcore-10.0).
 
 ```csharp
 services.AddMemoryCache();
 
-// Cache snapshots with absolute expiration to ensure freshness
+// Example expiration; provide versioning/invalidation for the required consistency
 services.Decorate<ISnapshotStore>(
     (inner, sp) => new CachingSnapshotStore(
         inner,
@@ -428,39 +439,51 @@ services.AddOpenTelemetry()
 -- SQL Server: Enable Query Store
 ALTER DATABASE EventStore SET QUERY_STORE = ON;
 
--- Find slow queries
+-- Weighted mean duration for regular executions in intervals overlapping the last hour.
+-- Boundary intervals may contain executions outside that hour; this is not p99 latency.
+DECLARE @since datetimeoffset = DATEADD(HOUR, -1, SYSDATETIMEOFFSET());
 SELECT TOP 10
     qsq.query_id,
     qsqt.query_sql_text,
-    qsp.avg_duration / 1000.0 AS avg_ms
+    SUM(rs.avg_duration * rs.count_executions)
+        / NULLIF(SUM(rs.count_executions), 0) / 1000.0 AS avg_ms,
+    SUM(rs.count_executions) AS executions
 FROM sys.query_store_query qsq
 JOIN sys.query_store_query_text qsqt ON qsq.query_text_id = qsqt.query_text_id
 JOIN sys.query_store_plan qsp ON qsq.query_id = qsp.query_id
-ORDER BY avg_duration DESC;
+JOIN sys.query_store_runtime_stats rs ON qsp.plan_id = rs.plan_id
+JOIN sys.query_store_runtime_stats_interval rsi
+    ON rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
+WHERE rs.execution_type = 0 AND rsi.end_time > @since
+GROUP BY qsq.query_id, qsqt.query_sql_text
+ORDER BY avg_ms DESC;
 ```
+
+The query uses interval statistics described in [Microsoft's Query Store guidance](https://learn.microsoft.com/en-us/sql/relational-databases/performance/tune-performance-with-the-query-store).
+It has not been executed against your database; verify permissions and Query Store availability before use.
 
 ## Performance Checklist
 
 ### Event Store
 
-- [ ] Snapshots configured with appropriate interval
+- [ ] Snapshot use and interval evaluated against replay, write and storage costs
 - [ ] Indexes created for common access patterns
 - [ ] Connection pool sized appropriately
-- [ ] Batch operations used where possible
+- [ ] Batching evaluated while preserving ordering, consistency and recovery requirements
 
 ### Outbox
 
 - [ ] Batch size optimized for workload
-- [ ] Parallel processing enabled
+- [ ] Parallelism measured only where ordering and concurrency contracts permit it
 - [ ] Polling interval matches latency needs
-- [ ] Message payloads kept small
+- [ ] Payload size evaluated while preserving required consumer data
 
 ### Projections
 
-- [ ] Batch processing implemented
+- [ ] Batching evaluated where ordering and recovery contracts permit it
 - [ ] Appropriate indexes on projection stores
 - [ ] Denormalization used where beneficial
-- [ ] Caching enabled for hot data
+- [ ] Caching evaluated with ownership, invalidation and measured hit rate
 
 ### General
 
@@ -469,18 +492,21 @@ ORDER BY avg_duration DESC;
 - [ ] Health checks monitoring resources
 - [ ] Load testing performed
 
-## Quick Wins
+## Candidates to Measure
 
-| Optimization | Impact | Effort |
-|--------------|--------|--------|
-| Enable snapshots | High | Low |
-| Add missing indexes | High | Low |
-| Increase batch sizes | Medium | Low |
-| Enable caching | Medium | Low |
-| Optimize message size | Medium | Medium |
-| Add parallelism | Medium | Low |
-| Denormalize projections | High | High |
-| Connection pool tuning | Medium | Low |
+These are investigation candidates, not measured impact or effort rankings. Use profiles and matched
+before/after measurements to select changes; retain required ordering, consistency, and retention behavior.
+
+| Candidate | Evidence to inspect |
+|-----------|---------------------|
+| Snapshots | Replay cost versus snapshot creation and loading cost |
+| Indexes | Query plans, logical reads, and added write cost |
+| Batch size | Completed throughput, tail latency, memory, and recovery work |
+| Caching | Hit rate, memory, invalidation cost, and consistency |
+| Message size | Serialization and transport costs with equivalent required data |
+| Parallelism | Contention and throughput where ordering permits concurrent work |
+| Denormalized projections | Read savings versus update and storage costs |
+| Connection pool size | Wait time, database capacity, and resource use |
 
 ## See Also
 

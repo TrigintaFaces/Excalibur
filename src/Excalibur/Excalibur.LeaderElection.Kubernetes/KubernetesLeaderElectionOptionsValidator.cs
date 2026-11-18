@@ -63,6 +63,8 @@ internal sealed class KubernetesLeaderElectionOptionsValidator : IValidateOption
 				$"{nameof(KubernetesLeaderElectionOptions.MaxRetryDelay)} ({options.MaxRetryDelay}) must be non-negative.");
 		}
 
+        try { _ = KubernetesLeaseProtocol.ToNativeSeconds(options.LeaseDuration); }
+        catch (ArgumentOutOfRangeException) { return ValidateOptionsResult.Fail("LeaseDuration exceeds native Int32 seconds."); }
 		return ValidateOptionsResult.Success;
 	}
 }

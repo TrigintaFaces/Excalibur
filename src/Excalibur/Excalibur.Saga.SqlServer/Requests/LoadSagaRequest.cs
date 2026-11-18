@@ -61,7 +61,13 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		// This is the same function of the same input the write side uses, which is what makes the two agree:
 		// a saga saved under scope S is loadable exactly under scope S.
 		var partition = KeyedTenantPartition.FromScope(scope);
-		var sql = $"SELECT StateJson, IsCompleted, Version FROM {qualifiedTableName} WHERE SagaId = @SagaId AND SagaType = @SagaType AND TenantId = @TenantId;";
+		var sql = $"""
+            SELECT StateJson, IsCompleted, Version, TimerRecoveryIncarnation, TimerRecoveryPendingBatch, TimerRecoveryPendingDigest FROM {qualifiedTableName}
+            WHERE SagaId = @SagaId AND SagaType = @SagaType
+              AND TenantId = @TenantId
+              AND DATALENGTH(TenantId) = DATALENGTH(@TenantId)
+              AND CONVERT(VARBINARY(128), TenantId) = CONVERT(VARBINARY(128), @TenantId);
+            """;
 		Parameters.Add("SagaId", sagaId);
 		Parameters.Add("SagaType", typeof(TSagaState).Name);
 		Parameters.Add("TenantId", partition.TenantId);
@@ -82,6 +88,10 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 			{
 				// The column is authoritative for concurrency, independent of any Version embedded in the JSON blob.
 				state.Version = record.Version;
+                state.TimerRecoveryIncarnationId = record.TimerRecoveryIncarnation is { } incarnation ? Guid.ParseExact(incarnation.TrimEnd(), "N") : Guid.Empty;
+                if (state.PendingTimerRecovery?.BatchId.ToString("N") != record.TimerRecoveryPendingBatch?.TrimEnd()
+                    || (state.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null) != record.TimerRecoveryPendingDigest?.TrimEnd())
+                { throw new InvalidOperationException("The selected saga serializer cannot restore the persisted ordinary timer journal."); }
 			}
 
 			return state;
@@ -89,5 +99,5 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	}
 
 	/// <summary>Row projection for the saga load query. A null instance means no matching row exists.</summary>
-	private sealed record SagaLoadRow(string StateJson, bool IsCompleted, long Version);
+	private sealed record SagaLoadRow(string StateJson, bool IsCompleted, long Version, string? TimerRecoveryIncarnation, string? TimerRecoveryPendingBatch, string? TimerRecoveryPendingDigest);
 }

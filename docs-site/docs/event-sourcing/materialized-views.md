@@ -976,7 +976,7 @@ without recording refresh success or treating host shutdown as a refresh failure
 
 #### Batch Processing
 
-For high-throughput scenarios (e.g., CDC integration), use the batch API:
+The batch API accepts multiple events; evaluate it with the required checkpoint and recovery behavior:
 
 ```csharp
 var events = new List<(IDomainEvent Event, long Position)>
@@ -990,7 +990,7 @@ var events = new List<(IDomainEvent Event, long Position)>
 await processor.ProcessEventsAsync(events, cancellationToken);
 ```
 
-The batch API defers position saves until the entire batch is processed — significantly more efficient than processing events one at a time.
+The batch API defers position saves until the entire batch is processed. Measure completed processing, position writes, memory and recovery behavior against the single-event path.
 
 #### Configuration
 

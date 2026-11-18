@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
-using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
@@ -28,10 +27,6 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 	/// <param name="outboxTableName"> The qualified outbox table name. </param>
 	/// <param name="sqlTimeOutSeconds"> The SQL command timeout in seconds. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-		Justification = "JSON deserialization of stored message metadata into a header dictionary mirrors the reserved-message reload path; consumers requiring AOT should use source-generated serialization.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "JSON deserialization of stored message metadata requires runtime code generation; mirrors the reserved-message reload path.")]
 	public GetScheduledOutboxMessages(
 		DateTimeOffset cutoff,
 		int batchSize,
@@ -59,7 +54,22 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 
 		ResolveAsync = async conn =>
 		{
-			var rows = await conn.QueryAsync<ScheduledOutboxRow>(Command).ConfigureAwait(false);
+			var rows = await StaticDbCommand.QueryAsync(conn, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "Cutoff", StaticDbCommand.Input<DateTimeOffset>(Parameters, "Cutoff"), DbType.DateTimeOffset);
+				StaticDbCommand.AddParameter(command, "BatchSize", StaticDbCommand.Input<int>(Parameters, "BatchSize"), DbType.Int32);
+			}, static reader => new ScheduledOutboxRow
+			{
+				MessageId = StaticDbValue.String(reader, 0) ?? string.Empty,
+				MessageType = StaticDbValue.String(reader, 1) ?? string.Empty,
+				MessageMetadata = StaticDbValue.String(reader, 2),
+				MessageBody = StaticDbValue.Bytes(reader, 3),
+				TenantId = StaticDbValue.String(reader, 4),
+				Destination = StaticDbValue.String(reader, 5),
+				OccurredOn = StaticDbValue.DateTimeOffset(reader, 6) ?? default,
+				ScheduledAt = StaticDbValue.DateTimeOffset(reader, 7),
+				Attempts = StaticDbValue.Int32(reader, 8),
+			}).ConfigureAwait(false);
 
 			return rows.Select(static row => new OutboundMessage
 			{
@@ -80,7 +90,7 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 				// (correlation/trace/etc.) rather than dropping them — mirrors the reserved-message path.
 				Headers = string.IsNullOrEmpty(row.MessageMetadata)
 					? new Dictionary<string, object>(StringComparer.Ordinal)
-					: System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(row.MessageMetadata, Excalibur.Dispatch.EventSerializationDefaults.Canonical)
+					: Excalibur.Dispatch.Outbox.OutboxHeaderJson.Deserialize(row.MessageMetadata)
 					  ?? new Dictionary<string, object>(StringComparer.Ordinal),
 			});
 		};

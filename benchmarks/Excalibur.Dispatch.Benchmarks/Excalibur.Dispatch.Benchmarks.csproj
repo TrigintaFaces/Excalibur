@@ -22,11 +22,19 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" />
     <PackageReference Include="MassTransit" />
     <PackageReference Include="MediatR" />
     <PackageReference Include="MessagePack" />
     <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="WolverineFx" />
+    <!-- JasperFx runtime compilation traverses legacy assembly metadata. These references complete
+         the observed metadata closure, not a security, graphics or NRBF workload.
+         See Excalibur_Dispatch-pgi12h and preserved
+         artifacts/benchmarks/current-refresh-20261101/wolverine-comparative-current-r1. -->
+    <PackageReference Include="System.Security.Permissions" />
+    <PackageReference Include="System.Drawing.Common" />
+    <PackageReference Include="System.Formats.Nrbf" />
     <PackageReference Include="MemoryPack" />
     <!-- WolverineFx 5.31.1 transitively requires CodeAnalysis 5.x via JasperFx.RuntimeCompiler.
          Central pin is now 5.3.0, so no VersionOverride needed. -->

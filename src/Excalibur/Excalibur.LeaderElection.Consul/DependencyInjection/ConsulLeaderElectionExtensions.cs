@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Consul;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
+using Microsoft.Extensions.Logging;
 using Excalibur.LeaderElection.Consul;
 using Excalibur.LeaderElection.Diagnostics;
 
@@ -169,18 +171,20 @@ public static class ConsulLeaderElectionExtensions
 		// Register the factory with telemetry wrapping
 		_ = services.AddSingleton<ILeaderElectionFactory>(sp =>
 		{
-			var inner = ActivatorUtilities.CreateInstance<ConsulLeaderElectionFactory>(sp);
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Consul");
+			var inner = new ConsulLeaderElectionFactory(
+                sp.GetRequiredService<IOptions<ConsulLeaderElectionOptions>>(),
+                sp.GetService<IConsulClient>(),
+                sp.GetService<ILoggerFactory>(),
+                sp.GetService<IFencingTokenIssuer>(),
+                sp.GetService<IMessageFailureClassifier>());
+			return TelemetryLeaderElectionFactory.CreateOwned(inner, sp.GetService<IMeterFactory>(), "Consul");
 		});
 
 		// Fencing is on by default: a stalled ex-leader's writes landing after a new leader is
 		// elected is silent data corruption, so the safe posture is auto-registering the store's arbitrated
 		// provider rather than requiring a second, easily-forgotten AddConsulFencingTokenProvider() +
 		// WithFencingTokens() call. WithoutFencingTokens() opts out.
-		services.TryAddDefaultFencingTokenProvider(sp =>
+		services.TryAddDefaultFencingTokenIssuer(sp =>
 			ActivatorUtilities.CreateInstance<ConsulFencingTokenProvider>(sp));
 	}
 }

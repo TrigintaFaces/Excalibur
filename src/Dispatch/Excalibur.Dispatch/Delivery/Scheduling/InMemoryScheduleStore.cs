@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// <summary>
 /// Volatile single-process schedule storage with atomic occurrence admission and detached snapshots.
 /// </summary>
-internal sealed class InMemoryScheduleStore(TimeProvider? timeProvider = null) : IScheduleExecutionStore, IScheduleStoreSignal
+internal sealed partial class InMemoryScheduleStore(TimeProvider? timeProvider = null) : IScheduleExecutionFailureStore, IScheduleStoreSignal
 {
 	// The store's own clock, which admission judges due-ness against. Optional and defaulted so the many
 	// existing parameterless constructions keep working; injectable so a conformance arm can drive a
@@ -17,7 +17,7 @@ internal sealed class InMemoryScheduleStore(TimeProvider? timeProvider = null) :
 	private readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
 
 	private sealed record Entry(ScheduledMessage Message, Guid Generation,
-		ScheduleExecutionLease? Owner = null, bool ProgressCommitted = false);
+		ScheduleExecutionLease? Owner = null, bool ProgressCommitted = false, int AdmissionAttempts = 0, int? MaxAdmissionAttempts = null, Guid? FailureOwner = null, ScheduleOccurrenceFailure? FailureRequest = null, bool RecoveryLineage = false);
 	private readonly System.Threading.Lock _gate = new();
 	private readonly Guid _storeId = Guid.NewGuid();
 	private readonly Dictionary<Guid, Entry> _store = [];
@@ -45,9 +45,14 @@ internal sealed class InMemoryScheduleStore(TimeProvider? timeProvider = null) :
 		ArgumentNullException.ThrowIfNull(message);
 		cancellationToken.ThrowIfCancellationRequested();
 		var owned = ScheduleExecutionSnapshot.Copy(message);
+		_ = CronRecurrenceValidation.Validate(owned);
 		lock (_gate)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
+			if (_store.TryGetValue(owned.Id, out var current) && (current.MaxAdmissionAttempts is not null || HasUnresolvedFailure(owned.Id, current)))
+			{
+				throw new InvalidOperationException("A captured occurrence is unsettled; retain its work and resolve it before replacing this schedule.");
+			}
 			_store[owned.Id] = new Entry(owned, Guid.NewGuid());
 		}
 		_changeChannel.Writer.TryWrite(true);
@@ -62,6 +67,11 @@ internal sealed class InMemoryScheduleStore(TimeProvider? timeProvider = null) :
 			cancellationToken.ThrowIfCancellationRequested();
 			if (_store.TryGetValue(scheduleId, out var entry))
 			{
+				if (entry.MaxAdmissionAttempts is not null || HasUnresolvedFailure(scheduleId, entry))
+				{
+					QuarantineForAdministrativeCompletion(scheduleId, entry);
+					return Task.CompletedTask;
+				}
 				var message = ScheduleExecutionSnapshot.Copy(entry.Message);
 				message.Enabled = false;
 				_store[scheduleId] = new Entry(message, Guid.NewGuid());
@@ -95,35 +105,73 @@ internal sealed class InMemoryScheduleStore(TimeProvider? timeProvider = null) :
 		lock (_gate)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-
-			// Due-ness is judged against the STORE's clock, not the caller's, exactly as the relational
-			// provider does. A single-process store cannot suffer clock skew between hosts, but the
-			// contract binds every implementation and the conformance kit checks it here too -- a provider
-			// that only honours the rule where skew is impossible teaches the wrong thing to the next one.
-			if (!_store.TryGetValue(scheduleId, out var entry) || !entry.Message.Enabled
-				|| entry.Generation != generation || entry.Message.NextExecutionUtc != occurrenceUtc
-				|| occurrenceUtc > _clock.GetUtcNow() || entry.Owner is not null)
-			{
-				return Task.FromResult<ScheduleExecutionLease?>(null);
-			}
-			var lease = new ScheduleExecutionLease(_storeId, scheduleId, generation, occurrenceUtc, Guid.NewGuid());
-			_store[scheduleId] = entry with { Owner = lease, ProgressCommitted = false };
-			return Task.FromResult<ScheduleExecutionLease?>(lease);
+			return Task.FromResult(AcquireUnderLock(scheduleId, generation, occurrenceUtc));
 		}
+	}
+
+	private ScheduleExecutionLease? AcquireUnderLock(Guid scheduleId, Guid generation, DateTimeOffset occurrenceUtc)
+	{
+		if (!CanAcquire(scheduleId, generation, occurrenceUtc, out var entry)) { return null; }
+		if (entry.MaxAdmissionAttempts is null) { _ = CronRecurrenceValidation.Validate(entry.Message); }
+		return GrantUnderLock(scheduleId, generation, occurrenceUtc, entry);
+	}
+
+	private ScheduleExecutionLease GrantUnderLock(Guid scheduleId, Guid generation, DateTimeOffset occurrenceUtc, Entry entry)
+	{
+		var attempt = checked(entry.AdmissionAttempts + 1);
+		var lease = new ScheduleExecutionLease(_storeId, scheduleId, generation, occurrenceUtc, Guid.NewGuid())
+		{
+			AdmissionAttempt = attempt,
+		};
+		_store[scheduleId] = entry with { Owner = lease, ProgressCommitted = false, AdmissionAttempts = attempt };
+		return lease;
+	}
+
+	private bool CanAcquire(Guid scheduleId, Guid generation, DateTimeOffset occurrenceUtc, out Entry entry)
+	{
+		if (_store.TryGetValue(scheduleId, out var current) && current.Message.Enabled && current.Generation == generation
+			&& current.Message.NextExecutionUtc == occurrenceUtc && occurrenceUtc <= _clock.GetUtcNow() && current.Owner is null)
+		{
+			entry = current;
+			return true;
+		}
+		entry = null!;
+		return false;
 	}
 
 	/// <inheritdoc />
 	public Task<bool> TryUpdateProgressAsync(ScheduleExecutionLease lease, ScheduleExecutionResult result,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) => UpdateProgressAsync(lease, result, disposition: null, cancellationToken);
+
+	private Task<bool> UpdateProgressAsync(ScheduleExecutionLease lease, ScheduleExecutionResult result,
+		ScheduleExecutionCompletionDisposition? disposition, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(lease);
 		ArgumentNullException.ThrowIfNull(result);
 		lock (_gate)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			if (!Matches(lease, out var entry) || entry.ProgressCommitted)
+			if (!Matches(lease, out var entry) || entry.ProgressCommitted
+				|| (entry.MaxAdmissionAttempts is not null && disposition is null))
 			{
 				return Task.FromResult(false);
+			}
+			if (disposition is { } completion)
+			{
+				if (!Enum.IsDefined(completion) || entry.MaxAdmissionAttempts is not { } budget
+					|| entry.AdmissionAttempts > budget
+					|| (!result.Disable && (result.NextExecutionUtc is null || result.NextExecutionUtc <= lease.OccurrenceUtc)))
+				{
+					return Task.FromResult(false);
+				}
+				if (completion != ScheduleExecutionCompletionDisposition.Fulfilled
+					&& (!PolicyDispositionAllowed(lease.ScheduleId, entry, lease.OccurrenceUtc)
+						|| result.LastExecutionUtc != entry.Message.LastExecutionUtc
+						|| (completion == ScheduleExecutionCompletionDisposition.PolicyDisabled && !result.Disable)
+						|| (completion == ScheduleExecutionCompletionDisposition.PolicySkipped && result.Disable)))
+				{
+					return Task.FromResult(false);
+				}
 			}
 			var message = ScheduleExecutionSnapshot.Copy(entry.Message);
 			message.LastExecutionUtc = result.LastExecutionUtc;
@@ -132,7 +180,17 @@ internal sealed class InMemoryScheduleStore(TimeProvider? timeProvider = null) :
 			{
 				message.Enabled = false;
 			}
-			_store[lease.ScheduleId] = entry with { Message = message, ProgressCommitted = true };
+			if (disposition == ScheduleExecutionCompletionDisposition.Fulfilled)
+			{
+				var key = (lease.ScheduleId, lease.Generation, lease.OccurrenceUtc);
+				if (_failures.TryGetValue(key, out var failure) && failure.Disposition == ScheduleFailureDisposition.Quarantined)
+				{
+					return Task.FromResult(false);
+				}
+				_failures.Remove(key);
+			}
+			_store[lease.ScheduleId] = entry with { Message = message, ProgressCommitted = true, AdmissionAttempts = 0,
+				MaxAdmissionAttempts = null, FailureOwner = null, FailureRequest = null, RecoveryLineage = false };
 			_changeChannel.Writer.TryWrite(true);
 			return Task.FromResult(true);
 		}
@@ -158,7 +216,10 @@ internal sealed class InMemoryScheduleStore(TimeProvider? timeProvider = null) :
 	private bool Matches(ScheduleExecutionLease lease, out Entry entry)
 	{
 		if (lease.StoreId == _storeId && _store.TryGetValue(lease.ScheduleId, out var current)
-			&& current.Generation == lease.Generation && current.Owner == lease)
+			&& current.Generation == lease.Generation && current.Owner is { } owner
+			&& owner.StoreId == lease.StoreId && owner.ScheduleId == lease.ScheduleId
+			&& owner.Generation == lease.Generation && owner.OccurrenceUtc == lease.OccurrenceUtc
+			&& owner.OwnerToken == lease.OwnerToken)
 		{
 			entry = current;
 			return true;

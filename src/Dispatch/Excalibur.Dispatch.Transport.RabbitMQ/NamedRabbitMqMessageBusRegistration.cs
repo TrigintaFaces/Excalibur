@@ -25,7 +25,7 @@ internal static class NamedRabbitMqMessageBusRegistration
 			services.AddSingleton(state);
 		}
 		var name = transport.Name;
-		RegisterLegacy<IConnectionFactory>(services, state, sp => RabbitMQTransportServiceCollectionExtensions.CreateConnectionFactory(sp, transport));
+		RegisterLegacy<IConnectionFactory>(services, state, _ => RabbitMQTransportServiceCollectionExtensions.CreateConnectionFactory(transport));
 		RegisterLegacy<IConnection>(services, state, sp => RabbitMQTransportServiceCollectionExtensions.ExecuteSync(
 			() => sp.GetRequiredService<IConnectionFactory>().CreateConnectionAsync()));
 		RegisterLegacy<IChannel>(services, state, sp => RabbitMQTransportServiceCollectionExtensions.ExecuteSync(
@@ -64,7 +64,7 @@ internal static class NamedRabbitMqMessageBusRegistration
 		var suppliedConnection = GetOverride<IConnection>(provider, services, state, transport.Name);
 		var connection = suppliedConnection ?? RabbitMQTransportServiceCollectionExtensions.ExecuteSync(() =>
 			(GetOverride<IConnectionFactory>(provider, services, state, transport.Name)
-				?? RabbitMQTransportServiceCollectionExtensions.CreateConnectionFactory(provider, transport)).CreateConnectionAsync());
+				?? RabbitMQTransportServiceCollectionExtensions.CreateConnectionFactory(transport)).CreateConnectionAsync());
 		try
 		{
 			var channel = RabbitMQTransportServiceCollectionExtensions.ExecuteSync(() => connection.CreateChannelAsync(createOptions));

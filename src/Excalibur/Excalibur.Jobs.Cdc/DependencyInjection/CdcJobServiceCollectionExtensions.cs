@@ -56,11 +56,9 @@ public static class CdcJobServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026, IL3050 // Configuration binding uses reflection by design; mirrors CdcJob.ConfigureJob.
 		_ = services.AddOptions<CdcJobOptions>()
 			.Bind(configuration.GetSection(CdcJob.JobConfigSectionName))
 			.ValidateOnStart();
-#pragma warning restore IL2026, IL3050
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<
 			IValidateOptions<CdcJobOptions>, CdcJobOptionsValidator>());

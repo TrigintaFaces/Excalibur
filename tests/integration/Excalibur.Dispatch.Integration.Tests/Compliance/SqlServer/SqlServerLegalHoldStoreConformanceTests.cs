@@ -170,6 +170,14 @@ public sealed class SqlServerLegalHoldStoreConformanceTests : LegalHoldStoreConf
 		ListActiveHoldsAsync_AllActive_ShouldReturnNonExpiredOrderedByCreatedAtDesc();
 
 	[Fact]
+	public Task ActiveHoldQueries_ShouldExcludeALapsedHoldAndStillReturnIndefiniteAndFutureOnes_Test() =>
+		ActiveHoldQueries_ShouldExcludeALapsedHoldAndStillReturnIndefiniteAndFutureOnes();
+
+	[Fact]
+	public Task ActiveHoldQueries_ShouldDeriveInForceAgainstTheGivenInstant_Test() =>
+		ActiveHoldQueries_ShouldDeriveInForceAgainstTheGivenInstant();
+
+	[Fact]
 	public Task ListActiveHoldsAsync_WithTenantFilter_ShouldFilterCorrectly_Test() =>
 		ListActiveHoldsAsync_WithTenantFilter_ShouldFilterCorrectly();
 

@@ -5,9 +5,9 @@ This sample demonstrates **MemoryPack serialization** with the Excalibur framewo
 ## What This Sample Shows
 
 1. **Binary Serialization** - Source-generated MemoryPack serialization
-2. **Source Generation** - No runtime reflection, full AOT support
+2. **Source Generation** - Source-generated serialization; verify the complete native application
 3. **Immutable Types** - Constructor-based deserialization with `[MemoryPackConstructor]`
-4. **NativeAOT Compatible** - Full trimming and AOT deployment support
+4. **NativeAOT deployment** - Publish and execute the complete sample to verify its serializers and dependencies
 
 ## Key Concepts
 
@@ -67,9 +67,7 @@ dotnet run
 
 ## Expected Output
 
-The sample's legacy "Zero-Allocation Deserialization Demo" label below is a demo
-title, not an allocation measurement. Span-based input does not guarantee that
-materializing an event object allocates nothing. Payload sizes in this illustrative
+Span-based input does not guarantee that materializing an event object allocates nothing. Payload sizes in this illustrative
 output are not a general size comparison.
 
 ```
@@ -84,7 +82,7 @@ Serialization Size Comparison:
   JSON text:        245 bytes
   MemoryPack:       86 bytes (64.9% smaller)
 
-=== Zero-Allocation Deserialization Demo ===
+=== Span-Based Deserialization Demo ===
 Deserialized event from binary data:
   OrderId: ORD-2026-001
   CustomerId: CUST-12345
@@ -104,7 +102,7 @@ Immutable event with [MemoryPackConstructor]:
 |----------|----------------|
 | Throughput-sensitive .NET workloads | Compare MemoryPack with the alternatives using your payloads |
 | .NET-to-.NET communication | MemoryPack is an available binary-format option |
-| NativeAOT deployment | MemoryPack (full support) |
+| NativeAOT deployment | MemoryPack source generation; verify the complete native sample |
 | Memory-constrained | Measure complete serialization/deserialization allocations |
 | Cross-language systems | Use MessagePack or Protobuf instead |
 | Human-readable debugging | Use JSON instead |
@@ -154,7 +152,7 @@ Handlers/
 
 ## NativeAOT Deployment
 
-MemoryPack is fully compatible with NativeAOT:
+MemoryPack supports source-generated serialization. Publish and execute this complete sample to verify NativeAOT compatibility for its configured types, runtime and dependencies:
 
 ```xml
 <PropertyGroup>
@@ -162,7 +160,7 @@ MemoryPack is fully compatible with NativeAOT:
 </PropertyGroup>
 ```
 
-All serialization code is source-generated at compile time - no runtime reflection required.
+The annotated sample types use source-generated serialization; this does not establish that every serializer path or dependency avoids reflection.
 
 ## Configuration
 

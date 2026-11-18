@@ -2,6 +2,104 @@
 
 Comprehensive BenchmarkDotNet suite for **Excalibur** framework performance validation and competitive analysis.
 
+### November 2 diagnostic evidence and limits
+
+The November 2, 2026 captures used Release, SDK 10.0.403, managed .NET 10.0.14,
+BenchmarkDotNet 0.15.8, and an Intel Core i9-14900K Windows workstation. The
+captured source revision was `6b9c97b342188008f3cee0ab0772ef9e2e62c0f0` with
+uncommitted inputs recorded in `data-processing-docs-source-r1.json`. A Git
+revision alone does not reproduce that source state. Evidence filenames below
+are relative to `artifacts/benchmarks/current-refresh-20261101/`.
+
+| Fixture | Captured scope | Evidence |
+| --- | --- | --- |
+| `LongRunAllocationGcBenchmarks` | 21 original cases, numerical and recorded-provenance checks completed | `longrun-evidence-r1.json` |
+| `CdcLatencyBenchmarks` | 18 original cases executed; 4 met numerical checks and 14 were refused for insufficient precision | `cdc-latency-evidence-r1.json` |
+| Standalone `AppendAllocationStrategyBenchmarks` | 24 original cases with committed-row, source, runtime and cleanup checks | `append-allocation-evidence-r2.json` |
+
+These are scoped observations, not completion of the benchmark campaign or a
+framework speedup. Append and long-run observations use one retained launch per
+case. The CDC evidence retains all original attempts and three separately
+declared two-case repetitions; refused timings are not measured passes.
+Keep raw confidence intervals, allocation/GC reports and refused attempts. The
+captures used a 2 GiB committed-memory limit for each benchmark process tree;
+the append fixture additionally used a campaign-owned SQL Server container
+with a separate 4 GiB limit. Exact commands, configuration, environment and
+input hashes are linked by the evidence receipts and each run's `spec.json`.
+
+Every long-run method measures an entire batch of 10,000, 50,000 or 100,000
+dispatches. Its BenchmarkDotNet time and allocation units are **per outer batch**.
+The returned throughput, percentile and GC-rate scalars are not the ordinary
+BenchmarkDotNet result columns. Inner dispatch results are discarded, so
+numerical completion does not independently certify every handler outcome.
+The historical managed exception and subsequent native termination did not
+reproduce in these smaller current subsets; their cause remains unresolved in
+`Excalibur_Dispatch-s16sto`.
+
+The CDC fixture uses synthetic events and an in-memory channel. Its wait case
+starts with data already available; producer and consumer run sequentially;
+the processing case counts entries without invoking an application handler.
+Separate controls checked all 18 cases' return values and remaining channel
+contents over 16 calls each. They do not establish timing precision. Original
+three-iteration jobs and matched repetitions produced intermittent millisecond
+samples among much shorter samples. Do not interpret the historical P95 and
+allocation targets as achieved results or report stable CDC latency from these
+captures. Follow-up `Excalibur_Dispatch-1erw3v` remains open.
+
+The append fixture measures a whole writer wave against synthetic SQL tables,
+not a production event-store, outbox or DataProcessing job. All rows accumulated
+through each original case; cleanup occurred afterward. No production retention
+policy changed. Two earlier attempts remain refused, including a residual-session
+audit failure; later clean captures do not establish that failure's cause was
+fixed. The 24 linked test-host cases are not included in standalone coverage.
+These managed captures are not actual NativeAOT measurements.
+
+To reproduce one CDC workload after a separate Release build, use an exact case
+selector and a fresh artifact directory:
+
+```powershell
+dotnet build benchmarks/Excalibur.Dispatch.Benchmarks -c Release -p:BuildExamplesAndTests=true
+if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
+$results = "artifacts/benchmarks/cdc-write-$([Guid]::NewGuid().ToString('N'))"
+dotnet benchmarks/Excalibur.Dispatch.Benchmarks/bin/Release/net10.0/Excalibur.Dispatch.Benchmarks.dll --filter 'Excalibur.Dispatch.Benchmarks.Patterns.CdcLatencyBenchmarks.WriteBatch(BatchSize: 500)' --exporters fulljson --keepFiles true --artifacts $results
+if ($LASTEXITCODE -ne 0) { throw 'Benchmark process failed' }
+```
+
+This selects the original workload; it does not recreate the archived containment
+or source epoch. Use the campaign's recorded bounded runner and renewed local
+reservations when reproducing its environment. An exit code of zero still requires
+checking the selected case, raw measurements and failures. Do not measure alongside builds,
+tests, profiling, source edits or IDE activity, and do not reuse an artifact directory.
+
+### Retry filter fixture verification
+
+`RetryPolicyMicroBenchmarks` applies its allow-list and deny-list through the Polly
+policy's `ShouldRetry` predicate. Earlier setup populated filter lists without
+passing them to the policy; those results cannot distinguish the filter modes.
+The repaired fixture is a separate measurement epoch, not a framework speedup.
+Its original methods, parameters, delays and diagnostic job remain unchanged.
+
+Run the regression checks before measuring:
+
+```powershell
+dotnet test tests/unit/Excalibur.Dispatch.Middleware.Tests -c Release -p:BuildExamplesAndTests=true --filter FullyQualifiedName~RetryBenchmarkFilterShould
+dotnet build benchmarks/Excalibur.Dispatch.Benchmarks -c Release -p:BuildExamplesAndTests=true
+dotnet benchmarks/Excalibur.Dispatch.Benchmarks/bin/Release/net10.0/Excalibur.Dispatch.Benchmarks.dll --filter '*RetryPolicyMicroBenchmarks*' --exporters fulljson --artifacts artifacts/benchmarks/retry-new-run
+```
+
+Success uses three attempts; exhaustion uses four. Enabled logging has a no-op
+sink, and a requested 1 ms delay does not guarantee 1 ms of elapsed time. The
+November 2, 2026 managed .NET 10.0.14 capture used BenchmarkDotNet 0.15.8 and the
+original `diag-default` job. Its 24 cases, exact bounded commands, dirty-source
+hashes, environment and raw results are linked by
+`artifacts/benchmarks/current-refresh-20261101/retry-filter-evidence-r1.json` and
+`retry-filter-source-r1.json` at source revision
+`6b9c97b342188008f3cee0ab0772ef9e2e62c0f0`.
+These single-launch observations do not establish comparative improvement or
+actual NativeAOT performance. Numeric BenchmarkDotNet exception-frequency
+records are retained separately from failure diagnostics; expected retry behavior
+is verified independently by fixture controls.
+
 ### Handler invoker fixture verification
 
 Build with `dotnet build benchmarks/Excalibur.Dispatch.Benchmarks -c Release -p:BuildExamplesAndTests=true`.
@@ -226,7 +324,9 @@ This benchmark suite provides:
 
 ## Quick Start
 
-### Run All Benchmarks
+### Open Benchmark Selection
+
+Opening the switcher does not prove that every benchmark executes. Use compiled discovery to account for the population and run bounded subsets with preserved commands and evidence.
 
 ```bash
 # From repository root
@@ -270,33 +370,33 @@ pwsh ./eng/run-benchmark-matrix.ps1 -VerboseFrameworkLogs
 
 ```bash
 # Event Sourcing benchmarks only
-dotnet run -c Release --filter *EventAppend*
+dotnet run -c Release -- --filter "*EventAppend*"
 
 # Comparative benchmarks (MediatR + Wolverine)
-dotnet run -c Release --filter *Comparison*
+dotnet run -c Release -- --filter "*Comparison*"
 
 # Outbox pattern benchmarks
-dotnet run -c Release --filter *Outbox*
+dotnet run -c Release -- --filter "*Outbox*"
 
 # Diagnostic slowdown isolation suites
-dotnet run -c Release --filter *DispatchHotPathBreakdownBenchmarks*
-dotnet run -c Release --filter *MiddlewareCostCurveBenchmarks*
-dotnet run -c Release --filter *HandlerResolutionBenchmarks*
-dotnet run -c Release --filter *ActivationStrategyBenchmarks*
-dotnet run -c Release --filter *HandlerFanOutBenchmarks*
-dotnet run -c Release --filter *FanOutColdDecompositionBenchmarks*
+dotnet run -c Release -- --filter "*DispatchHotPathBreakdownBenchmarks*"
+dotnet run -c Release -- --filter "*MiddlewareCostCurveBenchmarks*"
+dotnet run -c Release -- --filter "*HandlerResolutionBenchmarks*"
+dotnet run -c Release -- --filter "*ActivationStrategyBenchmarks*"
+dotnet run -c Release -- --filter "*HandlerFanOutBenchmarks*"
+dotnet run -c Release -- --filter "*FanOutColdDecompositionBenchmarks*"
 # Note: FanOutColdDecompositionBenchmarks uses a dedicated cold-start config (`diag-cold`) for lower-noise cold-path measurements.
-dotnet run -c Release --filter *FanOutBehaviorMatrixBenchmarks*
-dotnet run -c Release --filter *TransportAdapterPhaseBenchmarks*
-dotnet run -c Release --filter *TransportConcurrencyBreakdownBenchmarks*
-dotnet run -c Release --filter *FailurePathBenchmarks*
-dotnet run -c Release --filter *RetryPolicyMicroBenchmarks*
-dotnet run -c Release --filter *CancellationCostBenchmarks*
-dotnet run -c Release --filter *DispatchContextCostBenchmarks*
-dotnet run -c Release --filter *AllocationHotspotBenchmarks*
-dotnet run -c Release --filter *ConcurrencyContentionBenchmarks*
-dotnet run -c Release --filter *LongRunAllocationGcBenchmarks*
-dotnet run -c Release --filter *HandlerInvokerPathBenchmarks*
+dotnet run -c Release -- --filter "*FanOutBehaviorMatrixBenchmarks*"
+dotnet run -c Release -- --filter "*TransportAdapterPhaseBenchmarks*"
+dotnet run -c Release -- --filter "*TransportConcurrencyBreakdownBenchmarks*"
+dotnet run -c Release -- --filter "*FailurePathBenchmarks*"
+dotnet run -c Release -- --filter "*RetryPolicyMicroBenchmarks*"
+dotnet run -c Release -- --filter "*CancellationCostBenchmarks*"
+dotnet run -c Release -- --filter "*DispatchContextCostBenchmarks*"
+dotnet run -c Release -- --filter "*AllocationHotspotBenchmarks*"
+dotnet run -c Release -- --filter "*ConcurrencyContentionBenchmarks*"
+dotnet run -c Release -- --filter "*LongRunAllocationGcBenchmarks*"
+dotnet run -c Release -- --filter "*HandlerInvokerPathBenchmarks*"
 ```
 
 ### View Results
@@ -435,7 +535,7 @@ Core message dispatch pipeline performance.
 | `PipelineWithContextPropagation` | Context propagation | < 5ms / < 10ms |
 | `PipelineWithCancellation` | Cancellation support | < 5ms / < 10ms |
 
-**Infrastructure**: In-memory, minimal overhead
+**Infrastructure**: In-memory.
 
 **Key Metrics**: Handler invocation latency, middleware overhead, context propagation cost
 
@@ -475,9 +575,7 @@ Head-to-head performance comparison with leading .NET messaging frameworks.
 
 #### MediatRComparisonBenchmarks.cs
 
-**Framework Versions**:
-- Excalibur: 1.0.0 (local build)
-- MediatR: 13.0+ (latest stable)
+**Framework Versions**: Record the exact resolved Excalibur and MediatR package/build versions from the selected build and preserved report. Historical results retain their captured versions.
 
 **Categories**:
 
@@ -492,10 +590,9 @@ Head-to-head performance comparison with leading .NET messaging frameworks.
 
 **Key Findings**:
 - Excalibur uses explicit benchmark `AddDispatch(builder => ...)` options (light-mode equivalent, no hidden defaults)
-- Both frameworks use identical handler implementations (minimal processing)
-- Benchmarks measure framework overhead, not application logic
+- Inspect each arm's handler work, result consumption, context handling and completion boundary before comparing; fixture labels alone do not establish equivalent work.
 
-Latest refreshed values (February 19, 2026):
+Historical values (February 19, 2026):
 
 | Scenario | Dispatch | MediatR |
 |----------|----------|---------|
@@ -514,7 +611,7 @@ Methodology and intent:
 - Measure local command/query and remote event publish branches in the same benchmark fixture.
 - Model transport parity using provider-specific remote buses (`aws-sqs`, `azure-servicebus`, `kafka`, `rabbitmq`) without network I/O.
 
-Latest refreshed values (February 19, 2026):
+Historical values (February 19, 2026):
 
 | Scenario | Mean |
 |----------|------|
@@ -535,9 +632,7 @@ Latest refreshed values (February 19, 2026):
 
 #### WolverineComparisonBenchmarks.cs
 
-**Framework Versions**:
-- Excalibur: 1.0.0 (local build)
-- Wolverine: 3.0+ (latest stable)
+**Framework Versions**: Record the exact resolved Excalibur and Wolverine package/build versions from the selected build and preserved report. Historical results retain their captured versions.
 
 **Categories**:
 
@@ -562,11 +657,11 @@ Latest refreshed values (February 19, 2026):
 
 | Scenario | Excalibur Strength | Competitor Strength |
 |----------|----------------------------|---------------------|
-| In-Process Dispatch | ✅ Ultra-lightweight | MediatR: Mature ecosystem |
+| In-Process Dispatch | Measure the selected workload and configuration | MediatR: Mature ecosystem |
 | Event Sourcing | ✅ Native support | Both: No native support |
 | Outbox Pattern | ✅ Native support | Both: Third-party libraries |
 | Async Messaging | Excalibur framework | Wolverine: Advanced features |
-| Memory Efficiency | ✅ Minimal allocations | Varies |
+| Memory Efficiency | Measure allocations for the selected workload | Measure the equivalent workload |
 
 ---
 
@@ -625,7 +720,7 @@ epochs are not a before/after production performance comparison.
 
 Purpose: produce a cost curve that exposes incremental overhead per middleware layer.
 
-Latest depth curve (depth 0 vs depth 10):
+February 19 historical depth curve (depth 0 vs depth 10):
 
 | Scenario | Depth 0 | Depth 10 | Allocated (depth 0 -> 10) |
 |----------|---------|----------|-----------------------------|
@@ -646,7 +741,7 @@ Latest depth curve (depth 0 vs depth 10):
 
 Purpose: isolate resolution pressure and event fan-out scaling.
 
-Latest values:
+February 19 historical values:
 
 | Measurement | Mean |
 |-------------|------|
@@ -676,7 +771,7 @@ Latest values:
 
 Purpose: split adapter-phase costs by payload size and concurrency.
 
-Latest values:
+February 19 historical values:
 
 | Phase | Mean range | Notes |
 |-------|------------|-------|
@@ -684,7 +779,7 @@ Latest values:
 | Serialize payload | 199.14-9,545.53 ns | Valid rows across all payload/concurrency combinations |
 | Publish to in-memory adapter | 9,181.69-9,595.13 ns | Stable across payload/concurrency |
 | Receive + dispatch | 256.80-262.36 ns | Stable across payload/concurrency |
-| Publish+receive concurrent | 296.50-2,150.33 ns | Concurrency-sensitive, materially improved vs prior run |
+| Publish+receive concurrent | 296.50-2,150.33 ns | Concurrency-sensitive; improvement was an original historical interpretation, not a current verified gain |
 | Ack tracking (in-memory) | 50.63-56.93 ns | Stable |
 
 #### FailurePathBenchmarks.cs
@@ -699,7 +794,7 @@ Latest values:
 
 Purpose: quantify overhead in non-happy-path execution.
 
-Latest values:
+February 19 historical values:
 
 | Failure mode | Mean | Allocated |
 |--------------|------|-----------|
@@ -722,9 +817,12 @@ Latest values:
 | Allocated bytes/op | Per-operation allocation pressure |
 | Gen0 collections/sec | GC churn under sustained load |
 
+These are diagnostic scalars returned by the methods. Ordinary BenchmarkDotNet columns measure
+the entire outer batch and do not automatically report these returned values.
+
 Purpose: sustained-window diagnostics for tail-latency and GC behavior.
 
-Latest values:
+February 19 historical values:
 
 | Operation count | Window duration mean | Allocated |
 |-----------------|----------------------|-----------|
@@ -732,7 +830,7 @@ Latest values:
 | 50,000 | 22.769 ms | 69.82 MB |
 | 100,000 | 45.731 ms | 139.64 MB |
 
-Interpretation note: this suite now reports method-level timing by operation count and can be used for ongoing trend tracking.
+That historical report records method-level batch timing by operation count. Trend comparisons require matched workload, configuration and source evidence.
 
 ---
 
@@ -740,74 +838,80 @@ Interpretation note: this suite now reports method-level timing by operation cou
 
 ### Prerequisites
 
-- **.NET 10.0 SDK** (or later)
+- **Repository-pinned .NET SDK** and the recorded runtime/package versions for the intended comparison
 - **Docker** (for SQL Server Testcontainers)
 - **Release mode** (required for accurate results)
 
-### Full Suite
+### Discover This Benchmark Host
+
+Follow the [bounded Release subset guide](BENCHMARKS.md) and [repository runbook](../RUNBOOK.md). Build under the serialized slot before measurement, then list the built host's available methods:
 
 ```bash
 cd benchmarks/Excalibur.Dispatch.Benchmarks
-dotnet run -c Release
+dotnet bin/Release/net10.0/Excalibur.Dispatch.Benchmarks.dll --list flat
 ```
 
-### Comparative + Diagnostics Matrix (Non-Interactive, Recommended)
+This is discovery for one host, not execution or a repository-wide census. Expand parameters and jobs for each selected configuration, including benchmarks in other projects. An unfiltered invocation can prompt for selection; it does not prove that all cases ran.
+
+### Comparative + Diagnostics Matrix
 
 ```bash
-pwsh ./eng/run-benchmark-matrix.ps1
+# From the repository root: inspect options before selecting a bounded subset
+Get-Help ./eng/run-benchmark-matrix.ps1 -Detailed
 ```
 
-Why this is preferred for refreshes:
+The matrix runner provides:
 - Avoids interactive benchmark selection prompts.
 - Avoids overwhelming Wolverine/MassTransit info logs by default.
 - Preserves one log file per class for post-failure diagnosis.
-- Produces a row-count summary so docs can be synced to a known run.
+- Produces a row-count summary to reconcile against the exact expanded selection. Counts alone do not establish successful measurements or valid comparisons.
 
-Expected duration: **10-15 minutes** (includes SQL Server container initialization)
-Expected duration (full diagnostics matrix): **65-80 minutes** on the documented test machine.
+Earlier duration estimates were **10–15 minutes**, or **65–80 minutes** for the diagnostics matrix. These are unverified historical estimates, not bounds for the current population. Use small sequential subsets with explicit time, process-tree memory and log limits. Verify bounded retention before outbox or other growing-store workloads. Keep builds, tests, profiling, source edits and other benchmarks outside measurement windows.
 
 ### Specific Benchmark Class
 
+The commands below illustrate filter selection, not a controlled campaign protocol. `dotnet run` can build; use the separately built, frozen binary as shown in the bounded guide for measurements. A class filter can expand to many parameter/job cases and is not necessarily a bounded subset.
+
 ```bash
 # Event Sourcing only
-dotnet run -c Release --filter "*EventAppendBenchmarks*"
+dotnet run -c Release -- --filter "*EventAppendBenchmarks*"
 
 # Outbox only
-dotnet run -c Release --filter "*OutboxStagingBenchmarks*"
+dotnet run -c Release -- --filter "*OutboxStagingBenchmarks*"
 
 # Comparative only
-dotnet run -c Release --filter "*ComparisonBenchmarks*"
+dotnet run -c Release -- --filter "*ComparisonBenchmarks*"
 
 # Hot-path breakdown only
-dotnet run -c Release --filter "*DispatchHotPathBreakdownBenchmarks*"
+dotnet run -c Release -- --filter "*DispatchHotPathBreakdownBenchmarks*"
 
 # Middleware cost curve only
-dotnet run -c Release --filter "*MiddlewareCostCurveBenchmarks*"
+dotnet run -c Release -- --filter "*MiddlewareCostCurveBenchmarks*"
 
 # Failure-path diagnostics only
-dotnet run -c Release --filter "*FailurePathBenchmarks*"
+dotnet run -c Release -- --filter "*FailurePathBenchmarks*"
 
 # Retry policy diagnostics only
-dotnet run -c Release --filter "*RetryPolicyMicroBenchmarks*"
+dotnet run -c Release -- --filter "*RetryPolicyMicroBenchmarks*"
 
 # Transport concurrency breakdown only
-dotnet run -c Release --filter "*TransportConcurrencyBreakdownBenchmarks*"
+dotnet run -c Release -- --filter "*TransportConcurrencyBreakdownBenchmarks*"
 
 # Long-run GC/allocation diagnostics only
-dotnet run -c Release --filter "*LongRunAllocationGcBenchmarks*"
+dotnet run -c Release -- --filter "*LongRunAllocationGcBenchmarks*"
 
 # Handler invoker path diagnostics only
-dotnet run -c Release --filter "*HandlerInvokerPathBenchmarks*"
+dotnet run -c Release -- --filter "*HandlerInvokerPathBenchmarks*"
 ```
 
 ### Filter by Method Name
 
 ```bash
 # All "Append" benchmarks across all classes
-dotnet run -c Release --filter "*Append*"
+dotnet run -c Release -- --filter "*Append*"
 
 # All concurrent benchmarks
-dotnet run -c Release --filter "*Concurrent*"
+dotnet run -c Release -- --filter "*Concurrent*"
 ```
 
 ### Export Formats
@@ -884,31 +988,33 @@ Performance targets from `management/specs/testing-and-benchmarking-strategy-spe
 
 #### ✅ Good Performance Indicators
 
-1. **Low Mean**: < target (P50) from performance targets
-2. **Low StdDev**: < 10% of Mean (consistent performance)
+1. **Mean**: Report the measured mean and its uncertainty; mean is not P50.
+2. **StdDev**: Report within-process spread; assess reproducibility with independent processes and predeclared comparison limits.
 3. **Low Allocated**: Minimal memory allocations (especially hot paths)
-4. **P95 in Range**: P95 (Mean + 2*StdDev) < target (P95)
+4. **Percentiles**: Establish P50/P95 targets from an appropriate latency distribution; do not derive P95 from Mean + 2*StdDev.
 
 #### ⚠️ Warning Signs
 
-1. **High StdDev**: > 20% of Mean (inconsistent, investigate outliers)
+1. **Distribution warnings**: Investigate spread and outliers alongside independent-process variation; no universal percentage establishes consistency.
 2. **High Allocated**: Unexpected memory pressure (GC impact)
 3. **P95 > Target**: Unacceptable tail latency
 
 ### Memory Diagnostics
 
-**Gen0 Collections**:
-- 0-1 per operation: ✅ Excellent
-- 2-5 per operation: ⚠️ Acceptable
-- 5+ per operation: ❌ High GC pressure
+BenchmarkDotNet's displayed `Gen0`, `Gen1` and `Gen2` columns report collections
+per **1,000 operations**, not per operation. Raw JSON collection counts have their
+own operation denominators; do not interpret them as the displayed normalized values.
+See the [MemoryDiagnoser documentation](https://benchmarkdotnet.org/articles/configs/diagnosers.html).
 
-**Gen1/Gen2 Collections**:
-- 0 per operation: ✅ Required
-- Any Gen1/Gen2: ❌ Major performance issue
+Interpret collections alongside allocation, pause behavior, workload size and the
+configured GC mode. A Gen1 or Gen2 collection is not automatically a failed benchmark;
+use matched repetitions and application requirements to assess its impact.
 
 ### Comparative Analysis
 
 **Ratio Column** (comparative benchmarks only):
+
+The numbers below illustrate report interpretation; they are not current-source measurements.
 
 ```
 | Method                          | Mean      | Ratio |
@@ -918,14 +1024,14 @@ Performance targets from `management/specs/testing-and-benchmarking-strategy-spe
 ```
 
 - **Ratio = 1.00**: Baseline (Excalibur)
-- **Ratio < 1.00**: Faster than Dispatch (investigate why)
-- **Ratio > 1.00**: Slower than Dispatch (expected for competitors)
+- **Ratio < 1.00**: Lower reported mean than the baseline in this comparison
+- **Ratio > 1.00**: Higher reported mean than the baseline in this comparison
 
 **Interpreting Competitive Results**:
 
-- **Ratio 0.90-1.10**: Equivalent performance (within 10%)
-- **Ratio 1.10-1.50**: Moderate difference (acceptable)
-- **Ratio > 1.50**: Significant difference (competitive advantage)
+A ratio describes this comparison; equivalence or advantage requires matched work,
+configuration and uncertainty across repetitions. Fixed ratio bands alone do not
+establish statistical or practical significance.
 
 ---
 
@@ -936,7 +1042,7 @@ Performance targets from `management/specs/testing-and-benchmarking-strategy-spe
 Excalibur competes in the **.NET messaging framework** space:
 
 **Primary Competitors**:
-1. **MediatR** (market leader, 20M+ NuGet downloads)
+1. **MediatR** (in-process request and notification dispatch)
 2. **Wolverine** (modern alternative, advanced async features)
 
 **Feature overview** (capabilities and measured performance require separate evidence):
@@ -962,7 +1068,7 @@ fixture timings or feature availability.
 - ✅ **Event-sourced systems** (native aggregate support)
 - ✅ **Reliable messaging** (transactional outbox)
 - ✅ **Cloud-native applications** (CloudEvents, multi-cloud)
-- ✅ **High-throughput in-process dispatch** (minimal overhead)
+- **In-process dispatch** (measure the selected workload and configuration)
 - ✅ **DDD/CQRS architectures** (opinionated patterns)
 
 **When to Choose Competitors**:
@@ -971,18 +1077,18 @@ fixture timings or feature availability.
 
 ### Benchmark Methodology
 
-**Fair Comparison Principles**:
+**Fair Comparison Requirements**:
 
-1. **Identical Handler Logic**: All frameworks use minimal handler implementations (no application logic)
-2. **Same Infrastructure**: .NET 9.0, Release mode, MemoryDiagnoser enabled
-3. **Equivalent Configuration**: Excalibur uses explicit benchmark `AddDispatch(builder => ...)` options (light-mode equivalent)
-4. **No Middleware**: Baseline benchmarks exclude middleware/behaviors (pure dispatch overhead)
-5. **Warm-Up**: BenchmarkDotNet performs automatic warm-up iterations
+Inspect each captured runtime, job, diagnoser, handler behavior and configuration.
+Do not assume every fixture has identical settings or performs equivalent completed
+work. Disclose middleware, return-value semantics, queueing, correlation/tracking work,
+and whether setup, cold-start or steady-state execution is being measured.
 
-**What We Measure**:
-- Framework overhead (handler resolution, invocation, result handling)
-- Memory allocations (DI container, pipeline objects)
-- Concurrency scalability (10 and 100 concurrent operations)
+**What a Fixture Can Measure**:
+
+- Its configured dispatch, handler-resolution, invocation and result-handling work
+- Allocations when the selected diagnoser and execution mode report them
+- Task-batch execution; batches of 10 or 100 tasks alone do not establish overlapping execution or scalability
 
 **What We Don't Measure**:
 - Application logic complexity (all handlers are minimal)
@@ -1018,9 +1124,9 @@ fixture timings or feature availability.
 2. Benchmarks run (warm-up + measurement iterations)
 3. `[GlobalCleanup]`: Stop container, dispose resources
 
-**Performance Impact**:
-- First run: ~30-60 seconds (Docker image download)
-- Subsequent runs: ~10-15 seconds (container startup)
+**Setup Duration**:
+Record setup duration separately; image availability, network, container engine and machine
+resources affect download and startup time.
 
 ### Test Data
 
@@ -1103,7 +1209,7 @@ fixture timings or feature availability.
 **Regression Detection**:
 - Store baseline results (CSV) in repository
 - Compare new results with baseline
-- Fail build if Mean increases > 10% or Allocated increases > 20%
+- Use the selected gate’s [documented policy](../../eng/ci/perf-regression-check.ps1) and matching baseline configuration; preserve refusals and missing-result failures.
 
 ---
 
@@ -1154,7 +1260,10 @@ docker info
 
 This comprehensive benchmark suite provides:
 
-- ✅ **200+ benchmarks** across 7 categories
+The compiled discovery inventories describe the benchmark population for each recorded
+configuration. Available fixtures and exported reports do not establish completed
+coverage or a competitive ranking.
+
 - ✅ **Real-world scenarios** (SQL Server, concurrency, batching)
 - ✅ **Competitive analysis** (MediatR, Wolverine)
 - ✅ **Performance baselines** for regression detection

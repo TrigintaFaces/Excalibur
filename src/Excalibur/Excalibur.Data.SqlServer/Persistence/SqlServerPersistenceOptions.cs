@@ -279,6 +279,20 @@ public sealed class SqlServerSecurityOptions
 public sealed class SqlServerResiliencyOptions
 {
 	/// <summary>
+	/// Gets or sets a value indicating whether transient data-request retries are delegated
+	/// to the nearest active message-pipeline retry owner when it accepts the failure class.
+	/// </summary>
+	/// <value><see langword="false"/> by default, preserving local SQL retries.</value>
+	/// <remarks>
+	/// Enable only when data-request failures should reach the message retry boundary.
+	/// A caught first failure can select a handler fallback before a local retry would
+	/// have succeeded. Coordination follows the asynchronous logical flow, not an exact
+	/// message/context binding or a global physical-attempt/transaction guarantee.
+	/// Standalone calls and classes declined by the nearest owner retain local retries.
+	/// </remarks>
+	public bool DelegateRetriesToMessagePipeline { get; set; }
+
+	/// <summary>
 	/// Gets or sets the maximum number of command retry attempts for transient failures.
 	/// </summary>
 	/// <value>The maximum number of command retry attempts. Defaults to 3.</value>

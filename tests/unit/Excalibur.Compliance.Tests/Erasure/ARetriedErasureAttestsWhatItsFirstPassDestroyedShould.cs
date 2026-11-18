@@ -377,8 +377,16 @@ public sealed class ARetriedErasureAttestsWhatItsFirstPassDestroyedShould
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
-		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, null, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+		A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
+
+		// The completion returns an outcome now, where it used to return a bare Task with no value
+		// to arrange. A fake with no setup returns the default, the default is deliberately not
+		// Applied, and the service correctly stands down on anything else -- so without this every
+		// arm here reports a refusal. Applied is what a bare Task meant.
+		A.CallTo(() => _store.RecordCompletionAsync(
+				A<Guid>._, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
+			.Returns(ErasureWriteOutcome.Applied);
 		A.CallTo(() => _legalHolds.CheckHoldsAsync(
 				A<string>._, A<DataSubjectIdType>._, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new LegalHoldCheckResult { HasActiveHolds = false, ActiveHolds = [] }));
@@ -399,5 +407,6 @@ public sealed class ARetriedErasureAttestsWhatItsFirstPassDestroyedShould
 			null,
 			TestAnnotationSource.None,
 			TestRetentions.None,
+			TestMintLedger.None,
 			contributors: [EventStoreContributor()]);
 }

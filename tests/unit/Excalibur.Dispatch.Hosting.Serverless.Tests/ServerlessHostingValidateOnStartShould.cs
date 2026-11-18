@@ -53,4 +53,87 @@ public sealed class ServerlessHostingValidateOnStartShould : UnitTestBase
 		await host.StartAsync();
 		await host.StopAsync();
 	}
+
+	[Theory]
+	[Trait("Pattern", "Regression")]
+	[InlineData(ServerlessPlatform.AwsLambda)]
+	[InlineData(ServerlessPlatform.AzureFunctions)]
+	[InlineData(ServerlessPlatform.GoogleCloudFunctions)]
+	public async Task RejectInvalidMemoryAtStartupThroughThePublicServerlessFacade(ServerlessPlatform platform)
+	{
+		using var host = CreateFacadeHost(platform, 0);
+		var exception = await Should.ThrowAsync<OptionsValidationException>(
+			() => host.StartAsync(TestContext.Current.CancellationToken)).ConfigureAwait(false);
+		exception.Failures.ShouldContain(failure => failure.Contains(nameof(ServerlessHostOptions.MemoryLimitMB), StringComparison.Ordinal));
+	}
+
+	[Theory]
+	[Trait("Pattern", "Regression")]
+	[InlineData(ServerlessPlatform.AwsLambda)]
+	[InlineData(ServerlessPlatform.AzureFunctions)]
+	[InlineData(ServerlessPlatform.GoogleCloudFunctions)]
+	public async Task StartHealthyFacadeAndResolveItsServicesWithoutStartingMessaging(ServerlessPlatform platform)
+	{
+		using var host = CreateFacadeHost(platform, 128);
+		await host.StartAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+		var options = host.Services.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
+		options.MemoryLimitMB.ShouldBe(128);
+		options.ExecutionTimeout.ShouldBeNull();
+		host.Services.GetRequiredService<IServerlessHostProvider>().Platform.ShouldBe(platform);
+		host.Services.GetRequiredService<IColdStartOptimizer>().ShouldNotBeNull();
+		host.Services.GetService<Excalibur.Dispatch.IDispatcher>().ShouldBeNull();
+		host.Services.GetServices<IHostedService>().ShouldBeEmpty();
+		await host.StopAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+	}
+
+	[Fact]
+	[Trait("Pattern", "Regression")]
+	public async Task PreserveAConsumerScopedProviderWithoutCapturingItInASingletonFactory()
+	{
+		using var host = new HostBuilder()
+			.UseDefaultServiceProvider(options =>
+			{
+				options.ValidateOnBuild = true;
+				options.ValidateScopes = true;
+			})
+			.ConfigureServices(services =>
+			{
+				_ = services.AddLogging();
+				_ = services.AddScoped<IServerlessHostProvider>(_ => A.Fake<IServerlessHostProvider>());
+				_ = services.AddAzureFunctionsServerless(options => options.MemoryLimitMB = 128);
+			})
+			.Build();
+		await host.StartAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+		using var firstScope = host.Services.CreateScope();
+		using var secondScope = host.Services.CreateScope();
+		var first = firstScope.ServiceProvider.GetRequiredService<IServerlessHostProvider>();
+		firstScope.ServiceProvider.GetRequiredService<IServerlessHostProvider>().ShouldBeSameAs(first);
+		secondScope.ServiceProvider.GetRequiredService<IServerlessHostProvider>().ShouldNotBeSameAs(first);
+		host.Services.GetService<IServerlessHostProviderFactory>().ShouldBeNull();
+		await host.StopAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+	}
+
+	private static IHost CreateFacadeHost(ServerlessPlatform platform, int memoryLimit)
+	{
+		return new HostBuilder()
+			.ConfigureServices(services =>
+			{
+				_ = services.AddLogging();
+				switch (platform)
+				{
+					case ServerlessPlatform.AwsLambda:
+						_ = services.AddAwsLambdaServerless(options => options.MemoryLimitMB = memoryLimit);
+						break;
+					case ServerlessPlatform.AzureFunctions:
+						_ = services.AddAzureFunctionsServerless(options => options.MemoryLimitMB = memoryLimit);
+						break;
+					case ServerlessPlatform.GoogleCloudFunctions:
+						_ = services.AddGoogleCloudFunctionsServerless(options => options.MemoryLimitMB = memoryLimit);
+						break;
+					default:
+						throw new ArgumentOutOfRangeException(nameof(platform), platform, null);
+				}
+			})
+			.Build();
+	}
 }

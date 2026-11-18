@@ -96,28 +96,28 @@ Badge meanings:
 - `intermediate`: shows multi-feature composition with moderate operational setup.
 - `production-pattern`: demonstrates production-oriented architecture (CQRS, outbox/saga, or host composition).
 
-Current governance status:
+Current governance population (local validation on 2026-11-17):
 
 | Status | Count | Source |
 |--------|-------|--------|
-| Certified samples | 95 | `sampleFitness.certified` |
-| — of which **executed** (`run` mode) | 32 | `sampleFitness.smokeProfiles` |
-| — of which **compiled only** (`build` mode) | 63 | `sampleFitness.smokeProfiles` |
-| &nbsp;&nbsp;&nbsp;&nbsp;· because they need infrastructure CI cannot provide | 62 | `buildOnlyReason` |
-| &nbsp;&nbsp;&nbsp;&nbsp;· because nobody has yet assessed whether they could run | 1 | `buildOnlyReason` |
-| Quarantined samples | 0 | `sampleFitness.quarantined` |
+| Certified-profile samples successfully built | 100 | `sampleFitness.certified` |
+| — of which **executed** (`run` mode) | 36 | `sampleFitness.smokeProfiles` |
+| — of which **compiled only** (`build` mode) | 64 | `sampleFitness.smokeProfiles` |
+| &nbsp;&nbsp;&nbsp;&nbsp;· because they require external infrastructure | 64 | `buildOnlyReason` |
+| &nbsp;&nbsp;&nbsp;&nbsp;· not yet assessed for unattended execution | 0 | `buildOnlyReason` |
+| Quarantined samples (not counted as passing) | 1 | `sampleFitness.quarantined` |
 
-**Read the first two rows as different guarantees, because they are.** Thirty-two samples were started
-and reached a success signal they declared in advance. The other sixty-three compiled. Every build-mode
-sample declares *why* it is not executed — either it needs a broker, a cloud service or a database that
-the pipeline cannot stand up, or nobody has yet established whether it could run unattended. That second
-group is a **declared gap, not a pass**: it is counted separately here precisely so the aggregate cannot
-be quoted as ninety-five working samples.
+**Build success and execution are different guarantees.** The retained canonical local Windows
+validation built all 100 certified-profile samples: thirty-six also reached their declared smoke
+success signal, while sixty-four compiled only. All sixty-four build-only profiles declare external
+infrastructure requirements; their scenarios were not executed by that validation. These counts do
+not mean 100 runtime-verified samples, cloud-provider success or universal Native AOT support.
 
 This distinction is enforced rather than promised: a build-mode sample with no declared reason, or one
 claiming infrastructure without naming it, fails governance validation.
 
-The quarantine list is empty.
+`samples/10-aot/BulkDataProcessing/BulkDataProcessing.csproj` remains quarantined. It is outside the
+100-sample certified population and is not a passing build or runtime result.
 
 ## Architecture Samples
 

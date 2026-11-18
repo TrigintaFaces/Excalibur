@@ -434,11 +434,8 @@ public static class CdcBuilderSqlServerExtensions
 
 				var recoveryOptions = CdcRecoveryOptions.FromCdcOptions(cdcOptions);
 
-				return new DatabaseOptions
+				return new DatabaseOptions(dbName, dbConnId, stateConnId)
 				{
-					DatabaseName = dbName,
-					DatabaseConnectionIdentifier = dbConnId,
-					StateConnectionIdentifier = stateConnId,
 					Tables = [.. tables],
 					StopOnMissingTableHandler = capturedStopOnMissing,
 					ProducerBatchSize = capturedBatchSize,

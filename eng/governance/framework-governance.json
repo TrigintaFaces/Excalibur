@@ -327,6 +327,7 @@
       "samples/03-cloud-native/CloudNativePatterns.Examples/ClaimCheck/ClaimCheck.csproj",
       "samples/04-reliability/OrderingValidation/OrderingValidation.csproj",
       "samples/04-reliability/OutboxPattern/OutboxPattern.csproj",
+      "samples/04-reliability/PrimarySqlAtomicSaga/PrimarySqlAtomicSaga.csproj",
       "samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj",
       "samples/04-reliability/SagaOrchestration/SagaOrchestration.csproj",
       "samples/05-serverless/AwsLambda/AwsLambda.csproj",
@@ -365,6 +366,7 @@
       "samples/09-advanced/deployment/LeaderElection/LeaderElection.csproj",
       "samples/09-advanced/deployment/ProductionPipeline/ProductionPipeline.csproj",
       "samples/09-advanced/deployment/Testing/Testing.csproj",
+      "samples/09-advanced/persistence-patterns/BulkDataProcessing/BulkDataProcessing.csproj",
       "samples/09-advanced/persistence-patterns/CloudStorageSnapshots/CloudStorageSnapshots.csproj",
       "samples/09-advanced/persistence-patterns/CosmosDbEventStore/CosmosDbEventStore.csproj",
       "samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj",
@@ -405,14 +407,18 @@
       "samples/11-real-world/PublicApiTodo/PublicApiTodo.csproj",
       "samples/12-migration/MediatRMigration/Excalibur.MediatRMigration.csproj"
     ],
-    "quarantined": [],
+    "quarantined": [
+      "samples/10-aot/BulkDataProcessing/BulkDataProcessing.csproj"
+    ],
     "smokeProfiles": [
       {
         "project": "samples/02-event-sourcing/TransactionalInline/TransactionalInline.csproj",
         "mode": "build",
         "timeoutSeconds": null,
         "buildOnlyReason": "requires-external-infrastructure",
-        "requiresExternalInfrastructure": ["SQL Server"]
+        "requiresExternalInfrastructure": [
+          "SQL Server"
+        ]
       },
       {
         "project": "samples/01-getting-started/BindConfigurationPatterns/BindConfigurationPatterns.csproj",
@@ -582,15 +588,23 @@
         ]
       },
       {
+        "project": "samples/04-reliability/PrimarySqlAtomicSaga/PrimarySqlAtomicSaga.csproj",
+        "mode": "build",
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
+          "SQL Server (dedicated migrated database; SAGA_SQL_CONNECTION)"
+        ]
+      },
+      {
         "project": "samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj",
         "mode": "run",
         "timeoutSeconds": 60
       },
       {
         "project": "samples/04-reliability/SagaOrchestration/SagaOrchestration.csproj",
-        "mode": "build",
-        "timeoutSeconds": null,
-        "buildOnlyReason": "not-yet-assessed"
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/05-serverless/AwsLambda/AwsLambda.csproj",
@@ -850,6 +864,11 @@
       },
       {
         "project": "samples/09-advanced/deployment/Testing/Testing.csproj",
+        "mode": "run",
+        "timeoutSeconds": 60
+      },
+      {
+        "project": "samples/09-advanced/persistence-patterns/BulkDataProcessing/BulkDataProcessing.csproj",
         "mode": "run",
         "timeoutSeconds": 60
       },

@@ -350,5 +350,96 @@ public sealed class MessagePumpShould
 
         await StopPumpGracefully(sut, channel);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [Trait("Pattern", "Regression")]
+    public async Task Process_Preloaded_Ingress_Before_Stop(bool publishThroughPumpWriter)
+    {
+        var channel = Channel.CreateBounded<MessageEnvelope>(new BoundedChannelOptions(1)
+        {
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = true,
+            SingleWriter = true,
+        });
+        var processed = new TaskCompletionSource<MessageEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var callbackCount = 0;
+        var sut = new MessagePump("preloaded-ingress", channel, message =>
+        {
+            Interlocked.Increment(ref callbackCount);
+            processed.TrySetResult(message);
+            return Task.CompletedTask;
+        });
+        Exception? primaryFailure = null;
+
+        try
+        {
+            var envelope = new MessageEnvelope { MessageId = "preloaded-ingress" };
+            var pumpWriter = sut.Writer.ShouldNotBeNull();
+            var ingress = publishThroughPumpWriter ? pumpWriter : channel.Writer;
+            ingress.TryWrite(envelope).ShouldBeTrue();
+
+            // Both inputs are sealed before starting: Stop cannot cause the missing callback.
+            channel.Writer.TryComplete();
+            pumpWriter.TryComplete();
+            await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
+
+            await WaitForSignalAsync(processed.Task, SignalWaitTimeout,
+                "The accepted preloaded envelope did not reach the pump callback.").ConfigureAwait(false);
+            (await processed.Task.ConfigureAwait(false)).ShouldBeSameAs(envelope);
+            Volatile.Read(ref callbackCount).ShouldBe(1);
+        }
+        catch (Exception exception)
+        {
+            primaryFailure = exception;
+            throw;
+        }
+        finally
+        {
+            try
+            {
+                await StopPumpGracefully(sut, channel).ConfigureAwait(false);
+                await sut.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception cleanupFailure) when (primaryFailure is not null)
+            {
+                primaryFailure.Data["PumpCleanupFailure"] = cleanupFailure;
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [Trait("Pattern", "Regression")]
+    public async Task Preserve_Supplied_Writer_Lifetime_On_Disposal(bool disposeAsynchronously)
+    {
+        var channel = Channel.CreateBounded<MessageEnvelope>(1);
+        var sut = new MessagePump("disposal-ownership", channel, _ => Task.CompletedTask);
+
+        try
+        {
+            if (disposeAsynchronously)
+            {
+                await sut.DisposeAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                sut.Dispose();
+            }
+
+            sut.Writer.ShouldBeSameAs(channel.Writer);
+            channel.Writer.TryWrite(new MessageEnvelope { MessageId = "after-disposal" })
+                .ShouldBeFalse("both disposal paths complete the supplied ingress writer");
+            sut.Writer.ShouldNotBeNull().TryWrite(new MessageEnvelope { MessageId = "after-disposal-alias" })
+                .ShouldBeFalse("the exposed writer is the same completed ingress");
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
+            sut.Dispose();
+        }
+    }
 }
 

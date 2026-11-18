@@ -178,12 +178,12 @@ public sealed class SqlServerOutboxDeadLetterOnDecoratedStoreShould : IClassFixt
 		// One attempt, so exhaustion is immediate and deterministic.
 		_ = services.Configure<OutboxDeliveryOptions>(o => o.MaxAttempts = 1);
 
-		// The dispatch always fails: this arm is about what happens AFTER delivery is impossible, not about
-		// delivery itself.
+		// A known transient transport timeout exhausts the configured one-attempt budget.
+		// An unclassified failure is retained for review instead and does not exercise dead-letter completion.
 		var dispatcher = A.Fake<IDispatcher>();
 		_ = A.CallTo(dispatcher)
 			.Where(call => call.Method.Name == nameof(IDispatcher.DispatchAsync))
-			.Throws(() => new InvalidOperationException("transport is unavailable"));
+			.Throws(() => new TimeoutException("transport is unavailable"));
 		_ = services.AddSingleton(dispatcher);
 
 		return services.BuildServiceProvider();

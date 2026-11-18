@@ -169,11 +169,17 @@ public sealed class OutboxPrefersTheFencedCompletionShould
 			A.CallTo(() => gate.FencingToken).Returns(Tenure);
 		}
 
+		// This routing/compensation fixture requires a recognized transient failure so MaxAttempts=1
+		// reaches terminal completion; a missing DI service is now Unknown and correctly held instead.
+		var services = A.Fake<IServiceProvider>();
+		A.CallTo(() => services.GetService(typeof(IServiceScopeFactory)))
+			.Throws(new TimeoutException("CONTROLLED-DISPATCH-SCOPE-TIMEOUT"));
+
 		await using var processor = new OutboxProcessor(
 			options,
 			store,
 			new DispatchJsonSerializer(),
-			A.Fake<IServiceProvider>(),
+			services,
 			NullLogger<OutboxProcessor>.Instance,
 			leaderGate: gate,
 			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
@@ -202,9 +208,22 @@ public sealed class OutboxPrefersTheFencedCompletionShould
 	/// </para>
 	/// </remarks>
 	private sealed class FencedObservingStore
-		: IOutboxStore, IClaimScopedOutboxStore, IFencedClaimScopedOutboxStore, IDeadLetterableOutboxStore,
+		: IOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore, IFencedClaimScopedOutboxStore, IDeadLetterableOutboxStore,
 			IFencedDeadLetterableOutboxStore, IFencedOutboxStore
 	{
+
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.Applied);
+
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount,
+			string claimIdentity, CancellationToken cancellationToken) => MarkDeadLetteredAsync(messageId, reason, attemptCount, cancellationToken);
+
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, OutboxWriteAuthority authority, CancellationToken cancellationToken)
+			=> MarkSentAsync(messageId, authority.FencingToken, cancellationToken);
+
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount,
+			OutboxWriteAuthority authority, CancellationToken cancellationToken)
+			=> MarkDeadLetteredAsync(messageId, reason, attemptCount, authority.FencingToken, cancellationToken);
 		private int _served;
 
 		public int FencedFailureMarks { get; private set; }
@@ -225,8 +244,8 @@ public sealed class OutboxPrefersTheFencedCompletionShould
 			int batchSize, long fencingToken, CancellationToken cancellationToken)
 			=> GetUnsentMessagesAsync(batchSize, cancellationToken);
 
-		public ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
-			=> ValueTask.CompletedTask;
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
+			=> new(OutboxCompletionOutcome.Applied);
 
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 			int batchSize, CancellationToken cancellationToken)
@@ -236,8 +255,8 @@ public sealed class OutboxPrefersTheFencedCompletionShould
 				return new ValueTask<IEnumerable<OutboundMessage>>([]);
 			}
 
-			// Decodes cleanly and cannot be dispatched: the service provider supplies no handler, so the
-			// dispatch throws and the row takes the retryable failure path rather than the decode-failure one.
+			// Decodes cleanly; the controlled scope timeout drives the recognized transient dispatch
+			// failure path, distinct from decode failure and unclassified dependency configuration.
 			var message = new OutboundMessage
 			{
 				Id = "msg-" + Guid.NewGuid().ToString("N"),

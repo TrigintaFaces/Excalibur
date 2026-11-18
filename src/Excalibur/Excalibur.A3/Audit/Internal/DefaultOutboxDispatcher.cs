@@ -3,7 +3,6 @@
 
 using Excalibur.Dispatch;
 
-using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.A3.Audit.Internal;
 
@@ -39,8 +38,6 @@ internal sealed class DefaultOutboxDispatcher : IOutboxDispatcher
 		"Register a concrete outbox via services.AddExcaliburOutbox(...) " +
 		"(or a peer AddOutbox builder extension) before dispatching audited commands.";
 
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken)
 		=> throw new InvalidOperationException(RegisterOutboxMessage);
 

@@ -41,6 +41,11 @@ public class MiddlewareChainBenchmarks
 
 	private IMessageContextFactory? _contextFactory;
 	private IMessageContext? _context;
+	private IMessageContext? _oneMiddlewareContext;
+	private IMessageContext? _fiveMiddlewareContext;
+	private IMessageContext? _tenMiddlewareContext;
+	private IMessageContext? _shortCircuitContext;
+
 
 	/// <summary>
 	/// Initialize Dispatch pipelines with different middleware configurations.
@@ -48,29 +53,69 @@ public class MiddlewareChainBenchmarks
 	[GlobalSetup]
 	public void GlobalSetup()
 	{
-		// Setup: No middleware (baseline)
-		_noMiddlewareProvider = CreateServiceProvider(0, shortCircuit: false);
-		_noMiddlewareDispatcher = _noMiddlewareProvider.GetRequiredService<IDispatcher>();
+		try
+		{
+			// Setup: No middleware (baseline)
+			_noMiddlewareProvider = CreateServiceProvider(0, shortCircuit: false);
+			_noMiddlewareDispatcher = _noMiddlewareProvider.GetRequiredService<IDispatcher>();
+	
+			// Setup: 1 middleware
+			_oneMiddlewareProvider = CreateServiceProvider(1, shortCircuit: false);
+			_oneMiddlewareDispatcher = _oneMiddlewareProvider.GetRequiredService<IDispatcher>();
+	
+			// Setup: 5 middleware
+			_fiveMiddlewareProvider = CreateServiceProvider(5, shortCircuit: false);
+			_fiveMiddlewareDispatcher = _fiveMiddlewareProvider.GetRequiredService<IDispatcher>();
+	
+			// Setup: 10 middleware
+			_tenMiddlewareProvider = CreateServiceProvider(10, shortCircuit: false);
+			_tenMiddlewareDispatcher = _tenMiddlewareProvider.GetRequiredService<IDispatcher>();
+	
+			// Setup: Short-circuit middleware
+			_shortCircuitProvider = CreateServiceProvider(5, shortCircuit: true);
+			_shortCircuitDispatcher = _shortCircuitProvider.GetRequiredService<IDispatcher>();
+	
+			// Create context via factory (IMessageContext is per-request, not DI-registered)
+			_contextFactory = _noMiddlewareProvider.GetRequiredService<IMessageContextFactory>();
+			_context = _contextFactory.CreateContext();
+			_oneMiddlewareContext = _oneMiddlewareProvider.GetRequiredService<IMessageContextFactory>().CreateContext();
+			_fiveMiddlewareContext = _fiveMiddlewareProvider.GetRequiredService<IMessageContextFactory>().CreateContext();
+			_tenMiddlewareContext = _tenMiddlewareProvider.GetRequiredService<IMessageContextFactory>().CreateContext();
+			_shortCircuitContext = _shortCircuitProvider.GetRequiredService<IMessageContextFactory>().CreateContext();
+	
+			ValidateComposition(_noMiddlewareProvider, []);
+			ValidateComposition(_oneMiddlewareProvider, [typeof(PassthroughTestMiddleware<Stage1>)]);
+			ValidateComposition(_fiveMiddlewareProvider, [typeof(PassthroughTestMiddleware<Stage1>), typeof(PassthroughTestMiddleware<Stage2>), typeof(PassthroughTestMiddleware<Stage3>), typeof(PassthroughTestMiddleware<Stage4>), typeof(PassthroughTestMiddleware<Stage5>)]);
+			ValidateComposition(_tenMiddlewareProvider, [typeof(PassthroughTestMiddleware<Stage1>), typeof(PassthroughTestMiddleware<Stage2>), typeof(PassthroughTestMiddleware<Stage3>), typeof(PassthroughTestMiddleware<Stage4>), typeof(PassthroughTestMiddleware<Stage5>), typeof(PassthroughTestMiddleware<Stage6>), typeof(PassthroughTestMiddleware<Stage7>), typeof(PassthroughTestMiddleware<Stage8>), typeof(PassthroughTestMiddleware<Stage9>), typeof(PassthroughTestMiddleware<Stage10>)]);
+			ValidateComposition(_shortCircuitProvider, [typeof(ShortCircuitTestMiddleware)]);
+			if (!NoMiddleware().GetAwaiter().GetResult().Succeeded
+				|| !OneMiddleware().GetAwaiter().GetResult().Succeeded
+				|| !FiveMiddleware().GetAwaiter().GetResult().Succeeded
+				|| !TenMiddleware().GetAwaiter().GetResult().Succeeded
+				|| MiddlewareShortCircuit().GetAwaiter().GetResult() is not MessageResult)
+			{
+				throw new InvalidOperationException("Middleware benchmark did not execute its intended pipeline.");
+			}
+	
+			_context = _contextFactory.CreateContext();
+			_oneMiddlewareContext = _oneMiddlewareProvider.GetRequiredService<IMessageContextFactory>().CreateContext();
+			_fiveMiddlewareContext = _fiveMiddlewareProvider.GetRequiredService<IMessageContextFactory>().CreateContext();
+			_tenMiddlewareContext = _tenMiddlewareProvider.GetRequiredService<IMessageContextFactory>().CreateContext();
+			_shortCircuitContext = _shortCircuitProvider.GetRequiredService<IMessageContextFactory>().CreateContext();
+		}
+		catch (Exception setupError)
+		{
+			try
+			{
+				GlobalCleanup();
+			}
+			catch (Exception cleanupError)
+			{
+				throw new AggregateException("Benchmark setup and cleanup failed.", setupError, cleanupError);
+			}
 
-		// Setup: 1 middleware
-		_oneMiddlewareProvider = CreateServiceProvider(1, shortCircuit: false);
-		_oneMiddlewareDispatcher = _oneMiddlewareProvider.GetRequiredService<IDispatcher>();
-
-		// Setup: 5 middleware
-		_fiveMiddlewareProvider = CreateServiceProvider(5, shortCircuit: false);
-		_fiveMiddlewareDispatcher = _fiveMiddlewareProvider.GetRequiredService<IDispatcher>();
-
-		// Setup: 10 middleware
-		_tenMiddlewareProvider = CreateServiceProvider(10, shortCircuit: false);
-		_tenMiddlewareDispatcher = _tenMiddlewareProvider.GetRequiredService<IDispatcher>();
-
-		// Setup: Short-circuit middleware
-		_shortCircuitProvider = CreateServiceProvider(5, shortCircuit: true);
-		_shortCircuitDispatcher = _shortCircuitProvider.GetRequiredService<IDispatcher>();
-
-		// Create context via factory (IMessageContext is per-request, not DI-registered)
-		_contextFactory = _noMiddlewareProvider.GetRequiredService<IMessageContextFactory>();
-		_context = _contextFactory.CreateContext();
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -79,11 +124,20 @@ public class MiddlewareChainBenchmarks
 	[GlobalCleanup]
 	public void GlobalCleanup()
 	{
-		DisposeProvider(_noMiddlewareProvider);
-		DisposeProvider(_oneMiddlewareProvider);
-		DisposeProvider(_fiveMiddlewareProvider);
-		DisposeProvider(_tenMiddlewareProvider);
-		DisposeProvider(_shortCircuitProvider);
+		List<Exception>? failures = null;
+		DisposeProvider(ref _noMiddlewareProvider, ref failures);
+		DisposeProvider(ref _oneMiddlewareProvider, ref failures);
+		DisposeProvider(ref _fiveMiddlewareProvider, ref failures);
+		DisposeProvider(ref _tenMiddlewareProvider, ref failures);
+		DisposeProvider(ref _shortCircuitProvider, ref failures);
+		_noMiddlewareDispatcher = _oneMiddlewareDispatcher = _fiveMiddlewareDispatcher = _tenMiddlewareDispatcher = _shortCircuitDispatcher = null;
+		_context = _oneMiddlewareContext = _fiveMiddlewareContext = _tenMiddlewareContext = _shortCircuitContext = null;
+		_contextFactory = null;
+		if (failures is not null)
+		{
+			throw new AggregateException("Benchmark provider cleanup failed.", failures);
+		}
+
 	}
 
 	/// <summary>
@@ -103,7 +157,7 @@ public class MiddlewareChainBenchmarks
 	public async Task<IMessageResult> OneMiddleware()
 	{
 		var action = new TestAction { Value = 42 };
-		return await _oneMiddlewareDispatcher.DispatchAsync(action, _context, CancellationToken.None);
+		return await _oneMiddlewareDispatcher.DispatchAsync(action, _oneMiddlewareContext, CancellationToken.None);
 	}
 
 	/// <summary>
@@ -113,7 +167,7 @@ public class MiddlewareChainBenchmarks
 	public async Task<IMessageResult> FiveMiddleware()
 	{
 		var action = new TestAction { Value = 42 };
-		return await _fiveMiddlewareDispatcher.DispatchAsync(action, _context, CancellationToken.None);
+		return await _fiveMiddlewareDispatcher.DispatchAsync(action, _fiveMiddlewareContext, CancellationToken.None);
 	}
 
 	/// <summary>
@@ -123,7 +177,7 @@ public class MiddlewareChainBenchmarks
 	public async Task<IMessageResult> TenMiddleware()
 	{
 		var action = new TestAction { Value = 42 };
-		return await _tenMiddlewareDispatcher.DispatchAsync(action, _context, CancellationToken.None);
+		return await _tenMiddlewareDispatcher.DispatchAsync(action, _tenMiddlewareContext, CancellationToken.None);
 	}
 
 	/// <summary>
@@ -133,42 +187,116 @@ public class MiddlewareChainBenchmarks
 	public async Task<IMessageResult> MiddlewareShortCircuit()
 	{
 		var action = new TestAction { Value = 42 };
-		return await _shortCircuitDispatcher.DispatchAsync(action, _context, CancellationToken.None);
+		return await _shortCircuitDispatcher.DispatchAsync(action, _shortCircuitContext, CancellationToken.None);
 	}
 
 	private static IServiceProvider CreateServiceProvider(int middlewareCount, bool shortCircuit)
 	{
 		var services = new ServiceCollection();
 
-		// Add core Dispatch services
-		_ = services.AddBenchmarkDispatch();
-
-		// Register test handler
-		_ = services.AddTransient<IActionHandler<TestAction>, TestActionHandler>();
-
-		// Register middleware
-		if (shortCircuit)
+		// Concrete DI registration alone does not compose the dispatch pipeline.
+		_ = services.AddBenchmarkDispatch(builder =>
 		{
-			// First middleware short-circuits
-			_ = services.AddMiddleware<ShortCircuitTestMiddleware>();
-		}
-		else
-		{
-			// Add specified number of passthrough middleware
-			for (int i = 0; i < middlewareCount; i++)
+			if (shortCircuit)
 			{
-				_ = services.AddMiddleware<PassthroughTestMiddleware>();
+				_ = services.AddMiddleware<ShortCircuitTestMiddleware>();
+				_ = builder.UseMiddleware<ShortCircuitTestMiddleware>();
 			}
-		}
+			else
+			{
+				if (middlewareCount >= 1)
+				{
+					_ = services.AddMiddleware<PassthroughTestMiddleware<Stage1>>();
+					_ = builder.UseMiddleware<PassthroughTestMiddleware<Stage1>>();
+				}
+				if (middlewareCount >= 2)
+				{
+					_ = services.AddMiddleware<PassthroughTestMiddleware<Stage2>>();
+					_ = builder.UseMiddleware<PassthroughTestMiddleware<Stage2>>();
+				}
+				if (middlewareCount >= 3)
+				{
+					_ = services.AddMiddleware<PassthroughTestMiddleware<Stage3>>();
+					_ = builder.UseMiddleware<PassthroughTestMiddleware<Stage3>>();
+				}
+				if (middlewareCount >= 4)
+				{
+					_ = services.AddMiddleware<PassthroughTestMiddleware<Stage4>>();
+					_ = builder.UseMiddleware<PassthroughTestMiddleware<Stage4>>();
+				}
+				if (middlewareCount >= 5)
+				{
+					_ = services.AddMiddleware<PassthroughTestMiddleware<Stage5>>();
+					_ = builder.UseMiddleware<PassthroughTestMiddleware<Stage5>>();
+				}
+				if (middlewareCount >= 6)
+				{
+					_ = services.AddMiddleware<PassthroughTestMiddleware<Stage6>>();
+					_ = builder.UseMiddleware<PassthroughTestMiddleware<Stage6>>();
+				}
+				if (middlewareCount >= 7)
+				{
+					_ = services.AddMiddleware<PassthroughTestMiddleware<Stage7>>();
+					_ = builder.UseMiddleware<PassthroughTestMiddleware<Stage7>>();
+				}
+				if (middlewareCount >= 8)
+				{
+					_ = services.AddMiddleware<PassthroughTestMiddleware<Stage8>>();
+					_ = builder.UseMiddleware<PassthroughTestMiddleware<Stage8>>();
+				}
+				if (middlewareCount >= 9)
+				{
+					_ = services.AddMiddleware<PassthroughTestMiddleware<Stage9>>();
+					_ = builder.UseMiddleware<PassthroughTestMiddleware<Stage9>>();
+				}
+				if (middlewareCount >= 10)
+				{
+					_ = services.AddMiddleware<PassthroughTestMiddleware<Stage10>>();
+					_ = builder.UseMiddleware<PassthroughTestMiddleware<Stage10>>();
+				}
+			}
+		});
+		_ = services.AddTransient<IActionHandler<TestAction>, TestActionHandler>();
 
 		return services.BuildServiceProvider();
 	}
 
-	private static void DisposeProvider(IServiceProvider? provider)
+	private static void ValidateComposition(IServiceProvider provider, Type[] expected)
 	{
-		if (provider is IDisposable disposable)
+		// Managed-only fixture guard: fail closed if the actual invoker layout changes.
+		const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var invoker = dispatcher.GetType().GetField("_concreteMiddlewareInvoker", flags)?.GetValue(dispatcher)
+			?? throw new InvalidOperationException("Cannot inspect dispatcher-owned middleware invoker.");
+		var builder = invoker.GetType().GetField("_chainBuilder", flags)?.GetValue(invoker)
+			?? throw new InvalidOperationException("Cannot inspect benchmark middleware invoker.");
+		var chain = builder.GetType().GetMethod("GetChain", [typeof(Type)])?.Invoke(builder, [typeof(TestAction)])
+			?? throw new InvalidOperationException("Cannot inspect applicable benchmark chain.");
+		var middleware = chain.GetType().GetField("_middlewares", flags)?.GetValue(chain) as IDispatchMiddleware[]
+			?? throw new InvalidOperationException("Cannot inspect benchmark middleware chain.");
+		var identity = invoker.GetType().Assembly.GetType("Excalibur.Dispatch.Delivery.Pipeline.IMiddlewareTypeIdentity", throwOnError: true)!;
+		var identityProperty = identity.GetProperty("MiddlewareType")
+			?? throw new InvalidOperationException("Cannot inspect scoped middleware identity.");
+		var actual = middleware.Select(item => identity.IsInstanceOfType(item)
+			? (Type)(identityProperty.GetValue(item) ?? throw new InvalidOperationException("Missing middleware identity."))
+			: item.GetType()).ToArray();
+		if (!actual.SequenceEqual(expected))
 		{
-			disposable.Dispose();
+			throw new InvalidOperationException($"Benchmark middleware chain differs from its declared workload: {string.Join(", ", middleware.Select(static item => item.GetType().FullName))}");
+		}
+	}
+
+	private static void DisposeProvider(ref IServiceProvider? provider, ref List<Exception>? failures)
+	{
+		var owned = provider;
+		provider = null;
+		try
+		{
+			(owned as IDisposable)?.Dispose();
+		}
+		catch (Exception error)
+		{
+			(failures ??= []).Add(error);
 		}
 	}
 
@@ -189,8 +317,39 @@ public class MiddlewareChainBenchmarks
 		}
 	}
 
+	private sealed class Stage1
+	{
+	}
+	private sealed class Stage2
+	{
+	}
+	private sealed class Stage3
+	{
+	}
+	private sealed class Stage4
+	{
+	}
+	private sealed class Stage5
+	{
+	}
+	private sealed class Stage6
+	{
+	}
+	private sealed class Stage7
+	{
+	}
+	private sealed class Stage8
+	{
+	}
+	private sealed class Stage9
+	{
+	}
+	private sealed class Stage10
+	{
+	}
+
 	// Passthrough Middleware (does minimal work and continues chain)
-	private class PassthroughTestMiddleware : IDispatchMiddleware
+	private class PassthroughTestMiddleware<TStage> : IDispatchMiddleware
 	{
 		public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
 

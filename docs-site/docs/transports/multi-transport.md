@@ -295,7 +295,7 @@ var canRoute = router.CanRouteTo(message, "billing-service");
 ```
 
 ## Next Steps
-- [Kafka Transport](kafka.md) — High-throughput streaming
+- [Kafka Transport](kafka.md) — Partitioned event streaming
 - [RabbitMQ Transport](rabbitmq.md) — Flexible routing patterns
 - [Azure Service Bus](azure-service-bus.md) — Azure-native messaging
 - [Message Routing](../patterns/routing.md) — Full UseRouting() API reference

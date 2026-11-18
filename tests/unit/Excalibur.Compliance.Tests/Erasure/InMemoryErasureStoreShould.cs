@@ -7,7 +7,7 @@ using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
 [Trait("Component", "Compliance")]
 public sealed class InMemoryErasureStoreShould
 {
-    private readonly InMemoryErasureStore _sut = new(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
+    private readonly InMemoryErasureStore _sut = new(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }), TimeProvider.System);
 
     private static ErasureRequest CreateRequest(Guid? requestId = null) => new()
     {
@@ -79,21 +79,30 @@ public sealed class InMemoryErasureStoreShould
         var request = CreateRequest();
         await _sut.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddHours(72), CancellationToken.None);
 
-        var updated = await _sut.UpdateStatusAsync(
-            request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None);
+        // Custody is taken through the claim, which is the only member that mints the identity a fenced
+        // write presents. It advances the status as part of the SAME indivisible step.
+        var claim = await _sut.ClaimForExecutionAsync(
+            request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None);
 
-        updated.ShouldBeTrue();
+        claim.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+        claim.ClaimIdentity.ShouldNotBeNullOrWhiteSpace(
+            "a granted claim must carry the identity, or its holder presents null on its first fenced "
+            + "write -- which is the predicate asserting that NOBODY holds the request");
+
         var status = await _sut.GetStatusAsync(request.RequestId, CancellationToken.None);
         status!.Status.ShouldBe(ErasureRequestStatus.InProgress);
     }
 
     [Fact]
-    public async Task Return_false_when_updating_nonexistent_request()
+    public async Task Report_not_found_when_claiming_a_nonexistent_request()
     {
-        var updated = await _sut.UpdateStatusAsync(
-            Guid.NewGuid(), ErasureRequestStatus.InProgress, null, CancellationToken.None);
+        var claim = await _sut.ClaimForExecutionAsync(
+            Guid.NewGuid(), ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None);
 
-        updated.ShouldBeFalse();
+        // A VALUE, never an exception: a caller must be able to tell "no such request" from "this store
+        // cannot answer", and only one of those is worth reporting as a defect.
+        claim.Outcome.ShouldBe(ErasureClaimOutcome.NotFound);
+        claim.ClaimIdentity.ShouldBeNull();
     }
 
     [Fact]
@@ -102,13 +111,18 @@ public sealed class InMemoryErasureStoreShould
         var request = CreateRequest();
         await _sut.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddHours(72), CancellationToken.None);
 
-        var first = await _sut.UpdateStatusAsync(
-            request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None);
-        var second = await _sut.UpdateStatusAsync(
-            request.RequestId, ErasureRequestStatus.InProgress, null, CancellationToken.None);
+        var first = await _sut.ClaimForExecutionAsync(
+            request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None);
+        var second = await _sut.ClaimForExecutionAsync(
+            request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None);
 
-        first.ShouldBeTrue();
-        second.ShouldBeFalse();
+        first.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+
+        // AlreadyClaimed, not StatusMismatch, and the difference is what the caller must do next: a
+        // claimed request comes back on its own when that claim lapses, so the loser skips quietly and
+        // releases any retry budget rather than spending one on work another instance is doing.
+        second.Outcome.ShouldBe(ErasureClaimOutcome.AlreadyClaimed);
+        second.ClaimIdentity.ShouldBeNull("only a granted claim carries an identity");
     }
 
     [Fact]
@@ -118,7 +132,15 @@ public sealed class InMemoryErasureStoreShould
         var certId = Guid.NewGuid();
         await _sut.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddHours(72), CancellationToken.None);
 
-        await _sut.RecordCompletionAsync(request.RequestId, 5, 100, certId, CancellationToken.None);
+        // A completion is a FENCED write, so the run takes custody first and presents its identity.
+        var claim = await _sut.ClaimForExecutionAsync(
+            request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None);
+        claim.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+
+        var recorded = await _sut.RecordCompletionAsync(
+            request.RequestId, 5, 100, certId, claim.ClaimIdentity!, CancellationToken.None);
+
+        recorded.ShouldBe(ErasureWriteOutcome.Applied);
 
         var status = await _sut.GetStatusAsync(request.RequestId, CancellationToken.None);
         status!.Status.ShouldBe(ErasureRequestStatus.Completed);
@@ -130,7 +152,8 @@ public sealed class InMemoryErasureStoreShould
     public async Task Throw_on_completion_for_nonexistent_request()
     {
         await Should.ThrowAsync<KeyNotFoundException>(
-            () => _sut.RecordCompletionAsync(Guid.NewGuid(), 0, 0, Guid.NewGuid(), CancellationToken.None));
+            () => _sut.RecordCompletionAsync(
+                Guid.NewGuid(), 0, 0, Guid.NewGuid(), "an-identity-no-request-carries", CancellationToken.None));
     }
 
     [Fact]

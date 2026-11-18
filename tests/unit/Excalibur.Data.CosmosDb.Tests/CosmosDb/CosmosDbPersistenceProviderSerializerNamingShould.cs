@@ -90,11 +90,18 @@ public sealed class CosmosDbPersistenceProviderSerializerNamingShould : UnitTest
 
 	private static CosmosPropertyNamingPolicy GetConfiguredNamingPolicy(CosmosDbPersistenceProvider provider)
 	{
+		// Bound by parameter types rather than by name alone: Invoke below passes no arguments, so a
+		// parameter added to this private factory would compile, bind, and fail at run time with
+		// TargetParameterCountException naming nothing. The empty type list moves that to bind time.
 		var createClientOptions = typeof(CosmosDbPersistenceProvider).GetMethod(
 			"CreateClientOptions",
-			BindingFlags.NonPublic | BindingFlags.Instance)
+			BindingFlags.NonPublic | BindingFlags.Instance,
+			binder: null,
+			types: Type.EmptyTypes,
+			modifiers: null)
 			?? throw new InvalidOperationException(
-				"7tdbiu — CreateClientOptions() not found (the client-options factory was renamed; update the guard).");
+				"CreateClientOptions() not found as a parameterless instance method (the client-options "
+				+ "factory was renamed or gained a parameter; update the guard).");
 
 		var clientOptions = (CosmosClientOptions)createClientOptions.Invoke(provider, null)!;
 

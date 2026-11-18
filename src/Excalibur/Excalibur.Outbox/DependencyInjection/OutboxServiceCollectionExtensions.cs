@@ -87,8 +87,6 @@ public static class OutboxServiceCollectionExtensions
 	/// }));
 	/// </code>
 	/// </example>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	internal static IServiceCollection AddExcaliburOutbox(
 		this IServiceCollection services,
 		Action<IOutboxBuilder> configure)
@@ -204,8 +202,6 @@ public static class OutboxServiceCollectionExtensions
 	/// <summary>
 	/// Registers core outbox infrastructure services.
 	/// </summary>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private static void RegisterCoreServices(IServiceCollection services)
 	{
 		// Register Dispatch primitives first (IDispatcher, IMessageBus, etc.)

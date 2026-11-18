@@ -79,6 +79,11 @@ RE_BUILD_SHIPPING = re.compile(r"\bdotnet\s+build\b[^\n]*" + re.escape(SHIPPING_
 RE_SHA_VERIFY = re.compile(r"\bsha256sum\s+(-c|--check)\b")
 RE_SHA_PRODUCE = re.compile(r"\bsha256sum\b")
 RE_ATTEST_VERIFY = re.compile(r"\bgh\s+attestation\s+verify\b")
+# --repo proves the bytes were attested by SOMETHING in this repository. It does not say WHICH
+# workflow attested them, so any workflow holding id-token: write can mint an attestation that
+# a --repo-only check accepts. Pinning the signer to the producing workflow is what makes the
+# verification name the official build rather than the repository.
+RE_SIGNER_PINNED = re.compile(r"--signer-workflow[=\s]")
 # `dotnet nuget sign` rewrites a .nupkg IN PLACE, so WHERE it runs decides whether every
 # measurement taken of a package describes the package that ships.
 RE_NUGET_SIGN = re.compile(r"\bdotnet\s+nuget\s+sign\b")
@@ -363,6 +368,12 @@ def check(workflows):
             problems.append(Problem("A4", f"'{ADMISSION_JOB}' never runs `sha256sum -c`; the hash manifest is carried but not checked"))
         if not RE_ATTEST_VERIFY.search(text):
             problems.append(Problem("A4", f"'{ADMISSION_JOB}' never runs `gh attestation verify`; the attestation is present but unexamined"))
+        elif not RE_SIGNER_PINNED.search(text):
+            problems.append(Problem(
+                "A4",
+                f"'{ADMISSION_JOB}' verifies the attestation without --signer-workflow; it establishes "
+                f"that the bytes were attested by something in this repository, not that '{OFFICIAL_WF}' "
+                "attested them, so any workflow with id-token: write would satisfy it"))
         if not any(RE_VERSION_WORD.search(step_run(s)) and RE_MISMATCH.search(step_run(s))
                    for s in steps_of(admission)):
             problems.append(Problem(
@@ -517,6 +528,13 @@ def check(workflows):
             qsteps = steps_of(publisher)
             push_at = next((i for i, st in enumerate(qsteps) if RE_NUGET_PUSH.search(step_run(st))), None)
             verify_at = next((i for i, st in enumerate(qsteps) if RE_ATTEST_VERIFY.search(step_run(st))), None)
+            if (push_at is not None and verify_at is not None
+                    and not RE_SIGNER_PINNED.search(step_run(qsteps[verify_at]))):
+                problems.append(Problem(
+                    "A8",
+                    f"'{PUBLISH_JOB}' re-verifies provenance without --signer-workflow; the one "
+                    "statement here that did not travel with the bytes is then pinned to the "
+                    "repository rather than to the workflow that produced them"))
             if push_at is not None and verify_at is None:
                 problems.append(Problem(
                     "A8",
@@ -531,6 +549,62 @@ def check(workflows):
                     f"at step {push_at}; a registry version is immutable, so a check that runs "
                     "after the push cannot stop anything"))
 
+    problems.extend(check_sbom_binding(workflows))
+    return problems
+
+
+def check_sbom_binding(workflows):
+    """A10 is structural wiring, backed separately by executable tamper and policy controls."""
+    problems = []
+    def require(condition, message):
+        if not condition: problems.append(Problem("A10", message))
+    official = workflows.get(OFFICIAL_WF, {})
+    producers = [job for job in jobs_of(official).values()
+                 if any("attest-build-provenance" in step_uses(step) for step in steps_of(job))]
+    require(bool(producers), "SBOM raw-byte provenance producer missing")
+    for producer in producers:
+        for step in steps_of(producer):
+            if "attest-build-provenance" in step_uses(step):
+                paths = [part.strip() for part in str(step_with(step).get("subject-path", "")).splitlines() if part.strip()]
+                require(paths == ["packages/*.nupkg", "sbom/bom.json"], "raw BOM and exact package glob must share origin provenance")
+    release = workflows.get(RELEASE_WF, {})
+    jobs = jobs_of(release)
+    outputs = jobs.get(ADMISSION_JOB, {}).get("outputs", {})
+    for name in ("run_id", "run_attempt", "source_sha"):
+        require(outputs.get("official_" + name) == "${{ steps.official.outputs." + name + " }}",
+                "trusted selected official identity output missing: " + name)
+    for job_name, step_name, package_path, source in (
+        (ADMISSION_JOB, "Verify exact SBOM attestation binding", "packages", "steps.official.outputs."),
+        ("create-release", "Reverify exact SBOM binding before release assets", "all-packages", "needs.build-packages.outputs.official_")):
+        job = jobs.get(job_name, {})
+        checks = [step for step in steps_of(job) if step.get("name") == step_name]
+        require(len(checks) == 1, "one mandatory SBOM binding step required in " + job_name)
+        if len(checks) != 1: continue
+        step = checks[0]
+        require(not step.get("if") and not step.get("continue-on-error"), "SBOM binding cannot be conditional or softened")
+        require(step.get("shell") == "bash" and step.get("timeout-minutes") == 10, "SBOM verifier must be bounded Linux Bash")
+        body = step_run(step)
+        require("python3 eng/ci/verify-sbom-binding.py" in body and
+                all(token in body for token in ("--packages " + package_path, "--bom sbom/bom.json", "--repo", "--sha", "--run", "--attempt", "--evidence")),
+                "complete production-owned SBOM verifier invocation missing")
+        environment = step.get("env", {})
+        for variable, name in (("EXPECTED_RUN_ID", "run_id"), ("EXPECTED_RUN_ATTEMPT", "run_attempt"), ("EXPECTED_SOURCE_SHA", "source_sha")):
+            require(environment.get(variable) == "${{ " + source + name + " }}", "SBOM identity must come from trusted workflow selection: " + variable)
+        all_steps = steps_of(job)
+        position = all_steps.index(step)
+        consumers = [index for index, candidate in enumerate(all_steps)
+                     if (step_with(candidate).get("name") == "release-cyclonedx-sbom" and "upload-artifact" in step_uses(candidate))
+                     or "action-gh-release" in step_uses(candidate)]
+        require(bool(consumers) and all(position < consumer for consumer in consumers), "SBOM check must precede every BOM consumer")
+        for consumer in consumers:
+            target = all_steps[consumer]
+            values = step_with(target)
+            if 'upload-artifact' in step_uses(target):
+                require(values.get('path') == 'sbom/bom.json', 'SBOM reupload must contain only the verified raw file')
+            else:
+                assets = [line.strip() for line in str(values.get('files', '')).splitlines() if line.strip()]
+                require(assets == [package_path + '/*.nupkg', 'sbom/bom.json'],
+                        'Release SBOM attachments must be exactly the verified raw file, never unsigned globs')
     return problems
 
 
@@ -695,7 +769,7 @@ def compliant_fixtures():
                     {"name": "Receipt", "run": "echo '{}' > packages/build-receipt.json"},
                     {"name": "SBOM", "run": "dotnet CycloneDX ./src -o ./sbom -F Json"},
                     {"name": "Provenance", "uses": "actions/attest-build-provenance@v4",
-                     "with": {"subject-path": "packages/*.nupkg"}},
+                     "with": {"subject-path": "packages/*.nupkg\nsbom/bom.json"}},
                     {"name": "SBOM attestation", "uses": "actions/attest-sbom@v4",
                      "with": {"subject-path": "packages/*.nupkg", "sbom-path": "sbom/bom.json"}},
                     {"name": "Upload", "uses": "actions/upload-artifact@v7",
@@ -709,6 +783,7 @@ def compliant_fixtures():
         "name": "Release",
         "jobs": {
             "build-packages": {
+                "outputs": {"official_" + name: "${{ steps.official.outputs." + name + " }}" for name in ("run_id", "run_attempt", "source_sha")},
                 "steps": [
                     {"name": "Admit", "uses": "actions/download-artifact@v8",
                      "with": {"name": "packages", "run-id": "${{ steps.official.outputs.run-id }}",
@@ -716,7 +791,9 @@ def compliant_fixtures():
                     {"name": "Require an official build",
                      "run": "if [ -z \"$RUN_ID\" ]; then echo '::error::REFUSE: no successful official build for this commit'; exit 3; fi"},
                     {"name": "Verify hashes", "run": "sha256sum -c SHA256SUMS.txt"},
-                    {"name": "Verify attestation", "run": "gh attestation verify packages/*.nupkg --repo $GITHUB_REPOSITORY"},
+                    {"name": "Verify attestation",
+                     "run": "gh attestation verify packages/*.nupkg --repo $GITHUB_REPOSITORY "
+                            "--signer-workflow $GITHUB_REPOSITORY/.github/workflows/official-build.yml"},
                     {"name": "Verify version",
                      "run": "if [ \"$EMBEDDED\" != \"$VERSION\" ]; then echo 'version mismatch'; exit 1; fi"},
                     {"name": "Re-upload the admitted set", "uses": "actions/upload-artifact@v7",
@@ -731,7 +808,7 @@ def compliant_fixtures():
                 "needs": ["staging-validation"],
                 "steps": [
                     {"uses": "actions/download-artifact@v8", "with": {"name": "packages"}},
-                    {"uses": "softprops/action-gh-release@v2", "with": {"draft": True}},
+                    {"uses": "softprops/action-gh-release@v2", "with": {"draft": True, "files": "all-packages/*.nupkg\nsbom/bom.json"}},
                 ],
             },
             "publish-nuget": {
@@ -739,7 +816,8 @@ def compliant_fixtures():
                 "steps": [
                     {"uses": "actions/download-artifact@v8", "with": {"name": "packages"}},
                     {"name": "Re-verify provenance",
-                     "run": "gh attestation verify packages/*.nupkg --repo $GITHUB_REPOSITORY"},
+                     "run": "gh attestation verify packages/*.nupkg --repo $GITHUB_REPOSITORY "
+                            "--signer-workflow $GITHUB_REPOSITORY/.github/workflows/official-build.yml"},
                     {"name": "Push", "run": "dotnet nuget push packages/*.nupkg -s https://api.nuget.org/v3/index.json"},
                 ],
             },
@@ -765,6 +843,20 @@ def compliant_fixtures():
         "name": "Release Rehearsal",
         "jobs": {"release-rehearsal": {"steps": [{"run": "./eng/ci/release-rehearsal.ps1"}]}},
     }
+    for job_name, name, packages, source in (
+        ("build-packages", "Verify exact SBOM attestation binding", "packages", "steps.official.outputs."),
+        ("create-release", "Reverify exact SBOM binding before release assets", "all-packages", "needs.build-packages.outputs.official_")):
+        steps = release["jobs"][job_name]["steps"]
+        binding = {"name": name, "shell": "bash", "timeout-minutes": 10,
+                   "env": {variable: "${{ " + source + field + " }}" for variable, field in
+                           (("EXPECTED_RUN_ID", "run_id"), ("EXPECTED_RUN_ATTEMPT", "run_attempt"), ("EXPECTED_SOURCE_SHA", "source_sha"))},
+                   "run": "python3 eng/ci/verify-sbom-binding.py --packages " + packages + " --bom sbom/bom.json --repo $REPO --sha $SHA --run $RUN --attempt $ATTEMPT --evidence proof"}
+        # Source fixture has no SBOM consumer; add the real re-upload boundary after its verifier.
+        if job_name == "build-packages":
+            steps.append(binding)
+            steps.append({"uses": "actions/upload-artifact@v7", "with": {"name": "release-cyclonedx-sbom", "path": "sbom/bom.json"}})
+        else:
+            steps.insert(1, binding)
     # `on:` is written explicitly under the boolean key PyYAML will hand back on load, so the
     # A7 trigger arm exercises the same code path the real workflow takes.
     for wf in (rehearsal,):
@@ -846,7 +938,7 @@ MUTATIONS = [
     ("A4", "a consumer is no longer gated behind admission",
      lambda w: w[RELEASE_WF]["jobs"]["staging-validation"].__setitem__("needs", [])),
     ("A5", "the release is created already published",
-     lambda w: w[RELEASE_WF]["jobs"]["create-release"]["steps"][1]["with"].__setitem__("draft", False)),
+     lambda w: next(step for step in w[RELEASE_WF]["jobs"]["create-release"]["steps"] if "action-gh-release" in step_uses(step))["with"].__setitem__("draft", False)),
     ("A5", "finalize runs with always()",
      lambda w: w[RELEASE_WF]["jobs"]["finalize-release"].__setitem__(
          "if", "always() && needs.publish-nuget.result == 'success'")),
@@ -871,7 +963,36 @@ MUTATIONS = [
      lambda w: _drop_step(_producer(w), "dotnet nuget sign")),
     ("A8", "the push is no longer preceded by a provenance re-check",
      lambda w: _drop_step(w[RELEASE_WF]["jobs"][PUBLISH_JOB], "gh attestation verify")),
+    ("A4", "admission verifies the attestation without pinning the signer",
+     lambda w: _unpin_signer(_admission(w))),
+    ("A8", "the pre-push re-verification stops pinning the signer",
+     lambda w: _unpin_signer(w[RELEASE_WF]["jobs"][PUBLISH_JOB])),
 ]
+
+
+
+def _unpin_signer(job):
+    """Strip --signer-workflow from a job's attestation verification, leaving --repo in place.
+
+    This is the mutation that matters: dropping the whole step is already covered, and a gate that
+    only detects the step's absence passes a verification that runs and binds the wrong identity.
+    """
+    for step in job.get("steps", []):
+        run = step.get("run", "")
+        if "gh attestation verify" in run and "--signer-workflow" in run:
+            head, _, _ = run.partition("--signer-workflow")
+            step["run"] = head.rstrip()
+    return job
+
+# Additional assertion population: existing A1-A9 labels and effects remain.
+MUTATIONS.extend([
+    ("A10", "raw BOM is removed from origin provenance", lambda w: next(step for step in steps_of(_producer(w)) if "attest-build-provenance" in step_uses(step))["with"].__setitem__("subject-path", "packages/*.nupkg")),
+    ("A10", "first SBOM admission is removed", lambda w: _admission(w).__setitem__("steps", [step for step in steps_of(_admission(w)) if step.get("name") != "Verify exact SBOM attestation binding"])),
+    ("A10", "release asset SBOM recheck is removed", lambda w: w[RELEASE_WF]["jobs"]["create-release"].__setitem__("steps", [step for step in steps_of(w[RELEASE_WF]["jobs"]["create-release"]) if step.get("name") != "Reverify exact SBOM binding before release assets"])),
+    ("A10", "trusted attempt identity is dropped", lambda w: _admission(w)["outputs"].pop("official_run_attempt")),
+    ("A10", "unsigned SBOM reupload glob is restored", lambda w: next(step for step in steps_of(_admission(w)) if step_with(step).get('name') == 'release-cyclonedx-sbom')['with'].__setitem__('path', 'sbom/**')),
+    ("A10", "unsigned SBOM release attachment glob is restored", lambda w: next(step for step in steps_of(w[RELEASE_WF]['jobs']['create-release']) if 'action-gh-release' in step_uses(step))['with'].__setitem__('files', 'packages/*.nupkg\nsbom/**/*.json\nsbom/**/*.xml')),
+])
 
 
 def write_fixtures(directory, workflows):

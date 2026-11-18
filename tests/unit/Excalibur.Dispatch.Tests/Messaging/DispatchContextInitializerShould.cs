@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Features;
@@ -80,9 +80,10 @@ public sealed class DispatchContextInitializerShould
 		// Act
 		var context = DispatchContextInitializer.CreateFromHeaders(headers);
 
-		// Assert
-		context.Items["X-Custom"].ShouldBe("custom-value");
-		context.Items["X-Another"].ShouldBe(string.Empty);
+		// Assert. Arbitrary headers are no longer copied: a context item reaches every remote transport
+		// and one outbox provider persists it, so capture is now the caller's explicit decision.
+		context.Items.ShouldNotContainKey("X-Custom");
+		context.Items.ShouldNotContainKey("X-Another");
 	}
 
 	[Fact]

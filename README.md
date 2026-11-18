@@ -13,7 +13,7 @@
 [![Release Date](https://img.shields.io/github/release-date/TrigintaFaces/Excalibur?style=flat-square)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
 <!-- badges -->
 
-**High-performance .NET messaging framework with CQRS, event sourcing, and production hosting — 194 packages, Native AOT ready**
+**.NET messaging framework with CQRS, event sourcing, and production hosting â€” 194 packages, NativeAOT scenarios and guidance**
 
 **[Read the full documentation](https://docs.excalibur-dispatch.dev/)**
 
@@ -94,7 +94,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrder>
 ```
 
 The hand-written endpoint above is one of three ways to get from an HTTP request to a handler. They mix
-freely in the same application — pick per endpoint.
+freely in the same application â€” pick per endpoint.
 
 #### Declarative route registration
 
@@ -120,16 +120,16 @@ public record CreateOrderRequest(string CustomerId, List<string> Items);
 
 `DispatchGetAction`, `DispatchPutAction` and `DispatchPostEvent` are the siblings, and a
 `<TRequest, TAction, TResponse>` overload returns the handler's value as `200 OK`. Every overload takes an
-optional `responseHandler` when you want your own mapping; without one, `ToHttpResult()` maps the result —
+optional `responseHandler` when you want your own mapping; without one, `ToHttpResult()` maps the result â€”
 the value on success, `403` on an authorization failure, `400` on validation, `ProblemDetails` when the
 failure carries them, `500` otherwise.
 
-**These overloads bind parameters reflectively and are not Native AOT or trimming safe** — they declare that
+**These overloads bind parameters reflectively and are not Native AOT or trimming safe** â€” they declare that
 with `[RequiresDynamicCode]` / `[RequiresUnreferencedCode]`. Under AOT, use a hand-written endpoint.
 
 #### Railway-oriented composition
 
-`Map`, `Bind`, `Match` and `Tap` compose over `IMessageResult<T>` — and over `Task<IMessageResult<T>>`, so
+`Map`, `Bind`, `Match` and `Tap` compose over `IMessageResult<T>` â€” and over `Task<IMessageResult<T>>`, so
 there is no intermediate `await`. Each short-circuits on failure and carries the original `ProblemDetails`
 through, so the success path reads as one expression with no error branches inside it:
 
@@ -174,7 +174,7 @@ builder.Services.AddExcalibur(x => x
 
 Changing provider is one word. Install that provider's package and replace `UseSqlServer` with
 `UsePostgres`, `UseOracle`, `UseMongoDB`, `UseCosmosDb`, `UseDynamoDb`, `UseFirestore`, `UseRedis` or
-`UseSqlite` — every provider offers the same call, and the outbox builder adds `UseElasticSearch` and
+`UseSqlite` â€” every provider offers the same call, and the outbox builder adds `UseElasticSearch` and
 `UseMarten`. Some providers place that extension in their own namespace rather than
 `Microsoft.Extensions.DependencyInjection`, so follow the `using` your chosen package declares.
 
@@ -215,7 +215,19 @@ Dispatch is built for low allocation and predictable latency on the local dispat
 figures below are measurements taken on one machine under stated conditions. They are not
 guarantees, and the only number that matters for your service is the one you measure in it.
 
-### Local dispatch overhead
+### Verified component measurement — November 4, 2026
+
+A matched managed WarmPath query experiment measured **20.8–23.3% lower process-mean time**
+after the pooled metadata change in two held-out confirmation pairs, with **192 B/op unchanged**.
+This applies to that component fixture, not the historical typed-query table below, competitor
+rankings, or production DataProcessing throughput. The paired timing interval is wide; controls
+do not establish environmental equivalence. See the [measurement report](docs/performance/pooled-metadata-query-2026-11-04.md)
+for exact workloads, source hashes, runtime, commands, uncertainty and raw evidence. Actual
+NativeAOT correctness checks are recorded separately from these managed timings. The final scoped review is recorded in
+`artifacts/benchmarks/current-refresh-20261101/pooled-metadata-final-admission-r1.json`;
+the original aggregation record retains its earlier pending status.
+
+### Historical local dispatch observations â€” October 19, 2026
 
 Median of independent processes: commands and queries measured 19 October 2026. BenchmarkDotNet 0.15.8, adaptive
 warm-path job, in-process emit toolchain; .NET 10.0.12, SDK 10.0.401, x64 RyuJIT; Intel Core
@@ -223,9 +235,10 @@ i9-14900K, Windows 11 build 26300.9711. Rounded to the precision the between-pro
 supports.
 
 Each row comes from three separate original-observation processes. Query rows use
-the current selected runtime after the fixture rental-lifecycle repair. They do
+the runtime files selected for that October 19 measurement after the fixture rental-lifecycle repair. They do
 not certify the entire rebuilt checkout or actual NativeAOT performance. The
-earlier isolated-marker query experiment remains dated history.
+earlier isolated-marker query experiment remains dated history. These observations
+predate subsequent framework changes and do not establish current-source performance.
 
 | Path | Latency | Allocation |
 |---|---:|---:|
@@ -237,7 +250,7 @@ earlier isolated-marker query experiment remains dated history.
 The command handler is a no-op; query handlers double the input ID. These fixtures
 measure dispatch and completion overhead rather than application work. Query timing
 increased from the earlier isolated experiment on both peers; its cause remains
-unresolved. What the allocation buys is described below.
+unresolved. Historical allocation attribution is described below.
 
 These figures measure Excalibur's overhead and do not establish a competitive ranking.
 Comparative fixtures live in `benchmarks/Excalibur.Dispatch.Benchmarks`; their results remain
@@ -250,15 +263,13 @@ Full records, with per-process figures and the retained distribution warnings:
 [benchmark results](docs-site/docs/performance/competitor-comparison.md).
 
 
-### What the allocation buys
+### Historical allocation attribution
 
-Every dispatch publishes an ambient message context, so a nested dispatch inherits causation,
-correlation, tenant and user instead of starting a fresh root. That costs one
-`ExecutionContext` copy-on-write, and the copy covers the whole async-local value map: 72 of
-the 96 bytes on a command dispatch, measured with no other async-local values present. With
-one other value it measured roughly 160 B, and with fifteen, roughly 992 B. **This figure
-scales with your application's async-local density, not ours** -- measure it in your own
-process before budgeting for it.
+These allocations describe the historical fixture and environment, not a universal floor.
+Earlier diagnostic notes attributed 72 B of a 96 B command result to ambient-context
+publication and reported approximately 160 B with one additional `AsyncLocal` value
+and 992 B with fifteen. That attribution and scaling have not been re-established
+for the current source and runtime; measure the complete application workload.
 
 ### Earlier measurements, and what has not been re-measured
 
@@ -276,7 +287,7 @@ They describe that epoch's code. Do not quote them as current.
 
 - **Allocations in the local-overhead table were byte-identical per method across processes.**
   The October 19 command observations ranged from 58.10 to 65.27 ns (about 12.3% maximum/minimum spread). The October 19 query process
-  ranges were 134–141 ns (default), 144–147 ns (context-less) and 143–153 ns
+  ranges were 134â€“141 ns (default), 144â€“147 ns (context-less) and 143â€“153 ns
   (promotion configured). BenchmarkDotNet's error describes spread within one
   process, not reproducibility between processes; these observations establish no
   stable latency.
@@ -290,13 +301,12 @@ They describe that epoch's code. Do not quote them as current.
 > MediatR is a trademark of its owner. It is named here only to describe API compatibility; no
 > affiliation or endorsement is implied.
 
-### Optimizations included
+### Performance-related implementation features
 
 - **C# 12 interceptors** -- compile-time dispatch resolution
-- **FrozenDictionary caches** -- lock-free handler and middleware lookup
 - **Static pipelines** -- pre-built execution chains for message types whose route is known
 - **Auto-freeze on startup** -- applied by default; no configuration required
-- **LightMode** -- opt-in minimal overhead; disables AsyncLocal context flow and correlation-ID generation
+- **LightMode** -- disables correlation-ID generation while preserving ambient message-context flow for nested dispatch; measure its performance effect for your workload
 
 
 ### Quick Configuration
@@ -304,7 +314,7 @@ They describe that epoch's code. Do not quote them as current.
 ```csharp
 using Excalibur.Dispatch.Options.Configuration;
 
-// Optimized automatically by default
+// Default registration; measure performance in the application
 services.AddDispatch();
 
 // Opt-out for development (if needed)
@@ -315,7 +325,7 @@ For detailed benchmarks, methodology caveats, and raw reports, see:
 - [Benchmark results](docs-site/docs/performance/competitor-comparison.md)
 - `benchmarks/baselines/net10.0/dispatch-comparative-20260905/` (historical September 5 comparison epoch)
 - `benchmarks/baselines/net10.0/dispatch-warmpath-20260905-lean/` (separate post-correction command measurements)
-- `benchmarks/runs/BenchmarkDotNet.Artifacts/results/` (latest local run outputs)
+- `benchmarks/runs/BenchmarkDotNet.Artifacts/run-*/` (per-invocation compatibility-runner artifacts; not automatically validated published evidence)
 - `benchmarks/experiments/` (auto-optimize experiment logs)
 
 ---
@@ -324,7 +334,7 @@ For detailed benchmarks, methodology caveats, and raw reports, see:
 
 - **194 NuGet packages** across Dispatch, Excalibur, and hosting families (438 projects in the solution)
 - **Supported framework:** .NET 10.0 (LTS)
-- **148 of the 194 packages** are Native AOT compatible (`IsAotCompatible=true`)
+- **Historical compatibility declarations:** earlier documentation reported `IsAotCompatible=true` for 148 of 194 packages; that inventory is undated here and is not a current recount or native execution certification. See the [NativeAOT verification scope](docs-site/docs/advanced/native-aot.md#verification-scope).
 - **Over 100,000 automated tests** across the CI shards (unit, integration, functional, conformance, performance)
 - **14 Roslyn source generators** for AOT-safe handler registration, serialization, and saga coordination
 
@@ -351,14 +361,14 @@ dotnet test Excalibur.sln
 
 ## License
 
-You may use Excalibur under the **Excalibur License 1.1**, **AGPL-3.0-or-later**, or **SSPL-1.0** — your
+You may use Excalibur under the **Excalibur License 1.1**, **AGPL-3.0-or-later**, or **SSPL-1.0** â€” your
 choice ([LICENSE](LICENSE)). Under the Excalibur License you may build, sell, host and support your own
 applications on the framework, including commercially. You may not resell the framework itself or
 offer it to others as a hosted service. See the [plain-language summary](docs-site/docs/legal/index.md)
 and the full texts in [`licenses/`](licenses/).
 
 There is no licence key, no activation step, and no per-message, per-endpoint or per-seat metering.
-Building, shipping and operating your own applications on Excalibur costs nothing — including
+Building, shipping and operating your own applications on Excalibur costs nothing â€” including
 commercially, and including when you run those applications as a hosted service for your own
 customers. The restrictions are on the framework itself, not on what you build with it.
 

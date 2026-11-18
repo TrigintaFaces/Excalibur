@@ -42,7 +42,7 @@ namespace Excalibur.Outbox.Diagnostics;
 /// </para>
 /// </remarks>
 /// <param name="inner"> The inner outbox store to decorate. </param>
-internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : OutboxStoreDecorator(inner), IDisposable
+internal sealed partial class TelemetryOutboxStoreDecorator(IOutboxStore inner) : OutboxStoreDecorator(inner), IDisposable
 {
 	/// <summary>
 	/// The meter name for outbox store metrics.
@@ -76,6 +76,24 @@ internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : Outbox
 	public override object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+        if (serviceType == typeof(ITransactionalOutboxPreparer))
+        {
+            return Inner.GetService(serviceType) is ITransactionalOutboxPreparer prepare
+                ? new MeasuredTransactionalPreparation(prepare, this) : null;
+        }
+        if (serviceType == typeof(ITransactionalOutboxPayloadTransformPreparer))
+        {
+            return Inner.GetService(serviceType) is ITransactionalOutboxPayloadTransformPreparer transform
+                ? new MeasuredTransactionalTransform(transform, this) : null;
+        }
+
+
+		if (serviceType == typeof(IOutboxPayloadTransformStore))
+		{
+			return Inner.GetService(typeof(IOutboxPayloadTransformStore)) is IOutboxPayloadTransformStore transform
+				? new MeasuredPayloadTransform(transform, this)
+				: null;
+		}
 
 		if (serviceType == typeof(IOutboxStoreBatch))
 		{
@@ -95,6 +113,34 @@ internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : Outbox
 		{
 			return Inner.GetService(typeof(IBackoffSchedulableOutboxStore)) is IBackoffSchedulableOutboxStore backoff
 				? new MeasuredBackoffSchedulable(backoff, this)
+				: null;
+		}
+
+		if (serviceType == typeof(IClaimScopedOutboxStore))
+		{
+			return Inner.GetService(typeof(IClaimScopedOutboxStore)) is IClaimScopedOutboxStore capability
+				? new MeasuredClaimScoped(capability, this)
+				: null;
+		}
+
+		if (serviceType == typeof(IFencedClaimScopedOutboxStore))
+		{
+			return Inner.GetService(typeof(IFencedClaimScopedOutboxStore)) is IFencedClaimScopedOutboxStore capability
+				? new MeasuredFencedClaimScoped(capability, this)
+				: null;
+		}
+
+		if (serviceType == typeof(IClaimScopedDeadLetterableOutboxStore))
+		{
+			return Inner.GetService(typeof(IClaimScopedDeadLetterableOutboxStore)) is IClaimScopedDeadLetterableOutboxStore capability
+				? new MeasuredClaimDeadLetterable(capability, this)
+				: null;
+		}
+
+		if (serviceType == typeof(IFencedDeadLetterableOutboxStore))
+		{
+			return Inner.GetService(typeof(IFencedDeadLetterableOutboxStore)) is IFencedDeadLetterableOutboxStore capability
+				? new MeasuredFencedDeadLetterable(capability, this)
 				: null;
 		}
 
@@ -120,8 +166,6 @@ internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : Outbox
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public override async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();
@@ -167,6 +211,21 @@ internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : Outbox
 		if (messageCount > 0)
 		{
 			Messages.Add(messageCount, tag);
+		}
+	}
+
+	private sealed class MeasuredPayloadTransform(IOutboxPayloadTransformStore inner, TelemetryOutboxStoreDecorator owner)
+		: IOutboxPayloadTransformStore
+	{
+		[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public async ValueTask EnqueueWithPayloadTransformAsync(IDispatchMessage message, IMessageContext context,
+			Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transformPayload,
+			CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			await inner.EnqueueWithPayloadTransformAsync(message, context, transformPayload, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("enqueue", 1, sw.Elapsed.TotalMilliseconds);
 		}
 	}
 
@@ -224,4 +283,84 @@ internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : Outbox
 			owner.RecordOperation("mark_failed_with_backoff", 1, sw.Elapsed.TotalMilliseconds);
 		}
 	}
+	private sealed class MeasuredClaimScoped(IClaimScopedOutboxStore inner, TelemetryOutboxStoreDecorator owner) : IClaimScopedOutboxStore
+	{
+		public async ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			var outcome = await inner.MarkSentAsync(messageId, claimIdentity, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_sent", outcome is OutboxCompletionOutcome.Applied ? 1 : 0, sw.Elapsed.TotalMilliseconds);
+			return outcome;
+		}
+
+		public async ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string messageId, string errorMessage, int retryCount, string claimIdentity, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			var outcome = await inner.MarkFailedAsync(messageId, errorMessage, retryCount, claimIdentity, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_failed", outcome is OutboxCompletionOutcome.Applied ? 1 : 0, sw.Elapsed.TotalMilliseconds);
+			return outcome;
+		}
+
+		public async ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffAsync(string messageId, string errorMessage, int retryCount, DateTimeOffset nextAttemptAt, string claimIdentity, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			var outcome = await inner.MarkFailedWithBackoffAsync(messageId, errorMessage, retryCount, nextAttemptAt, claimIdentity, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_failed_with_backoff", outcome is OutboxCompletionOutcome.Applied ? 1 : 0, sw.Elapsed.TotalMilliseconds);
+			return outcome;
+		}
+
+	}
+
+	private sealed class MeasuredFencedClaimScoped(IFencedClaimScopedOutboxStore inner, TelemetryOutboxStoreDecorator owner) : IFencedClaimScopedOutboxStore
+	{
+		public async ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, OutboxWriteAuthority authority, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			var outcome = await inner.MarkSentAsync(messageId, authority, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_sent", outcome is OutboxCompletionOutcome.Applied ? 1 : 0, sw.Elapsed.TotalMilliseconds);
+			return outcome;
+		}
+
+		public async ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string messageId, string errorMessage, int retryCount, DateTimeOffset? nextAttemptAt, OutboxWriteAuthority authority, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			var outcome = await inner.MarkFailedAsync(messageId, errorMessage, retryCount, nextAttemptAt, authority, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_failed", outcome is OutboxCompletionOutcome.Applied ? 1 : 0, sw.Elapsed.TotalMilliseconds);
+			return outcome;
+		}
+
+	}
+
+	private sealed class MeasuredClaimDeadLetterable(IClaimScopedDeadLetterableOutboxStore inner, TelemetryOutboxStoreDecorator owner) : IClaimScopedDeadLetterableOutboxStore
+	{
+		public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, string claimIdentity, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			var outcome = await inner.MarkDeadLetteredAsync(messageId, reason, attemptCount, claimIdentity, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_dead_lettered", outcome is OutboxCompletionOutcome.Applied ? 1 : 0, sw.Elapsed.TotalMilliseconds);
+			return outcome;
+		}
+
+	}
+
+	private sealed class MeasuredFencedDeadLetterable(IFencedDeadLetterableOutboxStore inner, TelemetryOutboxStoreDecorator owner) : IFencedDeadLetterableOutboxStore
+	{
+		public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, long fencingToken, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			var outcome = await inner.MarkDeadLetteredAsync(messageId, reason, attemptCount, fencingToken, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_dead_lettered", outcome is OutboxCompletionOutcome.Applied ? 1 : 0, sw.Elapsed.TotalMilliseconds);
+			return outcome;
+		}
+
+		public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, OutboxWriteAuthority authority, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			var outcome = await inner.MarkDeadLetteredAsync(messageId, reason, attemptCount, authority, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_dead_lettered", outcome is OutboxCompletionOutcome.Applied ? 1 : 0, sw.Elapsed.TotalMilliseconds);
+			return outcome;
+		}
+
+	}
+
 }

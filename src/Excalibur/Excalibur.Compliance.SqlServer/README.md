@@ -27,21 +27,36 @@ services.AddSqlServerErasureStore(options =>
 
 ## Schema
 
-This package ships the scripts below under `scripts/`, in the order they must be applied. Which you
-need depends on what you register.
+This package ships the scripts below under `scripts/`. Apply **all** of them, in numeric order —
+only `002` is optional, and only if you never register key escrow.
 
 | Script | Required when you use | Affects |
 |---|---|---|
-| `001_CreateComplianceSchema.sql` | the erasure, data-inventory and legal-hold stores | `ErasureRequests`, `ErasureCertificates`, `DataInventoryRegistrations`, `DiscoveredDataLocations`, `LegalHolds` |
+| `001_CreateComplianceSchema.sql` | the erasure, data-inventory and legal-hold stores | `ErasureRequests`, `ErasureCertificates`, `ErasureDestroyedKeys`, `ErasureDestructionIntents`, `DataInventoryRegistrations`, `DiscoveredDataLocations`, `LegalHolds` |
 | `002_CreateKeyEscrowSchema.sql` | key escrow (`AddSqlServerKeyEscrow`) | `KeyEscrow`, `RecoveryTokens`, `KeyEscrowWrap` |
+| `003_ReplaceLegalBasisColumns.sql` | the legal-hold store | column changes only |
+| `004_AddLegalHoldReleaseAndVersion.sql` | the legal-hold store | column changes only |
+| `005_AddKeyDestructionLedger.sql` | the erasure store | `ErasureDestroyedKeys`, `ErasureDestructionIntents` — already made by 001, so a no-op on a fresh database and the upgrade path for one provisioned earlier |
+| `006_AddKeyMintLedger.sql` | the erasure store | `ErasureMintedKeys` |
+| `007_AddDataSubjectTokenFingerprint.sql` | the erasure store | `ErasureTokenFingerprint` |
+| `008_AddRetentionDeclarationLedger.sql` | the erasure store | `ErasureRetentionDeclarations` |
 
 They make the `compliance` schema if it is absent, and every statement in every script is guarded, so
-both are safe to re-run and safe to apply to a database that already holds some of the tables.
+the set is safe to re-run and safe to apply to a database that already holds some of the tables.
 
 ```sh
-sqlcmd -S server -d database -i 001_CreateComplianceSchema.sql
-sqlcmd -S server -d database -i 002_CreateKeyEscrowSchema.sql
+for f in 001_*.sql 002_*.sql 003_*.sql 004_*.sql 005_*.sql 006_*.sql 007_*.sql 008_*.sql; do
+  sqlcmd -S server -d database -i "$f"
+done
 ```
+
+**`006` and `007` are required, not optional.** The erasure store will not start without
+`ErasureMintedKeys`: the erasure enumerates the key handles it destroys from that ledger rather than
+re-deriving them, so a missing ledger would mean a handle holding the subject's data that nothing
+destroys. And `ErasureTokenFingerprint` is what refuses startup when the data-subject hashing key has
+changed, which would otherwise orphan every pseudonymised record. Startup fails fast and names the
+missing table, so a partial provision is loud rather than silent — but it does mean the store never
+starts.
 
 A database provisioned by an earlier prerelease has no in-place upgrade path; re-provision it from
 these scripts.

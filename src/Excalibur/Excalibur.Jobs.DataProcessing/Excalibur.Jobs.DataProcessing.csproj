@@ -6,6 +6,8 @@
     <Description>Data processing job types for the Excalibur Jobs framework.</Description>
     <PackageTags>excalibur;jobs;data-processing;scheduling</PackageTags>
     <IsAotCompatible>false</IsAotCompatible>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.Extensions.Configuration.Binder.SourceGeneration</InterceptorsNamespaces>
   </PropertyGroup>
   <ItemGroup>
         <PackageReference Include="Quartz" />

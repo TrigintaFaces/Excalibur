@@ -506,7 +506,7 @@ builder.Services.AddScoped<ISagaDb>(_ =>
 
 ### Dedicated Outbox Database
 
-When outbox throughput is high, a separate database prevents lock contention with domain writes:
+A separate outbox database changes contention boundaries; shared infrastructure can still contend. Measure the deployment and preserve required transaction atomicity before separating outbox and domain writes:
 
 ```csharp
 builder.Services.AddScoped<IDomainDb>(_ =>

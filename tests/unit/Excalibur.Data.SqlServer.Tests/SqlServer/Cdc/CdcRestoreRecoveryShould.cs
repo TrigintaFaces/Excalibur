@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 using Excalibur.Cdc;
 using Excalibur.Cdc.SqlServer;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
 
@@ -10,6 +11,75 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 [Trait("Pattern", "Regression")]
 public sealed class CdcRestoreRecoveryShould
 {
+    [Theory]
+    [InlineData(true, StalePositionRecoveryStrategy.FallbackToEarliest, 2)]
+    [InlineData(false, StalePositionRecoveryStrategy.FallbackToEarliest, 2)]
+    [InlineData(true, StalePositionRecoveryStrategy.FallbackToLatest, 10)]
+    [InlineData(false, StalePositionRecoveryStrategy.FallbackToLatest, 10)]
+    public async Task HonorStructuredResetLoggingWithoutChangingRecovery(bool enabled, StalePositionRecoveryStrategy strategy, byte expected)
+    {
+        var logger = new ResetLogger();
+        var (manager, _, store, options) = Create(strategy, logger);
+        options.EnableStructuredLogging = enabled;
+        var callbacks = 0;
+        options.OnPositionReset = (_, _) => { callbacks++; return Task.CompletedTask; };
+        await manager.InitializeTrackingAsync(CancellationToken.None);
+        callbacks.ShouldBe(1);
+        manager.GetTracking("restored")!.Lsn.ShouldBe(Lsn(expected));
+        manager.GetTracking("healthy")!.Lsn.ShouldBe(Lsn(5));
+        logger.Resets.Count.ShouldBe(enabled ? 1 : 0);
+        if (enabled)
+        {
+            logger.Resets[0]["CaptureInstance"].ShouldBe("restored");
+            logger.Resets[0]["Strategy"].ShouldBe(strategy);
+        }
+        A.CallTo(() => store.UpdateLastProcessedPositionAsync(A<string>._, A<string>._, A<string>._,
+            A<byte[]>._, A<byte[]?>._, A<DateTime?>._, A<long?>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NeverLogAResetWhenTheCallbackRefusesIt(bool enabled)
+    {
+        var logger = new ResetLogger();
+        var (manager, _, _, options) = Create(StalePositionRecoveryStrategy.InvokeCallback, logger);
+        options.EnableStructuredLogging = enabled;
+        var failure = new InvalidOperationException("operator refused reset");
+        options.OnPositionReset = (_, _) => Task.FromException(failure);
+        (await Should.ThrowAsync<InvalidOperationException>(() => manager.InitializeTrackingAsync(CancellationToken.None)))
+            .ShouldBeSameAs(failure);
+        manager.GetTracking("restored").ShouldBeNull();
+        logger.Resets.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NeverLogAResetWhenRecoveryIsDisabled(bool enabled)
+    {
+        var logger = new ResetLogger();
+        var (manager, _, _, options) = Create(StalePositionRecoveryStrategy.Throw, logger);
+        options.EnableStructuredLogging = enabled;
+        await Should.ThrowAsync<SqlServerCdcStalePositionException>(() => manager.InitializeTrackingAsync(CancellationToken.None));
+        logger.Resets.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NeverLogOrInstallAResetWhenItsCallbackCancels(bool enabled)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var logger = new ResetLogger();
+        var (manager, _, _, options) = Create(StalePositionRecoveryStrategy.InvokeCallback, logger);
+        options.EnableStructuredLogging = enabled;
+        options.OnPositionReset = (_, _) => { cancellation.Cancel(); return Task.CompletedTask; };
+        await Should.ThrowAsync<OperationCanceledException>(() => manager.InitializeTrackingAsync(cancellation.Token));
+        manager.GetTracking("restored").ShouldBeNull();
+        logger.Resets.ShouldBeEmpty();
+    }
+
     [Theory]
     [InlineData(StalePositionRecoveryStrategy.FallbackToEarliest, 2)]
     [InlineData(StalePositionRecoveryStrategy.FallbackToLatest, 10)]
@@ -129,7 +199,7 @@ public sealed class CdcRestoreRecoveryShould
             "a refused window must install nothing, or the caller resumes from a position the window cannot serve");
     }
 
-    private static (CdcCheckpointManager Manager, ICdcRepository Repository, ISqlServerCdcStateStore Store, CdcRecoveryOptions Options) Create(StalePositionRecoveryStrategy strategy)
+    private static (CdcCheckpointManager Manager, ICdcRepository Repository, ISqlServerCdcStateStore Store, CdcRecoveryOptions Options) Create(StalePositionRecoveryStrategy strategy, ILogger? logger = null)
     {
         var config = A.Fake<IDatabaseOptions>();
         var repository = A.Fake<ICdcRepository>();
@@ -145,7 +215,24 @@ public sealed class CdcRestoreRecoveryShould
                 new() { TableName = "restored", LastProcessedLsn = Lsn(20), LastProcessedSequenceValue = Lsn(9) },
                 new() { TableName = "healthy", LastProcessedLsn = Lsn(5) },
             });
-        return (new CdcCheckpointManager(config, repository, store, NullLogger.Instance), repository, store, options);
+        return (new CdcCheckpointManager(config, repository, store, logger ?? NullLogger.Instance), repository, store, options);
+    }
+    private sealed class ResetLogger : ILogger
+    {
+        internal List<Dictionary<string, object?>> Resets { get; } = [];
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (state is not IEnumerable<KeyValuePair<string, object?>> values) { return; }
+            var fields = values.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            if (fields.GetValueOrDefault("{OriginalFormat}") is string template &&
+                template.StartsWith("Resetting in-memory CDC position", StringComparison.Ordinal))
+            {
+                logLevel.ShouldBe(LogLevel.Warning);
+                Resets.Add(fields);
+            }
+        }
     }
     private static byte[] Lsn(byte value) => [0, 0, 0, 0, 0, 0, 0, 0, 0, value];
 }

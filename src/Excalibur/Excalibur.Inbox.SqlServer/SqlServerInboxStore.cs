@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
@@ -143,7 +143,14 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_connectionFactory = connectionFactory;
-		_options = options;
+		_options = new SqlServerInboxOptions
+		{
+			ConnectionString = options.ConnectionString,
+			SchemaName = options.SchemaName,
+			TableName = options.TableName,
+			CommandTimeoutSeconds = options.CommandTimeoutSeconds,
+			MaxRetryCount = options.MaxRetryCount
+		};
 		_logger = logger;
 		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
@@ -151,19 +158,13 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 		// TenantContextOptions.RequireTenant. This is NOT "is an ITenantContext present" (the framework always
 		// registers a single-tenant default). Drives the startup handshake's leak-check.
 		ArgumentNullException.ThrowIfNull(tenantContextOptions);
-		_requireTenant = tenantContextOptions.Value.RequireTenant;
+		_schema = new SqlServerInboxSchema(_options.QualifiedTableName, _options.CommandTimeoutSeconds, tenantContextOptions.Value.RequireTenant);
 		// Canonical event-serialization contract (camelCase + enum-as-string + omit-null), shared with every
 		// store and the default serializer, so persisted inbox metadata round-trips byte-for-byte.
 		_jsonOptions = EventSerializationDefaults.Canonical;
 	}
 
-	private readonly bool _requireTenant;
-
-	// Whether the physical unique key includes the TenantId column. Read once from the live schema (the
-	// handshake) and cached; SQL emission follows THIS (the actual column), never the mode flag — so the
-	// store can never emit a term for an absent column, nor omit one that is present.
-	private volatile bool _schemaContractVerified;
-	private bool _hasTenantColumn;
+	private readonly SqlServerInboxSchema _schema;
 
 	private async ValueTask<SqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
 	{
@@ -180,68 +181,18 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 		}
 	}
 
-	// The (b) fail-closed floor + the emission driver: on first use, reads the physical schema, verifies the
-	// deployment-mode ↔ schema contract (fail-fast on mismatch), caches whether the tenant column is in the
-	// key, and returns it so the caller emits the tenant term iff the column exists. A concurrent first-use
-	// may run it more than once, each converging on the same result, so no lock is needed. The (a)
-	// hosted-service validator calls this at startup so host consumers fail before the first message.
 	internal async ValueTask<bool> EnsureSchemaAsync(CancellationToken cancellationToken)
 	{
-		var hasTenantColumn = await ReadSchemaOnceAsync(cancellationToken).ConfigureAwait(false);
-
-		// The (b) fail-closed floor. SITED HERE, downstream of the cached read, because ReadSchemaOnceAsync
-		// returns hasTenantColumn on BOTH its paths -- the cached early return and the post-catalog read --
-		// so one call covers both and the check runs on EVERY operation.
-		//
-		// Folding this into the cached method instead would place it behind that method's early return,
-		// where it runs exactly ONCE: under whichever identity made the first call, which at host start is
-		// the benign default, and never again. The eager validation arm would arm the cache and disarm the
-		// floor for every subsequent request -- a guard that passes, caches its pass, and then sails every
-		// real cross-tenant call through. It would go green under any test that arranges the bad
-		// configuration and calls once.
-		InboxSchemaContract.VerifyTenantAdmissible(_options.QualifiedTableName, hasTenantColumn, _tenantContext);
-
-		return hasTenantColumn;
-	}
-
-	// Reads the physical schema ONCE and caches it. The physical key does not change under a running
-	// process, so caching it is correct; the ambient tenant does change per operation, which is why the
-	// admissibility check above is not in here.
-	private async ValueTask<bool> ReadSchemaOnceAsync(CancellationToken cancellationToken)
-	{
-		if (_schemaContractVerified)
+		var verified = _schema.HasTenantColumn;
+		if (verified is null)
 		{
-			return _hasTenantColumn;
+			await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+			verified = await _schema.EnsureAsync(connection, null, cancellationToken).ConfigureAwait(false);
 		}
-
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-
-		var primaryKeyColumns = (await connection.QueryAsync<string>(
-			new CommandDefinition(
-				"""
-				SELECT c.name
-				FROM sys.indexes i
-				JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
-				JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
-				WHERE i.object_id = OBJECT_ID(@TableName) AND i.is_primary_key = 1
-				ORDER BY ic.key_ordinal
-				""",
-				new { TableName = _options.QualifiedTableName },
-				commandTimeout: _options.CommandTimeoutSeconds,
-				cancellationToken: cancellationToken)).ConfigureAwait(false)).ToList();
-
-		var tenantIdIsNullable = await connection.ExecuteScalarAsync<bool?>(
-			new CommandDefinition(
-				"SELECT c.is_nullable FROM sys.columns c WHERE c.object_id = OBJECT_ID(@TableName) AND c.name = N'TenantId'",
-				new { TableName = _options.QualifiedTableName },
-				commandTimeout: _options.CommandTimeoutSeconds,
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
-
-		_hasTenantColumn = InboxSchemaContract.Verify(
-			_options.QualifiedTableName, _requireTenant, primaryKeyColumns, tenantIdIsNullable,
-			"MessageId", "HandlerType", "TenantId");
-		_schemaContractVerified = true;
-		return _hasTenantColumn;
+		var hasTenantColumn = verified.Value;
+		// Operation identity is checked on cache hits as well as on the initial schema read.
+		InboxSchemaContract.VerifyTenantAdmissible(_options.QualifiedTableName, hasTenantColumn, _tenantContext);
+		return hasTenantColumn;
 	}
 
 
@@ -272,6 +223,8 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantColumn = hasTenantColumn ? ", TenantId" : string.Empty;
 		var tenantValue = hasTenantColumn ? ", @TenantId" : string.Empty;
+		var persistedTenantId = hasTenantColumn ? TenantTerm : null;
+		entry.TenantId = persistedTenantId;
 
 		var sql = $"""
 		           INSERT INTO {_options.QualifiedTableName}
@@ -295,7 +248,7 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 				Status = (int)entry.Status,
 				entry.RetryCount,
 				entry.CorrelationId,
-				TenantId = TenantTerm,
+				TenantId = persistedTenantId,
 				entry.Source
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
@@ -1281,7 +1234,8 @@ public sealed class SqlServerInboxStore : IInboxStore, IProcessingTrackingInboxS
 	private static Func<SqlConnection> CreateConnectionFactory(SqlServerInboxOptions? options)
 	{
 		ArgumentNullException.ThrowIfNull(options);
-		return () => new SqlConnection(options.ConnectionString);
+		var connectionString = options.ConnectionString;
+		return () => new SqlConnection(connectionString);
 	}
 
 	#region Private Methods

@@ -9,9 +9,11 @@ e-mails are staged in the outbox and delivered by a background drain that
 retries a transient send failure, and inventory checks are scheduled and then
 executed from the schedule payload.
 
-The sample owns no store implementations. It composes the shipping ones through
-their public entry points, so the only line that changes for a persistent
-deployment is the provider:
+The sample owns no messaging store implementations. The default profile composes shipping volatile
+stores and keeps a sample-specific conditional order-publication checkpoint. All of that state is lost
+on process restart. The separate `--sql-orders` profile commits order state, inbox completion and
+notification intent together on one SQL Server transaction; changing only a provider line cannot
+enlist business writes. The default volatile registrations are:
 
 ```csharp
 services.AddExcaliburInbox(inbox => inbox.UseInMemory());
@@ -48,10 +50,10 @@ paths and the corresponding checks turn red.
 
 | Area | Contract | Exercised by |
 |------|----------|--------------|
-| Exactly-once order handling | `IInboxStore` | `OrderProcessingService` claims `(orderId, handler)`; a repeat submission is suppressed |
+| Completed-order deduplication | `IInboxStore` + `ILeasedInboxStore` | Failed attempts can retry; only a matching completed order is called a duplicate |
 | Failure recording | `IInboxStore` | An invalid order is marked failed and is never persisted |
-| Reliable notifications | `IOutboxStore` | `NotificationService` stages inside the claim; `NotificationDrainService` claims, sends, marks sent |
-| Delivery retry | `IOutboxStore` | A transient send failure is reported with `MarkFailedAsync` and redelivered after the backoff window |
+| Reliable notifications | `IOutboxStore` + `IClaimScopedOutboxStore` | Stages raw notification bytes; the drain freezes acquisition evidence and reports typed completion |
+| Delivery retry | `IClaimScopedOutboxStore` | A genuine pre-acceptance failure is reported under its captured claim; an applied failure observes the provider visibility floor |
 | Scheduled work | `IScheduleStore` | `InventoryService` stores the check; `InventoryCheckProcessor` deserializes the payload, executes, completes |
 | Observability | `AddDispatchTelemetry` + OpenTelemetry | Spans and metrics per operation (`--trace` to export to the console) |
 | Health checks | `Microsoft.Extensions.Diagnostics.HealthChecks` | `StoreHealthCheck` round-trips each store; `BusinessLogicHealthCheck` probes the repositories |
@@ -65,14 +67,35 @@ dotnet run -- --trace  # also exports OpenTelemetry spans and metrics to the con
 
 ## Worth copying
 
-- **Claim before you work.** `CreateEntryAsync` is the deduplication claim, not a
-  log line written afterwards. Checking a flag and then acting on it leaves a
-  window open when two submissions arrive together.
-- **Stage inside the claim.** The confirmation is staged in the same flow that
-  persists the order, so a confirmation exists for every persisted order and for
-  no other.
-- **Report the send outcome.** A failed send is reported with `MarkFailedAsync`
-  so the store can redeliver it; swallowing the exception loses the message.
+Both sample workers wait their fixed250ms polling interval after successful cycles and
+non-shutdown failures, preventing a store outage from turning into a busy retry/log loop.
+Shutdown interrupts either work or that delay. The optional TimeProvider controls polling
+only; ordinary runs use system time, and tests advance Microsoft's FakeTimeProvider without
+changing business timestamps or retry budgets.
+
+- **Capture input, then acquire the current lease.** `CreateEntryAsync` retains auditable input;
+  row existence alone proves neither completed processing nor permission to publish.
+  `ILeasedInboxStore.TryAcquireLeaseAsync` establishes the current inbox term, while the
+  conditional business-state transition separately grants publication permission.
+- **Distinguish a lease from a transaction.** Volatile order state captures one immutable confirmation
+  plan and grants publication permission with a conditional business-state transition. A successor
+  cannot steal an in-flight publication merely because its inbox lease changed. A positive stage
+  receipt is retained before callbacks; a fresh inbox holder can finish without staging again.
+- **Keep uncertainty visible.** A failed stage can have an unknown acknowledgement. The volatile
+  demonstration allows one caller-driven redrive with the same unique intent ID; another exception
+  stops automatic staging and returns `NeedsReconciliation`. A duplicate-key exception is not
+  acceptance. A retained outbox row remains drainable. This is not durable quarantine or atomicity.
+- **Retain acquisition evidence.** The drain snapshots every batch row's durable ID,
+  opaque claim, attempt count and payload before callbacks. It requires the real store's
+  `IClaimScopedOutboxStore` through `GetService`, with no ID-only fallback.
+- **Separate delivery from settlement.** A pre-acceptance failure is reported under
+  that captured claim. After the sender accepts, a settlement fault or refusal never
+  becomes another delivery failure in the same cycle. Only `Applied` updates sent/retry
+  metrics; other outcomes are logged, and lease recovery retains at-least-once semantics.
+- **State the deployment topology.** This custom sample drain has one active worker
+  and no leader-election branch. A single process can still reclaim expired leases,
+  so acquisition ownership remains required. This is not durable-fencing certification
+  for every provider; use the framework worker for its complete leadership/recovery policy.
 - **Put what the worker needs in the payload.** The schedule identifier is an
   opaque handle. Everything the inventory check needs travels in the message body.
 - **Distinguish store operations from scheduler admission.** This sample's custom
@@ -92,3 +115,45 @@ dotnet run -- --trace  # also exports OpenTelemetry spans and metrics to the con
 - `11-real-world/EnterpriseOrderProcessing/` — full multi-package reference app
 - `04-reliability/Outbox/` — outbox pattern focus with SQL Server
 - `04-reliability/InboxConsumer/` — inbox deduplication focus
+
+
+## Durable SQL order and intent profile
+
+This is an explicit **single-tenant managed SQL Server** order-submission example. It does not certify
+SQL Native AOT, multi-tenant deployments, or durable inventory/scheduling. The default scenario retains
+its existing local inventory and scheduling demonstration.
+
+Use a dedicated sample database and provision the shipping outbox schema from
+`src/Excalibur/Excalibur.Outbox.SqlServer/Scripts/001_CreateOutboxSchema.sql` before running.
+The SQL profile uses that script's default `dbo.OutboxMessages` and associated tables. Also provision `src/Excalibur/Excalibur.Inbox.SqlServer/Scripts/001_CreateInboxSchema.sql` for this
+closed single-tenant profile. The inbox does not create its schema at runtime; the application creates
+its immutable `dbo.CommerceOrders` table.
+Set `ECOMMERCE_SQL_CONNECTION` through your local environment or secret provider; do not commit it.
+
+```bash
+dotnet run --project samples/11-real-world/ECommerceSample -- --sql-orders
+dotnet run --project samples/11-real-world/ECommerceSample -- --sql-orders --stage-only
+dotnet run --project samples/11-real-world/ECommerceSample -- --sql-orders --drain-only
+```
+
+`--stage-only` commits without starting a drain. `--drain-only` starts the unchanged notification worker
+in a new process and reads existing durable intent; it does not resubmit the order. Running these two
+commands separately checks committed-intent restart behavior when verified. It does not by itself test
+termination during an uncommitted transaction. Keep those fault controls separate.
+
+The transaction belongs to `ITransactionalInboxStore`. Order `DataRequest` commands use its supplied
+connection and transaction, and `ITransactionalOutboxWriter` stages the confirmation on that same
+transaction. Missing effective capabilities fail composition. Database/commit-acknowledgement failures
+are surfaced; a caller retries the same logical identity instead of assuming rollback.
+
+The immutable business row retains a canonical fingerprint and the original committed intent identity.
+The processed-duplicate path checks this authoritative record even though the inbox skips its callback.
+Different inputs return `Conflict`; missing evidence returns `NeedsReconciliation`; read failures are
+not success. Normal outbox cleanup may remove a delivered physical row: the retained business commit
+marker still prevents restaging after inbox expiry. It proves the intent was committed, **not** that an
+external email was delivered. The sample retains immutable business identity; a production retention
+policy must preserve equivalent identity evidence for its documented replay horizon.
+
+Implementation availability is not release certification. Real SQL rollback, interrupted transaction,
+retention and process-restart controls must be run against the exact candidate; the local in-memory
+controls establish their narrower admission/publication behavior only.

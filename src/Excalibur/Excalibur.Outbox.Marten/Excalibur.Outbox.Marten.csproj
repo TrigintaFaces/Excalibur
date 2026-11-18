@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Outbox.Marten</PackageId>
-    <Description>Marten (PostgreSQL document store) implementation of the transactional outbox pattern for Excalibur. Composes Marten's IDocumentSession unit-of-work for reliable, at-least-once message delivery without hand-rolled SQL.</Description>
+    <Description>Marten (PostgreSQL document store) outbox implementation using IDocumentSession. The current provider document-mapping path has trimming and potential NativeAOT constraints; provider NativeAOT compatibility is not claimed.</Description>
     <PackageTags>excalibur;outbox;transactional-outbox;messaging;reliable-delivery;marten;postgres;document-db</PackageTags>
     <IsAotCompatible>false</IsAotCompatible>
     <!-- Declare this library's intentional runtime dependencies rather than promoting its

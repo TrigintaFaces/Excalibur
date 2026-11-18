@@ -11,6 +11,38 @@ namespace Excalibur.Saga.Tests.Benchmarks;
 [Trait("Pattern", "Regression")]
 public sealed class SqlServerSagaBenchmarkFixtureShould
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DisposeOwnedSerializerEvenWhenSchemaValidationRefusesCleanup(bool invalidSchema)
+    {
+        var fixture = new SqlServerSagaStoreBenchmarks();
+        using var serializer = new Excalibur.Dispatch.Serialization.DispatchJsonSerializer();
+        var pool = typeof(Excalibur.Dispatch.Serialization.DispatchJsonSerializer)
+            .GetField("_writerPool", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(serializer)!;
+        Set(fixture, "_ownedSerializer", serializer);
+        if (invalidSchema)
+        {
+            Set(fixture, "_ownsSchema", true);
+            Set(fixture, "_ownedSchema", "invalid-owned-identifier");
+            var failure = Should.Throw<InvalidOperationException>(fixture.GlobalCleanup);
+            failure.Message.ShouldBe("Owned saga schema identity is invalid; cleanup refused.");
+            Read<bool>(fixture, "_ownsSchema").ShouldBeTrue();
+            Read<string>(fixture, "_ownedSchema").ShouldBe("invalid-owned-identifier");
+        }
+        else
+        {
+            fixture.GlobalCleanup();
+            fixture.GlobalCleanup();
+        }
+
+        Field("_ownedSerializer").GetValue(fixture).ShouldBeNull();
+        Field("_sagaStore").GetValue(fixture).ShouldBeNull();
+        var error = Should.Throw<TargetInvocationException>(() => pool.GetType().GetMethod("Rent")!
+            .Invoke(pool, [new System.Buffers.ArrayBufferWriter<byte>(), null]));
+        error.InnerException.ShouldBeOfType<ObjectDisposedException>();
+    }
+
     [Fact]
     public void RejectRepeatedSetupBeforeReplacingOwnedIdentity()
     {

@@ -299,7 +299,39 @@ The bridge extracts contextual data from `HttpContext` into the Dispatch `Messag
 | UserId | `ClaimTypes.NameIdentifier` | From authenticated user |
 | ETag | `If-Match` / `If-None-Match` headers | Optional |
 
-All HTTP request headers are copied into `context.Items` for middleware access.
+No other request header is copied into `context.Items`. To make specific headers available to
+middleware, name them:
+
+```csharp
+builder.Services.AddDispatchRequestHeaderCapture(options =>
+{
+    _ = options.AllowedHeaders.Add("X-Request-Id");
+    _ = options.AllowedHeaders.Add("X-Client-Version");
+});
+```
+
+Each captured header appears as `context.Items["header.X-Request-Id"]`, under its original name with a
+`header.` prefix. With no configuration, nothing is captured.
+
+A captured header is **request-local**: your handlers and middleware can read it, and it does not travel
+with the message. To forward one, mark it — `context.SetPropagatedItem("x-request-id", value)` — which
+keeps the decision at the point where you know the value is safe to send on.
+
+:::warning Changed behaviour
+Every request header used to be copied into `context.Items` under its raw name, and a context item used
+to reach the far side on several paths — onto the wire with CloudEvents, into message metadata, and
+persisted by the SQL Server outbox provider under the key unchanged. That behaviour forwarded the
+caller's `Authorization` and `Cookie` to downstream systems and stored them.
+
+Two changes close it, and the second is why this one is not merely narrowed. Capture is now opt-in by
+name, and `Authorization`, `Cookie` and `Proxy-Authorization` are **refused at startup** if you name
+them. And `context.Items` is now request-local everywhere: nothing in this framework serializes,
+persists, transmits or emits it, so a header that does reach `Items` — by any route, including your own
+code — no longer leaves the process unless you mark it.
+
+If your handlers read a header out of `context.Items`, add that header to `AllowedHeaders` and change the
+key to its `header.`-prefixed form.
+:::
 
 ## Authorization Bridge
 

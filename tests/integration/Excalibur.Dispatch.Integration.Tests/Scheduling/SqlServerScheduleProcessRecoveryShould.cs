@@ -37,6 +37,14 @@ public sealed class SqlServerScheduleProcessRecoveryShould(SqlServerFixture fixt
         await using var stream = assembly.GetManifestResourceStream(resource) ?? throw new InvalidOperationException("Missing shipped schema.");
         using var reader = new StreamReader(stream);
         var script = await reader.ReadToEndAsync(deadline.Token);
+        var profileResource = assembly.GetManifestResourceNames().Single(name => name.EndsWith("SqlServer.006_AddScheduleCronRecurrenceProfile.sql", StringComparison.Ordinal));
+        await using var profileStream = assembly.GetManifestResourceStream(profileResource) ?? throw new InvalidOperationException("Missing shipped recurrence profile schema.");
+        using var profileText = new StreamReader(profileStream);
+        var failureResource = assembly.GetManifestResourceNames().Single(name => name.EndsWith("SqlServer.005_CreateScheduleFailureSchema.sql", StringComparison.Ordinal));
+        await using var failureStream = assembly.GetManifestResourceStream(failureResource) ?? throw new InvalidOperationException("Missing shipped failure schema.");
+        using var failureText = new StreamReader(failureStream);
+        script += "\n" + await failureText.ReadToEndAsync(deadline.Token);
+        script += "\n" + await profileText.ReadToEndAsync(deadline.Token);
         await using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync(deadline.Token);
         await using var command = new SqlCommand(script, connection) { CommandTimeout = 20 };
@@ -177,8 +185,13 @@ public sealed class SqlServerScheduleProcessRecoveryShould(SqlServerFixture fixt
     private static ScheduleExecutionLease ReadLease(JsonElement reply)
     {
         var lease = reply.GetProperty("Lease");
+        // The probe serializes the whole lease, so carry the attempt it reported rather than inventing
+        // one: the reconstructed tuple is used to assert against the other process's authority.
         return new(lease.GetProperty("StoreId").GetGuid(), lease.GetProperty("ScheduleId").GetGuid(),
-            lease.GetProperty("Generation").GetGuid(), lease.GetProperty("OccurrenceUtc").GetDateTimeOffset(), lease.GetProperty("OwnerToken").GetGuid());
+            lease.GetProperty("Generation").GetGuid(), lease.GetProperty("OccurrenceUtc").GetDateTimeOffset(), lease.GetProperty("OwnerToken").GetGuid())
+        {
+            AdmissionAttempt = lease.GetProperty("AdmissionAttempt").GetInt32(),
+        };
     }
 
     private static void AssertMessage(JsonElement actual, ScheduledMessage expected)

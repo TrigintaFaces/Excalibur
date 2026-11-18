@@ -90,7 +90,7 @@ services.AddMqttTransport("local-dev", mqtt =>
 | `ResponseTopic` | `string?` | `null` | The MQTT-5 response topic for the request/reply pattern, or `null` when unused. |
 | `Username` | `string?` | `null` | The user name for broker authentication, or `null` for none. |
 | `Password` | `string?` | `null` | The password for broker authentication, or `null` for none. Source from a secret manager; never commit a value. |
-| `MaxPayloadBytes` | `int?` | `null` | The maximum accepted inbound payload size in bytes, or `null` for no limit (see below). |
+| `MaxPayloadBytes` | `int?` | `4 MiB` | The maximum accepted inbound payload size in bytes, or `null` to opt out of the limit (see below). |
 
 ### Quality of service
 
@@ -216,7 +216,11 @@ By default each subscriber receives every message (fan-out). Set `UseSharedSubsc
 
 ### Payload-size guard
 
-Set `MaxPayloadBytes` to reject oversized inbound payloads before they are buffered. The size is measured on receipt; an oversized message can never be processed, so it is acknowledged and dropped (rather than looped by broker redelivery). The guard is **off by default** (`null` = no limit).
+`MaxPayloadBytes` rejects oversized inbound payloads before they are buffered. The size is measured on receipt; an oversized message can never be processed, so it is acknowledged and dropped (rather than looped by broker redelivery).
+
+The guard is **on by default, at 4 MiB** — the same default every other transport applies. Raise it for larger legitimate payloads, or set it to `null` to opt out of the limit entirely.
+
+> **Changed:** this option previously defaulted to `null`, so the guard was inert for every deployment that had not configured it. If you rely on inbound payloads larger than 4 MiB, set `MaxPayloadBytes` explicitly — otherwise they are now rejected.
 
 ## What's Next
 

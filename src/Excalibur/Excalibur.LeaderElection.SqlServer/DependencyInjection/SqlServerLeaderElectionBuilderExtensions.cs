@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch;
@@ -231,7 +230,7 @@ public static class SqlServerLeaderElectionBuilderExtensions
 			// optional classifier-accelerated self-demotion (null when none registered → grace-only).
 			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
 			// optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
-			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			var fencingTokenProvider = sp.GetService<IFencingTokenIssuer>();
 			return new SqlServerLeaderElection(connStr, resolvedLockResource, leOptions, logger, failureClassifier, fencingTokenProvider);
 		});
 
@@ -239,10 +238,7 @@ public static class SqlServerLeaderElectionBuilderExtensions
 		builder.Services.AddKeyedSingleton<ILeaderElection>("sqlserver", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<SqlServerLeaderElection>();
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElection(inner, meter, activitySource, "SqlServer");
+			return TelemetryLeaderElection.CreateOwned(inner, sp.GetService<IMeterFactory>(), "SqlServer");
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("sqlserver"));
@@ -272,7 +268,7 @@ public static class SqlServerLeaderElectionBuilderExtensions
 	private static void RegisterDefaultFencingTokenProvider(
 		IServiceCollection services,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactory) =>
-		services.TryAddDefaultFencingTokenProvider(sp =>
+		services.TryAddDefaultFencingTokenIssuer(sp =>
 			new SqlServerFencingTokenProvider(ResolveConnectionString(connectionFactory, sp)));
 
 	/// <summary>
@@ -291,12 +287,9 @@ public static class SqlServerLeaderElectionBuilderExtensions
 			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
-			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			var fencingTokenProvider = sp.GetService<IFencingTokenIssuer>();
 				var inner = new SqlServerLeaderElectionFactory(connStr, loggerFactory, electionOptions, failureClassifier, fencingTokenProvider);
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "SqlServer");
+			return TelemetryLeaderElectionFactory.CreateOwned(inner, sp.GetService<IMeterFactory>(), "SqlServer");
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElectionFactory>("sqlserver"));

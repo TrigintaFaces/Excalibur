@@ -309,8 +309,12 @@ public sealed class ErasureVerificationServiceAuditShould
 		// Act
 		var result = await _sut.VerifyErasureAsync(requestId, CancellationToken.None);
 
-		// Assert - verification succeeds even with no keys deleted
-		result.Verified.ShouldBeTrue();
+		// Assert - a status recording no key deletions establishes no destruction, so the
+		// verdict refuses. The audit trail still substantiates its own method, which is why
+		// Methods remains non-empty below: this is a refusal, not an inert always-false.
+		result.Verified.ShouldBeFalse();
+		result.Failures.ShouldNotBeEmpty();
+		result.Methods.HasFlag(VerificationMethod.AuditLog).ShouldBeTrue();
 	}
 
 	#endregion
@@ -431,8 +435,11 @@ public sealed class ErasureVerificationServiceAuditShould
 		// Act
 		var result = await _sut.VerifyErasureAsync(requestId, CancellationToken.None);
 
-		// Assert - Should handle null certificate gracefully
-		result.Verified.ShouldBeTrue();
+		// Assert - a null certificate carries no deleted-key IDs, so key-deletion verification
+		// establishes nothing and the verdict refuses. Handling it gracefully means recording
+		// that refusal, not reporting success.
+		result.Verified.ShouldBeFalse();
+		result.Failures.ShouldNotBeEmpty();
 	}
 
 	[Fact]

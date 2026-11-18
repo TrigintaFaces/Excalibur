@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using CloudNative.CloudEvents;
+
 using MQTTnet;
 using MQTTnet.Protocol;
 
@@ -17,6 +19,7 @@ internal sealed partial class MqttTransportSender : ITransportSender
 	private readonly IMqttConnectionProvider _connectionProvider;
 	private readonly MqttOptions _options;
 	private readonly ILogger<MqttTransportSender> _logger;
+	private readonly ICloudEventEncoder<MqttApplicationMessage>? _cloudEventEncoder;
 	private readonly SemaphoreSlim _connectGate = new(1, 1);
 	private IMqttClient? _client;
 	private volatile bool _disposed;
@@ -24,11 +27,13 @@ internal sealed partial class MqttTransportSender : ITransportSender
 	public MqttTransportSender(
 		IMqttConnectionProvider connectionProvider,
 		MqttOptions options,
-		ILogger<MqttTransportSender> logger)
+		ILogger<MqttTransportSender> logger,
+		ICloudEventEncoder<MqttApplicationMessage>? cloudEventEncoder = null)
 	{
 		_connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_cloudEventEncoder = cloudEventEncoder;
 	}
 
 	/// <inheritdoc />
@@ -41,40 +46,7 @@ internal sealed partial class MqttTransportSender : ITransportSender
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var client = await EnsureConnectedAsync(cancellationToken).ConfigureAwait(false);
-
-		var builder = new MqttApplicationMessageBuilder()
-			.WithTopic(_options.Topic)
-			.WithPayload(message.Body.ToArray())
-			.WithQualityOfServiceLevel(MapQos(_options.QualityOfService))
-			.WithCorrelationData(message.CorrelationId is null ? null : System.Text.Encoding.UTF8.GetBytes(message.CorrelationId))
-			.WithResponseTopic(_options.ResponseTopic);
-
-		// THE MEDIA TYPE AND THE APPLICATION PROPERTIES GO ON THE WIRE.
-		// They were built and then dropped here, which made a sender-to-receiver round trip lossy in a way
-		// neither side could see: the receiver reads both fields, so it reported "no content type, no
-		// properties" for every message this sender published and looked correct doing it. The concrete
-		// casualty is binary-mode CloudEvents, whose attributes ARE MQTT v5 user properties -- publishing a
-		// CloudEvent through this sender produced ordinary traffic at our own consumer.
-		if (!string.IsNullOrEmpty(message.ContentType))
-		{
-			builder = builder.WithContentType(message.ContentType);
-		}
-
-		if (message.HasProperties)
-		{
-			foreach (var (name, value) in message.Properties)
-			{
-				// A user property is a string pair on the wire. A null VALUE is dropped rather than sent as
-				// an empty string, because "the producer set nothing" and "the producer set an empty value"
-				// are different facts and the receiver reports them differently.
-				if (value is not null)
-				{
-					builder = builder.WithUserProperty(name, value as string ?? value.ToString());
-				}
-			}
-		}
-
-		var applicationMessage = builder.Build();
+		var applicationMessage = await CreateApplicationMessageAsync(message, cancellationToken).ConfigureAwait(false);
 
 		var result = await client.PublishAsync(applicationMessage, cancellationToken).ConfigureAwait(false);
 		if (result.IsSuccess)
@@ -90,6 +62,96 @@ internal sealed partial class MqttTransportSender : ITransportSender
 			IsRetryable = true,
 		});
 	}
+
+	private async ValueTask<MqttApplicationMessage> CreateApplicationMessageAsync(
+		TransportMessage message,
+		CancellationToken cancellationToken)
+	{
+		if (_cloudEventEncoder is not null && message.HasProperties
+			&& message.Properties.TryGetValue("cloudevent", out var marker) && marker is CloudEvent cloudEvent)
+		{
+			var encoded = await _cloudEventEncoder.ToTransportMessageAsync(
+				cloudEvent, _cloudEventEncoder.Options.DefaultMode, cancellationToken).ConfigureAwait(false);
+			encoded.Topic = _options.Topic;
+			encoded.QualityOfServiceLevel = MapQos(_options.QualityOfService);
+			encoded.CorrelationData = message.CorrelationId is null
+				? null
+				: System.Text.Encoding.UTF8.GetBytes(message.CorrelationId);
+			encoded.ResponseTopic = _options.ResponseTopic;
+			AppendApplicationProperties(encoded, message, cloudEventEncoded: true);
+			return encoded;
+		}
+
+		var builder = new MqttApplicationMessageBuilder()
+			.WithTopic(_options.Topic)
+			.WithPayload(message.Body.ToArray())
+			.WithQualityOfServiceLevel(MapQos(_options.QualityOfService))
+			.WithCorrelationData(message.CorrelationId is null ? null : System.Text.Encoding.UTF8.GetBytes(message.CorrelationId))
+			.WithResponseTopic(_options.ResponseTopic);
+
+		if (!string.IsNullOrEmpty(message.ContentType))
+		{
+			builder = builder.WithContentType(message.ContentType);
+		}
+
+		var applicationMessage = builder.Build();
+		AppendApplicationProperties(applicationMessage, message, cloudEventEncoded: false);
+		return applicationMessage;
+	}
+
+	private static void AppendApplicationProperties(
+		MqttApplicationMessage applicationMessage,
+		TransportMessage message,
+		bool cloudEventEncoded)
+	{
+		if (!message.HasProperties)
+		{
+			return;
+		}
+
+		// Protect only the encoder's original properties. Properties appended below are application
+		// properties, whose case-distinct names must remain distinct on the MQTT wire.
+		var encodedPropertyCount = cloudEventEncoded ? applicationMessage.UserProperties?.Count ?? 0 : 0;
+		foreach (var (name, value) in message.Properties)
+		{
+			if (value is null || (cloudEventEncoded &&
+				(name.Equals("cloudevent", StringComparison.OrdinalIgnoreCase)
+					|| IsCloudEventAttributeName(name)
+					|| HasEncodedProperty(applicationMessage, encodedPropertyCount, name))))
+			{
+				continue;
+			}
+
+			// CloudEvent attributes come only from the encoder. Ordinary application properties remain
+			// available, but cannot replace its identity, introduce absent standard attributes, or leak
+			// the in-process CloudEvent marker onto the wire.
+			applicationMessage.UserProperties ??= [];
+			applicationMessage.UserProperties.Add(new MQTTnet.Packets.MqttUserProperty(name, value as string ?? value.ToString()));
+		}
+	}
+
+	private static bool HasEncodedProperty(MqttApplicationMessage message, int encodedPropertyCount, string name)
+	{
+		for (var index = 0; index < encodedPropertyCount; index++)
+		{
+			if (string.Equals(message.UserProperties[index].Name, name, StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static bool IsCloudEventAttributeName(string name) =>
+		name.Equals("specversion", StringComparison.OrdinalIgnoreCase)
+		|| name.Equals("id", StringComparison.OrdinalIgnoreCase)
+		|| name.Equals("source", StringComparison.OrdinalIgnoreCase)
+		|| name.Equals("type", StringComparison.OrdinalIgnoreCase)
+		|| name.Equals("datacontenttype", StringComparison.OrdinalIgnoreCase)
+		|| name.Equals("dataschema", StringComparison.OrdinalIgnoreCase)
+		|| name.Equals("subject", StringComparison.OrdinalIgnoreCase)
+		|| name.Equals("time", StringComparison.OrdinalIgnoreCase);
 
 	/// <inheritdoc />
 	/// <remarks>

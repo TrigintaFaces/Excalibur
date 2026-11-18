@@ -32,7 +32,7 @@ namespace Excalibur.Outbox.Marten;
 /// absent from the returned set. There is no read-then-write window to lose.
 /// </para>
 /// </remarks>
-internal static class MartenOutboxClaims
+internal static partial class MartenOutboxClaims
 {
 	/// <summary>
 	/// The reserved dispatcher identity marking a message that has reached a terminal state.
@@ -164,7 +164,8 @@ internal static class MartenOutboxClaims
 			    SET dispatcher_id   = EXCLUDED.dispatcher_id,
 			        claimed_at      = EXCLUDED.claimed_at,
 			        next_attempt_at = NULL
-			    WHERE {qualified}.claimed_at < clock_timestamp() - make_interval(secs => @ClaimTimeoutSeconds)
+			    WHERE {qualified}.dispatcher_id <> @Terminal
+			      AND {qualified}.claimed_at < clock_timestamp() - make_interval(secs => @ClaimTimeoutSeconds)
 			      AND ({qualified}.next_attempt_at IS NULL OR {qualified}.next_attempt_at <= clock_timestamp())
 			RETURNING message_id;
 			""",
@@ -174,6 +175,7 @@ internal static class MartenOutboxClaims
 		_ = command.Parameters.AddWithValue("MessageIds", messageIds.ToArray());
 		_ = command.Parameters.AddWithValue("DispatcherId", dispatcherId);
 		_ = command.Parameters.AddWithValue("ClaimTimeoutSeconds", claimTimeout.TotalSeconds);
+		_ = command.Parameters.AddWithValue("Terminal", TerminalDispatcherId);
 
 		await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 		while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -322,7 +324,8 @@ internal static class MartenOutboxClaims
 		ON CONFLICT (message_id) DO UPDATE
 		    SET claimed_at      = @Released,
 		        next_attempt_at = clock_timestamp() + make_interval(secs => @FloorSeconds)
-		    WHERE {qualified}.dispatcher_id = @DispatcherId
+		    WHERE ({qualified}.dispatcher_id = @DispatcherId
+		    OR left({qualified}.dispatcher_id, length(@DispatcherId) + 1) = @DispatcherId || ':')
 		RETURNING message_id;
 		""",
 			connection,

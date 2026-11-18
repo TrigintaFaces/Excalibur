@@ -6,14 +6,23 @@
     Runs `dotnet publish` with PublishAot=true on the AOT sample application
     (samples/10-aot/), which transitively references shipping packages.
     Captures IL2xxx (trim) and IL3xxx (AOT) warnings, groups them by package,
-    and produces JSON and HTML reports for CI consumption.
+    and produces JSON and HTML reports for CI consumption. Reported warning counts and
+    TotalWarnings include only diagnostics not admitted by the existing baseline; raw
+    diagnostics remain in the publish log.
+    The default project is also used by the workflow runtime smoke job: these are
+    complementary checks of the same sample workload, not independent package coverage.
 
     Exit codes:
-      0 = No warnings or errors
-      1 = IL2xxx/IL3xxx warnings detected
+      0 = No unbaselined IL2xxx/IL3xxx warnings or build errors
+      1 = Unbaselined IL2xxx/IL3xxx warnings detected
       2 = Script or publish error
       3 = REFUSE: the publish produced no analysable output, so warning absence
           could not be distinguished from parse failure. REFUSE is not PASS.
+
+.PARAMETER BaselinePath
+    Existing warning baseline. Matching diagnostics remain in the raw publish log but are
+    excluded from reported TotalWarnings, Warnings and WarningsByPackage counts. Defaults
+    to eng/ci/aot-warning-baseline.json.
 
 .PARAMETER SelfTest
     Runs the verdict-logic self-test and exits without publishing.
@@ -73,10 +82,10 @@ function Get-AotVerdict {
     }
 
     if ($WarningCount -gt 0) {
-        return @{ Code = 1; Verdict = 'WARNINGS'; Reason = "$WarningCount IL2xxx/IL3xxx warnings found" }
+        return @{ Code = 1; Verdict = 'WARNINGS'; Reason = "$WarningCount unbaselined IL2xxx/IL3xxx warnings found" }
     }
 
-    return @{ Code = 0; Verdict = 'PASSED'; Reason = 'zero warnings' }
+    return @{ Code = 0; Verdict = 'PASSED'; Reason = 'zero unbaselined IL2xxx/IL3xxx warnings' }
 }
 
 # An analysable log is one that carries at least one line the MSBuild/publish pipeline is known to
@@ -208,12 +217,21 @@ Initialize-VsWhereOnPath
 # DO NOT pass -p:PublishAot=true on the command line: it cascades globally to ALL projects
 # in the build graph, including netstandard2.0 source generators (causing NETSDK1207).
 # The per-project settings apply only to the sample and its runtime dependencies.
+# Native restore has a different RID graph from the normal locked build. Keep its lock files
+# project-local under obj, rather than overwriting the tracked RID-neutral packages.lock.json.
+# Honor an explicitly selected context, but pass it as a global property to the whole restore graph.
+$restoreLockFilePath = if ([string]::IsNullOrWhiteSpace($env:NuGetLockFilePath)) {
+    'obj/aot-validation/packages.lock.json'
+} else {
+    $env:NuGetLockFilePath
+}
 $publishArgs = @(
     'publish', $aotSampleProject,
     '--configuration', $Configuration,
     '--verbosity', 'normal',
     '-p:SuppressTrimAnalysisWarnings=false',
-    '-p:TrimmerSingleWarn=false'
+    '-p:TrimmerSingleWarn=false',
+    "-p:NuGetLockFilePath=$restoreLockFilePath"
 )
 
 if ($Runtime) {
@@ -359,7 +377,8 @@ foreach ($line in ($publishOutput -split "`n")) {
     }
 }
 
-# Build results object
+# Build results object. Warning fields retain their existing schema and count only
+# unbaselined IL2xxx/IL3xxx diagnostics; the raw publish log retains every diagnostic.
 $results = @{
     Timestamp         = (Get-Date -Format 'o')
     Configuration     = $Configuration
@@ -422,7 +441,7 @@ $htmlBody = @"
         </div>
         <div class="card $(if ($allWarnings.Count -eq 0) { 'pass' } else { 'warn' })">
             <h2>$($allWarnings.Count)</h2>
-            <p>IL2xxx/IL3xxx Warnings</p>
+            <p>Unbaselined IL2xxx/IL3xxx warnings</p>
         </div>
         <div class="card $(if ($errors.Count -eq 0) { 'pass' } else { 'fail' })">
             <h2>$($errors.Count)</h2>
@@ -432,7 +451,7 @@ $htmlBody = @"
 "@
 
 if ($warningsByPackage.Count -gt 0) {
-    $htmlBody += "    <h2>Warnings by Package</h2>`n    <table>`n        <tr><th>Package</th><th>Code</th><th>Message</th></tr>`n"
+    $htmlBody += "    <h2>Unbaselined Warnings by Package</h2>`n    <table>`n        <tr><th>Package</th><th>Code</th><th>Message</th></tr>`n"
     foreach ($pkg in $warningsByPackage.Keys | Sort-Object) {
         foreach ($w in $warningsByPackage[$pkg]) {
             $escapedMsg = $w.Message -replace '<', '&lt;' -replace '>', '&gt;'
@@ -462,16 +481,16 @@ Write-Host "========================================"
 Write-Host "  AOT Publish Validation Summary"
 Write-Host "========================================"
 Write-Host "  Publish:    $(if ($publishExitCode -eq 0) { 'SUCCESS' } else { "FAILED (exit $publishExitCode)" })"
-Write-Host "  Warnings:   $($allWarnings.Count) IL2xxx/IL3xxx"
+Write-Host "  Unbaselined warnings: $($allWarnings.Count) IL2xxx/IL3xxx"
 Write-Host "  Errors:     $($errors.Count)"
-Write-Host "  Packages:   $($warningsByPackage.Count) with warnings"
+Write-Host "  Packages:   $($warningsByPackage.Count) with unbaselined warnings"
 Write-Host "========================================"
 Write-Host ""
 
 if ($warningsByPackage.Count -gt 0) {
-    Write-Host "Warnings by package:" -ForegroundColor Yellow
+    Write-Host "Unbaselined warnings by package:" -ForegroundColor Yellow
     foreach ($pkg in $warningsByPackage.Keys | Sort-Object) {
-        Write-Host "  $pkg : $($warningsByPackage[$pkg].Count) warning(s)" -ForegroundColor Yellow
+        Write-Host "  $pkg : $($warningsByPackage[$pkg].Count) unbaselined warning(s)" -ForegroundColor Yellow
     }
     Write-Host ""
 }

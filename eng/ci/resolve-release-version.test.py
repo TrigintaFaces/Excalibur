@@ -163,7 +163,7 @@ class VersionBoundaryTests(unittest.TestCase):
             root = Path(directory)
             (root / 'eng').mkdir()
             (root / 'eng/build.ps1').write_text('''param([switch]$Test,[switch]$NoRestore,[switch]$NoBuild,
-[string]$Project,[string]$ResultsDirectory,[string]$ResultsPrefix,[string]$BlameTimeout,[string]$RequiredTestContext,
+[string]$Project,[string]$ResultsDirectory,[string]$ResultsPrefix,[string]$BlameTimeout,[string]$RequiredTestContext,[string]$MinimumExecutedTests,
 [string]$TestFilter,[switch]$Coverage,[string]$MaxCpuCount,[string]$TestSessionTimeout,[string]$ExtraRunSettings)
 $PSBoundParameters | ConvertTo-Json | Set-Content -LiteralPath $env:PARAMETER_OUTPUT
 ''')
@@ -179,7 +179,8 @@ $PSBoundParameters | ConvertTo-Json | Set-Content -LiteralPath $env:PARAMETER_OU
                        EVIDENCE_PROVIDER='in-process', RUNNER_TEMP=str(root), GITHUB_WORKSPACE=str(root),
                        GITHUB_RUN_ID='control', GITHUB_RUN_ATTEMPT='1', GITHUB_JOB='fixture', RUNNER_OS='Windows' if os.name == 'nt' else 'Linux',
                        TEST_FILTER=payload, TEST_BLAME_TIMEOUT='5m', TEST_COLLECT_COVERAGE='true', TEST_MAX_CPU_COUNT='1',
-                       TEST_SESSION_TIMEOUT='1000', TEST_EXTRA_RUN_SETTINGS=payload, PARAMETER_OUTPUT=str(output))
+                       TEST_SESSION_TIMEOUT='1000', TEST_EXTRA_RUN_SETTINGS=payload, MINIMUM_EXECUTED_TESTS='1',
+                       PARAMETER_OUTPUT=str(output))
             result = subprocess.run(['pwsh', '-NoProfile', '-File', str(script)], cwd=ROOT, env=env,
                                     capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -190,6 +191,10 @@ $PSBoundParameters | ConvertTo-Json | Set-Content -LiteralPath $env:PARAMETER_OU
             self.assertEqual(parameters['ExtraRunSettings'], payload)
             self.assertEqual(parameters['MaxCpuCount'], '1')
             self.assertEqual(parameters['TestSessionTimeout'], '1000')
+            self.assertEqual(parameters['MinimumExecutedTests'], '1')
+            context = json.loads(Path(parameters['RequiredTestContext']).read_text(encoding='utf-8-sig'))
+            self.assertIs(type(context['minimumExecutedTests']), int)
+            self.assertEqual(context['minimumExecutedTests'], 1)
             self.assertTrue(parameters['Coverage']['IsPresent'])
             self.assertFalse(marker.exists())
 

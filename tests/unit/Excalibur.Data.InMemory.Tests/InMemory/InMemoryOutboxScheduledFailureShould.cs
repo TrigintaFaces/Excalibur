@@ -23,7 +23,7 @@ public sealed class InMemoryOutboxScheduledFailureShould
         var message = new OutboundMessage("test.message", [1], "destination");
         await decorated.StageMessageAsync(message, CancellationToken.None);
         await ((IBackoffSchedulableOutboxStore)capability).MarkFailedWithBackoffAsync(message.Id, "retry", 1, DateTimeOffset.UtcNow, CancellationToken.None);
-        message.Status.ShouldBe(OutboxStatus.Failed);
+        (await store.GetAllTenantsFailedMessagesAsync(0, null, 1, CancellationToken.None)).Single().Status.ShouldBe(OutboxStatus.Failed);
         (await decorated.GetUnsentMessagesAsync(1, CancellationToken.None)).ShouldBeEmpty();
     }
 
@@ -33,16 +33,18 @@ public sealed class InMemoryOutboxScheduledFailureShould
     public async Task Leave_Refused_Scheduled_Completions_Unchanged_While_Live_Owner_Can_Complete(bool staleTenure)
     {
         using var store = CreateStore();
-        var message = new OutboundMessage("test.message", [1], "destination");
+        var message = new OutboundMessage("test.message", [1], "destination") { ScheduledAt = DateTimeOffset.MinValue };
         await store.StageMessageAsync(message, CancellationToken.None);
         var claimed = (await store.GetUnsentMessagesAsync(1, 10, CancellationToken.None)).Single();
-        var before = (message.Status, message.RetryCount, message.LastError, message.LastAttemptAt);
+        var storedBefore = (await store.GetAllTenantsScheduledMessagesAsync(DateTimeOffset.MaxValue, 1, CancellationToken.None)).Single();
+        var before = (storedBefore.Status, storedBefore.RetryCount, storedBefore.LastError, storedBefore.LastAttemptAt);
         var authority = new OutboxWriteAuthority(staleTenure ? 5 : 10, staleTenure ? claimed.DispatcherId! : "foreign-claim");
         (await store.MarkFailedAsync(message.Id, "stale", 7, DateTimeOffset.UtcNow.AddDays(1), authority, CancellationToken.None))
             .ShouldBe(staleTenure ? OutboxCompletionOutcome.FenceRefused : OutboxCompletionOutcome.ClaimLost);
-        (message.Status, message.RetryCount, message.LastError, message.LastAttemptAt).ShouldBe(before);
+        var storedAfter = (await store.GetAllTenantsScheduledMessagesAsync(DateTimeOffset.MaxValue, 1, CancellationToken.None)).Single();
+        (storedAfter.Status, storedAfter.RetryCount, storedAfter.LastError, storedAfter.LastAttemptAt).ShouldBe(before);
         await store.MarkSentAsync(message.Id, 10, CancellationToken.None);
-        message.Status.ShouldBe(OutboxStatus.Sent);
+        (await store.GetAllTenantsStatisticsAsync(CancellationToken.None)).SentMessageCount.ShouldBe(1);
     }
 
     [Fact]
@@ -56,7 +58,7 @@ public sealed class InMemoryOutboxScheduledFailureShould
             await Task.WhenAll(
                 Task.Run(async () => await store.MarkSentAsync(message.Id, CancellationToken.None)),
                 Task.Run(async () => await store.MarkFailedWithBackoffAsync(message.Id, "late", 1, DateTimeOffset.UtcNow.AddDays(1), CancellationToken.None)));
-            message.Status.ShouldBe(OutboxStatus.Sent);
+            (await store.GetAllTenantsStatisticsAsync(CancellationToken.None)).SentMessageCount.ShouldBe(index + 1);
         }
         (await store.GetUnsentMessagesAsync(100, CancellationToken.None)).ShouldBeEmpty();
     }
@@ -111,12 +113,16 @@ public sealed class InMemoryOutboxScheduledFailureShould
         await store.StageMessageAsync(message, CancellationToken.None);
         if (deadLetter) await store.MarkDeadLetteredAsync(message.Id, "terminal", 0, CancellationToken.None);
         else await store.MarkSentAsync(message.Id, CancellationToken.None);
-        var before = message.Status;
+        var before = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
         var capability = ((IOutboxStore)store).GetService(typeof(IBackoffSchedulableOutboxStore));
         capability.ShouldNotBeNull();
         await ((IBackoffSchedulableOutboxStore)capability).MarkFailedWithBackoffAsync(message.Id, "late", 7, DateTimeOffset.UtcNow, CancellationToken.None);
-        message.Status.ShouldBe(before);
-        message.RetryCount.ShouldBe(0);
+        var after = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
+        after.SentMessageCount.ShouldBe(before.SentMessageCount);
+        after.FailedMessageCount.ShouldBe(0);
+        after.StagedMessageCount.ShouldBe(0);
+        (await store.MarkDeadLetteredAsync(message.Id, "probe", 0, CancellationToken.None)).ShouldBe(OutboxCompletionOutcome.AlreadyTerminal);
+        (await store.GetAllTenantsFailedMessagesAsync(0, null, 1, CancellationToken.None)).ShouldBeEmpty();
         (await store.GetUnsentMessagesAsync(1, CancellationToken.None)).ShouldBeEmpty();
     }
 
@@ -134,7 +140,7 @@ public sealed class InMemoryOutboxScheduledFailureShould
             DateTimeOffset.UtcNow.AddSeconds(requestedSeconds), CancellationToken.None);
         await ((IBackoffSchedulableOutboxStore)capability).MarkFailedWithBackoffAsync(message.Id, "late lower count", 1,
             DateTimeOffset.UtcNow.AddSeconds(requestedSeconds), CancellationToken.None);
-        message.RetryCount.ShouldBe(4);
+        (await store.GetAllTenantsFailedMessagesAsync(0, null, 1, CancellationToken.None)).Single().RetryCount.ShouldBe(4);
         (await store.GetUnsentMessagesAsync(1, CancellationToken.None)).ShouldBeEmpty();
     }
 

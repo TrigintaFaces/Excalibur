@@ -171,7 +171,7 @@ pre/post processing and exception handling map naturally onto middleware stages.
 
 | Feature | MediatR | Excalibur |
 |---------|---------|-------------------|
-| **Core Focus** | Simple mediator pattern | High-performance messaging framework with optional event sourcing and DDD capabilities |
+| **Core Focus** | Simple mediator pattern | Messaging framework with optional event sourcing and DDD capabilities |
 | **Request/Response** | `IRequest<T>` / `IRequestHandler<T>` | `IDispatchAction<T>` / `IActionHandler<T, R>` |
 | **Notifications** | `INotification` / `INotificationHandler` | `IDomainEvent` / `IEventHandler` |
 | **Pipeline Behaviors** | `IPipelineBehavior<TRequest, TResponse>` | `IDispatchMiddleware` |
@@ -716,7 +716,10 @@ builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
-          .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
+          .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)))
+          // The processor requires an explicitly registered dead-letter queue for
+          // messages that exhaust their retries, or it throws on its first poll.
+          .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString);
 }));
 
 // Events are automatically stored in outbox
@@ -943,15 +946,14 @@ builder.Services.AddDispatch(dispatch =>
 ```
 ## Performance
 
-Excalibur's measured dispatch overhead, and the conditions behind each figure, are published in
-[Benchmark Results](../performance/competitor-comparison.md). We do not publish tables ranking
-Excalibur against MediatR: a microbenchmark comparison is only meaningful when both sides are
-configured by someone with no stake in the result, and we cannot offer that about somebody else's
-library.
+Dated dispatch observations and their limitations appear in
+[Benchmark Results](../performance/competitor-comparison.md). Competitive conclusions require
+equivalent completed work, disclosed versions and settings, reproducible evidence, and uncertainty
+assessment. Project affiliation should be disclosed; it neither establishes nor invalidates a comparison.
 
-If that comparison matters to your decision, the fixtures are in
-`benchmarks/Excalibur.Dispatch.Benchmarks`. Run them against your own handlers, on your own
-hardware, and trust that result over any published table.
+The fixtures are in `benchmarks/Excalibur.Dispatch.Benchmarks`. Use representative handlers and
+deployment conditions, and assess workload equivalence, correctness and measurement uncertainty
+before drawing conclusions.
 
 ### What changes about the dispatch path
 
@@ -965,7 +967,9 @@ the explicit `ValueTask` API this replaced.
 
 A pre-routed message carries a routing decision, so it takes a different path from direct local
 dispatch. These figures preserve the September 2026 epoch; later routing
-observations have separate scope and do not replace this comparison:
+observations have separate scope and do not replace this comparison.
+These are historical routing-fixture observations, not verified end-to-end broker delivery latency
+or production throughput. The current campaign has not admitted these values as current release measurements.
 
 | Dispatch routing-first scenario | Mean | Allocated |
 |---------------------------------|------|-----------|

@@ -17,6 +17,7 @@
   <!-- AOT Configuration -->
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
   </PropertyGroup>

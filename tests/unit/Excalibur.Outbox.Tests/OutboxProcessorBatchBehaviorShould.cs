@@ -39,7 +39,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	public async Task PerformBatchDatabaseOperationsAsync_MarksSentRetryAndDeadLetterBuckets()
 	{
 		// Arrange
-		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>().Implements<IClaimScopedOutboxStore>().Implements<IClaimScopedDeadLetterableOutboxStore>());
 		await using var processor = CreateProcessor(outboxStore: outboxStore);
 
 		// Act
@@ -47,19 +47,20 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1", "sent-2" },
-			new List<(string, string?, int, bool)> { ("retry-1", null, 2, false) },
+			new List<(string, string?, int, bool)> { ("retry-1", "claim-retry-1", 2, false) },
 			new List<(string, int)> { ("dead-1", 3) },
 			CancellationToken.None);
 
+		ClaimCompletionFixture.AssertNoLegacyWrites(outboxStore);
 		// Assert
-		A.CallTo(() => outboxStore.MarkSentAsync("sent-1", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		A.CallTo(() => outboxStore.MarkSentAsync("sent-2", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		A.CallTo(() => outboxStore.MarkFailedAsync("retry-1", ErrorConstants.RetryAttempt, 2, A<CancellationToken>._))
+		A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkSentAsync("sent-1", "claim-sent-1", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkSentAsync("sent-2", "claim-sent-2", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkFailedAsync("retry-1", ErrorConstants.RetryAttempt, 2, "claim-retry-1", A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		// bd-stlcgg (S841): the dead-letter bucket transitions via MarkDeadLetteredAsync (terminal), not MarkFailedAsync.
-		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
+		A.CallTo(() => ((IClaimScopedDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
 				"dead-1",
-				A<string>._, A<int>._,
+				A<string>._, 3, "claim-dead-1",
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -68,7 +69,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	public async Task PerformBatchDatabaseOperationsAsync_DoesNothing_WhenBucketsAreEmpty()
 	{
 		// Arrange
-		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>().Implements<IClaimScopedOutboxStore>().Implements<IClaimScopedDeadLetterableOutboxStore>());
 		await using var processor = CreateProcessor(outboxStore: outboxStore);
 
 		// Act
@@ -80,8 +81,12 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			new List<(string, int)>(),
 			CancellationToken.None);
 
+		ClaimCompletionFixture.AssertNoLegacyWrites(outboxStore);
 		// Assert
 		A.CallTo(() => outboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkSentAsync(A<string>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
@@ -90,7 +95,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	public async Task PerformBatchDatabaseOperationsAsync_ThrowsOperationCanceledException_WhenTokenIsCanceled()
 	{
 		// Arrange
-		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>().Implements<IClaimScopedOutboxStore>().Implements<IClaimScopedDeadLetterableOutboxStore>());
 		await using var processor = CreateProcessor(outboxStore: outboxStore);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
@@ -104,9 +109,13 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			new List<(string, int)>(),
 			cts.Token));
 
+		ClaimCompletionFixture.AssertNoLegacyWrites(outboxStore);
 		// Assert
 		ex.ShouldNotBeNull();
 		A.CallTo(() => outboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkSentAsync(A<string>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
@@ -115,8 +124,8 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	public async Task PerformBatchDatabaseOperationsAsync_ContinuesAfterStoreException_WhenAnyBucketFails()
 	{
 		// Arrange - T.2: Per-message try/catch prevents partial batch failure cascade
-		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
-		_ = A.CallTo(() => outboxStore.MarkFailedAsync("retry-1", ErrorConstants.RetryAttempt, 1, A<CancellationToken>._))
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>().Implements<IClaimScopedOutboxStore>().Implements<IClaimScopedDeadLetterableOutboxStore>());
+		_ = A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkFailedAsync("retry-1", ErrorConstants.RetryAttempt, 1, "claim-retry-1", A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("mark-failed"));
 		await using var processor = CreateProcessor(outboxStore: outboxStore);
 
@@ -125,12 +134,13 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1" },
-			new List<(string, string?, int, bool)> { ("retry-1", null, 1, false) },
+			new List<(string, string?, int, bool)> { ("retry-1", "claim-retry-1", 1, false) },
 			new List<(string, int)>(),
 			CancellationToken.None);
 
+		ClaimCompletionFixture.AssertNoLegacyWrites(outboxStore);
 		// Assert - The sent message marking should still have been attempted
-		A.CallTo(() => outboxStore.MarkSentAsync("sent-1", A<CancellationToken>._))
+		A.CallTo(() => ((IClaimScopedOutboxStore)outboxStore).MarkSentAsync("sent-1", "claim-sent-1", A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -146,6 +156,9 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 		// Act
 		_ = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
 
+		A.CallTo(scenario.CircuitBreaker).Where(call => call.Method.Name == nameof(ICircuitBreakerPolicy.ExecuteAsync)
+			&& call.Method.IsGenericMethod && call.Arguments.Count == 3).MustHaveHappenedOnceExactly();
+		ClaimCompletionFixture.AssertNoLegacyWrites(scenario.OutboxStore);
 		// Assert — NOT dead-lettered on CB-open
 		A.CallTo(() => scenario.DeadLetterQueue.EnqueueAsync(
 				A<IOutboxMessage>._,
@@ -160,13 +173,19 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 				A<CancellationToken>._))
 			.MustNotHaveHappened();
 
+		A.CallTo(() => ((IClaimScopedOutboxStore)scenario.OutboxStore).MarkFailedWithBackoffAsync(
+			A<string>._, A<string>._, A<int>._, A<DateTimeOffset>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => scenario.Dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 		// Assert — left for retry (marked failed/re-claimable, attempt preserved)
-		A.CallTo(() => scenario.OutboxStore.MarkFailedAsync(
+		A.CallTo(() => ((IClaimScopedOutboxStore)scenario.OutboxStore).MarkFailedAsync(
 				"message-open-during-execution",
 				A<string>._,
-				A<int>._,
+				0, "claim-message-open-during-execution",
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IClaimScopedDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
+			"message-open-during-execution", A<string>._, A<int>._, "claim-message-open-during-execution", A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => scenario.Dispatcher.DispatchAsync(A<IIntegrationEvent>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
@@ -196,7 +215,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	{
 		return new OutboxProcessor(
 			options ?? CreateParallelOptions(maxAttempts: 3),
-			outboxStore ?? CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>()),
+			outboxStore ?? CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>().Implements<IClaimScopedOutboxStore>().Implements<IClaimScopedDeadLetterableOutboxStore>()),
 			serializer ?? new DispatchJsonSerializer(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
 			logger ?? NullLogger<OutboxProcessor>.Instance,
@@ -208,7 +227,8 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 
 	private static IOutboxStore CreateOutboxStore(OutboundMessage message)
 	{
-		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		var outboxStore = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>().Implements<IClaimScopedOutboxStore>().Implements<IClaimScopedDeadLetterableOutboxStore>());
+		message.DispatcherId = "claim-" + message.Id;
 		var fetchCount = 0;
 		_ = A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
@@ -286,7 +306,10 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			messageSetup.OutboxStore,
 			runtimeSetup.DeadLetterQueue,
 			runtimeSetup.Dispatcher,
-			serviceProvider);
+			serviceProvider)
+		{
+			CircuitBreaker = runtimeSetup.CircuitBreakerRegistry.GetOrCreate("fixture-probe"),
+		};
 		return Task.FromResult(scenario);
 	}
 
@@ -328,7 +351,8 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	{
 		var circuitBreaker = A.Fake<ICircuitBreakerPolicy>();
 		A.CallTo(() => circuitBreaker.State).Returns(CircuitState.Closed);
-		A.CallTo(() => circuitBreaker.ExecuteAsync<bool>(A<Func<CancellationToken, Task<bool>>>._, A<CancellationToken>._))
+		A.CallTo(circuitBreaker).Where(call => call.Method.Name == nameof(ICircuitBreakerPolicy.ExecuteAsync)
+			&& call.Method.IsGenericMethod && call.Arguments.Count == 3)
 			.Throws(new CircuitBreakerOpenException("transport"));
 
 		var circuitBreakerRegistry = A.Fake<ITransportCircuitBreakerRegistry>();
@@ -350,7 +374,12 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	{
 		try
 		{
-			var task = (Task?)method.Invoke(target, args);
+			using var tenure = new OutboxProcessor.ProcessorTenure(false, null, CancellationToken.None);
+			var invocationArgs = new object?[args.Length + 1];
+			invocationArgs[0] = tenure;
+			Array.Copy(args, 0, invocationArgs, 1, args.Length);
+			ClaimCompletionFixture.AdaptEvidenceBuckets(method, invocationArgs);
+			var task = (Task?)method.Invoke(target, invocationArgs);
 			if (task is null)
 			{
 				throw new InvalidOperationException($"Expected Task return from '{method.Name}'.");
@@ -379,6 +408,8 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			Dispatcher = dispatcher;
 			_serviceProvider = serviceProvider;
 		}
+
+		public ICircuitBreakerPolicy CircuitBreaker { get; init; } = null!;
 
 		public OutboxProcessor Processor { get; }
 

@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Exercise the actual nonshipping benchmark and runner without referencing unrelated benchmarks. -->
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/EventSourcing/InMemoryEventStoreBenchmarks.cs" Link="Benchmarks/InMemoryEventStoreBenchmarks.cs" />
     <Compile Include="../../../benchmarks/Excalibur.Benchmarks/EventSourcing/AppendThroughputHarness.cs" Link="Benchmarks/AppendThroughputHarness.cs" />
     <Compile Include="../../../benchmarks/Excalibur.Benchmarks/EventSourcing/AppendAllocationStrategyBenchmarks.cs" Link="Benchmarks/AppendAllocationStrategyBenchmarks.cs" />
     <Compile Include="../../../benchmarks/Excalibur.Benchmarks/BenchmarkExecution.cs" Link="Benchmarks/BenchmarkExecution.cs" />
@@ -86,5 +87,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\..\samples\09-advanced\persistence-patterns\CloudStorageSnapshots\Archive\ManualArchiveRunner.cs" Link="Samples\ManualArchiveRunner.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Exercise the original scenario assembly with its existing internal-provider access. -->
+    <ProjectReference Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj" />
+    <ProjectReference Include="../../benchmarks/Excalibur.Dispatch.Performance.Benchmarks/Excalibur.Dispatch.Performance.Benchmarks.csproj" />
   </ItemGroup>
 </Project>

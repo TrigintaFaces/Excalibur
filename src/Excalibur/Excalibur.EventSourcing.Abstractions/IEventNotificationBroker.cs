@@ -18,7 +18,7 @@ namespace Excalibur.EventSourcing;
 /// </para>
 /// <para>
 /// This interface is resolved from DI as a nullable service. When no broker is registered,
-/// <c>SaveAsync</c> behavior is identical to the pre-notification era (zero overhead).
+/// <c>SaveAsync</c> skips broker notification; this does not guarantee zero execution overhead.
 /// </para>
 /// <para>
 /// <b>Important:</b> Because events are already committed when the broker runs,

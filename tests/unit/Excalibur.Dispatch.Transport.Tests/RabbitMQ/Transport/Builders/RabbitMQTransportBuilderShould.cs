@@ -95,7 +95,7 @@ public sealed class RabbitMQTransportBuilderShould : UnitTestBase
 			// TLS: the transport refuses to build a plaintext connection factory under its shipping
 			// posture, so this arm runs under that posture rather than opting out of it. Its subject is
 			// the connection string reaching the factory, not security.
-			_ = rmq.ConnectionString("amqps://guest:guest@localhost:5671/");
+			_ = rmq.ConnectionString("amqps://appuser:S3cretPw0rd@localhost:5671/");
 		});
 		using var provider = services.BuildServiceProvider();
 		var factory = provider.GetRequiredService<IConnectionFactory>();
@@ -103,7 +103,7 @@ public sealed class RabbitMQTransportBuilderShould : UnitTestBase
 		// Assert
 		var rabbitFactory = factory.ShouldBeOfType<ConnectionFactory>();
 		rabbitFactory.Uri.ShouldNotBeNull();
-		rabbitFactory.Uri.ToString().ShouldContain("amqps://guest:guest@localhost:5671/");
+		rabbitFactory.Uri.ToString().ShouldContain("amqps://appuser:S3cretPw0rd@localhost:5671/");
 	}
 
 	[Fact]

@@ -105,14 +105,24 @@ The Items dictionary is for data that:
 context.Items["rabbitmq.exchange"] = exchange;
 context.Items["rabbitmq.deliveryTag"] = deliveryTag;
 
-// HTTP Headers
-context.Items["Authorization"] = bearerToken;
-context.Items["X-Custom-Header"] = value;
+// HTTP Headers (captured by name — see RequestHeaderCaptureOptions)
+context.Items["header.X-Custom-Header"] = value;
 
 // CloudEvents
 context.Items["ce.type"] = "com.example.event";
 context.Items["ce.source"] = "/my-service";
 ```
+
+:::danger Never put a credential in `Items`
+An item is **not** request-scoped bookkeeping. Every remote transport copies `Items` onto the outbound
+message, the CloudEvents encoders emit each one as an extension attribute, and the SQL Server outbox
+provider serializes the whole collection into a persisted `Headers` column. Anything you put here is
+forwarded to every downstream system and stored.
+
+This example previously read `context.Items["Authorization"] = bearerToken`, which is exactly the
+pattern to avoid. If a downstream service needs to act on the caller's identity, carry a claim or a
+token you minted for that hop — not the inbound credential.
+:::
 
 See [MessageContext Items Usage](./messagecontext-items-usage.md) for complete documentation.
 

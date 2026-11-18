@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
@@ -59,10 +59,11 @@ public static class CloudEventExtensions
 			ce["traceparent"] = traceParent;
 		}
 
-		foreach (var kvp in context.Items)
-		{
-			ce[kvp.Key] = kvp.Value?.ToString();
-		}
+		// Items are written through the shared projection rather than straight onto the event. The raw
+		// key went on unchanged here: a header name like Authorization is not a legal CloudEvents
+		// attribute name, so the SDK threw while encoding an otherwise valid message, and a key that
+		// happened to spell correlationid silently replaced the attribute set ten lines above.
+		CloudEventItemAttributes.Apply(ce, context.GetPropagatedItems());
 
 		return ce;
 	}

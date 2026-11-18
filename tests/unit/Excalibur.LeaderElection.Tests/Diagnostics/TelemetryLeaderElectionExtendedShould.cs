@@ -33,6 +33,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
@@ -44,6 +45,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
@@ -55,6 +57,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
@@ -66,6 +69,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		A.CallTo(() => inner.CandidateId).Returns("candidate-1");
 		var sut = new TelemetryLeaderElection(inner, _meter, _activitySource, "test-provider");
 
@@ -78,6 +82,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		A.CallTo(() => inner.IsLeader).Returns(true);
 		var sut = new TelemetryLeaderElection(inner, _meter, _activitySource, "test-provider");
 
@@ -90,6 +95,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		A.CallTo(() => inner.CurrentLeaderId).Returns("leader-1");
 		var sut = new TelemetryLeaderElection(inner, _meter, _activitySource, "test-provider");
 
@@ -102,6 +108,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		var sut = CreateSut(inner);
 
 		// Act
@@ -117,6 +124,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		var sut = CreateSut(inner);
 
 		// Act
@@ -132,6 +140,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		A.CallTo(() => inner.StartAsync(A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("Start failed"));
 		var sut = CreateSut(inner);
@@ -146,6 +155,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		A.CallTo(() => inner.StopAsync(A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("Stop failed"));
 		var sut = CreateSut(inner);
@@ -161,10 +171,12 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 		// ILeaderElection : IAsyncDisposable, so DisposeAsync is always the disposal path
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		var sut = new TelemetryLeaderElection(inner, _meter, _activitySource, "test");
 
 		// Act
 		await sut.DisposeAsync();
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		A.CallTo(() => inner.DisposeAsync())
@@ -176,11 +188,14 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		var sut = new TelemetryLeaderElection(inner, _meter, _activitySource, "test");
 
 		// Act
 		await sut.DisposeAsync();
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 		await sut.DisposeAsync();
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		A.CallTo(() => inner.DisposeAsync())
@@ -192,6 +207,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		var sut = CreateSut(inner);
 		var raised = false;
 		sut.BecameLeader += (_, _) => raised = true;
@@ -209,6 +225,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		var sut = CreateSut(inner);
 		var raised = false;
 		sut.LostLeadership += (_, _) => raised = true;
@@ -226,6 +243,7 @@ public sealed class TelemetryLeaderElectionExtendedShould : IAsyncDisposable
 	{
 		// Arrange
 		var inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(inner);
 		var sut = CreateSut(inner);
 		var raised = false;
 		sut.LeaderChanged += (_, _) => raised = true;

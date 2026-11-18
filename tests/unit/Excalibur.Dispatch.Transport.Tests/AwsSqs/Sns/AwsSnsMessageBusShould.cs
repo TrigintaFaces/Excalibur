@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 
@@ -155,7 +156,7 @@ public sealed class AwsSnsMessageBusShould : IAsyncDisposable
 	public async Task PublishEvent_WhenCloudEventsConfigured_EmitsCloudEventAttributesOnDefaultSend()
 	{
 		var cloudEventOptions = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
-		var mapper = new AwsSnsCloudEventAdapter(cloudEventOptions, NullLogger<AwsSnsCloudEventAdapter>.Instance);
+		var mapper = new AwsSnsCloudEventAdapter(cloudEventOptions, TestCloudEventSerializers.Reflection, NullLogger<AwsSnsCloudEventAdapter>.Instance);
 		var bridge = new EnvelopeCloudEventBridge(
 			new CloudEventEnvelopeConverter(cloudEventOptions.Value),
 			[new CloudEventEncoderAdapter<PublishRequest>(mapper)]);

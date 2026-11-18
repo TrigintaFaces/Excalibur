@@ -32,14 +32,13 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// - Excalibur: 1.0.0 (local build)
 /// - Wolverine: 5.31.1
 ///
-/// Dispatch uses lean AddDispatch() (no cache/dedupe/outbox middleware) for fair
-/// comparison against Wolverine's InvokeAsync (bare in-process handler call).
-/// Fresh context per iteration, warmup + freeze for production-representative numbers.
+/// Dispatch uses lean AddDispatch() (no cache/dedupe/outbox middleware).
+/// The fixture compares disclosed configurations; APIs and result shapes differ.
+/// Fresh context per invocation, with the fixture’s explicit cache warmup and freeze settings.
 /// </remarks>
-/// Allocation is NOT measured under this config. It runs one invocation per iteration, so an
-/// Allocated column would report per-iteration setup rather than per-operation cost -- measured at a
-/// ~30% swing across identical consecutive runs, which is not a figure anyone can publish or gate on.
-/// The warm-path subclass carries the memory diagnoser instead, where the number resolves.
+/// ComparativeBenchmarkConfig does not enable a memory diagnoser; its base-class results
+/// provide no allocation measurement. The separately configured WarmPath subclass enables
+/// memory diagnostics. Interpret its allocation results with that workload and configuration.
 [Config(typeof(ComparativeBenchmarkConfig))]
 public class WolverineComparisonBenchmarks
 {
@@ -131,40 +130,33 @@ public class WolverineComparisonBenchmarks
 
 		_wolverineBus = _wolverineHost.Services.GetRequiredService<IMessageBus>();
 
-		await VerifyInlineFanOutInvokesBothHandlers();
+		await VerifyFanOutCompletion();
 
 		// Warm and freeze Dispatch caches so benchmark reflects optimized production mode.
 		WarmupAndFreezeDispatchCaches();
 	}
 
 	/// <summary>
-	/// Proves the fan-out row measures BOTH handlers before any timing is collected.
+	/// Requires two probe signals when invocation completion is observed, before timing.
 	/// </summary>
 	/// <remarks>
-	/// The fan-out row calls <c>InvokeAsync</c> and does not await a completion tracker, because Wolverine
-	/// runs merged non-sticky handlers inline. That is a claim about Wolverine's code generation, so it is
-	/// verified here rather than assumed: if a future Wolverine version routed the second handler through a
-	/// queue, or if a handler were made sticky, the row would silently measure half the work and report it
-	/// as a speedup. This throws instead.
+	/// This checks the signal count, not distinct handler identities, thread affinity or absence
+	/// of queueing. The fixture runs in isolation because its completion tracker is shared.
 	/// </remarks>
-	private async Task VerifyInlineFanOutInvokesBothHandlers()
+	private async Task VerifyFanOutCompletion()
 	{
 		var probeId = Guid.NewGuid();
 		var bothHandlersSignalled = WolverineBenchmarkCompletionTracker.Register(probeId, expectedSignals: 2);
-
-		await _wolverineBus!.InvokeAsync(new WolverineEventMessage { Message = "fanout-probe", BenchmarkId = probeId });
-
-		// InvokeAsync has already returned. If the handlers ran inline, both signals are in and this task is
-		// already complete; a short grace period only guards scheduler jitter, it does not wait for a queue.
-		if (bothHandlersSignalled != await Task.WhenAny(bothHandlersSignalled, Task.Delay(TimeSpan.FromSeconds(5))))
+		try
 		{
-			throw new InvalidOperationException(
-				"Wolverine InvokeAsync did not invoke both event handlers inline. The fan-out benchmark would "
-				+ "measure fewer handlers than the Dispatch row it is compared against, producing a false "
-				+ "speedup. Check whether a handler became sticky or Wolverine changed its handler merging.");
+			await BenchmarkCompletionGuard.VerifyCompletedAsync(
+				_wolverineBus!.InvokeAsync(new WolverineEventMessage { Message = "fanout-probe", BenchmarkId = probeId }),
+				bothHandlersSignalled).ConfigureAwait(false);
 		}
-
-		WolverineBenchmarkCompletionTracker.Reset();
+		finally
+		{
+			WolverineBenchmarkCompletionTracker.Reset();
+		}
 	}
 
 	/// <summary>
@@ -207,8 +199,8 @@ public class WolverineComparisonBenchmarks
 	}
 
 	/// <summary>
-	/// Excalibur.Dispatch ultra-local path (no middleware, no IMessageResult materialization).
-	/// Closest apples-to-apples comparison with Wolverine InvokeAsync.
+	/// Excalibur.Dispatch configured DirectLocal profile using the two-argument dispatch overload.
+	/// Measure this configuration separately from the standard path.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Single command (context-less 2-arg)")]
 	public Task<IMessageResult> Dispatch_SingleCommand_UltraLocal()
@@ -259,29 +251,26 @@ public class WolverineComparisonBenchmarks
 	}
 
 	/// <summary>
-	/// Wolverine: Event fan-out to 2 handlers, invoked inline.
+	/// Wolverine: InvokeAsync event with two configured handlers.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// This row previously used <c>PublishAsync</c> plus a completion tracker. That awaited real handler
-	/// execution, so it was not the never-awaits defect — but it compared Wolverine's LOCAL QUEUE against
-	/// Dispatch running both handlers on the calling thread. The published 53.7x result was therefore
-	/// measuring a thread-pool handoff and a cross-thread continuation, not dispatch overhead.
+	/// The previously published 53.7x comparison used <c>PublishAsync</c> plus a completion tracker.
+	/// That queue-based workload differs from the current <c>InvokeAsync</c> row and does not
+	/// isolate the cost of a particular scheduling or dispatch component.
 	/// </para>
 	/// <para>
-	/// <c>InvokeAsync</c> is the parity call. Wolverine merges every non-sticky handler for a message type
-	/// into a single generated <c>HandleAsync</c> that runs them inline and sequentially; the queue-based
-	/// fan-out path is reachable only when EVERY handler is sticky, which requires <c>[StickyHandler]</c> or
-	/// <c>AddStickyHandler</c>. This benchmark uses neither, so both handlers run inline here — matching the
-	/// Dispatch side's execution model rather than its API name.
+	/// This row uses <c>InvokeAsync</c> with two non-sticky handler registrations. The setup
+	/// completion check does not establish thread affinity, absence of queueing or distinct
+	/// handler identities; those properties must not be inferred from its two anonymous signals.
 	/// </para>
 	/// <para>
-	/// That both handlers genuinely run is asserted once at startup by
-	/// <see cref="VerifyInlineFanOutInvokesBothHandlers"/>. Without it, a change that silently invoked one
-	/// handler would make this row ~2x faster and look like an improvement.
+	/// Two completion signals are required once at startup by
+	/// <see cref="VerifyFanOutCompletion"/>. Missing completion signals invalidate the comparison;
+	/// their timing effect is not assumed.
 	/// </para>
 	/// </remarks>
-	[Benchmark(Description = "Wolverine: Event to 2 handlers (inline)")]
+	[Benchmark(Description = "Wolverine: Event to 2 handlers (InvokeAsync)")]
 	public Task Wolverine_EventPublish()
 	{
 		var @event = new WolverineEventMessage

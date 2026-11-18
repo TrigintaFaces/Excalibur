@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
@@ -118,11 +117,7 @@ public static class RedisLeaderElectionBuilderExtensions
 		builder.Services.AddKeyedSingleton<ILeaderElection>("redis", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<RedisLeaderElection>();
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName)
-				?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElection(inner, meter, activitySource, "Redis");
+			return TelemetryLeaderElection.CreateOwned(inner, sp.GetService<IMeterFactory>(), "Redis");
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("redis"));
@@ -134,13 +129,9 @@ public static class RedisLeaderElectionBuilderExtensions
 			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
-			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			var fencingTokenProvider = sp.GetService<IFencingTokenIssuer>();
 			var inner = new RedisLeaderElectionFactory(redis, loggerFactory, electionOptions, failureClassifier, fencingTokenProvider);
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName)
-				?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Redis");
+			return TelemetryLeaderElectionFactory.CreateOwned(inner, sp.GetService<IMeterFactory>(), "Redis");
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElectionFactory>("redis"));
@@ -163,7 +154,7 @@ public static class RedisLeaderElectionBuilderExtensions
 	/// <see cref="RegisterOptionsAndServices"/> to keep that method's class coupling (CA1506) in bounds.
 	/// </summary>
 	private static void RegisterDefaultFencingTokenProvider(IServiceCollection services) =>
-		services.TryAddDefaultFencingTokenProvider(sp =>
+		services.TryAddDefaultFencingTokenIssuer(sp =>
 			ActivatorUtilities.CreateInstance<RedisFencingTokenProvider>(sp));
 
 	/// <summary>
@@ -183,7 +174,7 @@ public static class RedisLeaderElectionBuilderExtensions
 				// optional classifier-accelerated self-demotion (null when none registered → grace-only).
 				FailureClassifier = sp.GetService<IMessageFailureClassifier>(),
 				// optional fencing-token issuance at acquisition (null when fencing not enabled).
-				FencingTokenProvider = sp.GetService<IFencingTokenProvider>(),
+				FencingTokenProvider = sp.GetService<IFencingTokenIssuer>(),
 			};
 			return new RedisLeaderElection(redis, lockKey, options, logger, context);
 		});

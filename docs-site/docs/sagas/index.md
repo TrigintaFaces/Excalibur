@@ -20,7 +20,7 @@ Sagas coordinate multi-step business processes where failure in one step require
 
 ## How Sagas Work
 
-Each saga is a class that extends `SagaBase<TState>`. The framework routes incoming events to saga instances via `ISagaCoordinator`. The saga processes one event at a time, updates its state, and suspends until the next event arrives. State is persisted between events so the saga survives process restarts.
+Each saga is a class that extends `SagaBase<TState>`. The framework routes incoming events to saga instances via `ISagaCoordinator`. Handlers update saga state between deliveries. Optimistic concurrency can run competing handlers before a losing commit is refused; it does not serialize handler execution across nodes. Persisted state survives restarts, while durability of outgoing commands, events and configured timers depends on the selected profile described below. External operations must remain idempotent.
 
 ```
 Event arrives → SagaHandlingMiddleware → SagaCoordinator → SagaBase<T>.HandleAsync()
@@ -41,12 +41,20 @@ This event-driven model works across independently deployed microservices, long-
 | `Excalibur.Saga.MongoDB` | MongoDB saga state persistence |
 | `Excalibur.Saga.Firestore` | Google Firestore saga state persistence |
 
+**Saga state persistence and timeout persistence are separate choices.** SQL Server and Oracle ship
+durable saga timeout stores; selecting PostgreSQL, Cosmos DB, DynamoDB, MongoDB or Firestore saga
+state persistence does not supply a matching durable timeout store. `WithTimeouts()` defaults to
+process-local in-memory timeout storage unless another timeout store has been registered; it does not
+make timers durable merely because saga state is durable. Select a supported durable timeout
+composition explicitly when timers must survive process loss.
+
 ## Quick Start
 
 ### 1. Define Saga State
 
 ```csharp
 using Excalibur.Saga.Orchestration;
+using Excalibur.Dispatch.Messaging;
 
 public class OrderSagaState : SagaState
 {
@@ -72,15 +80,30 @@ using Excalibur.Dispatch;
 
 // Start event — creates a new saga instance
 public record StartOrderProcessing(
-    string SagaId, string OrderId, string CustomerId, decimal TotalAmount) : ISagaEvent;
+    string SagaId, string OrderId, string CustomerId, decimal TotalAmount) : ISagaEvent
+{
+    public string? StepId => nameof(StartOrderProcessing);
+}
 
 // Step completion events
-public record InventoryReserved(string SagaId, string ReservationId) : ISagaEvent;
-public record PaymentProcessed(string SagaId, string TransactionId) : ISagaEvent;
-public record OrderShipped(string SagaId, string TrackingNumber) : ISagaEvent;
+public record InventoryReserved(string SagaId, string ReservationId) : ISagaEvent
+{
+    public string? StepId => nameof(InventoryReserved);
+}
+public record PaymentProcessed(string SagaId, string TransactionId) : ISagaEvent
+{
+    public string? StepId => nameof(PaymentProcessed);
+}
+public record OrderShipped(string SagaId, string TrackingNumber) : ISagaEvent
+{
+    public string? StepId => nameof(OrderShipped);
+}
 
 // Failure events
-public record PaymentFailed(string SagaId, string Reason) : ISagaEvent;
+public record PaymentFailed(string SagaId, string Reason) : ISagaEvent
+{
+    public string? StepId => nameof(PaymentFailed);
+}
 ```
 
 ### 3. Implement the Saga
@@ -89,6 +112,7 @@ public record PaymentFailed(string SagaId, string Reason) : ISagaEvent;
 using Excalibur.Dispatch;
 using Excalibur.Saga;
 using Excalibur.Saga.Orchestration;
+using Excalibur.Dispatch.Messaging;
 using Microsoft.Extensions.Logging;
 
 public sealed partial class OrderFulfillmentSaga(
@@ -106,7 +130,7 @@ public sealed partial class OrderFulfillmentSaga(
             or PaymentFailed;
     }
 
-    public override async Task HandleAsync(
+    public override async Task<SagaEventOutcome> HandleAsync(
         object eventMessage, CancellationToken cancellationToken)
     {
         switch (eventMessage)
@@ -139,7 +163,10 @@ public sealed partial class OrderFulfillmentSaga(
                 State.FailureReason = failed.Reason;
                 MarkCompleted();
                 break;
+            default:
+                return SagaEventOutcome.Declined;
         }
+        return SagaEventOutcome.Handled;
     }
 
     [LoggerMessage(Level = LogLevel.Information,
@@ -154,27 +181,36 @@ public sealed partial class OrderFulfillmentSaga(
 
 ### 4. Register and Configure
 
+This tutorial explicitly selects volatile in-memory saga state for one process. It does not survive restart or coordinate multiple instances. Select the persistent provider shown below for a durable deployment.
+
 ```csharp
-using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.Orchestration;
+using Excalibur.Dispatch.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 
-// Register saga coordination + timeout delivery
-services.AddExcaliburOrchestration();
-services.AddSagaTimeoutDelivery();
-
-// Register your saga type
-services.AddSaga<OrderFulfillmentSaga, OrderSagaState>();
-
-// Map events to saga instances
-SagaRegistry.Register<OrderFulfillmentSaga, OrderSagaState>(info =>
+public static class SagaRegistrationExample
 {
-    info.StartsWith<StartOrderProcessing>();
-    info.Handles<InventoryReserved>();
-    info.Handles<PaymentProcessed>();
-    info.Handles<OrderShipped>();
-    info.Handles<PaymentFailed>();
-});
+    public static void Run(IServiceCollection services)
+    {
+        services.AddInMemorySagaStore(); // Explicit local tutorial storage; not durable.
+        // Register saga coordination + timeout delivery
+        services.AddExcaliburOrchestration();
+        services.AddSagaTimeoutDelivery();
+
+        // Register your saga type
+        services.AddSaga<OrderFulfillmentSaga, OrderSagaState>();
+
+        // Map events to saga instances
+        SagaRegistry.Register<OrderFulfillmentSaga, OrderSagaState>(info =>
+        {
+            info.StartsWith<StartOrderProcessing>();
+            info.Handles<InventoryReserved>();
+            info.Handles<PaymentProcessed>();
+            info.Handles<OrderShipped>();
+            info.Handles<PaymentFailed>();
+        });
+    }
+}
 ```
 
 Or use the builder pattern with a persistence provider:
@@ -193,6 +229,10 @@ services.AddExcalibur(excalibur => excalibur.AddSagas(saga =>
 Sagas can declare strongly-typed timeout handlers using `ISagaTimeout<T>`. When a timeout fires and the saga implements a matching interface, the framework routes directly to `HandleTimeoutAsync` instead of the general `HandleAsync`:
 
 ```csharp
+using Excalibur.Dispatch;
+using Excalibur.Saga.Abstractions;
+using Excalibur.Saga.Orchestration;
+
 public sealed class PaymentTimeout : ISagaEvent
 {
     public string SagaId { get; set; } = string.Empty;
@@ -276,23 +316,75 @@ Optimistic concurrency **and** the no-resurrect guard now hold **uniformly acros
 When an event arrives for a saga that is **already completed** (`SagaState.Completed`), `SagaManager` now short-circuits at load time — it skips **both** the handler invocation and the save — instead of re-running the handler against a finished workflow and re-persisting it (which would spuriously bump the version). The event that *itself* completes the saga still proceeds and persists its completion. This matches the existing `SagaCoordinator` behavior, so the already-completed no-resurrect guarantee is now identical across both drivers.
 :::
 
-## Save-Then-Dispatch Ordering
+## State-only and atomic durable transitions
 
-Commands and events a saga emits during `HandleAsync` — via the `SendCommandAsync` / `PublishEventAsync` helpers on `SagaBase<TState>` — are **buffered** and dispatched only **after** the saga state has been durably persisted:
+Ordinary registration buffers commands/events and timer intents before saving state. With a
+configured timeout store, the coordinator persists the original timer journal with state and
+processed-delivery evidence, then applies it through that selected store's
+`ISagaTimerRecoveryStore` facet. Recovery precedes completed/deduplicated-delivery checks and
+reuses the original timer IDs. A wrapper must mediate the facet to its actual selected backend;
+missing receiver capability or schema is refused before a timer-owning state commit. Cancellation
+and claim retirement retain authority so replay cannot resurrect cancelled or retired timers.
 
+This ordinary timer recovery does **not** make outgoing commands/events atomic with state.
+A lost save acknowledgement or process failure after state commit can still leave processed-delivery
+evidence without all command/event dispatches. Use the explicit primary SQL atomic profile below
+when those effects must share the state transaction. Delivery remains at least once; handlers and
+consumers must be idempotent.
+
+Before deploying the new state/coordinator writers, apply the matching base schemas and state
+migrations: SQL Server `05-SagaTimerRecoveryState.sql`, PostgreSQL and Oracle
+`02-SagaTimerRecoveryState.sql`. Configured SQL Server timeout recovery also requires
+`06-SagaTimerRecovery.sql`; Oracle requires `03-SagaTimerRecovery.sql`. In-memory state and
+timeouts are process-local. Quiesce old writers during migration and follow each provider README
+for selected-table registration. The framework does not auto-migrate. Retained compact receiver
+authority has no automatic TTL eviction; coordinate its lifecycle with queued work and state recovery.
+These contracts do not imply that every cloud provider or SQL driver has passed runtime/NativeAOT
+verification.
+
+For the primary SQL atomic profile, explicitly select durable preparation **in addition to**
+the SQL saga store, SQL outbox writer and any configured participating timeout store:
+
+```csharp
+using System.Text.Json.Serialization;
+
+using Microsoft.Extensions.DependencyInjection;
+
+public static class DurableSagaRegistration
+{
+    public static void Run(IServiceCollection services)
+    {
+        // Configure saga routes and the selected SQL stores using their normal registrations first.
+        services.AddDurableSagaTransitions(SagaJsonContext.Default);
+    }
+}
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(OrderSagaState))]
+internal partial class SagaJsonContext : JsonSerializerContext;
 ```
-HandleAsync(event)
-  → SendCommandAsync(cmd)   // buffered, NOT dispatched yet
-  → PublishEventAsync(evt)  // buffered, NOT dispatched yet
-→ ISagaStore.SaveAsync(state)        // state + processed-eventId persisted FIRST
-→ FlushPendingDispatchesAsync()      // buffered messages dispatched, in emit (FIFO) order
-```
 
-This guarantees that a `SaveAsync` failure dispatches **nothing**: the event is re-delivered later and the saga re-buffers its emissions without double-dispatching, so a persistence failure can never leave the saga state behind already-sent side effects. Dispatch is driven by the coordinator after the save, so a saga subclass cannot trigger an early "dispatch-before-save" — the ordering is structural.
+The configured payload codec must also support actual emitted command/event types. This
+registration does not make an arbitrary reflective codec NativeAOT-safe. Applications that
+intentionally use runtime serialization instead select
+`services.AddDurableSagaTransitionsUsingRuntimeSerialization()` and accept its explicit
+trimming/dynamic-code requirements. Generated callers use the typed
+`ProcessAtomicEventAsync<TSaga, TState, TEvent>` entry; this does not certify every fluent
+state-machine or reflective routing path under NativeAOT.
 
-:::info Behavior change
-Previously emitted commands were dispatched immediately and `SaveAsync` ran afterward, so a persistence failure followed by replay re-dispatched the command (duplicate side effects). `SendCommandAsync` / `PublishEventAsync` remain the same `protected` helpers; they now return after buffering (no dispatch result) because the actual dispatch happens after the save.
-:::
+The selected atomic store commits state, processed-delivery identity, original prepared
+command/event rows, configured timer mutations and its receipt in one SQL transaction.
+The existing outbox publisher drains those rows after commit; it is not called inside the
+transaction. Unsupported selected stores or timer/preparation compositions refuse instead
+of falling back to volatile postcommit dispatch. With no selected timeout store and no timer
+intents, no artificial participant is required; configured completion includes cancel-all.
+
+A committed redelivery does not run the handler again. An uncertain commit retains the same
+prepared transition and identities for receipt reconciliation; it does not prove rollback.
+Delivery remains at least once. Per-saga effect identity/ordinal metadata does not promise
+global FIFO or completion order across producers. Continue using idempotent consumers and
+avoid irreversible external operations inside a handler whose optimistic commit can lose.
 
 ## Handling Events for Missing Sagas
 
@@ -322,6 +414,69 @@ services.AddExcalibur(x => x.AddSagas(saga =>
 :::info Behavior change
 `ISagaNotFoundHandler<TSaga>` existed but was never invoked — the saga-not-found branch only logged and returned. It is now resolved and called.
 :::
+
+## Recovering held timeout deliveries
+
+Enable hosted delivery through the existing provider registration and `WithTimeouts()`:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Saga.SqlServer.DependencyInjection;
+
+public static class TenantSagaRegistration
+{
+    public static void Run(Microsoft.Extensions.DependencyInjection.IServiceCollection services, string connectionString)
+    {
+        services.AddTenantContext(options => options.RequireTenant = true); // Use the authorized ambient tenant for recovery operations.
+        services.AddExcalibur(x => x.AddSagas(saga =>
+            saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
+                .WithCoordination()
+                .WithTimeouts()));
+    }
+}
+```
+
+`AddTenantContext()` selects the framework ambient tenant context used by `TenantContextHolder.BeginScope`. Without it, the default single-tenant context does not switch to an arbitrary tenant ID merely because a scope is opened. Keep the configured tenant mode consistent with stored rows and authorize the tenant before establishing the scope.
+
+Provision the selected physical timeout table before starting the host. Existing SQL Server tables require `07-SagaTimeoutFailureHolds.sql`; existing Oracle tables require `04-SagaTimeoutFailureHolds.sql`. Fresh provider `SagaTimeouts.sql` includes the hold fields. Configure each migration for the actual selected table, including custom tables, and follow its offline rollout instructions. These migrations supplement the state/ordinary timer recovery migrations described in the provider README; they do not replace them. The framework does not apply migrations automatically.
+
+Before pumping, hosted delivery resolves `ISagaTimeoutFailureStore` from the selected `ISagaTimeoutStore` and validates usable storage. A custom store must expose and implement that capability; otherwise startup refuses with an actionable error. Registering an unrelated capability beside an unsupported selected store does not satisfy this gate. Existing standalone manual store APIs remain available on their documented legacy schemas.
+
+Permanent, poison and Unknown failures retain the original timeout payload, identity and due date in held state. An unsuccessful result without typed failure evidence is Unknown; diagnostic text does not establish retryability. Transient and Uncertain classifications keep their existing retry behavior. Held rows are excluded from normal claims, while diagnostic reads remain available. A failed or uncertain hold write is not a delivery acknowledgment: the worker reconciles it, bounds local pending observations by `BatchSize`, and defers new dispatch when that capacity is full.
+
+After repairing the underlying cause, an authorized operator can query and conditionally resume one held item. The following uses running host (`host`), `tenantId`, `timeoutId` and `cancellationToken` variables. Persist the chosen command ID and expected token for reconciliation rather than generating another command after an acknowledgment loss.
+
+```csharp
+using Excalibur.Saga.Abstractions;
+using Excalibur.Dispatch;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class HeldTimeoutRecoveryExample
+{
+    public static async Task Run(IServiceProvider serviceProvider, string tenantId, string timeoutId, CancellationToken cancellationToken)
+    {
+
+        using var tenantScope = TenantContextHolder.BeginScope(tenantId);
+        var selected = serviceProvider.GetRequiredService<ISagaTimeoutStore>();
+        var failures = ((IServiceProvider)selected).GetService(typeof(ISagaTimeoutFailureStore))
+            as ISagaTimeoutFailureStore
+            ?? throw new InvalidOperationException("Selected timeout store lacks hold support.");
+        await failures.ValidateFailureStorageAsync(cancellationToken);
+        var page = await failures.GetHeldFailuresAsync(tenantId, null, 100, null, cancellationToken);
+        var expected = page.Items.Single(item => item.Timeout.TimeoutId == timeoutId);
+        // Inspect expected.Kind, expected.Reason and expected.Timeout; authorize recovery.
+        var commandId = Guid.NewGuid(); // Retain this ID with expected.Token before submitting.
+        var resumed = await failures.TryResumeHeldFailureAsync(
+            expected.Token, commandId, cancellationToken);
+    }
+}
+```
+
+Queries are bounded to 1–256 items per page and one exact tenant, with an optional exact saga ID. Follow the returned opaque cursor for subsequent pages; cursors are target/filter-bound and weakly consistent. Tokens and cursors are expected-state handles, not authorization credentials. Establish authorization and the correct tenant scope separately.
+
+A null resume result means refusal, not success. Successful resume preserves original payload/ID/due and rotates the delivery cycle once; later normal claiming obtains a new lease. Repeat the same command and token to reconcile an uncertain acknowledgment. Old tokens cannot resurrect canceled, replaced or newer held work. Receipts are bounded to the retained source/latest cycle, not an indefinite command ledger.
+
+SQL Server and Oracle store holds in their selected database table; the in-memory implementation reports `HoldsSurviveProcessRestart == false` and loses this state on process exit. A crash before the first hold commit can still permit redelivery: handlers need idempotency. This is at-least-once delivery, not exactly once. This feature does not establish full SQL/Oracle driver NativeAOT support or certify arbitrary backend alias, restore or failover equivalence.
 
 ## Persistence Providers
 
@@ -478,3 +633,15 @@ The `ISagaBuilder` fluent API provides optional capabilities:
 - [Outbox Pattern](../patterns/outbox.md) — Reliable message publishing
 - [Inbox Pattern](../patterns/inbox.md) — Idempotent message processing
 - [Event Sourcing](../event-sourcing/index.md) — Store state as events
+
+## Correlating business keys
+
+Declare typed selectors with `CorrelateBy<OrderSaga, OrderSubmitted>(message => message.OrderId)` on the saga builder. Messages sharing that literal business key reach the same declared saga. A publisher that needs the identifier can call `SagaCorrelation.ToSagaId<OrderSaga>(orderId)`; it uses exactly the same typed scope as the builder. Namespace, nested type, generic arguments and assembly simple name distinguish types, even when their short names and state type are the same. Assembly versions, strong-name keys and load contexts are intentionally excluded: types with the same logical assembly/type structure share this identity. Renaming or moving a saga/assembly changes this scope.
+
+`SagaCorrelation.ToSagaId("explicit-stable-scope", key)` remains available for deliberately supplied scopes. Passing a simple class name is not equivalent to the typed overload; supplying its exact generated structural scope would reproduce the same typed ID. Inputs are case-sensitive, are not trimmed or Unicode-normalized, and may contain control characters such as U+001F. Ill-formed UTF-16 is rejected instead of silently replacing characters. The mapping hashes versioned UTF-8 byte-length frames and produces a UUIDv8; it is deterministic, not a proof of globally unique identifiers.
+
+`CorrelateBy` composes declarations into the framework-owned mutable registry. A conflicting last unkeyed custom registry instance, type or factory now fails registration actionably instead of losing declarations. A custom registry remains supported on its own when it supplies correlation without `CorrelateBy`; keyed registrations stay separate.
+
+### Derivation-version migration
+
+The framed derivation and fully scoped automatic type identity change identifiers from the earlier delimiter/simple-name scheme. Upgrade publishers and coordinators together. If retaining existing state, drain or explicitly re-key in-flight sagas and related messages before switching; there is no silent old-ID fallback because the legacy representation can alias distinct inputs. Explicit identifiers assigned independently of `SagaCorrelation` are unaffected.

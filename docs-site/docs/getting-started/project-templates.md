@@ -232,6 +232,10 @@ dotnet run
 - Sample `PlaceOrderHandler` using `IActionHandler<PlaceOrderCommand>` with outbox publishing
 - Messages: `PlaceOrderCommand` action + `OrderPlacedEvent`
 - Builder configuration: `UseSqlServer()`, `WithProcessing()`, `EnableBackgroundProcessing()`
+- Dead-letter queue registration via `AddSqlServerDeadLetterQueue()` — the processor requires an
+  explicitly registered queue for messages that exhaust their retries, or it throws on its first
+  poll. Only the `sqlserver` database option registers one; with `--Database inmemory` you must
+  register an `IDeadLetterQueue` yourself before the host will process anything.
 - Transport selection via `--Transport` option (all 6 transports supported)
 - Database selection via `--Database` option (sqlserver, inmemory)
 

@@ -30,11 +30,22 @@ public static class OutboxStoreHealthChecksBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		// IOutboxStoreAdmin is registered keyed "default" by every outbox provider; resolve it by that key
-		// (a plain ActivatorUtilities resolution would not see the keyed registration).
+		// Resolve the admin surface the way the non-keyed alias in OutboxServiceCollectionExtensions
+		// already does: keyed "default" first, then cast the keyed IOutboxStore.
+		//
+		// The previous comment here claimed IOutboxStoreAdmin is "registered keyed default by every
+		// outbox provider". That was false, and it made this extension throw on every provider but one.
+		// Measured: of the keyed registrations providers actually make, 29 are IOutboxStore and only
+		// Elasticsearch registers IOutboxStoreAdmin under that key -- so GetRequiredKeyedService for the
+		// admin surface failed at probe time on SQL Server, Postgres, Oracle, MongoDB and Redis. The
+		// fallback is safe because every shipped IOutboxStore implementation also implements
+		// IOutboxStoreAdmin on its own class declaration (all eight, InMemory and Marten included),
+		// which is the same assumption the non-keyed alias already relies on.
 		return builder.Add(new HealthCheckRegistration(
 			name,
-			sp => new OutboxStoreHealthCheck(sp.GetRequiredKeyedService<IOutboxStoreAdmin>("default")),
+			sp => new OutboxStoreHealthCheck(
+				sp.GetKeyedService<IOutboxStoreAdmin>("default")
+				?? (IOutboxStoreAdmin)sp.GetRequiredKeyedService<Excalibur.Dispatch.IOutboxStore>("default")),
 			failureStatus,
 			tags));
 	}

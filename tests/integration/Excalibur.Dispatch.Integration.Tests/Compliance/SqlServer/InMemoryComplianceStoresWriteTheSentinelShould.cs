@@ -92,11 +92,17 @@ public sealed class InMemoryComplianceStoresWriteTheSentinelShould : Integration
 	/// <summary>
 	/// SAFETY + PARITY. Null uses the configured request owner; present blank owners are rejected.
 	/// </summary>
+	/// <remarks>
+	/// <b>RealTenant and "__default__" were removed from this theory and moved to
+	/// <see cref="RefuseADisagreeingRequestOwnerOnBothProviders"/>.</b> These stores are UNSCOPED, so the
+	/// deployment resolves the untenanted sentinel, and a request naming any other tenant is now refused
+	/// rather than stored — so there is no persisted term for those inputs to compare. The parity subject is
+	/// unchanged and is asserted in both arms: for an accepted input both providers store the same term, and
+	/// for a disagreeing one both providers refuse.
+	/// </remarks>
 	[Theory]
 	[InlineData(null, Sentinel)]
 	[InlineData(Sentinel, Sentinel)]
-	[InlineData(RealTenant, RealTenant)]
-	[InlineData("__default__", "__default__")]
 	public async Task StoreTheSameRequestTenantTermOnBothProviders(string? supplied, string expected)
 	{
 		RequireServer();
@@ -123,6 +129,55 @@ public sealed class InMemoryComplianceStoresWriteTheSentinelShould : Integration
 		sqlTerm.ShouldBe(expected);
 	}
 
+	/// <summary>
+	/// SAFETY + PARITY. A request naming a tenant this deployment did not resolve is refused by BOTH
+	/// providers, and neither writes a row.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// These stores are unscoped, so the resolved owner is the untenanted sentinel. A request naming any
+	/// other tenant disagrees with it, and the owner seam refuses rather than stamping the resolved term
+	/// over the caller's — because an erasure derives its key handle from the owner, and a request executed
+	/// under a tenant the write path never used destroys nothing while reporting a completed erasure.
+	/// </para>
+	/// <para>
+	/// The PARITY half is the point of putting it here: the two providers must refuse the same inputs. A
+	/// provider that accepted one of these would persist a row its sibling rejected, and the erasure that
+	/// later read it would derive a handle nothing was written under.
+	/// </para>
+	/// <para>
+	/// RED input: accept the disagreement in either store. The throw assertion fails there, and the
+	/// following read then finds the row the refusal was supposed to prevent.
+	/// </para>
+	/// </remarks>
+	/// <param name="supplied">A tenant term that disagrees with the resolved owner.</param>
+	/// <returns>A task that completes when both providers have refused.</returns>
+	[Theory]
+	[InlineData(RealTenant)]
+	[InlineData("__default__")]
+	public async Task RefuseADisagreeingRequestOwnerOnBothProviders(string supplied)
+	{
+		RequireServer();
+
+		var inMemoryRequest = NewRequest(supplied);
+		var sqlRequest = NewRequest(supplied);
+		var scheduled = DateTimeOffset.UtcNow.AddDays(30);
+
+		var inMemory = UnscopedInMemoryRequests();
+		var sql = UnscopedSqlRequests();
+
+		_ = await Should.ThrowAsync<ErasureOperationException>(
+			() => inMemory.SaveRequestAsync(inMemoryRequest, scheduled, TestCancellationToken));
+		_ = await Should.ThrowAsync<ErasureOperationException>(
+			() => sql.SaveRequestAsync(sqlRequest, scheduled, TestCancellationToken));
+
+		(await inMemory.GetStatusAsync(inMemoryRequest.RequestId, TestCancellationToken)).ShouldBeNull(
+			"the refusal must leave no row behind, or an erasure would later read a request whose owner "
+			+ "this deployment never resolved.");
+		(await sql.GetStatusAsync(sqlRequest.RequestId, TestCancellationToken)).ShouldBeNull(
+			"the refusal must leave no row behind on either provider -- that is the parity this arm binds.");
+	}
+
 	/// <summary>Malformed present owners are rejected without writing a request or changing valid rows.</summary>
 	[Theory]
 	[InlineData("")]
@@ -133,8 +188,13 @@ public sealed class InMemoryComplianceStoresWriteTheSentinelShould : Integration
 		var inMemory = UnscopedInMemoryRequests();
 		var sql = UnscopedSqlRequests();
 		var scheduled = DateTimeOffset.UtcNow.AddDays(30);
-		var memoryBaseline = NewRequest(RealTenant);
-		var sqlBaseline = NewRequest(RealTenant);
+		// THE BASELINE USES THE RESOLVED OWNER, not RealTenant. These stores are unscoped, so the
+		// deployment resolves the untenanted sentinel and a baseline naming another tenant is now refused
+		// in the SETUP -- the arm would fail before reaching the malformed owner it is actually about. The
+		// subject is unchanged: a valid row must exist so the arm can prove the rejected write left it
+		// alone.
+		var memoryBaseline = NewRequest(Sentinel);
+		var sqlBaseline = NewRequest(Sentinel);
 		await inMemory.SaveRequestAsync(memoryBaseline, scheduled, TestCancellationToken);
 		await sql.SaveRequestAsync(sqlBaseline, scheduled, TestCancellationToken);
 		var memoryBefore = (await inMemory.GetStatusAsync(memoryBaseline.RequestId, TestCancellationToken)).ShouldNotBeNull();
@@ -214,8 +274,8 @@ public sealed class InMemoryComplianceStoresWriteTheSentinelShould : Integration
 		await inMemory.SaveHoldAsync(NewHold(tenantId: null, subject), TestCancellationToken);
 		await sql.SaveHoldAsync(NewHold(tenantId: null, subject), TestCancellationToken);
 
-		var fromMemory = await inMemory.GetActiveHoldsForDataSubjectAsync(subject, null, TestCancellationToken);
-		var fromSql = await sql.GetActiveHoldsForDataSubjectAsync(subject, null, TestCancellationToken);
+		var fromMemory = await inMemory.GetActiveHoldsForDataSubjectAsync(subject, null, DateTimeOffset.UtcNow, TestCancellationToken);
+		var fromSql = await sql.GetActiveHoldsForDataSubjectAsync(subject, null, DateTimeOffset.UtcNow, TestCancellationToken);
 
 		fromMemory.ShouldHaveSingleItem().TenantId.ShouldBe(
 			Sentinel,
@@ -248,8 +308,8 @@ public sealed class InMemoryComplianceStoresWriteTheSentinelShould : Integration
 		await inMemory.SaveHoldAsync(NewHold(tenantId: null, subject), TestCancellationToken);
 		await sql.SaveHoldAsync(NewHold(tenantId: null, subject), TestCancellationToken);
 
-		var fromMemory = await inMemory.GetActiveHoldsForDataSubjectAsync(subject, RealTenant, TestCancellationToken);
-		var fromSql = await sql.GetActiveHoldsForDataSubjectAsync(subject, RealTenant, TestCancellationToken);
+		var fromMemory = await inMemory.GetActiveHoldsForDataSubjectAsync(subject, RealTenant, DateTimeOffset.UtcNow, TestCancellationToken);
+		var fromSql = await sql.GetActiveHoldsForDataSubjectAsync(subject, RealTenant, DateTimeOffset.UtcNow, TestCancellationToken);
 
 		fromMemory.Count.ShouldBe(
 			fromSql.Count,
@@ -311,9 +371,9 @@ public sealed class InMemoryComplianceStoresWriteTheSentinelShould : Integration
 		Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
 
 	private static InMemoryErasureStore UnscopedInMemoryRequests() => new(
-		new PassThroughDataSubjectHasher(),
+		ConformanceDataSubjectHasher.Instance,
 		tenantContext: UntenantedContext.Instance,
-		Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
+		Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }), TimeProvider.System);
 
 	// Fully qualified: an unqualified `Options.Create` binds to the Excalibur.Dispatch.Options NAMESPACE in
 	// this file's scope, not to Microsoft's static class.
@@ -338,17 +398,8 @@ public sealed class InMemoryComplianceStoresWriteTheSentinelShould : Integration
 			CertificatesTableName = "ErasureCertificatesSentinelParity",
 			AutoCreateSchema = true,
 		}),
-		new PassThroughDataSubjectHasher(),
+		ConformanceDataSubjectHasher.Instance,
 		EnabledTestLogger.Create<SqlServerErasureStore>(),
 		tenantContext: UntenantedContext.Instance,
 		Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
-
-	/// <summary>
-	/// Implements <see cref="IDataSubjectHasher"/> directly and inherits no first-party base, so the term
-	/// under comparison is the one the store wrote rather than one a shared helper rewrote.
-	/// </summary>
-	private sealed class PassThroughDataSubjectHasher : IDataSubjectHasher
-	{
-		public string HashDataSubjectId(string dataSubjectId) => dataSubjectId;
-	}
 }

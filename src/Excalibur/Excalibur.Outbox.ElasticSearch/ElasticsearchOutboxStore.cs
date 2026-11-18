@@ -50,7 +50,7 @@ namespace Excalibur.Outbox.ElasticSearch;
 		+ "the store unattested, which makes row-discriminator multi-tenancy refuse every host that selects "
 		+ "this provider for a store that implements the mechanism the gate requires. Refactoring the coupling "
 		+ "itself is a separate concern from declaring a mechanism the store already implements.")]
-public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, ITenantPartitionedStore, IAsyncDisposable
+public sealed partial class ElasticsearchOutboxStore : IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore, IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, ITenantPartitionedStore, IAsyncDisposable, IOutboxPayloadTransformStore
 {
 	private readonly ElasticsearchClient _client;
 	private readonly ElasticsearchOutboxOptions _options;
@@ -133,15 +133,56 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 		Justification = "Outbox payloads use runtime serialization for message types.")]
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
+	public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, null, transformRequested: false, cancellationToken);
+
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	ValueTask IOutboxPayloadTransformStore.EnqueueWithPayloadTransformAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transformPayload,
+		CancellationToken cancellationToken)
+		=> EnqueueCoreAsync(message, context, transformPayload, transformRequested: true, cancellationToken);
+
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private async ValueTask EnqueueCoreAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>>? transformPayload,
+		bool transformRequested,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
+		if (transformRequested)
+		{
+			ArgumentNullException.ThrowIfNull(transformPayload);
+		}
+
+		if (transformPayload is not null)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+		}
 
 		var messageType = message.GetType().FullName ?? message.GetType().Name;
+		// Canonical serialization returns fresh provider-owned bytes, borrowed read-only by the callback.
 		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType(), EventSerializationDefaults.Canonical);
+		// Only routing is consumed here; the context ID is not this provider's row ID or framing.
+		// Keep the fresh FromContext envelope without validating unused extracted metadata.
+		var destination = context.GetDestination() ?? messageType;
+		var outbound = OutboundMessage.FromContext(messageType, payload, destination, context);
 
-		var outbound = OutboundMessage.FromContext(messageType, payload, messageType, context);
+		if (transformPayload is not null)
+		{
+			var transformed = await transformPayload(payload, outbound.TenantId, cancellationToken).ConfigureAwait(false)
+				?? throw new InvalidOperationException("The outbox payload transform returned a null payload.");
+			cancellationToken.ThrowIfCancellationRequested();
+			// Stage synchronously snapshots these bytes into an owned immutable Base64 string before
+			// its first IndexAsync await. The persisted representation needs no redundant array copy.
+			outbound.Payload = transformed;
+		}
 
 		await StageMessageAsync(outbound, cancellationToken).ConfigureAwait(false);
 		LogMessageEnqueued(outbound.Id, messageType);
@@ -168,8 +209,6 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	/// is at-least-once: handlers must be idempotent.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
@@ -291,13 +330,15 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 
 			var doc = hit.Source;
 
+			var claimIdentity = owner + ":" + Guid.NewGuid().ToString("N");
 			if (await TryClaimWithServerClockAsync(
-					documentId, leaseTimeoutMs, owner, hit.SeqNo, hit.PrimaryTerm, cancellationToken)
+					documentId, leaseTimeoutMs, claimIdentity, hit.SeqNo, hit.PrimaryTerm, cancellationToken)
 				.ConfigureAwait(false))
 			{
-				// The lease Elasticsearch stamped is not read back: the lease fields do not cross the
-				// OutboundMessage boundary, so there is nothing here that would go stale.
-				claimed.Add(FromDocument(doc));
+				// Capture the identity this CAS acquired, never an owner read from a later successor.
+				var message = FromDocument(doc);
+				message.DispatcherId = claimIdentity;
+				claimed.Add(message);
 			}
 
 			// A conflict means another poller claimed it first. Skipping is what makes batches disjoint.
@@ -420,7 +461,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 
 	/// <inheritdoc/>
 	/// <remarks>
-	/// Shares the compare-and-swap transition used by <see cref="MarkFailedAsync"/>: a message that has
+	/// Shares the compare-and-swap transition used by <see cref="MarkFailedAsync(string, string, int, System.Threading.CancellationToken)"/>: a message that has
 	/// already been marked sent is never reopened, so a late dead-letter report cannot resurrect a
 	/// delivered message.
 	/// </remarks>
@@ -697,6 +738,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			TenantId = KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId,
 			PartitionKey = message.PartitionKey,
 			GroupKey = message.GroupKey,
+			SequenceNumber = message.SequenceNumber,
 			TargetTransports = message.TargetTransports,
 			IsMultiTransport = message.IsMultiTransport,
 			LastError = message.LastError,
@@ -775,6 +817,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			TenantId = KeyedTenantPartition.FromStoredValue(doc.TenantId).TenantId,
 			PartitionKey = doc.PartitionKey,
 			GroupKey = doc.GroupKey,
+			SequenceNumber = doc.SequenceNumber,
 			TargetTransports = doc.TargetTransports,
 			IsMultiTransport = doc.IsMultiTransport,
 			LastError = doc.LastError,
@@ -1022,7 +1065,8 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			// Refusing the unclaimed case made MarkFailedAsync a silent no-op for a message that failed
 			// before anyone claimed it: it stayed Staged, took no backoff floor, stayed immediately
 			// re-claimable, and never appeared in a failed-message query or in the statistics counts.
-			if (!string.IsNullOrEmpty(get.Source.LeasedBy) && get.Source.LeasedBy != requiredLeaseOwner)
+			if (!string.IsNullOrEmpty(get.Source.LeasedBy) && get.Source.LeasedBy != requiredLeaseOwner
+                && !get.Source.LeasedBy.StartsWith(requiredLeaseOwner + ":", StringComparison.Ordinal))
 			{
 				// The caller is not entitled to this transition. Silent, like the absent case: such a report is
 				// stale rather than erroneous, and the message is left exactly as its owner holds it.
@@ -1058,9 +1102,10 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	// Resolves the lease-owner identifier once: the configured ProcessorId, or a stable generated id.
 	// Diagnostic only - claim disjointness is enforced by the compare-and-swap, not by this value.
 	private string GetProcessorId() =>
-		_resolvedProcessorId ??= string.IsNullOrWhiteSpace(_options.ProcessorId)
-			? $"es-outbox-{Environment.MachineName}-{Environment.ProcessId}"
-			: _options.ProcessorId;
+		_resolvedProcessorId ??= Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
+            string.IsNullOrWhiteSpace(_options.ProcessorId)
+                ? $"es-outbox-{Environment.MachineName}-{Environment.ProcessId}"
+                : _options.ProcessorId));
 
 	[LoggerMessage(DataElasticsearchEventId.DocumentIndexed, LogLevel.Debug,
 		"Staged outbox message {MessageId} of type {MessageType} to destination {Destination}")]

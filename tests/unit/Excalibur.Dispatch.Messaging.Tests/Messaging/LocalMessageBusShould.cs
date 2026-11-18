@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Threading.Tasks.Sources;
+
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Transport;
@@ -219,6 +221,118 @@ public sealed class LocalMessageBusShould
 	#endregion
 
 	#region PublishAsync (Event) Tests
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(1)]
+	[InlineData(2)]
+	[InlineData(3)]
+	[InlineData(4)]
+	[InlineData(5)]
+	[Trait("Pattern", "Handler")]
+	public async Task PublishAsync_Should_Start_All_SourceBacked_Handlers_And_Consume_Each_Once(int count)
+	{
+		var evt = new TestEvent();
+		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.RequestServices).Returns(_serviceProvider);
+		var entries = Enumerable.Range(0, count)
+			.Select(_ => (IHandlerRegistryEntry)new HandlerRegistryEntry(typeof(TestEvent), typeof(TestEventHandler1), false))
+			.ToArray();
+		A.CallTo(() => _registry.GetAll()).Returns(entries);
+		A.CallTo(() => _activator.ActivateHandler(typeof(TestEventHandler1), context, _serviceProvider))
+			.Returns(new TestEventHandler1());
+		var sources = Enumerable.Range(0, count).Select(_ => new SingleConsumptionSource()).ToArray();
+		var started = 0;
+		var invoker = new SourceBackedInvoker(_ => sources[started++].Invocation);
+		var bus = new LocalMessageBus(_serviceProvider, _registry, _activator, invoker, _logger);
+
+		var publishing = bus.PublishAsync(evt, context, CancellationToken.None);
+		try
+		{
+			started.ShouldBe(count);
+			if (count > 0)
+			{
+				publishing.IsCompleted.ShouldBeFalse();
+			}
+		}
+		finally
+		{
+			foreach (var source in sources)
+			{
+				source.Complete();
+			}
+		}
+
+		await publishing.WaitAsync(TimeSpan.FromSeconds(5));
+		foreach (var source in sources)
+		{
+			source.ConsumptionCount.ShouldBe(1);
+		}
+	}
+
+	[Theory]
+	[InlineData(2, false)]
+	[InlineData(2, true)]
+	[InlineData(4, false)]
+	[InlineData(4, true)]
+	[InlineData(5, false)]
+	[InlineData(5, true)]
+	[Trait("Pattern", "Handler")]
+	public async Task PublishAsync_Should_Observe_All_Faults_And_Cancellation(int count, bool synchronousFault)
+	{
+		var evt = new TestEvent();
+		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.RequestServices).Returns(_serviceProvider);
+		A.CallTo(() => _registry.GetAll()).Returns(Enumerable.Range(0, count)
+			.Select(_ => (IHandlerRegistryEntry)new HandlerRegistryEntry(typeof(TestEvent), typeof(TestEventHandler1), false))
+			.ToArray());
+		A.CallTo(() => _activator.ActivateHandler(typeof(TestEventHandler1), context, _serviceProvider))
+			.Returns(new TestEventHandler1());
+		var sources = Enumerable.Range(0, count).Select(_ => new SingleConsumptionSource()).ToArray();
+		using var cancellation = new CancellationTokenSource();
+		var fault = new InvalidOperationException("First handler failed");
+		var started = 0;
+		var invoker = new SourceBackedInvoker(token =>
+		{
+			token.ShouldBe(cancellation.Token);
+			var index = started++;
+			if (index == 0 && synchronousFault)
+			{
+				throw fault;
+			}
+
+			return sources[index].Invocation;
+		});
+		var bus = new LocalMessageBus(_serviceProvider, _registry, _activator, invoker, _logger);
+		var publishing = bus.PublishAsync(evt, context, cancellation.Token);
+		started.ShouldBe(count);
+		publishing.IsCompleted.ShouldBeFalse();
+		await cancellation.CancelAsync();
+		for (var index = 0; index < count; index++)
+		{
+			if (index == 0 && !synchronousFault)
+			{
+				sources[index].Fail(fault);
+			}
+			else if (index == count - 1)
+			{
+				sources[index].Fail(new OperationCanceledException(cancellation.Token));
+			}
+			else
+			{
+				sources[index].Complete();
+			}
+		}
+
+		var aggregate = await Should.ThrowAsync<AggregateException>(() => publishing.WaitAsync(TimeSpan.FromSeconds(5)));
+		aggregate.InnerExceptions.Count.ShouldBe(2);
+		aggregate.InnerExceptions[0].ShouldBeSameAs(fault);
+		aggregate.InnerExceptions[1].ShouldBeOfType<OperationCanceledException>().CancellationToken.ShouldBe(cancellation.Token);
+		for (var index = 0; index < count; index++)
+		{
+			sources[index].ConsumptionCount.ShouldBe(index == 0 && synchronousFault ? 0 : 1);
+		}
+	}
 
 	[Fact]
 	public async Task PublishAsync_Event_Should_Throw_For_Null_Event()
@@ -797,6 +911,43 @@ public sealed class LocalMessageBusShould
 
 	private sealed class TestActionHandler { }
 	private sealed class TestDocumentHandler { }
+	private sealed class SourceBackedInvoker(Func<CancellationToken, ValueTask<object?>> invoke) : IHandlerInvoker, IValueTaskHandlerInvoker
+	{
+		public Task<object?> InvokeAsync(object handler, IDispatchMessage message, CancellationToken cancellationToken) =>
+			throw new InvalidOperationException("The ValueTask invocation path must be used.");
+
+		public ValueTask<object?> InvokeValueTaskAsync(object handler, IDispatchMessage message, CancellationToken cancellationToken) => invoke(cancellationToken);
+	}
+
+	private sealed class SingleConsumptionSource : IValueTaskSource<object?>
+	{
+		private ManualResetValueTaskSourceCore<object?> _source = new() { RunContinuationsAsynchronously = true };
+
+		public int ConsumptionCount { get; private set; }
+
+		public ValueTask<object?> Invocation => new(this, _source.Version);
+
+		public void Complete() => _source.SetResult(null);
+
+		public void Fail(Exception exception) => _source.SetException(exception);
+
+		public object? GetResult(short token)
+		{
+			ConsumptionCount++;
+			if (ConsumptionCount != 1)
+			{
+				throw new InvalidOperationException("ValueTask source consumed more than once.");
+			}
+
+			return _source.GetResult(token);
+		}
+
+		public ValueTaskSourceStatus GetStatus(short token) => _source.GetStatus(token);
+
+		public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags) =>
+			_source.OnCompleted(continuation, state, token, flags);
+	}
+
 	private sealed class TestEventHandler1 { }
 	private sealed class TestEventHandler2 { }
 	private sealed class TestEventHandler3 { }

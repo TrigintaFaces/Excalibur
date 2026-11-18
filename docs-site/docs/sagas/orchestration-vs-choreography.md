@@ -493,7 +493,7 @@ public class ComplexOrderSaga : SagaBase<ComplexOrderState>
 
 - **Simple, linear workflows**: Each step leads directly to the next
 - **Independent services**: Teams own services end-to-end
-- **High throughput**: Need maximum scalability
+- **Independent event processing**: Evaluate completed throughput, coordination and recovery costs for the workflow
 - **Event-driven architecture**: Already using event streaming (Kafka, etc.)
 - **Microservices independence**: Want to minimize cross-service dependencies
 

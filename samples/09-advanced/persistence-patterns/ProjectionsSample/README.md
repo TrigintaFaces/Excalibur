@@ -227,7 +227,7 @@ class ProductProjection { Name, Price, Stock, IsActive, CreatedAt, ... }
 ```
 
 ### 2. Use Eventual Consistency
-For high-throughput systems, use async projections:
+Use asynchronous projections when their visibility and recovery semantics fit; measure processing capacity and projection lag:
 ```csharp
 // Async projection with separate worker
 public class ProjectionWorker : BackgroundService

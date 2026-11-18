@@ -18,6 +18,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for configuring MongoDB outbox stores on <see cref="IOutboxBuilder"/>.
 /// </summary>
+[RequiresUnreferencedCode("MongoDB outbox document mapping depends on driver reflection metadata. This provider is not compatible with trimming.")]
+[RequiresDynamicCode("MongoDB outbox default document mapping constructs generic serializers at runtime. Required native instantiations may be unavailable under NativeAOT; this provider path has not been validated for NativeAOT.")]
 public static class OutboxBuilderMongoDbExtensions
 {
 	private const string BuilderManagedConnectionSentinel = "mongodb://builder-managed-client";
@@ -43,10 +45,6 @@ public static class OutboxBuilderMongoDbExtensions
 	/// }));
 	/// </code>
 	/// </example>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
 	public static IOutboxBuilder UseMongoDB(
 		this IOutboxBuilder builder,
 		Action<IMongoDBOutboxBuilder> configure)
@@ -71,10 +69,6 @@ public static class OutboxBuilderMongoDbExtensions
 		return builder;
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
 	private static void RegisterOptionsAndServices(
 		IServiceCollection services,
 		MongoDBOutboxBuilder mongoBuilder,

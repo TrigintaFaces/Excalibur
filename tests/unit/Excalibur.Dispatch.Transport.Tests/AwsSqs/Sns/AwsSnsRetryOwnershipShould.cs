@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using System.Net;
@@ -208,9 +209,9 @@ public sealed class AwsSnsRetryOwnershipShould
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         processor.Init("sns-known-permanent");
         _ = await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
-        message.Status.ShouldBe(OutboxStatus.DeadLettered, message.LastError);
+        await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.DeadLettered, message.LastError);
         ((global::Excalibur.Dispatch.Transport.Tests.AwsSqs.AwsEventBridgePersistedAcceptanceShould.RetainingQueue)provider.GetRequiredService<global::Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>()).AssertRetained(message, global::Excalibur.Dispatch.ErrorHandling.DeadLetterReason.UnhandledException, 1);
-        message.RetryCount.ShouldBe(1, "terminal retirement records the first observed attempt");
+        await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 1, "terminal retirement records the first observed attempt");
         handler.Requests.ShouldBe(1);
         state.PublishCalls.ShouldBe(1);
     }
@@ -226,8 +227,8 @@ public sealed class AwsSnsRetryOwnershipShould
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         processor.Init("sns-kms-throttling");
         _ = await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
-        message.Status.ShouldBe(OutboxStatus.Failed, message.LastError);
-        message.RetryCount.ShouldBe(1);
+        await AwsPersistedOutboxObservation.AssertStateAsync(provider, message, OutboxStatus.Failed, message.LastError);
+        await AwsPersistedOutboxObservation.AssertRetryCountAsync(provider, message, 1);
         handler.Requests.ShouldBe(1);
     }
 
@@ -242,7 +243,7 @@ public sealed class AwsSnsRetryOwnershipShould
         using var client = Controls.CreateClient(http, maxErrorRetry: 1);
         await using var provider = Controls.Build(client, new Controls.PublishState());
         var ceOptions = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
-        var mapper = new AwsSnsCloudEventAdapter(ceOptions, NullLogger<AwsSnsCloudEventAdapter>.Instance);
+        var mapper = new AwsSnsCloudEventAdapter(ceOptions, TestCloudEventSerializers.Reflection, NullLogger<AwsSnsCloudEventAdapter>.Instance);
         var bridge = new EnvelopeCloudEventBridge(new CloudEventEnvelopeConverter(ceOptions.Value),
             [new CloudEventEncoderAdapter<PublishRequest>(mapper)]);
         await using var bus = new AwsSnsMessageBus(client, provider.GetRequiredService<IPayloadSerializer>(),
@@ -367,7 +368,7 @@ public sealed class AwsSnsRetryOwnershipShould
         using var client = Controls.CreateClient(http, maxErrorRetry: 0);
         await using var provider = Controls.Build(client, new Controls.PublishState());
         var ceOptions = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
-        var mapper = new AwsSnsCloudEventAdapter(ceOptions, NullLogger<AwsSnsCloudEventAdapter>.Instance);
+        var mapper = new AwsSnsCloudEventAdapter(ceOptions, TestCloudEventSerializers.Reflection, NullLogger<AwsSnsCloudEventAdapter>.Instance);
         var bridge = new EnvelopeCloudEventBridge(new CloudEventEnvelopeConverter(ceOptions.Value),
             [new CloudEventEncoderAdapter<PublishRequest>(mapper)]);
         await using var bus = new AwsSnsMessageBus(client, provider.GetRequiredService<IPayloadSerializer>(),

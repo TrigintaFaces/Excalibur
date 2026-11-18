@@ -88,4 +88,4 @@ When `EnableStreams` is `true`, the provider creates a DynamoDB Streams client a
 
 ## DAX Caching
 
-DAX (DynamoDB Accelerator) provides microsecond-latency caching for DynamoDB reads. The framework registers an `IDaxCacheProvider` with configurable TTL and consistency levels.
+AWS describes microsecond response times for suitable eventually consistent reads using DAX (DynamoDB Accelerator). This is a service capability description, not a framework measurement or a guarantee for every read; see [DAX suitability guidance](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/evaluate-dax-suitability.html). The framework registers an `IDaxCacheProvider` with configurable TTL and consistency levels.

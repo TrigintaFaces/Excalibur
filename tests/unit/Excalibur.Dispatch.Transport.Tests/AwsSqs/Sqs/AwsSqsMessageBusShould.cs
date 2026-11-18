@@ -3,6 +3,7 @@
 
 #pragma warning disable CA2012 // FakeItEasy .Returns() stores ValueTask
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
@@ -147,7 +148,7 @@ public sealed class AwsSqsMessageBusShould : IAsyncDisposable
 		// boundary (IAmazonSQS) is faked -- the mapper, bridge, and envelope converter are the real
 		// production types, so a mapper that silently drops attributes would fail this test.
 		var cloudEventOptions = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
-		var mapper = new AwsSqsCloudEventAdapter(cloudEventOptions, NullLogger<AwsSqsCloudEventAdapter>.Instance);
+		var mapper = new AwsSqsCloudEventAdapter(cloudEventOptions, TestCloudEventSerializers.Reflection, NullLogger<AwsSqsCloudEventAdapter>.Instance);
 		var bridge = new EnvelopeCloudEventBridge(
 			new CloudEventEnvelopeConverter(cloudEventOptions.Value),
 			[new CloudEventEncoderAdapter<SendMessageRequest>(mapper)]);

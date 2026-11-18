@@ -16,6 +16,53 @@ namespace Excalibur.Dispatch.Tests.Threading;
 public sealed class BackgroundContextOwnershipShould
 {
 	[Fact]
+	public void CarryAMarkedValueAcrossTheBackgroundOwnershipBoundary()
+	{
+		// The copier enumerates source.Features and its catch-all THROWS on anything it does not
+		// recognise. The propagated set implements none of the three feature interfaces it names, so
+		// before this arm existed a consumer who marked a value and then dispatched to background got an
+		// InvalidOperationException saying the feature "cannot cross the ownership boundary" -- about a
+		// Dictionary<string,string>, the single most copyable thing in the tree, and the one feature that
+		// MUST cross. The catch-all is why that was a loud break rather than silent loss, which is the
+		// fail-closed design paying for itself; it was still a break on a path a consumer can reach.
+		var message = new BackgroundMessage();
+		var source = new MessageContext(message, new ServiceCollection().BuildServiceProvider())
+		{
+			MessageId = "original",
+			CorrelationId = "correlation",
+		};
+		source.SetPropagatedItem("zzbackgroundprobe", "carried");
+
+		var captured = Should.NotThrow(() => BackgroundContextSnapshot.Capture(message, source));
+
+		captured.GetPropagatedItem("zzbackgroundprobe").ShouldBe("carried");
+
+		// Owned, not shared: the whole point of this boundary. A later write on either side must not be
+		// visible on the other, or the background work and the request that spawned it are braided.
+		captured.SetPropagatedItem("zzbackgroundonly", "x");
+		source.GetPropagatedItems().ShouldNotContainKey("zzbackgroundonly");
+	}
+
+	[Fact]
+	public void StillRefuseAFeatureThatGenuinelyCannotBeOwned()
+	{
+		// Liveness for the catch-all the arm above routes around. Adding a recognised arm must not turn
+		// the switch into a pass-through: a feature with genuinely unownable state is still refused, and
+		// that refusal is what made the defect above loud instead of silent.
+		var message = new BackgroundMessage();
+		var source = new MessageContext(message, new ServiceCollection().BuildServiceProvider());
+		source.Features[typeof(UnownableFeature)] = new UnownableFeature();
+
+		_ = Should.Throw<InvalidOperationException>(
+			() => BackgroundContextSnapshot.Capture(message, source));
+	}
+
+	private sealed class UnownableFeature
+	{
+		public object Shared { get; } = new();
+	}
+
+	[Fact]
 	public async Task OwnContextAndScopeAfterCallerReturns()
 	{
 		await using var root = new ServiceCollection().AddScoped<Dependency>().BuildServiceProvider();

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
@@ -8,6 +8,8 @@ using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
 namespace Excalibur.Dispatch.Hosting.AspNetCore;
@@ -18,10 +20,25 @@ namespace Excalibur.Dispatch.Hosting.AspNetCore;
 public static class HttpContextExtensions
 {
 	/// <summary>
-	/// Create a <see cref="MessageContext" /> populated with common request metadata.
-	/// Works for both authenticated and anonymous requests.
+	/// Create a <see cref="MessageContext" /> populated with the request's correlation, identity and
+	/// routing metadata. Works for both authenticated and anonymous requests.
 	/// </summary>
 	/// <param name="httpContext"> The HTTP context. </param>
+	/// <returns> A message context carrying the request's cross-cutting fields. </returns>
+	/// <remarks>
+	/// <para>
+	/// <strong>Request headers are not copied unless the application names them.</strong> Configure
+	/// <see cref="RequestHeaderCaptureOptions.AllowedHeaders"/> to capture specific headers; each one
+	/// captured appears in <see cref="IMessageContext.Items"/> under a <c>header.</c> prefix and its
+	/// original name, for example <c>header.X-Request-Id</c>. With no configuration, nothing is captured.
+	/// </para>
+	/// <para>
+	/// This method previously copied <em>every</em> inbound header into the context under its raw name.
+	/// A context item is put on the wire by every remote transport, written into message metadata, and
+	/// persisted by at least one outbox provider, so that behaviour forwarded the caller's
+	/// <c>Authorization</c> and <c>Cookie</c> headers to every downstream system and stored them.
+	/// </para>
+	/// </remarks>
 	public static MessageContext CreateDispatchMessageContext(this HttpContext httpContext)
 	{
 		ArgumentNullException.ThrowIfNull(httpContext);
@@ -45,12 +62,71 @@ public static class HttpContextExtensions
 		// Set routing feature properties
 		context.GetOrCreateRoutingFeature().Source = "WebRequest";
 
-		foreach (var header in httpContext.Request.Headers)
-		{
-			context.Items[header.Key] = header.Value.ToString();
-		}
+		CaptureAllowedHeaders(httpContext, context);
 
 		return context;
+	}
+
+	/// <summary>
+	/// Copies the request headers the application has opted in by name, within the configured caps.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <strong>Default-deny.</strong> No registration, or an empty allowlist, copies nothing — the two are
+	/// deliberately the same answer, because an unconfigured capture surface has expressed no opt-in.
+	/// </para>
+	/// <para>
+	/// A value that exceeds a cap is <em>dropped, never truncated</em>. A truncated value is still read
+	/// downstream as though it were whole, and nothing there can tell that it is not.
+	/// </para>
+	/// <para>
+	/// Headers are considered in ordinal name order so that the captured set is a function of the request
+	/// and the configuration, rather than of header arrival order. Without that, two identical requests
+	/// could yield different captured sets once a cap is reached, and nothing downstream could tell.
+	/// </para>
+	/// </remarks>
+	private static void CaptureAllowedHeaders(HttpContext httpContext, MessageContext context)
+	{
+		var options = httpContext.RequestServices?
+			.GetService<IOptions<RequestHeaderCaptureOptions>>()?.Value;
+
+		// No registration means no opt-in has been expressed, which is the same answer as an empty allowlist.
+		if (options is null || options.AllowedHeaders.Count == 0)
+		{
+			return;
+		}
+
+		var captured = 0;
+		var totalLength = 0;
+
+		foreach (var header in httpContext.Request.Headers.OrderBy(h => h.Key, StringComparer.Ordinal))
+		{
+			if (captured >= options.MaxEntries)
+			{
+				break;
+			}
+
+			if (!options.AllowedHeaders.Contains(header.Key))
+			{
+				continue;
+			}
+
+			var text = header.Value.ToString();
+			if (text.Length > options.MaxValueLength)
+			{
+				continue;
+			}
+
+			var entryLength = header.Key.Length + text.Length;
+			if (totalLength + entryLength > options.MaxTotalLength)
+			{
+				break;
+			}
+
+			context.Items[$"header.{header.Key}"] = text;
+			totalLength += entryLength;
+			captured++;
+		}
 	}
 
 	/// <summary>

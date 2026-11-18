@@ -20,6 +20,7 @@ namespace Excalibur.Outbox.Tests;
 [Trait("Category", "Unit")]
 [Trait("Component", "Outbox")]
 [Trait("Pattern", "Regression")]
+[Collection(SchedulingSensitiveCollection.Name)]
 public sealed class OutboxPersistedRetryOwnershipShould
 {
     [Theory]
@@ -38,7 +39,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         state.Calls.ShouldBe(1);
-        message.Status.ShouldBe(OutboxStatus.DeadLettered, $"the original typed failure must retire immediately: {message.LastError}");
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(OutboxStatus.DeadLettered, $"the original typed failure must retire immediately: {PersistedInMemoryOutboxState.Read(provider, message.Id).LastError}");
         await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must elapse; the assertion is that a terminal failure is NOT retried once it has
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         state.Calls.ShouldBe(1, "a terminal permanent or poison failure must not invoke its handler again");
@@ -58,16 +59,16 @@ public sealed class OutboxPersistedRetryOwnershipShould
         processor.Init("typed-fanout-owner-test");
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
-        state.RouteCalls.ShouldBe([1, 1], customMessage: $"both actual bus routes must execute: {message.LastError}");
-        message.Status.ShouldBe(mixed ? OutboxStatus.Failed : OutboxStatus.DeadLettered,
-            $"only all known Permanent/Poison route failures justify immediate retirement: {message.LastError}");
+        state.RouteCalls.ShouldBe([1, 1], customMessage: $"both actual bus routes must execute: {PersistedInMemoryOutboxState.Read(provider, message.Id).LastError}");
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(mixed ? OutboxStatus.Failed : OutboxStatus.DeadLettered,
+            $"only all known Permanent/Poison route failures justify immediate retirement: {PersistedInMemoryOutboxState.Read(provider, message.Id).LastError}");
         await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must elapse; the assertion is that a terminal failure is NOT retried once it has
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         if (mixed)
         {
             state.RouteCalls[1].ShouldBe(2, "a permanent sibling must not discard the retryable destination's next durable attempt");
-            message.Status.ShouldBe(OutboxStatus.Failed);
-            message.RetryCount.ShouldBe(2);
+            PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(OutboxStatus.Failed);
+            PersistedInMemoryOutboxState.Read(provider, message.Id).RetryCount.ShouldBe(2);
         }
         else { state.RouteCalls.ShouldBe([1, 1], customMessage: "terminal fanout must not republish any destination"); }
     }
@@ -93,9 +94,9 @@ public sealed class OutboxPersistedRetryOwnershipShould
         processor.Init("wrapped-cancellation-owner-test");
         _ = await Should.ThrowAsync<OperationCanceledException>(() => processor.DispatchPendingMessagesAsync(cancellation.Token));
         state.Calls.ShouldBe(1);
-        message.RetryCount.ShouldBe(0, "caller cancellation must not consume the durable failure budget");
-        message.Status.ShouldNotBe(OutboxStatus.Sent);
-        message.Status.ShouldNotBe(OutboxStatus.DeadLettered);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).RetryCount.ShouldBe(0, "caller cancellation must not consume the durable failure budget");
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldNotBe(OutboxStatus.Sent);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldNotBe(OutboxStatus.DeadLettered);
         var breaker = provider.GetRequiredService<ITransportCircuitBreakerRegistry>().GetOrCreate(nameof(OwnedRetryEvent));
         breaker.ShouldBeAssignableTo<ICircuitBreakerDiagnostics>().ConsecutiveFailures.ShouldBe(0,
             "the IOException wrapper must be normalized before the circuit breaker classifies its outcome");
@@ -115,8 +116,8 @@ public sealed class OutboxPersistedRetryOwnershipShould
         (await processor.DispatchPendingMessagesAsync(caller.Token)).ShouldBe(0);
         caller.IsCancellationRequested.ShouldBeFalse();
         state.Calls.ShouldBe(1);
-        message.Status.ShouldBe(OutboxStatus.Failed);
-        message.RetryCount.ShouldBe(1);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(OutboxStatus.Failed);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).RetryCount.ShouldBe(1);
         var breaker = provider.GetRequiredService<ITransportCircuitBreakerRegistry>().GetOrCreate(nameof(OwnedRetryEvent));
         breaker.ShouldBeAssignableTo<ICircuitBreakerDiagnostics>().ConsecutiveFailures.ShouldBe(1);
     }
@@ -134,13 +135,13 @@ public sealed class OutboxPersistedRetryOwnershipShould
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         state.Calls.ShouldBe(1);
-        message.Status.ShouldBe(OutboxStatus.Failed);
-        message.RetryCount.ShouldBe(1);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(OutboxStatus.Failed);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).RetryCount.ShouldBe(1);
         await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must elapse; the assertion is that a terminal failure is NOT retried once it has
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         state.Calls.ShouldBe(2);
-        message.Status.ShouldBe(OutboxStatus.Failed);
-        message.RetryCount.ShouldBe(2);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(OutboxStatus.Failed);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).RetryCount.ShouldBe(2);
         A.CallTo(() => classifier.Classify(A<Exception>._)).MustNotHaveHappened();
         var breaker = provider.GetRequiredService<ITransportCircuitBreakerRegistry>().GetOrCreate(nameof(OwnedRetryEvent));
         breaker.ShouldBeAssignableTo<ICircuitBreakerDiagnostics>().ConsecutiveFailures.ShouldBe(2,
@@ -164,7 +165,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
             if (attempt < 4) await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must elapse between attempts -- that per-attempt interval is the behaviour under test
         }
         state.Calls.ShouldBe(4);
-        message.Status.ShouldBe(OutboxStatus.DeadLettered);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(OutboxStatus.DeadLettered);
         await using var scope = provider.CreateAsyncScope();
         var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().DispatchAsync(new OwnedRetryEvent("foreground-result"), deadline.Token);
         result.Succeeded.ShouldBeFalse();
@@ -185,9 +186,9 @@ public sealed class OutboxPersistedRetryOwnershipShould
         processor.Init("missing-handler-owner-test");
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
-        message.Status.ShouldBe(OutboxStatus.Failed);
-        message.RetryCount.ShouldBe(1);
-        message.LastError.ShouldContain(nameof(MissingHandlerAction));
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(OutboxStatus.Failed);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).RetryCount.ShouldBe(1);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).LastError.ShouldContain(nameof(MissingHandlerAction));
         state.Calls.ShouldBe(0);
     }
 
@@ -207,7 +208,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
         state.Calls.ShouldBe(1);
         state.NestedCalls.ShouldBe(3);
         state.NestedExhausted.ShouldBeTrue();
-        message.Status.ShouldBe(OutboxStatus.Sent);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(OutboxStatus.Sent);
     }
 
     [Fact]
@@ -227,8 +228,8 @@ public sealed class OutboxPersistedRetryOwnershipShould
         state.Calls.ShouldBe(2);
         foreach (var message in messages)
         {
-            message.Status.ShouldBe(OutboxStatus.Failed);
-            message.RetryCount.ShouldBe(1);
+            PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(OutboxStatus.Failed);
+            PersistedInMemoryOutboxState.Read(provider, message.Id).RetryCount.ShouldBe(1);
         }
     }
 
@@ -251,9 +252,9 @@ public sealed class OutboxPersistedRetryOwnershipShould
         await cancellation.CancelAsync();
         await Should.ThrowAsync<OperationCanceledException>(() => running);
         state.Calls.ShouldBe(1);
-        message.Status.ShouldNotBe(OutboxStatus.Sent);
-        message.Status.ShouldNotBe(OutboxStatus.DeadLettered);
-        message.RetryCount.ShouldBe(0, "caller cancellation is not a retry-consuming delivery failure");
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldNotBe(OutboxStatus.Sent);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldNotBe(OutboxStatus.DeadLettered);
+        PersistedInMemoryOutboxState.Read(provider, message.Id).RetryCount.ShouldBe(0, "caller cancellation is not a retry-consuming delivery failure");
     }
 
     [Fact]
@@ -271,7 +272,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
         for (var attempt = 1; attempt <= 4; attempt++)
         {
             (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
-            message.Status.ShouldBe(attempt < 4 ? OutboxStatus.Failed : OutboxStatus.DeadLettered);
+            PersistedInMemoryOutboxState.Read(provider, message.Id).Status.ShouldBe(attempt < 4 ? OutboxStatus.Failed : OutboxStatus.DeadLettered);
             if (attempt < 4) await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must elapse between attempts -- that per-attempt interval is the behaviour under test
         }
         state.Calls.ShouldBe(4, "the persisted four-attempt budget must not multiply by three pipeline attempts");

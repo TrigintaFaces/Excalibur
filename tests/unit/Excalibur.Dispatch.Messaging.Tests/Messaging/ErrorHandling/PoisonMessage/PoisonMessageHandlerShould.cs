@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.ErrorHandling;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.TypeResolution;
 using Excalibur.Dispatch.Options.ErrorHandling;
@@ -37,6 +39,12 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 	public PoisonMessageHandlerShould()
 	{
 		_deadLetterStore = A.Fake<IDeadLetterStore>(o => o.Implements<IDeadLetterStoreAdmin>());
+
+		// AN UNCONFIGURED FAKE REPORTS Unknown, AND THE HANDLER REFUSES THAT -- correctly, because a store
+		// that decided nothing has granted nothing. Arms below are about the replay path rather than the
+		// claim, so the won claim is the default here; the arms that test a refusal set their own.
+		_ = A.CallTo(() => _deadLetterStore.MarkAsReplayedAsync(A<string>._, A<CancellationToken>._))
+			.Returns(DeadLetterReplayOutcome.Claimed);
 		_serializer = new DispatchJsonSerializer();
 		_serviceProvider = A.Fake<IServiceProvider>();
 		_options = Microsoft.Extensions.Options.Options.Create(new PoisonMessageOptions());
@@ -350,6 +358,26 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 	}
 
 	[Fact]
+	public async Task PreserveTypedFirstAttemptEvidenceInTheDeadLetterDespiteProducerMetadata()
+	{
+		var context = DispatchContextInitializer.CreateFromMetadata(new Dictionary<string, string?>
+		{
+			["FirstAttemptTime"] = "producer-owned-value",
+		});
+		var retainedFirst = DateTimeOffset.UtcNow.AddDays(-1);
+		context.GetOrCreateProcessingFeature().FirstAttemptTime = retainedFirst;
+		context.Items["CurrentAttemptTime"] = retainedFirst.AddHours(2);
+		DeadLetterMessage? stored = null;
+		_ = A.CallTo(() => _deadLetterStore.StoreAsync(A<DeadLetterMessage>._, A<CancellationToken>._))
+			.Invokes(call => stored = call.GetArgument<DeadLetterMessage>(0));
+
+		await _sut.HandlePoisonMessageAsync(new TestMessage(), context, "expired", CancellationToken.None);
+
+		stored.ShouldNotBeNull().FirstAttemptAt.ShouldBe(retainedFirst);
+		context.Items["FirstAttemptTime"].ShouldBe("producer-owned-value");
+	}
+
+	[Fact]
 	public async Task HandlePoisonMessageAsync_RethrowsOnStoreFailure()
 	{
 		// Arrange
@@ -648,6 +676,156 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 			.MustHaveHappenedOnceExactly();
 	}
 
+	/// <summary>
+	/// A SECOND REPLAY OF THE SAME MESSAGE MUST NOT DISPATCH IT AGAIN.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The mark happens AFTER the dispatch, so nothing between the two consulted it: a second call read
+	/// the entry, found no guard, and dispatched. This needs no concurrency -- a sequential second call
+	/// is enough, and an operator retrying a replay that appeared to hang is the ordinary way to reach
+	/// it.
+	/// </para>
+	/// <para>
+	/// The fixture deliberately uses the wiring under which a replay SUCCEEDS -- a registered declared
+	/// name and a real dispatcher -- because that is the only substrate on which removing the guard is
+	/// observable. With an unresolvable type or an unwired dispatcher the replay fails for its own
+	/// reasons and the arm would pass whether the guard exists or not.
+	/// </para>
+	/// <para>
+	/// Both assertions are needed. The refusal alone could be satisfied by a handler that refuses
+	/// everything, so the arm also requires that the already-replayed entry was NOT marked a second
+	/// time; and its sibling above requires that a fresh entry still replays, which is what stops a
+	/// blanket refusal passing this file.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task ReplayMessageAsync_RefuseAMessageThatWasAlreadyReplayed()
+	{
+		_ = MessageTypeResolver.Instance;
+		MessageTypeRegistry.RegisterType<NamedPoisonMessage>();
+
+		var deadLetterMessage = new DeadLetterMessage
+		{
+			Id = Guid.NewGuid().ToString("N"),
+			MessageId = "already-replayed-id",
+			MessageType = DeclaredName,
+			MessageBody = "{}",
+			MessageMetadata = "{}",
+			Reason = "test",
+
+			// THE STATE UNDER TEST. Everything else about this entry is replayable, so the only thing
+			// that may refuse it is the guard.
+			IsReplayed = true,
+		};
+
+		_ = A.CallTo(() => _deadLetterStore.GetByIdAsync("already-replayed-id", A<CancellationToken>._))
+			.Returns(deadLetterMessage);
+
+		using var sut = CreateHandlerWithDispatcher();
+
+		var result = await sut.ReplayMessageAsync("already-replayed-id", CancellationToken.None);
+
+		result.ShouldBeFalse(
+			"a message that has already been replayed must not be replayed again. The mark is written "
+			+ "after the dispatch, so without a guard a second call dispatches the message a second time "
+			+ "-- and a consumer or operator retrying a replay is how that happens in practice");
+
+		A.CallTo(() => _deadLetterStore.MarkAsReplayedAsync(
+				A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	/// <summary>
+	/// A REFUSED CLAIM MUST NOT DISPATCH, WHICH IS THE CONCURRENT CASE NO READ CAN CLOSE.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The early guard reads the stored flag, so it closes the sequential case only: two callers racing
+	/// both read an unmarked message and both pass it. What separates them is the store's conditional
+	/// write, which exactly one of them wins. This arm is the loser, and the loser must not dispatch.
+	/// </para>
+	/// <para>
+	/// Driven through the real wiring that makes a replay SUCCEED -- a registered declared name and a live
+	/// dispatcher -- because that is the only substrate on which removing the claim check is observable.
+	/// With an unresolvable type the replay fails for its own reasons and the arm would pass either way.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task ReplayMessageAsync_RefuseAMessageWhoseReplayClaimWasLost()
+	{
+		_ = MessageTypeResolver.Instance;
+		MessageTypeRegistry.RegisterType<NamedPoisonMessage>();
+
+		var deadLetterMessage = new DeadLetterMessage
+		{
+			Id = Guid.NewGuid().ToString("N"),
+			MessageId = "contested-id",
+			MessageType = DeclaredName,
+			MessageBody = "{}",
+			MessageMetadata = "{}",
+			Reason = "test",
+
+			// NOT yet replayed as far as this caller's READ is concerned. That is the whole point: the read
+			// cannot see the other caller, so only the claim can refuse.
+			IsReplayed = false,
+		};
+
+		_ = A.CallTo(() => _deadLetterStore.GetByIdAsync("contested-id", A<CancellationToken>._))
+			.Returns(deadLetterMessage);
+
+		// THE STATE UNDER TEST: somebody else won the claim between our read and our write.
+		_ = A.CallTo(() => _deadLetterStore.MarkAsReplayedAsync("contested-id", A<CancellationToken>._))
+			.Returns(DeadLetterReplayOutcome.AlreadyReplayed);
+
+		using var sut = CreateHandlerWithDispatcher();
+
+		var result = await sut.ReplayMessageAsync("contested-id", CancellationToken.None);
+
+		result.ShouldBeFalse(
+			"the caller that lost the claim must not dispatch. Both callers read an unmarked message, so "
+			+ "nothing but the store's own conditional write can separate them -- and if the loser "
+			+ "dispatches anyway the message is delivered twice with nothing recording it");
+	}
+
+	/// <summary>
+	/// A REPLAY THAT DID NOT SUCCEED MUST GIVE THE CLAIM BACK, or it is permanently unreplayable.
+	/// </summary>
+	/// <remarks>
+	/// This is the liveness half of claiming before the effect. Claiming first bounds the duplicate to
+	/// zero; without the release it also converts every failed replay into a message marked replayed that
+	/// was never delivered, which no later attempt can correct and which reads identically to a success.
+	/// </remarks>
+	[Fact]
+	public async Task ReplayMessageAsync_ReleaseTheClaimWhenTheReplayDoesNotSucceed()
+	{
+		_ = MessageTypeResolver.Instance;
+		MessageTypeRegistry.RegisterType<NamedPoisonMessage>();
+
+		var deadLetterMessage = new DeadLetterMessage
+		{
+			Id = Guid.NewGuid().ToString("N"),
+			MessageId = "failing-id",
+			MessageType = DeclaredName,
+			MessageBody = "{}",
+			MessageMetadata = "{}",
+			Reason = "test",
+			IsReplayed = false,
+		};
+
+		_ = A.CallTo(() => _deadLetterStore.GetByIdAsync("failing-id", A<CancellationToken>._))
+			.Returns(deadLetterMessage);
+
+		using var sut = CreateHandlerWithFailingDispatcher();
+
+		var result = await sut.ReplayMessageAsync("failing-id", CancellationToken.None);
+
+		result.ShouldBeFalse("the dispatcher reported failure, so the replay did not succeed");
+
+		_ = A.CallTo(() => _deadLetterStore.ReleaseReplayClaimAsync("failing-id", A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
 	[Fact]
 	public async Task ReplayMessageAsync_ResolveAMessageWhoseDeclaredNameIsNotAClrTypeName()
 	{
@@ -725,6 +903,28 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 		_ = A.CallTo(dispatcher)
 			.WithReturnType<Task<IMessageResult>>()
 			.Returns(Task.FromResult<IMessageResult>(MessageResult.Success()));
+
+		var services = new ServiceCollection();
+		_ = services.AddSingleton(dispatcher);
+
+		return new PoisonMessageHandler(
+			_deadLetterStore,
+			_serializer,
+			services.BuildServiceProvider(),
+			_options,
+			_logger);
+	}
+
+	/// <summary>
+	/// A handler whose dispatcher reports failure, so the replay path reaches its own failure branch rather
+	/// than throwing somewhere earlier.
+	/// </summary>
+	private PoisonMessageHandler CreateHandlerWithFailingDispatcher()
+	{
+		var dispatcher = A.Fake<IDispatcher>();
+		_ = A.CallTo(dispatcher)
+			.WithReturnType<Task<IMessageResult>>()
+			.Returns(Task.FromResult<IMessageResult>(MessageResult.Failed("the handler refused")));
 
 		var services = new ServiceCollection();
 		_ = services.AddSingleton(dispatcher);

@@ -61,6 +61,41 @@ public sealed class SqlServerCdcStateStoreConformanceShould : CdcProviderConform
 		_fixture = fixture;
 	}
 
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task MapNativeCheckpointRowsWithCanonicalTimestampOffsets(bool nullableFields)
+	{
+		using var store = (CdcStateStore)await CreateStateStoreAsync().ConfigureAwait(false);
+		var lsn = new byte[10];
+		lsn[9] = 7;
+		byte[]? sequence = nullableFields ? null : new byte[10];
+		DateTime? commit = nullableFields ? null : new DateTime(2026, 11, 12, 10, 20, 30);
+		(await store.UpdateLastProcessedPositionAsync("native", "database", "first", lsn, sequence, commit, 3, CancellationToken.None).ConfigureAwait(false)).ShouldBe(1);
+		(await store.UpdateLastProcessedPositionAsync("native", "database", "second", lsn, sequence, commit, 3, CancellationToken.None).ConfigureAwait(false)).ShouldBe(1);
+		var processedAt = new DateTimeOffset(2026, 11, 12, 10, 20, 30, TimeSpan.FromHours(5.5));
+		await using (var connection = new SqlConnection(_fixture.ConnectionString))
+		{
+			await connection.OpenAsync().ConfigureAwait(false);
+			_ = await connection.ExecuteAsync($"UPDATE [{SchemaName}].[{_tableName}] SET ProcessedAt = @processedAt", new { processedAt }).ConfigureAwait(false);
+		}
+		var rows = (await store.GetLastProcessedPositionAsync("native", "database", CancellationToken.None).ConfigureAwait(false)).ToArray();
+		rows.Length.ShouldBe(2);
+		rows[0].TableName.ShouldBe("second");
+		rows[1].TableName.ShouldBe("first");
+		foreach (var row in rows)
+		{
+			row.DatabaseConnectionIdentifier.ShouldBe("native");
+			row.DatabaseName.ShouldBe("database");
+			row.LastProcessedLsn.ShouldBe(lsn);
+			row.LastProcessedSequenceValue.ShouldBe(sequence);
+			row.LastCommitTime.ShouldBe(commit ?? default);
+			row.ProcessedAt.ShouldBe(processedAt);
+			row.ProcessedAt.Offset.ShouldBe(processedAt.Offset);
+		}
+		(await store.GetLastProcessedPositionAsync("other", "database", CancellationToken.None).ConfigureAwait(false)).ShouldBeEmpty();
+	}
+
 	/// <inheritdoc/>
 	protected override async Task<ICdcStateStore> CreateStateStoreAsync()
 	{
@@ -120,7 +155,7 @@ public sealed class SqlServerCdcStateStoreConformanceShould : CdcProviderConform
 			    LastProcessedSequenceValue   VARBINARY(16) NULL,
 			    LastCommitTime               DATETIME2     NULL,
 			    FencingToken                 BIGINT        NULL,
-			    ProcessedAt                  DATETIME2     NOT NULL,
+			    ProcessedAt                  DATETIMEOFFSET NOT NULL,
 			    CONSTRAINT [PK_{_tableName}] PRIMARY KEY
 			        (DatabaseConnectionIdentifier, DatabaseName, TableName)
 			);

@@ -47,7 +47,7 @@ public sealed class ConsulLeaderElectionFencingShould
 
 	public ConsulLeaderElectionFencingShould(ConsulContainerFixture fixture) => _fixture = fixture;
 
-	private IFencingTokenProvider CreateProvider(string keyPrefix, out ServiceProvider serviceProvider)
+	private IFencingTokenIssuer CreateProvider(string keyPrefix, out ServiceProvider serviceProvider)
 	{
 		var services = new ServiceCollection();
 		_ = services.AddSingleton<IConsulClient>(_ => new ConsulClient(config =>
@@ -57,7 +57,7 @@ public sealed class ConsulLeaderElectionFencingShould
 		_ = services.Configure<ConsulLeaderElectionOptions>(o => o.KeyPrefix = keyPrefix);
 		_ = services.AddConsulFencingTokenProvider();
 		serviceProvider = services.BuildServiceProvider();
-		return serviceProvider.GetRequiredService<IFencingTokenProvider>();
+		return serviceProvider.GetRequiredService<IFencingTokenIssuer>();
 	}
 
 	private static string UniqueKeyPrefix() => "fence-" + Guid.NewGuid().ToString("N");

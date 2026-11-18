@@ -230,21 +230,57 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 					LogSnapshotSaved(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
 					break;
 				}
-				catch (MongoWriteException ex) when (IsIdIndexDuplicate(ex) && attempt < maxAttempts)
+				catch (MongoWriteException ex) when (IsIdIndexDuplicate(ex))
 				{
-					// Lost an insert race. Whether that means we are superseded is not yet known --
-					// re-run the guard against the document that now exists and let it decide.
 					cancellationToken.ThrowIfCancellationRequested();
+
+					// READ THE STORED VERSION; DO NOT INFER IT FROM THE COLLISION. A duplicate key on
+					// _id establishes only that a document exists at this instant -- never whose version
+					// it holds. The previous shape treated exhaustion as proof of being superseded and
+					// returned normally, which the contract on ISnapshotStore forbids in as many words: a
+					// store "MUST NOT return normally having neither stored the snapshot nor established
+					// that a version at least as high is stored", because that reports "success for a
+					// snapshot nobody holds". The inference was also plainly false -- a writer can lose
+					// the insert race to a LOWER version, and a trimming delete landing between its
+					// filter evaluation and its insert returns it to the empty state, so it can collide
+					// repeatedly while no version at or above its own was ever stored.
+					var stored = await ReadStoredVersionOrDefaultAsync(document.Id, cancellationToken)
+							.ConfigureAwait(false);
+
+					if (stored >= document.Version)
+					{
+						// ESTABLISHED, not assumed: a version at least as high is readable, so this save
+						// is the successful no-op the contract defines rather than a fault. This is also
+						// the routine at-least-once redelivery, and reading it here is what stops that
+						// ordinary case spending its whole attempt budget on writes that cannot succeed.
+						result = WriteStoreTelemetry.Results.Conflict;
+						LogSnapshotVersionSkipped(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
+						break;
+					}
+
+					if (attempt >= maxAttempts)
+					{
+						// EXHAUSTION IS A FAULT, NOT A SKIP, and the sibling Cosmos store already says so
+						// in its own words. We hold the higher version and did not store it, so the
+						// outcome is UNKNOWN rather than superseded -- which is the state the contract
+						// reserves ConcurrencyException for. Falling out silently would tell the caller
+						// its snapshot had been handled while nothing holds it.
+						throw new ConcurrencyException(
+								nameof(MongoDbSnapshotDocument),
+								document.Id,
+								document.Version,
+								stored);
+					}
+
+					// Still newer than what is stored, so the guard can discriminate on the next pass.
+					// NO BACKOFF IS ADDED HERE, DELIBERATELY. The read above removes the need that the
+					// Cosmos store's jittered wait exists to serve: a losing writer no longer spends its
+					// budget guessing, because it learns the stored version on every collision -- a
+					// superseded one leaves at once instead of contending, and a newer one retries
+					// against a version it has just observed. What the bound still limits is repeated
+					// DELETION beneath us, which waiting would make more likely to recur, not less.
 				}
 			}
-		}
-		catch (MongoWriteException ex) when (IsIdIndexDuplicate(ex))
-		{
-			// Exhausted: a document exists and the guard did not match it on any attempt, so a
-			// version at least as high as this one is already stored. This snapshot is genuinely
-			// superseded and skipping it is correct.
-			result = WriteStoreTelemetry.Results.Conflict;
-			LogSnapshotVersionSkipped(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
 		}
 		catch (Exception)
 		{
@@ -458,6 +494,31 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 		{
 			_ = _initLock.Release();
 		}
+	}
+
+	/// <summary>
+	/// Reads the version currently stored for <paramref name="documentId" />, or <c>-1</c> when no document
+	/// is there.
+	/// </summary>
+	/// <param name="documentId">The snapshot document's identifier.</param>
+	/// <param name="cancellationToken">A cancellation token.</param>
+	/// <returns>The stored version, or <c>-1</c> when the document is absent.</returns>
+	/// <remarks>
+	/// Used on the duplicate-key path to decide from an observation rather than from how many times the
+	/// write has collided. A read failure is deliberately NOT swallowed into the absent value: this number
+	/// chooses between a successful no-op and a reported fault, so a store that could not answer must not
+	/// be read as "nothing is stored" -- that is the lower of the two possible answers, and reporting it
+	/// would turn an unknown outcome into a retry or a fault on evidence nobody gathered. <c>-1</c> is
+	/// returned only when the collection genuinely held no document.
+	/// </remarks>
+	private async Task<long> ReadStoredVersionOrDefaultAsync(string documentId, CancellationToken cancellationToken)
+	{
+		var stored = await _collection!
+				.Find(Builders<MongoDbSnapshotDocument>.Filter.Eq(d => d.Id, documentId))
+				.FirstOrDefaultAsync(cancellationToken)
+				.ConfigureAwait(false);
+
+		return stored?.Version ?? -1;
 	}
 
 	/// <summary>

@@ -105,6 +105,26 @@ public sealed class CosmosDbSagaPurgeShould
 		public override IEnumerator<CosmosDbSagaDocument> GetEnumerator() => docs.GetEnumerator();
 	}
 
+
+    // The document is internal: use the existing typed response convention instead of a Castle proxy.
+    private sealed class StubItemResponse(CosmosDbSagaDocument resource, string etag)
+        : ItemResponse<CosmosDbSagaDocument>
+    {
+        public override CosmosDbSagaDocument Resource => resource;
+
+        public override string ETag => etag;
+
+        public override System.Net.HttpStatusCode StatusCode => System.Net.HttpStatusCode.OK;
+
+        public override Headers Headers => new();
+
+        public override double RequestCharge => 0;
+
+        public override string ActivityId => "stub";
+
+        public override CosmosDiagnostics Diagnostics => null!;
+    }
+
 	[Fact]
 	public async Task Purge_QueriesWithCompletedDefinedNonNullAndAgeGuard()
 	{
@@ -185,7 +205,8 @@ public sealed class CosmosDbSagaPurgeShould
 	public async Task Purge_DeletesMatchedCompletedAgedDocument_AndReturnsCount()
 	{
 		// Arrange — the server (honoring the guard) returns exactly one eligible document.
-		var eligible = new CosmosDbSagaDocument { Id = "saga-old", SagaType = "TestSagaState" };
+		var eligible = new CosmosDbSagaDocument { Id = "saga-old", SagaType = "TestSagaState",
+            CompletedAt = DateTime.UtcNow.AddDays(-2), TenantId = TenantScope.UntenantedSentinel };
 		var container = A.Fake<Container>();
 		_ = A.CallTo(() => container.GetItemQueryIterator<CosmosDbSagaDocument>(
 				A<QueryDefinition>._, A<string>._, A<QueryRequestOptions>._))
@@ -194,15 +215,18 @@ public sealed class CosmosDbSagaPurgeShould
 				A<string>._, A<PartitionKey>._, A<ItemRequestOptions>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<ItemResponse<CosmosDbSagaDocument>>(null!));
 
-		var store = CreateStore(A.Fake<CosmosClient>(), container);
+        ItemResponse<CosmosDbSagaDocument> current = new StubItemResponse(eligible, "test-owned-current-etag");
+        A.CallTo(() => container.ReadItemAsync<CosmosDbSagaDocument>("saga-old", new PartitionKey("TestSagaState"),
+            A<ItemRequestOptions>._, A<CancellationToken>._)).Returns(Task.FromResult(current));
+        var store = CreateStore(A.Fake<CosmosClient>(), container);
 
-		// Act
-		var removed = await store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow, CancellationToken.None);
+        // Act
+        var removed = await store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow, CancellationToken.None);
 
-		// Assert — the matched document is deleted by (id, partition key) and counted.
+        // Assert — the matched document is deleted by (id, partition key) and counted.
 		removed.ShouldBe(1);
 		A.CallTo(() => container.DeleteItemAsync<CosmosDbSagaDocument>(
-				"saga-old", new PartitionKey("TestSagaState"), A<ItemRequestOptions>._, A<CancellationToken>._))
+				"saga-old", new PartitionKey("TestSagaState"), A<ItemRequestOptions>.That.Matches(options => options.IfMatchEtag == "test-owned-current-etag"), A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -223,4 +247,22 @@ public sealed class CosmosDbSagaPurgeShould
 				A<string>._, A<PartitionKey>._, A<ItemRequestOptions>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
+    [Fact]
+    public async Task Purge_LeavesCurrentPendingJournalEvenWhenQueryReturnedAnOlderCandidate()
+    {
+        var candidate = new CosmosDbSagaDocument { Id = "pending", SagaType = "TestSagaState" };
+        var currentRow = new CosmosDbSagaDocument { Id = candidate.Id, SagaType = candidate.SagaType,
+            TenantId = TenantScope.UntenantedSentinel, CompletedAt = DateTime.UtcNow.AddDays(-2),
+            TimerRecoveryPendingBatch = Guid.NewGuid().ToString("N") };
+        var container = A.Fake<Container>();
+        A.CallTo(() => container.GetItemQueryIterator<CosmosDbSagaDocument>(A<QueryDefinition>._, A<string>._, A<QueryRequestOptions>._))
+            .Returns(SinglePageIterator([candidate]));
+        ItemResponse<CosmosDbSagaDocument> current = new StubItemResponse(currentRow, "pending-current-etag");
+        A.CallTo(() => container.ReadItemAsync<CosmosDbSagaDocument>(candidate.Id, new PartitionKey(candidate.SagaType),
+            A<ItemRequestOptions>._, A<CancellationToken>._)).Returns(Task.FromResult(current));
+        await using var store = CreateStore(A.Fake<CosmosClient>(), container);
+        (await store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow, CancellationToken.None)).ShouldBe(0);
+        A.CallTo(() => container.DeleteItemAsync<CosmosDbSagaDocument>(A<string>._, A<PartitionKey>._,
+            A<ItemRequestOptions>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
 }

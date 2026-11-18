@@ -20,7 +20,7 @@ internal static class Probe
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Known typed probe store and generated event serializer; no reflection serialization.")]
     public static async Task Main()
     {
-        if (RuntimeFeature.IsDynamicCodeSupported) { throw new InvalidOperationException("Run the published native executable."); }
+        if (RuntimeFeature.IsDynamicCodeSupported) { throw new InvalidOperationException("dynamic code must be disabled; a native result requires running the published native executable"); }
         var builder = Host.CreateApplicationBuilder();
         var store = new ProbeStore();
         builder.Services.AddSingleton<IProjectionStore<ReadModel>>(store);

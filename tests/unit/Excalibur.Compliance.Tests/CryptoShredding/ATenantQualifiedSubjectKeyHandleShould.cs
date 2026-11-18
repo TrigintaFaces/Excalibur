@@ -54,22 +54,47 @@ public sealed class ATenantQualifiedSubjectKeyHandleShould
     /// THE SAFETY ARM, on the exact interleaving: two ordinary writes and one ordinary erasure, no race
     /// and no crash.
     /// </summary>
-    [Fact]
-    public async Task TenantBsFieldsStillDecrypt_AfterTenantAErasesTheSameSubjectId()
+    /// <param name="victimWritesFirst">
+    /// Which tenant provisions the key first. Both orders are required: under the defect the FIRST writer
+    /// minted the shared key and the second silently adopted it, so an arm fixed to one order measures only
+    /// one of the two tenants in the role of the adopter. Whichever tenant arrives first, the erasing
+    /// tenant's destruction must not reach the other.
+    /// </param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TenantBsFieldsStillDecrypt_AfterTenantAErasesTheSameSubjectId(bool victimWritesFirst)
     {
         await using var host = await BuildAsync();
 
         var tenantAData = "tenant-A-personal-data"u8.ToArray();
         var tenantBData = "tenant-B-personal-data"u8.ToArray();
 
-        // Tenant A appends for its subject 42, minting a key.
-        host.Tenant.TenantId = TenantA;
-        var tenantAEnvelope = await host.EncryptAsync(SharedSubjectId, tenantAData);
+        EncryptedData tenantAEnvelope;
+        EncryptedData tenantBEnvelope;
 
-        // Tenant B appends for ITS subject 42. Under the defect, the key manager found a key already at
-        // the handle, so this was a no-op and B's envelope named A's key and generation.
-        host.Tenant.TenantId = TenantB;
-        var tenantBEnvelope = await host.EncryptAsync(SharedSubjectId, tenantBData);
+        if (victimWritesFirst)
+        {
+            // Tenant B provisions first, so the ERASING tenant is the one that would have adopted a shared
+            // key. The destruction then runs against a handle B minted, which is the order under which a
+            // tenant-blind derivation destroys the victim's own key rather than merely sharing it.
+            host.Tenant.TenantId = TenantB;
+            tenantBEnvelope = await host.EncryptAsync(SharedSubjectId, tenantBData);
+
+            host.Tenant.TenantId = TenantA;
+            tenantAEnvelope = await host.EncryptAsync(SharedSubjectId, tenantAData);
+        }
+        else
+        {
+            // Tenant A appends for its subject 42, minting a key.
+            host.Tenant.TenantId = TenantA;
+            tenantAEnvelope = await host.EncryptAsync(SharedSubjectId, tenantAData);
+
+            // Tenant B appends for ITS subject 42. Under the defect, the key manager found a key already at
+            // the handle, so this was a no-op and B's envelope named A's key and generation.
+            host.Tenant.TenantId = TenantB;
+            tenantBEnvelope = await host.EncryptAsync(SharedSubjectId, tenantBData);
+        }
 
         // The premise -- that the two tenants hold different handles -- is asserted in its own arm below
         // rather than guarded here, deliberately. A guard here would ABORT this arm the moment the handles
@@ -106,13 +131,23 @@ public sealed class ATenantQualifiedSubjectKeyHandleShould
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>This arm does NOT detect the loss of the tenant from the handle derivation, and that is correct
-    /// rather than a gap.</b> Tenant A erasing tenant A's own subject works perfectly well when two tenants
-    /// have been collapsed onto one key -- the erasure destroys a key, and the read of A's own field finds
-    /// its generation recorded. Measured: with the tenant removed from the composition,
+    /// <b>This arm cannot be relied on to detect the loss of the tenant from the handle derivation, which is
+    /// why it is not a substitute for the arms that can.</b> Tenant A erasing tenant A's own subject works
+    /// perfectly well when two tenants have been collapsed onto one key -- the erasure destroys a key, and
+    /// the read of A's own field finds its generation recorded.
+    /// </para>
+    /// <para>
+    /// <b>CORRECTED, and the superseded sentence is quoted because it is the one that invites merging the
+    /// arms.</b> This remark used to read: "Measured: with the tenant removed from the composition,
     /// <see cref="TenantBsFieldsStillDecrypt_AfterTenantAErasesTheSameSubjectId" /> and
     /// <see cref="MintADifferentKey_ForEachTenantSharingOneSubjectId" /> both go RED and this arm stays
-    /// GREEN.
+    /// GREEN." Re-measured under the mutant the RED input above specifies verbatim -- returning
+    /// <c>hasher.HashDataSubjectId(dataSubjectIdHash)</c> -- this arm goes RED as well, because the write
+    /// path and the erasure path then derive through different entrances and disagree, so the erasure
+    /// destroys a handle nothing was written under and tenant A's own field stays readable. That is a
+    /// SECOND defect the arm catches, not the confinement property, and it is caught for a different reason
+    /// than the one the stale sentence claimed. The conclusion it was offered in support of is unchanged:
+    /// the arms stay separate, because each still fails for a reason the others do not.
     /// </para>
     /// <para>
     /// The note exists because this is the arm a reader reaches for, and two of us reached for it. It names
@@ -124,16 +159,31 @@ public sealed class ATenantQualifiedSubjectKeyHandleShould
     /// reason they cannot be merged is that each stays green under the others' mutations.
     /// </para>
     /// </remarks>
-    [Fact]
-    public async Task TombstoneTenantAsOwnFields_WhenTenantAErasesItsSubject()
+    /// <param name="otherTenantWritesFirst">
+    /// Which tenant provisions the key first, for the same reason the safety arm takes both orders: the
+    /// erasing tenant must tombstone its own fields whether it minted the key or arrived second.
+    /// </param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TombstoneTenantAsOwnFields_WhenTenantAErasesItsSubject(bool otherTenantWritesFirst)
     {
         await using var host = await BuildAsync();
+
+        if (otherTenantWritesFirst)
+        {
+            host.Tenant.TenantId = TenantB;
+            _ = await host.EncryptAsync(SharedSubjectId, "tenant-B-personal-data"u8.ToArray());
+        }
 
         host.Tenant.TenantId = TenantA;
         var tenantAEnvelope = await host.EncryptAsync(SharedSubjectId, "tenant-A-personal-data"u8.ToArray());
 
-        host.Tenant.TenantId = TenantB;
-        _ = await host.EncryptAsync(SharedSubjectId, "tenant-B-personal-data"u8.ToArray());
+        if (!otherTenantWritesFirst)
+        {
+            host.Tenant.TenantId = TenantB;
+            _ = await host.EncryptAsync(SharedSubjectId, "tenant-B-personal-data"u8.ToArray());
+        }
 
         host.Tenant.TenantId = TenantA;
         _ = await host.EraseAsync(SharedSubjectId);
@@ -238,6 +288,84 @@ public sealed class ATenantQualifiedSubjectKeyHandleShould
             "a default handle names no key, and yielding an empty string would queue it for destruction");
     }
 
+    /// <summary>
+    /// SAFETY — the derivation refuses a registered hasher whose OUTPUT cannot be a handle.
+    /// </summary>
+    /// <param name="nonConformingToken">What the registered hasher returns, in each shape that breaks the
+    /// handle's stated invariant.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Every other arm in this file runs against the one implementation that happens to conform.</b>
+    /// <c>TestDataSubjectHasher.Instance</c> IS the in-box keyed hasher, so the whole suite was green
+    /// against the single hasher satisfying an invariant the published interface never required — and blind
+    /// to an implementor who gets it wrong. <see cref="IDataSubjectHasher"/> is public and registered
+    /// first-one-wins, so a consumer can supply any of the shapes below, and this repository itself
+    /// contains nine pass-through implementations.
+    /// </para>
+    /// <para>
+    /// <b>The pass-through case is the one with teeth, and it breaks the RETENTION guarantee.</b> A
+    /// retained handle is the plain handle with a separator and a discriminator appended. With
+    /// identifier-shaped tokens, a data subject whose own identifier spells another subject's retained
+    /// handle derives that retained handle — so erasing the first destroys the key the second's declared
+    /// retention exists to preserve, silently. Under a fixed-width hexadecimal token it is impossible,
+    /// because 64 hexadecimal characters contain no separator and cannot vary in length. The plain
+    /// concatenation is correct for a reason the interface did not require anyone to supply.
+    /// </para>
+    /// <para>
+    /// <b>The null case is the subtlest.</b> It produced a handle whose backing value was null, which is
+    /// indistinguishable from a default instance: the handle compared equal to <c>default</c>, and
+    /// <c>Value</c> threw a message asserting it had not come from a derivation when it had.
+    /// </para>
+    /// <para>
+    /// <b>RED input:</b> remove the output check from <c>ForSubjectHash</c> and every case below
+    /// constructs a handle. The conforming control in the sibling arm stays green either way, which is why
+    /// both exist.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(null)]                                                      // nothing at all
+    [InlineData("")]                                                        // empty
+    [InlineData("alice")]                                                   // pass-through: the retention break
+    [InlineData("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456")] // truncated
+    [InlineData("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")] // lower case
+    [InlineData("0123456789ABCDEF-123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")] // contains the separator
+    [InlineData("Zm9vYmFyYmF6cXV1eGNvcmdlZ3JhdWx0Z2FybGlucGxvdWdoAAAAAAAAAAAAAAAA")] // base64, right width
+    public void RefuseAHasherWhoseOutputCannotBeAHandle(string? nonConformingToken)
+    {
+        var thrown = Should.Throw<InvalidOperationException>(
+            () => SubjectKeyHandle.ForSubjectHash(
+                new TenantId(TenantA), "a-subject-hash", new FixedTokenHasher(nonConformingToken)),
+            "the handle's width and alphabet are a stated type invariant that four safety arguments rest "
+            + "on, and nothing but this check establishes them. A non-conforming token merges one subject's "
+            + "handle with another's retained handle, which destroys legally retained data with no error");
+
+        thrown.Message.ShouldContain(
+            typeof(FixedTokenHasher).FullName!,
+            customMessage: "the failure must name the registered implementation, or a consumer cannot tell "
+            + "which of their registrations is the one to replace");
+    }
+
+    /// <summary>
+    /// LIVENESS — and without it the arm above is satisfied by a derivation that refuses every hasher.
+    /// </summary>
+    [Fact]
+    public void StillDeriveAHandleFromAConformingHasher()
+    {
+        var token = SubjectKeyHandle
+            .ForSubjectHash(new TenantId(TenantA), "a-subject-hash", TestDataSubjectHasher.Instance)
+            .Value;
+
+        token.Length.ShouldBe(64);
+        token.ShouldBe(token.ToUpperInvariant());
+        token.ShouldAllBe(character => Uri.IsHexDigit(character));
+    }
+
+    /// <summary>A hasher returning whatever it was handed, standing in for a consumer's own.</summary>
+    private sealed class FixedTokenHasher(string? token) : IDataSubjectHasher
+    {
+        public string HashDataSubjectId(string dataSubjectId) => token!;
+    }
+
     private static async Task<CrossTenantHost> BuildAsync()
     {
         var tenant = new MutableTenantContext();
@@ -325,7 +453,7 @@ public sealed class ATenantQualifiedSubjectKeyHandleShould
                 null,
                 null,
                 TestAnnotationSource.None,
-                TestRetentions.None,
+                TestRetentions.None, TestMintLedger.None,
                 null);
 
             var request = new ErasureRequest

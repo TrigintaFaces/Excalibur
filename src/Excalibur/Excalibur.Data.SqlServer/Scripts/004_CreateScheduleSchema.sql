@@ -31,8 +31,17 @@ BEGIN
         AdmittedOccurrence datetimeoffset(7) NULL,
         LeaseExpiresUtc datetimeoffset(7) NULL,
         ProgressCommitted bit NOT NULL CONSTRAINT DF_ScheduledMessage_Progress DEFAULT 0,
+        AdmissionAttempts int NOT NULL CONSTRAINT DF_ScheduledMessage_Attempts DEFAULT 0,
         CONSTRAINT CK_ScheduledMessage_Owner CHECK
         ((OwnerToken IS NULL AND AdmittedOccurrence IS NULL AND LeaseExpiresUtc IS NULL)
          OR (OwnerToken IS NOT NULL AND AdmittedOccurrence IS NOT NULL AND LeaseExpiresUtc IS NOT NULL))
     );
+END;
+-- AdmissionAttempts bounds how often one occurrence may be admitted without a committed settlement.
+-- Added after the table shipped, so an existing database needs it too. Zero is the correct value for
+-- every existing row: it means no admission of the current occurrence has yet gone unsettled.
+IF COL_LENGTH(N'dispatch.ScheduledMessage', N'AdmissionAttempts') IS NULL
+BEGIN
+    ALTER TABLE dispatch.ScheduledMessage
+        ADD AdmissionAttempts int NOT NULL CONSTRAINT DF_ScheduledMessage_Attempts DEFAULT 0;
 END;

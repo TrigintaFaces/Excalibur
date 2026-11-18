@@ -82,6 +82,12 @@ builder.Services.AddGdprErasure(options =>
 // Data-subject identifiers are pseudonymized with a keyed HMAC that needs a secret pepper; the framework
 // fails closed at startup if one is not configured. In production, source it from your secret manager / KMS
 // (stored apart from the erasure data) — never a literal in source.
+//
+// THE PEPPER IS PERMANENT. DO NOT ROTATE IT. Every durable compliance record is keyed by a token derived
+// from it, so changing it makes all of them unfindable at once — an erasure would enumerate nothing,
+// destroy nothing, and still sign a completion certificate, and a legal hold would stop being found. A
+// durable store records a fingerprint of this key on first use and refuses to start if it later changes,
+// so the failure is loud; the only remedy is to restore the original value or migrate every record first.
 builder.Services.Configure<DataSubjectHashingOptions>(o =>
     o.Pepper = builder.Configuration["Gdpr:DataSubjectPepper"] ?? "sample-demo-pepper-not-a-secret-change-me-0123456789");
 

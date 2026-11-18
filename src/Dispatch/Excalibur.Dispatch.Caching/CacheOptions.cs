@@ -67,16 +67,22 @@ public sealed class CacheOptions
 	public string[] DefaultTags { get; set; } = [];
 
 	/// <summary>
-	/// Gets or sets the maximum number of distinct tags tracked by the in-memory tag tracker.
+	/// Gets or sets the maximum number of distinct tags retained locally by a tag tracker.
 	/// Default is 10,000.
 	/// </summary>
+	/// <remarks>
+	/// The distributed tracker bypasses local memoization for new tags at capacity, increasing backend
+	/// reads without deleting backend stamps or changing their lifetime. The in-memory tracker uses
+	/// its global invalidation fallback at capacity. This bounds entry count, not tag-string byte size
+	/// or backend operations already in flight.
+	/// </remarks>
 	/// <value>The maximum number of tracked tag version stamps.</value>
 	public int TagTrackerCapacity { get; set; } = 10_000;
 
 	/// <summary>
 	/// Gets or sets how long a resolved tag version stamp is trusted before a tag tracker re-checks
-	/// its backend for a newer one. Default is 5 seconds. This interval is the bound on how long an
-	/// invalidation made on one instance can take to be observed by another.
+	/// its backend for a newer one. Default is 5 seconds. Refresh happens on demand; backend latency,
+	/// failures and overlapping operations prevent a strict cross-instance visibility deadline.
 	/// </summary>
 	/// <value>The refresh interval for a tag tracker's per-tag version stamp memo.</value>
 	public TimeSpan TagStampRefreshInterval { get; set; } = DefaultTagStampRefreshInterval;

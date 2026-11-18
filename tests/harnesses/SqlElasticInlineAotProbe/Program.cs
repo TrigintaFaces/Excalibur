@@ -18,7 +18,7 @@ internal static class Probe
 {
     public static async Task Main(string[] args)
     {
-        if (RuntimeFeature.IsDynamicCodeSupported) { throw new InvalidOperationException("Run the native executable."); }
+        if (RuntimeFeature.IsDynamicCodeSupported) { throw new InvalidOperationException("dynamic code must be disabled; a native result requires running the published native executable"); }
         using var capacityMonitor = new CapacityMonitor();
         var builder = Host.CreateApplicationBuilder();
         // Exercise all existing native scenarios at the tightest supported storage capacity.

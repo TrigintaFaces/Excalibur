@@ -149,7 +149,7 @@ public sealed partial class CloudEventMiddleware(
 			Metadata = context.ExtractMetadata().ToLegacy(),
 		};
 
-		foreach (var item in context.Items)
+		foreach (var item in context.GetPropagatedItems())
 		{
 			envelope.Items[item.Key] = item.Value;
 		}

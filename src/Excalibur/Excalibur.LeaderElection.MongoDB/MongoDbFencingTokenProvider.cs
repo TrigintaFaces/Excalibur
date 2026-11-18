@@ -37,9 +37,11 @@ namespace Excalibur.LeaderElection.MongoDB;
 /// as a defensive backstop for a hypothetical driver/server version that returns rather than throws.
 /// </para>
 /// </remarks>
-internal sealed class MongoDbFencingTokenProvider : IFencingTokenProvider
+internal sealed class MongoDbFencingTokenProvider : IFencingTokenIssuer
 {
 	private readonly IMongoCollection<FencingCounterDocument> _counters;
+	private readonly IMongoCollection<FencingCounterDocument> _readCounters;
+	private readonly TimeSpan _readTimeout;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MongoDbFencingTokenProvider"/> class.
@@ -52,8 +54,14 @@ internal sealed class MongoDbFencingTokenProvider : IFencingTokenProvider
 		ArgumentNullException.ThrowIfNull(options);
 
 		var value = options.Value;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value.TimeoutInSeconds);
 		var database = client.GetDatabase(value.DatabaseName);
-		_counters = database.GetCollection<FencingCounterDocument>(value.CollectionName + "_fencing");
+		_counters = database.GetCollection<FencingCounterDocument>(value.CollectionName + "_fencing")
+            .WithReadPreference(ReadPreference.Primary)
+            .WithReadConcern(ReadConcern.Local)
+            .WithWriteConcern(WriteConcern.WMajority);
+        _readCounters = _counters.WithReadConcern(ReadConcern.Linearizable);
+        _readTimeout = TimeSpan.FromSeconds(value.TimeoutInSeconds);
 	}
 
 	/// <inheritdoc />
@@ -116,10 +124,19 @@ internal sealed class MongoDbFencingTokenProvider : IFencingTokenProvider
 		ArgumentException.ThrowIfNullOrWhiteSpace(resourceId);
 
 		var filter = Builders<FencingCounterDocument>.Filter.Eq(d => d.ResourceId, resourceId);
-		var document = await _counters.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+		var document = await _readCounters.Find(filter, new FindOptions { MaxTime = _readTimeout }).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
 		// No counter document -> no token ever issued -> no active leader (idiomatic "no value" signal).
-		return document is null ? null : document.Seq;
+		// A stored ZERO is not a mark. The contract requires null -- never zero -- when no token has been
+		// issued, INCLUDING when the backing store's counter exists but was never advanced, and the
+		// reason is stated there: validation is a high-water comparison, so a mark reported as zero has
+		// a value, passes the has-a-mark term, and then admits EVERY non-negative token presented
+		// against it, a fabricated zero included. The state that must refuse everything is exactly the
+		// state that would otherwise admit everything. This provider never writes zero, so the state
+		// arrives from outside -- a restore, a migration, an external writer to the consumer's own
+		// store, or a counter written by an older build -- and the comparison below is what makes it
+		// inexpressible as a mark rather than merely unlikely.
+		return document is { Seq: > 0L } ? document.Seq : null;
 	}
 
 	/// <inheritdoc />

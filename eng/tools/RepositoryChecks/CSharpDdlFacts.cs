@@ -13,15 +13,27 @@ namespace RepositoryChecks;
 internal static class CSharpDdlFacts
 {
     /// <summary>Returns syntax-owned declarations and decoded SQL; unresolved expressions remain explicit.</summary>
-    internal static string Read(string source)
+    /// <exception cref="InvalidOperationException">Supplied snapshots have duplicate identities.</exception>
+    internal static string Read(string source, IReadOnlyDictionary<string, string>? companions = null)
     {
         var properties = new HashSet<(string Owner, string Name, string? Value)>();
         var fields = new HashSet<(string Name, string Type)>();
         var comments = new HashSet<string>(StringComparer.Ordinal);
         var verifications = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var tree in CSharpConfigurations.Parse(source))
+        const string RootPath = "__ddl_root__.cs";
+        var snapshots = new Dictionary<string, string>(StringComparer.Ordinal) { [RootPath] = source };
+        foreach (var entry in companions ?? new Dictionary<string, string>(StringComparer.Ordinal))
         {
-            var compilation = CSharpCompilation.Create("HistoricalDdl", [tree], [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]);
+            if (!snapshots.TryAdd(entry.Key, entry.Value))
+            {
+                throw new InvalidOperationException("Duplicate DDL source snapshot identity: " + entry.Key);
+            }
+        }
+
+        foreach (var trees in CSharpConfigurations.ParseSources(snapshots))
+        {
+            var tree = trees.Single(candidate => string.Equals(candidate.FilePath, RootPath, StringComparison.Ordinal));
+            var compilation = CSharpCompilation.Create("HistoricalDdl", trees, [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]);
             var model = compilation.GetSemanticModel(tree);
             var root = tree.GetRoot();
             ReadDeclarations(root, model, properties, fields);
@@ -34,7 +46,7 @@ internal static class CSharpDdlFacts
             foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>().Where(method =>
                 method.Identifier.ValueText.StartsWith("Verify", StringComparison.Ordinal) && method.Identifier.ValueText.Contains("Schema", StringComparison.Ordinal)))
             {
-                verifications.Add(ReadVerification(method, model, tree));
+                verifications.Add(ReadVerification(method, compilation));
             }
         }
 
@@ -56,8 +68,30 @@ internal static class CSharpDdlFacts
         {
             try
             {
-                var source = JsonSerializer.Deserialize<string>(line) ?? throw new InvalidOperationException("Missing C# source snapshot.");
-                await Console.Out.WriteLineAsync(Read(source)).ConfigureAwait(false);
+                using var request = JsonDocument.Parse(line);
+                string? source;
+                Dictionary<string, string>? companions = null;
+                if (request.RootElement.ValueKind == JsonValueKind.String)
+                {
+                    source = request.RootElement.GetString();
+                }
+                else
+                {
+                    source = request.RootElement.GetProperty("source").GetString();
+                    companions = new Dictionary<string, string>(StringComparer.Ordinal);
+                    foreach (var entry in request.RootElement.GetProperty("companions").EnumerateObject())
+                    {
+                        var companionSource = entry.Value.GetString()
+                            ?? throw new InvalidOperationException("Missing companion source snapshot.");
+                        if (!companions.TryAdd(entry.Name, companionSource))
+                        {
+                            throw new InvalidOperationException("Duplicate companion source snapshot identity: " + entry.Name);
+                        }
+                    }
+                }
+
+                var facts = Read(source ?? throw new InvalidOperationException("Missing C# source snapshot."), companions);
+                await Console.Out.WriteLineAsync(facts).ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
@@ -94,7 +128,7 @@ internal static class CSharpDdlFacts
         }
     }
 
-    private static string ReadVerification(MethodDeclarationSyntax method, SemanticModel model, SyntaxTree tree)
+    private static string ReadVerification(MethodDeclarationSyntax method, CSharpCompilation compilation)
     {
         var nodes = new Queue<SyntaxNode>();
         var visited = new HashSet<SyntaxNode>();
@@ -107,6 +141,7 @@ internal static class CSharpDdlFacts
                 continue;
             }
 
+            var model = compilation.GetSemanticModel(node.SyntaxTree);
             foreach (var expression in node.DescendantNodes(child => ReferenceEquals(child, node) || child is not (LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax)).OfType<ExpressionSyntax>())
             {
                 if (expression.AncestorsAndSelf().OfType<InvocationExpressionSyntax>().Any(invocation => invocation.Expression is IdentifierNameSyntax identifier && string.Equals(identifier.Identifier.ValueText, "nameof", StringComparison.Ordinal)))
@@ -122,7 +157,7 @@ internal static class CSharpDdlFacts
                 var symbol = model.GetSymbolInfo(expression).Symbol;
                 if ((symbol is IMethodSymbol && expression is InvocationExpressionSyntax) || symbol is IFieldSymbol or IPropertySymbol)
                 {
-                    foreach (var reference in symbol.DeclaringSyntaxReferences.Where(reference => reference.SyntaxTree == tree))
+                    foreach (var reference in symbol.DeclaringSyntaxReferences.Where(reference => compilation.ContainsSyntaxTree(reference.SyntaxTree)))
                     {
                         nodes.Enqueue(reference.GetSyntax());
                     }

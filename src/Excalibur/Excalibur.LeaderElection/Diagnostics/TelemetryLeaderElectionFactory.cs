@@ -1,76 +1,101 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-
 using Excalibur.Dispatch.LeaderElection;
 
 namespace Excalibur.LeaderElection.Diagnostics;
 
-/// <summary>
-/// Decorates an <see cref="ILeaderElectionFactory"/> to automatically wrap created
-/// instances with <see cref="TelemetryLeaderElection"/> instrumentation.
-/// </summary>
+/// <summary>Creates telemetry wrappers with terminal-notification-scoped instrument leases.</summary>
 public sealed class TelemetryLeaderElectionFactory : ILeaderElectionFactory, IDisposable
 {
-	private volatile bool _disposed;
-	private readonly ILeaderElectionFactory _inner;
-	private readonly Meter _meter;
-	private readonly ActivitySource _activitySource;
-	private readonly string _providerName;
+    private readonly Lock _creationGate = new();
+    private readonly ILeaderElectionFactory _inner;
+    private readonly LeaderElectionInstrumentation _instrumentation;
+    private readonly string _providerName;
+    private readonly TimeProvider _timeProvider;
+    private volatile bool _disposed;
 
-	/// <summary>
-	/// Initializes a new instance of the <see cref="TelemetryLeaderElectionFactory"/> class.
-	/// </summary>
-	/// <param name="inner">The inner factory to decorate.</param>
-	/// <param name="meter">The meter for recording metrics.</param>
-	/// <param name="activitySource">The activity source for distributed tracing.</param>
-	/// <param name="providerName">The provider name tag (e.g., "SqlServer", "Redis").</param>
-	public TelemetryLeaderElectionFactory(
-		ILeaderElectionFactory inner,
-		Meter meter,
-		ActivitySource activitySource,
-		string providerName)
-	{
-		ArgumentNullException.ThrowIfNull(inner);
-		ArgumentNullException.ThrowIfNull(meter);
-		ArgumentNullException.ThrowIfNull(activitySource);
-		ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
+    /// <summary>Initializes a telemetry factory that owns the supplied instruments.</summary>
+    /// <param name="inner">Borrowed underlying factory.</param>
+    /// <param name="meter">Owned meter, closed after the factory and all wrapper leases finish.</param>
+    /// <param name="activitySource">Owned activity source with the same lifetime.</param>
+    /// <param name="providerName">Provider label.</param>
+    /// <param name="timeProvider">Monotonic metric clock.</param>
+    public TelemetryLeaderElectionFactory(ILeaderElectionFactory inner, Meter meter, ActivitySource activitySource,
+        string providerName, TimeProvider? timeProvider = null)
+        : this(inner, new LeaderElectionInstrumentation(
+            meter ?? throw new ArgumentNullException(nameof(meter)),
+            activitySource ?? throw new ArgumentNullException(nameof(activitySource)), true, true), providerName, timeProvider) { }
 
-		_inner = inner;
-		_meter = meter;
-		_activitySource = activitySource;
-		_providerName = providerName;
-	}
+    private TelemetryLeaderElectionFactory(ILeaderElectionFactory inner, LeaderElectionInstrumentation instrumentation,
+        string providerName, TimeProvider? timeProvider)
+    {
+        _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
+        _instrumentation = instrumentation;
+        _providerName = providerName;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
-	/// <inheritdoc/>
-	public ILeaderElection CreateElection(string resourceName, string? candidateId)
-	{
-		var inner = _inner.CreateElection(resourceName, candidateId);
-		return new TelemetryLeaderElection(inner, _meter, _activitySource, _providerName);
-	}
+    /// <summary>Gets permanent completion of the instruments owned by this factory.</summary>
+    /// <remarks>
+    /// Dispose seals creation but never waits for a child's callback. This stable task settles after
+    /// every admitted wrapper's notifications and proxy activities finish and owned instruments close.
+    /// Do not await it from one of this factory's child callbacks. Borrowed IMeterFactory meters remain
+    /// subject to their external owner's lifetime; this task cannot extend that owner's lifetime.
+    /// </remarks>
+    public Task InstrumentationCompleted => _instrumentation.Completion;
 
-	/// <inheritdoc/>
-	public IHealthBasedLeaderElection CreateHealthBasedElection(string resourceName, string? candidateId)
-	{
-		// Health-based elections are provider-specific; delegate without wrapping.
-		// TelemetryLeaderElection only wraps ILeaderElection, not the health-based variant.
-		return _inner.CreateHealthBasedElection(resourceName, candidateId);
-	}
+    internal static TelemetryLeaderElectionFactory CreateOwned(ILeaderElectionFactory inner, IMeterFactory? meterFactory,
+        string providerName, TimeProvider? timeProvider = null)
+    {
+        var instruments = LeaderElectionInstrumentation.Create(meterFactory);
+        try { return new TelemetryLeaderElectionFactory(inner, instruments, providerName, timeProvider); }
+        catch { instruments.Dispose(); throw; }
+    }
 
-	/// <inheritdoc/>
-	public void Dispose()
-	{
-		if (_disposed)
-		{
-			return;
-		}
+    /// <inheritdoc/>
+    public ILeaderElection CreateElection(string resourceName, string? candidateId)
+    {
+        LeaderElectionInstrumentation.InstrumentLease lease;
+        lock (_creationGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            lease = _instrumentation.Acquire();
+        }
+        ILeaderElection? inner = null;
+        try
+        {
+            inner = _inner.CreateElection(resourceName, candidateId);
+            return TelemetryLeaderElection.CreateLeased(inner, _instrumentation, lease, _providerName, _timeProvider);
+        }
+        catch
+        {
+            if (inner is not null) { lease.RetainFailedCreationCleanup(inner); }
+            else { lease.Dispose(); }
+            throw;
+        }
+    }
 
-		_disposed = true;
+    /// <inheritdoc/>
+    public IHealthBasedLeaderElection CreateHealthBasedElection(string resourceName, string? candidateId)
+    {
+        LeaderElectionInstrumentation.InstrumentLease lease;
+        lock (_creationGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            lease = _instrumentation.Acquire();
+        }
+        // Preserve the health interface; these returned provider-specific instances are not telemetry wrappers.
+        using (lease) { return _inner.CreateHealthBasedElection(resourceName, candidateId); }
+    }
 
-		_meter.Dispose();
-		_activitySource.Dispose();
-	}
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        lock (_creationGate) { _disposed = true; }
+        _instrumentation.Dispose();
+    }
 }

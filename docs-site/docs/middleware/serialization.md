@@ -73,6 +73,18 @@ This corrects earlier generic serialization that emitted `null` for default valu
 types. Actual null references and nullable null values still serialize as JSON
 `null`; the existing deserialization null/empty-payload policy is unchanged.
 
+### JSON Serializer Lifetime
+
+If you create a `DispatchJsonSerializer` directly, dispose it after all serialization
+operations have completed. `Dispose()` releases its internally created writer pool
+and retained per-thread buffers. A writer pool supplied to the constructor remains
+owned by its caller and is not disposed by the serializer.
+
+Keep cleanup under one owner. Repeated disposal is accepted, but a concurrent call
+does not wait for another caller's cleanup to finish. Disposal must not race with
+serialization. When a dependency-injection container owns the serializer, let that
+container manage its lifetime instead of disposing a borrowed instance.
+
 ### Custom JSON Options
 
 ```csharp
@@ -304,14 +316,14 @@ services.AddPluggableSerializer(200, new MyCustomSerializer(), setAsCurrent: tru
 
 ## Pool-Backed Serialization
 
-For high-throughput event sourcing scenarios, `IEventSerializer` provides Span-based overloads via `EventSerializerExtensions` that use `ArrayPool<byte>` to minimize allocations during serialization.
+`EventSerializerExtensions` provides pool-backed serialization APIs for `IEventSerializer`. Measure allocations for the complete operation and payload.
 
 ### When to Use
 
 | Scenario | Recommendation |
 |----------|----------------|
-| High-volume event stores | Use Span-based extensions |
-| Event replay/projection | Use Span-based extensions |
+| High-volume event stores | Evaluate the extensions with the actual persistence workload |
+| Event replay/projection | Evaluate the extensions with the actual replay workload |
 | Standard message dispatch | Standard serializers sufficient |
 | Cross-language systems | Use standard JSON |
 
@@ -379,10 +391,10 @@ public SpanEventSerializer(ISerializerRegistry registry)
 
 | Operation | Standard byte[] API | Span-based Extensions |
 |-----------|---------------------|----------------------|
-| Allocations per serialize | 1-3 byte[] | 0 (pooled) |
-| Allocations per deserialize | 1 byte[] copy | 0 (span-based) |
-| GC pressure | Moderate | Minimal |
-| Best for | General use | High-throughput event stores |
+| Serialization allocations | Measure the selected implementation and payload | Measure including pool misses, growth and payload allocations |
+| Deserialization allocations | Measure the selected implementation and payload | Span input alone does not eliminate object allocations |
+| GC behavior | Measure under the actual workload | Measure under the same workload |
+| Selection | Check required API and ownership semantics | Check span/buffer lifetime and ownership semantics |
 
 ### Integration with Event Stores
 
@@ -457,9 +469,9 @@ See the [Performance Best Practices](../performance/messagecontext-best-practice
 
 | Scenario | Recommendation |
 |----------|----------------|
-| High-throughput event stores | ZeroAlloc + MemoryPack |
-| Event replay/projections | ZeroAlloc + MemoryPack |
-| .NET-only, high performance | MemoryPack |
+| Event stores | Evaluate the serializer and API against the persisted payload and store workload |
+| Event replay/projections | Measure deserialization with the actual replay and projection workload |
+| .NET-only binary format | Consider MemoryPack; measure the required workload |
 | Cross-language | System.Text.Json or MessagePack |
 | Schema evolution | Protobuf |
 | Debugging | System.Text.Json with WriteIndented |

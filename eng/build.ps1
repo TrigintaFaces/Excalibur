@@ -96,6 +96,9 @@ param(
     # External job/shard/candidate context for independent discovery and per-invocation checks.
     [string]$RequiredTestContext,
 
+    # Aggregate executed-test lower bound; source-presence discovery is separate.
+    [string]$MinimumExecutedTests = '1',
+
     # Print the composed `dotnet test` argv and exit without running it. This is what makes the
     # composition testable: the traps below are invisible at runtime -- a dropped setting produces a
     # passing run -- so they are asserted against the printed argv instead.
@@ -108,6 +111,12 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ($MinimumExecutedTests -cnotmatch '\A[1-9][0-9]*\z' -or
+    $MinimumExecutedTests.Length -gt 10 -or [long]$MinimumExecutedTests -gt 2147483647) {
+    throw 'MinimumExecutedTests must be canonical positive decimal <=2147483647.'
+}
+$minimumExecuted = [int]$MinimumExecutedTests
+
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Push-Location $repoRoot
@@ -311,6 +320,16 @@ try {
         }
 
         if ($RequiredTestContext) {
+            $external = [Text.Json.JsonDocument]::Parse((Get-Content -LiteralPath $RequiredTestContext -Raw))
+            try {
+                $minimumElement = $external.RootElement.GetProperty('minimumExecutedTests')
+                $contextMinimum = 0
+                if ($minimumElement.ValueKind -ne [Text.Json.JsonValueKind]::Number -or
+                    $minimumElement.GetRawText() -cnotmatch '\A[1-9][0-9]*\z' -or
+                    -not $minimumElement.TryGetInt32([ref]$contextMinimum) -or $contextMinimum -ne $minimumExecuted) {
+                    throw 'Required context minimumExecutedTests differs from the explicit build minimum.'
+                }
+            } finally { $external.Dispose() }
             $dotnetCommand = (Get-Command dotnet -CommandType Application | Select-Object -First 1).Source
             $resolvedHost = [IO.File]::ResolveLinkTarget($dotnetCommand, $true)
             if ($null -ne $resolvedHost) { $dotnetCommand = $resolvedHost.FullName }
@@ -345,7 +364,8 @@ try {
             if ($executed -eq 0) {
                 throw "filter '$TestFilter' executed 0 tests. A filter that matches nothing exits 0; that is not a pass."
             }
-            Write-Host "$executed test(s) executed."
+            if ($executed -lt $minimumExecuted) { throw "Filtered run executed $executed tests below minimumExecutedTests=$minimumExecuted." }
+            Write-Host "$executed test(s) executed; minimum=$minimumExecuted."
         }
         }
     }

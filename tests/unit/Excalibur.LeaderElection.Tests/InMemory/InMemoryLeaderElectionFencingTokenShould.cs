@@ -56,7 +56,7 @@ public sealed class InMemoryLeaderElectionFencingTokenShould : UnitTestBase
 		// never an in-band 0. A regression to `new Leadership(FencingToken: 0, ...)` reintroduces the
 		// in-band-zero bug and fails here.
 		leadership.Value.FencingToken.ShouldBeNull(
-			"No IFencingTokenProvider was passed to this instance's constructor, so 'no fence' MUST be null " +
+			"No IFencingTokenIssuer was passed to this instance's constructor, so 'no fence' MUST be null " +
 			"— never 0. An in-band 0 reads to a consumer as a valid low token and would be presented to a " +
 			"fencing store, defeating the split-brain guard. null is the honest 'non-fencing-mode' signal; 0 is a lie.");
 	}

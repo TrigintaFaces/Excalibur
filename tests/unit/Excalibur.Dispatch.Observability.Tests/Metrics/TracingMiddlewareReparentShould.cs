@@ -172,7 +172,13 @@ public sealed class TracingMiddlewareReparentShould : IDisposable
 		var stored = new OutboundMessage("TestMessage", [1], "queue-1",
 			new Dictionary<string, object>(StringComparer.Ordinal) { ["traceparent"] = producerTraceParent });
 
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
+		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>().Implements<IClaimScopedOutboxStore>());
+		const string ClaimIdentity = "observability-trace-claim";
+		stored.DispatcherId = ClaimIdentity;
+		A.CallTo(() => store.GetService(typeof(IClaimScopedOutboxStore))).Returns(store);
+		var claimScoped = (IClaimScopedOutboxStore)store;
+		A.CallTo(() => claimScoped.MarkSentAsync(stored.Id, ClaimIdentity, A<CancellationToken>._))
+			.Returns(new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied));
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(new List<OutboundMessage> { stored });
 		var messageBus = A.Fake<IMessageBusAdapter>();
@@ -189,7 +195,14 @@ public sealed class TracingMiddlewareReparentShould : IDisposable
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 
 		// (2) 5l0da9: publishing restores the traceparent onto the rebuilt publish context.
-		await publisher.PublishPendingMessagesAsync(CancellationToken.None);
+		var publishing = await publisher.PublishPendingMessagesAsync(CancellationToken.None);
+
+		publishing.IsSuccess.ShouldBeTrue();
+		publishing.SuccessCount.ShouldBe(1);
+		publishing.FailureCount.ShouldBe(0);
+		A.CallTo(() => claimScoped.MarkSentAsync(stored.Id, ClaimIdentity, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => store.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 		publishContext.ShouldNotBeNull();
 		var transportedTraceParent = publishContext.GetTraceParent();
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Mime;
 using System.Text;
@@ -14,6 +15,26 @@ namespace Excalibur.Dispatch.CloudEvents;
 /// <summary>
 /// Provides content type negotiation and formatting for CloudEvents.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>The encode and decode members on this type serialize payloads REFLECTIVELY, and are annotated
+/// accordingly.</b> They construct a parameterless CloudEvents JSON formatter, which resolves payload
+/// type information at run time. Under trimming or an ahead-of-time publish that information may not
+/// exist, and the failure surfaces at run time on the consumer's machine rather than at their build —
+/// so the annotation is what makes the cost visible where it can still be acted on.
+/// </para>
+/// <para>
+/// <b>The reflection-free path is <see cref="CloudEventSerializer"/>.</b> Register it with the
+/// <c>AddCloudEvents</c> overload taking an <see cref="System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver"/>
+/// — typically a source-generated <see cref="System.Text.Json.Serialization.JsonSerializerContext"/>
+/// covering the types published as CloudEvent data — and serialize through the resolved instance. That
+/// overload carries no annotation, which is the whole point of the split.
+/// </para>
+/// <para>
+/// The content-type members on this type — the constants, <see cref="NegotiateContentType"/> and
+/// <see cref="CreateContentTypeHeader"/> — are pure string handling and are deliberately NOT annotated.
+/// </para>
+/// </remarks>
 public static class CloudEventContentTypes
 {
 	/// <summary>
@@ -40,6 +61,14 @@ public static class CloudEventContentTypes
 	/// Gets the appropriate formatter for a content type.
 	/// </summary>
 	/// <exception cref="NotSupportedException"></exception>
+	[RequiresUnreferencedCode(
+		"CloudEvent payloads are serialized reflectively on this path. Use the registered "
+		+ "CloudEventSerializer, built by AddCloudEvents(IJsonTypeInfoResolver) over a "
+		+ "source-generated context covering the types you publish as CloudEvent data.")]
+	[RequiresDynamicCode(
+		"CloudEvent payloads are serialized reflectively on this path. Use the registered "
+		+ "CloudEventSerializer, built by AddCloudEvents(IJsonTypeInfoResolver) over a "
+		+ "source-generated context covering the types you publish as CloudEvent data.")]
 	public static JsonEventFormatter GetFormatter(string contentType)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
@@ -61,6 +90,14 @@ public static class CloudEventContentTypes
 	/// <summary>
 	/// Serializes a CloudEvent to bytes with the specified content type.
 	/// </summary>
+	[RequiresUnreferencedCode(
+		"CloudEvent payloads are serialized reflectively on this path. Use the registered "
+		+ "CloudEventSerializer, built by AddCloudEvents(IJsonTypeInfoResolver) over a "
+		+ "source-generated context covering the types you publish as CloudEvent data.")]
+	[RequiresDynamicCode(
+		"CloudEvent payloads are serialized reflectively on this path. Use the registered "
+		+ "CloudEventSerializer, built by AddCloudEvents(IJsonTypeInfoResolver) over a "
+		+ "source-generated context covering the types you publish as CloudEvent data.")]
 	public static byte[] Serialize(CloudEvent cloudEvent, string contentType)
 	{
 		ArgumentNullException.ThrowIfNull(cloudEvent);
@@ -74,6 +111,14 @@ public static class CloudEventContentTypes
 	/// Serializes a CloudEvent batch to bytes.
 	/// </summary>
 	/// <exception cref="ArgumentException"></exception>
+	[RequiresUnreferencedCode(
+		"CloudEvent payloads are serialized reflectively on this path. Use the registered "
+		+ "CloudEventSerializer, built by AddCloudEvents(IJsonTypeInfoResolver) over a "
+		+ "source-generated context covering the types you publish as CloudEvent data.")]
+	[RequiresDynamicCode(
+		"CloudEvent payloads are serialized reflectively on this path. Use the registered "
+		+ "CloudEventSerializer, built by AddCloudEvents(IJsonTypeInfoResolver) over a "
+		+ "source-generated context covering the types you publish as CloudEvent data.")]
 	public static byte[] SerializeBatch(CloudEventBatch batch, string contentType = CloudEventsBatchJson)
 	{
 		ArgumentNullException.ThrowIfNull(batch);
@@ -91,6 +136,14 @@ public static class CloudEventContentTypes
 	/// <summary>
 	/// Deserializes a CloudEvent from bytes with the specified content type.
 	/// </summary>
+	[RequiresUnreferencedCode(
+		"CloudEvent payloads are serialized reflectively on this path. Use the registered "
+		+ "CloudEventSerializer, built by AddCloudEvents(IJsonTypeInfoResolver) over a "
+		+ "source-generated context covering the types you publish as CloudEvent data.")]
+	[RequiresDynamicCode(
+		"CloudEvent payloads are serialized reflectively on this path. Use the registered "
+		+ "CloudEventSerializer, built by AddCloudEvents(IJsonTypeInfoResolver) over a "
+		+ "source-generated context covering the types you publish as CloudEvent data.")]
 	public static CloudEvent Deserialize(byte[] data, string contentType, params CloudEventAttribute[] extensionAttributes)
 	{
 		ArgumentNullException.ThrowIfNull(data);
@@ -104,6 +157,14 @@ public static class CloudEventContentTypes
 	/// Deserializes a CloudEvent batch from bytes.
 	/// </summary>
 	/// <exception cref="ArgumentException"></exception>
+	[RequiresUnreferencedCode(
+		"CloudEvent payloads are serialized reflectively on this path. Use the registered "
+		+ "CloudEventSerializer, built by AddCloudEvents(IJsonTypeInfoResolver) over a "
+		+ "source-generated context covering the types you publish as CloudEvent data.")]
+	[RequiresDynamicCode(
+		"CloudEvent payloads are serialized reflectively on this path. Use the registered "
+		+ "CloudEventSerializer, built by AddCloudEvents(IJsonTypeInfoResolver) over a "
+		+ "source-generated context covering the types you publish as CloudEvent data.")]
 	public static IReadOnlyList<CloudEvent> DeserializeBatch(byte[] data, string contentType = CloudEventsBatchJson,
 		params CloudEventAttribute[] extensionAttributes)
 	{

@@ -19,17 +19,19 @@ Do not promote its provisional results or combine distinct code epochs into a cu
 - Baseline folder: `benchmarks/baselines/net10.0/dispatch-comparative-20260905/results/`
 - Configs captured: `WarmPathBenchmarkConfig` only (ns-scale, auto-tuned). **There is no
   `ComparativeBenchmarkConfig` (μs-scale) run in this epoch**, so a claim needing the
-  full-isolation job has no current source.
+  single-invocation in-process job has no source in this historical epoch.
 - Assembled from three runs: MassTransit, MassTransitMediator, Pipeline, RoutingFirstParity and
   TransportQueueParity from the first; Wolverine and WolverineInProcess from a second (re-run after
   a benchmark-arm label correction); MediatR from a third (re-run after a second correction).
 - Measured run-to-run variance: about 4% on the Dispatch arms, about 8.6% on MediatR's. Do not read
   a latency ratio inside that band as a finding.
 - **Do not publish the MediatR query comparison.** MediatR's own query row shifted about 21%
-  between epochs for reasons unrelated to this framework; see the epoch README.
-- Every allocation figure is a **floor** — 72 B of a command dispatch's 96 B is one
-  `ExecutionContext` copy-on-write, which scales with the consuming application's async-local
-  density.
+  between epochs without an established cause; see the epoch README. Shared fixture,
+  job, process and GC state can affect competitor measurements too.
+- These allocations are observations from the historical fixtures. The earlier
+  attribution of 72 B of a command's 96 B to `ExecutionContext` copy-on-write is
+  not a verified universal floor or a current-source causal result. Consumer
+  async-local state and the selected operations can change allocations.
 
 ### Prior epochs (superseded, preserved on disk)
 
@@ -126,18 +128,24 @@ Source: `TransportQueueParityWarmPathComparisonBenchmarks-report-github.md`
 
 Source: `RoutingFirstParityWarmPathBenchmarks-report-github.md` — 42 rows exercising routing-only
 overhead across local, remote and provider-profile paths. Pre-routed local command 94.34 ns / 280 B;
-remote event rows 167-173 ns / 304 B. **The remote rows cost 72 B more than they did in April and
-the difference is unexplained** — three candidate causes have been ruled out, which is not the same
-as an explanation. See `docs/performance.md` for the full table and the eliminations.
+remote event rows 167-173 ns / 304 B. **That historical report recorded 72 B more
+than the April report, with no established explanation.** The candidate-cause
+experiments apply only to their recorded epochs. They do not establish the current
+source's difference or cause. See `docs/performance.md` for those historical details.
 
-## Pipeline Parity Snapshot
+## Historical pipeline fixture snapshot
 
 Source: `PipelineWarmPathComparisonBenchmarks-report-github.md`
 
+Historical timing alone does not establish executed-stage parity. Current-source
+controls found an empty Dispatch chain caused by profile selection; the repaired
+fixture has a separate workload epoch. Historical stage execution remains unverified.
+Evidence: `artifacts/benchmarks/current-refresh-20261101/pipeline-fixture-fix-evidence-r1.json`.
+
 | Scenario | Dispatch | MediatR | Wolverine | MassTransit |
 |----------|---------:|--------:|----------:|------------:|
-| 3 middleware / behaviors | 71.68 ns / 240 B | 124.87 ns / 680 B | 236.34 ns / 680 B | 2,128.02 ns / 4,568 B |
-| 10 concurrent + 3 behaviors | 888.19 ns / 2,112 B | 1,314.09 ns / 7,168 B | 2,432.01 ns / 7,008 B | 21,023.12 ns / 45,888 B |
+| Nominal three-stage fixture | 71.68 ns / 240 B | 124.87 ns / 680 B | 236.34 ns / 680 B | 2,128.02 ns / 4,568 B |
+| Ten-command nominal three-stage fixture | 888.19 ns / 2,112 B | 1,314.09 ns / 7,168 B | 2,432.01 ns / 7,008 B | 21,023.12 ns / 45,888 B |
 
 ## Event sourcing: evidence status and benchmark scope
 
@@ -253,16 +261,16 @@ counts include 1, 8, 16 and 32; this alone does not implement the spike's sustai
 
 ## Under Investigation
 
-- **Routing-first remote allocation.** Every pre-routed remote row allocates 72 B more than it did
-  in the April epoch, with a matching latency increase that this epoch partly recovers. Three
-  candidate causes have been excluded (an ambient tenant context, a middleware-selection change for
-  unclassified messages, and the ambient message-context publication — the last by direct
-  experiment). No explanation yet; the numbers are published as measured.
+- **Historical routing-first remote allocation.** The recorded remote rows differed
+  by 72 B from the April epoch. Candidate-cause experiments in that historical
+  investigation did not establish an explanation; they do not establish present
+  allocations or a current regression. Preserve their original configurations and evidence.
 - **MediatR's own query row** moved about 21% between epochs, consistently across all three runs of
-  this one. Nothing in this framework touches it. Until it is explained, the query **comparison**
-  is not published in either direction.
+  this one. This does not isolate a cause or rule out shared harness/runtime effects. Until it is
+  explained, the query **comparison** is not published in either direction.
 ## Methodology + runbook
 
 - **Regression thresholds + run procedure:** see `benchmarks/RUNBOOK.md`
 - **Reporting conventions:** see `docs/performance/competitor-benchmarks.md`
-- **Canonical runner script gap:** `eng/run-comparative-benchmarks.ps1` is missing `RoutingFirstParityBenchmarks` in its filter — tracked for fix in a future sprint
+- **Canonical runner selection:** `eng/run-comparative-benchmarks.ps1` now includes
+  `RoutingFirstParityBenchmarks`; inspect its current exact filters before running.

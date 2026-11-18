@@ -37,6 +37,7 @@ public static class PostgresFencingTokenServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
 		services.TryAddSingleton<IFencingTokenProvider>(_ => new PostgresFencingTokenProvider(connectionString));
+		services.RegisterFencingIssuerProjection();
 		services.TryAddSingleton<FencingTokenMiddleware>();
 
 		return services;

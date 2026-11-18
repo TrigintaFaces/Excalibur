@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
@@ -27,6 +27,11 @@ public sealed class MarkTransportSkippedRequest : DataRequestBase<IDbConnection,
 	/// <param name="reason">Optional reason for skipping.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public MarkTransportSkippedRequest(
 		string tableName,
 		string messageId,
@@ -54,6 +59,12 @@ public sealed class MarkTransportSkippedRequest : DataRequestBase<IDbConnection,
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			await StaticDbCommand.ExecuteAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "TransportName", StaticDbCommand.Input<string>(Parameters, "TransportName"), DbType.String);
+				StaticDbCommand.AddNullableStringParameter(command, "Reason", StaticDbCommand.Input<string?>(Parameters, "Reason"));
+				StaticDbCommand.AddParameter(command, "AttemptedAt", StaticDbCommand.Input<DateTimeOffset>(Parameters, "AttemptedAt"), DbType.DateTimeOffset);
+			}).ConfigureAwait(false);
 	}
 }

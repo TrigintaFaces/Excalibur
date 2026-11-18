@@ -58,8 +58,7 @@ public sealed class CdcFatalGuardShould
 	}
 
 	[Theory]
-	[InlineData(typeof(InvalidOperationException))]
-	[InlineData(typeof(TimeoutException))]
+		[InlineData(typeof(TimeoutException))]
 	[InlineData(typeof(OperationCanceledException))] // cooperative cancellation is NOT fatal (transient)
 	public void ReconnectWithoutAdvancingOnATransientFault(Type exceptionType)
 	{
@@ -74,12 +73,12 @@ public sealed class CdcFatalGuardShould
 	[Fact]
 	public void StopWithoutAdvancingWhenTheClassifierRulesAFaultPermanent()
 	{
-		// An exception that the built-in fallback would treat as TRANSIENT becomes FATAL when the shared
+		// An exception with no known recovery behavior remains stopped when the shared
 		// classifier rules it Permanent — proving Decide honors the classifier (ADR-338 single source of truth).
 		var classifier = A.Fake<IMessageFailureClassifier>();
 		_ = A.CallTo(() => classifier.Classify(A<Exception>._)).Returns(MessageFailureKind.Permanent);
 
-		var decision = CdcFatalGuard.Decide(new InvalidOperationException("transient without a classifier"), classifier);
+		var decision = CdcFatalGuard.Decide(new InvalidOperationException("unknown without a classifier"), classifier);
 
 		decision.ShouldBe(new CdcFatalDecision(AdvanceCheckpoint: false, Stop: true));
 	}

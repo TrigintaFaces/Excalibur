@@ -15,6 +15,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.LeaderElection.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">

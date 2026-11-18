@@ -205,6 +205,46 @@ public sealed class OutboxTenantAttestationShould
         ConnectionFactory,
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RefuseAnUnattestedPrimaryEvenWhenItOwnsAndRegistersTheClaimTerminalFacet(bool keyed)
+    {
+        var services = new ServiceCollection();
+        var store = A.Fake<IOutboxStore>(options => options.Implements<IClaimScopedDeadLetterableOutboxStore>());
+        A.CallTo(() => store.GetService(A<Type>._))
+            .ReturnsLazily((Type type) => type == typeof(IClaimScopedDeadLetterableOutboxStore) ? store : null);
+        if (keyed) { services.AddKeyedSingleton<IOutboxStore>("facet-primary", store); }
+        else { services.AddSingleton(store); }
+        services.AddSingleton((IClaimScopedDeadLetterableOutboxStore)store);
+        var error = Should.Throw<InvalidOperationException>(() => services.AddMultiTenancy(
+            static options => options.Strategy = TenantIsolationStrategy.RowDiscriminator));
+        error.Message.ShouldContain(nameof(IOutboxStore));
+        error.Message.ShouldContain("capability");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AdmitTheAttestedPrimaryWithoutDecoratingItsOwnedClaimTerminalFacet(bool unkeyedAlias)
+    {
+        var services = BuildPostgresOutboxHost(PostgresConnectionShape.ConnectionFactory);
+        if (unkeyedAlias)
+        {
+            services.AddSingleton<IOutboxStore>(static provider => provider.GetRequiredKeyedService<IOutboxStore>("postgres"));
+        }
+        services.AddMultiTenancy(static options => options.Strategy = TenantIsolationStrategy.RowDiscriminator);
+        using var provider = services.BuildServiceProvider();
+        var store = unkeyedAlias ? provider.GetRequiredService<IOutboxStore>()
+            : provider.GetRequiredKeyedService<IOutboxStore>("postgres");
+        store.ShouldBeOfType<PostgresOutboxStore>();
+        provider.GetRequiredService<ITenantPartitionedCapability<IOutboxStore>>().ShouldNotBeNull();
+        provider.GetService<ITenantScopingCapability<IOutboxStore>>().ShouldBeNull();
+        store.GetService(typeof(IClaimScopedDeadLetterableOutboxStore)).ShouldBeSameAs(store);
+        provider.GetService<IClaimScopedDeadLetterableOutboxStore>().ShouldBeNull(
+            "the capability belongs to the primary store and is not a separate DI tenant store");
+    }
+
     /// <summary>Wires a host through the production Postgres outbox registration path for the given shape.</summary>
     private static ServiceCollection BuildPostgresOutboxHost(PostgresConnectionShape shape)
     {

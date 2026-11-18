@@ -28,6 +28,8 @@
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" />
     <PackageReference Include="System.Text.Json" />
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
   </ItemGroup>
  <!-- Updated paths for reorganized sample structure -->
   <ItemGroup>
@@ -35,6 +37,9 @@
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Inbox.SqlServer\Excalibur.Inbox.SqlServer.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
     <!-- The shipping in-memory inbox and outbox stores this sample runs against. -->
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />

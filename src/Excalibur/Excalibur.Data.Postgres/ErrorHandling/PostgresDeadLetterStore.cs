@@ -229,7 +229,60 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 	}
 
 	/// <inheritdoc />
-	public async Task MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken)
+	/// <remarks>
+	/// <para>
+	/// <b>One statement, two answers, because a zero row count is ambiguous on its own.</b> The conditional
+	/// UPDATE carries the not-replayed term, so its row count decides the claim; a zero could mean the
+	/// message is absent or that it was already replayed, and the caller must do different things about
+	/// those. The presence count resolves it in the same round trip rather than a second one that could
+	/// observe a different state.
+	/// </para>
+	/// <para>
+	/// <b>The aliases are unquoted PascalCase deliberately.</b> This store does not set Dapper's
+	/// underscore matching, so snake_case aliases bind to nothing and every property of the result reads
+	/// zero -- silently, with no error anywhere. Unquoted identifiers also fold, so these bind on both
+	/// engines without any global setting.
+	/// </para>
+	/// </remarks>
+	public async Task<DeadLetterReplayOutcome> MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+
+		// The data-modifying CTE and the outer presence count both read the snapshot taken at statement
+		// start, so the count is unaffected by the update running beside it -- which is what makes one
+		// round trip sound here rather than merely convenient.
+		var sql = string.Format(
+			CultureInfo.InvariantCulture,
+			"""
+			WITH claimed AS (
+			    UPDATE "{0}"."{1}"
+			    SET is_replayed = true, replayed_at = @ReplayedAt
+			    WHERE message_id = @MessageId AND tenant_id = @TenantId AND is_replayed = false
+			    RETURNING 1
+			)
+			SELECT (SELECT COUNT(1) FROM claimed) AS ClaimedCount,
+			       (SELECT COUNT(1) FROM "{0}"."{1}"
+			         WHERE message_id = @MessageId AND tenant_id = @TenantId) AS PresentCount
+			""",
+			_schema,
+			_tableName);
+
+		using var connection = CreateConnection();
+		var verdict = await connection.QuerySingleAsync<ReplayClaimVerdict>(new CommandDefinition(
+			sql,
+			new { MessageId = messageId, ReplayedAt = DateTimeOffset.UtcNow, TenantId = CurrentTenantTerm },
+			cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+		if (verdict.ClaimedCount > 0)
+		{
+			LogMarkedDeadLetterMessageAsReplayed(messageId);
+		}
+
+		return verdict.ToOutcome();
+	}
+
+	/// <inheritdoc />
+	public async Task ReleaseReplayClaimAsync(string messageId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
@@ -237,22 +290,17 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 			CultureInfo.InvariantCulture,
 			"""
 			UPDATE "{0}"."{1}"
-			SET is_replayed = true, replayed_at = @ReplayedAt
-			WHERE message_id = @MessageId AND tenant_id = @TenantId
+			SET is_replayed = false, replayed_at = NULL
+			WHERE message_id = @MessageId AND tenant_id = @TenantId AND is_replayed = true
 			""",
 			_schema,
 			_tableName);
 
 		using var connection = CreateConnection();
-		var rowsAffected = await connection.ExecuteAsync(
+		_ = await connection.ExecuteAsync(new CommandDefinition(
 			sql,
-			new { MessageId = messageId, ReplayedAt = DateTimeOffset.UtcNow, TenantId = CurrentTenantTerm })
-			.ConfigureAwait(false);
-
-		if (rowsAffected > 0)
-		{
-			LogMarkedDeadLetterMessageAsReplayed(messageId);
-		}
+			new { MessageId = messageId, TenantId = CurrentTenantTerm },
+			cancellationToken: cancellationToken)).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -413,5 +461,25 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 					? []
 					: JsonSerializer.Deserialize(properties, DeadLetterJsonContext.Default.DictionaryStringString) ?? [],
 			};
+	}
+
+	/// <summary>The two counts a replay claim reports.</summary>
+	/// <remarks>
+	/// Two counts rather than one, because a zero claim count cannot tell an absent message from one that
+	/// was already replayed, and the caller must do opposite things about them.
+	/// </remarks>
+	private sealed class ReplayClaimVerdict
+	{
+		/// <summary>One when this caller moved the message to replayed, zero when it did not.</summary>
+		public long ClaimedCount { get; init; }
+
+		/// <summary>One when the message exists in this tenant, zero when it does not.</summary>
+		public long PresentCount { get; init; }
+
+		/// <summary>Maps the counts onto the outcome, testing the claim first and by name.</summary>
+		public DeadLetterReplayOutcome ToOutcome() =>
+			ClaimedCount > 0 ? DeadLetterReplayOutcome.Claimed
+			: PresentCount == 0 ? DeadLetterReplayOutcome.MessageNotFound
+			: DeadLetterReplayOutcome.AlreadyReplayed;
 	}
 }

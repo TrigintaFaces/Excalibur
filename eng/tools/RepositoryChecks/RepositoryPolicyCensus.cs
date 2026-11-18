@@ -12,7 +12,14 @@ internal static class RepositoryPolicyCensus
     internal static async Task<int> WriteAsync(MSBuildWorkspace workspace, string root, string directory, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(directory);
-        var documentationReferences = await DocumentationReferences.PrepareAsync(root, cancellationToken).ConfigureAwait(false);
+        int documentationResult;
+        using (var documentation = await DocumentationReferences.PrepareAsync(root, cancellationToken).ConfigureAwait(false))
+        {
+            documentationResult = await DocumentationCensus.WriteAsync(documentation, root,
+                Path.Combine(directory, "documentation-api.json"), cancellationToken).ConfigureAwait(false);
+        }
+
+        // Dispose the consumer workspace before loading the full repository source population.
         var census = await RepositoryCompilationCensus.ReadAsync(workspace, root, cancellationToken).ConfigureAwait(false);
         var results = new List<int>
         {
@@ -26,7 +33,7 @@ internal static class RepositoryPolicyCensus
             await RigorEvidenceCensus.WriteAsync(census, root, Path.Combine(directory, "rigor-evidence.json"), cancellationToken).ConfigureAwait(false),
             await CapabilityCensus.WriteAsync(census, root, Path.Combine(directory, "capability-wiring.json"), cancellationToken).ConfigureAwait(false),
             await CosmosAdmissionCensus.WriteInventoryAsync(census, Path.Combine(directory, "cosmos-admission.json"), cancellationToken).ConfigureAwait(false),
-            await DocumentationCensus.WriteAsync(documentationReferences, root, Path.Combine(directory, "documentation-api.json"), cancellationToken).ConfigureAwait(false),
+            documentationResult,
         };
         return results.Exists(code => code != 0) ? 1 : 0;
     }

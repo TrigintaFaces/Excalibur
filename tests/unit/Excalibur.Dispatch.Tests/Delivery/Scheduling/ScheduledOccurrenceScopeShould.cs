@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Options.Scheduling;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Excalibur.Dispatch.Tests.Delivery.Scheduling;
 
@@ -80,6 +81,7 @@ public sealed class ScheduledOccurrenceScopeShould
 		private readonly int _targetCalls;
 		private int _calls;
 		public ServiceProvider Provider { get; }
+		public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(3000, 1, 1, 0, 0, 0, TimeSpan.Zero));
 		public ObservingStore Store { get; }
 		public ScheduledMessageService Service { get; }
 		public ConcurrentQueue<ScopedProbe> Probes { get; } = new();
@@ -89,7 +91,7 @@ public sealed class ScheduledOccurrenceScopeShould
 		{
 			_outcome = outcome;
 			_targetCalls = targetCalls;
-			Store = new ObservingStore(blockProgress);
+			Store = new ObservingStore(blockProgress, Clock);
 			if (!blockDisposal) { AllowDisposal.TrySetResult(); }
 			var services = new ServiceCollection();
 			services.AddScoped(provider => new ScopedProbe(provider, Store, AllowDisposal.Task));
@@ -101,14 +103,14 @@ public sealed class ScheduledOccurrenceScopeShould
 			Service = new ScheduledMessageService(Store, dispatcher, _serializer,
 				new CronScheduler(cron, NullLogger<CronScheduler>.Instance),
 				Microsoft.Extensions.Options.Options.Create(new SchedulerOptions { PollInterval = TimeSpan.FromSeconds(1) }),
-				cron, NullLogger<ScheduledMessageService>.Instance, Provider.GetRequiredService<IServiceScopeFactory>());
+				cron, NullLogger<ScheduledMessageService>.Instance, Provider.GetRequiredService<IServiceScopeFactory>(), timeProvider: Clock);
 			MessageTypeRegistry.RegisterType<ScopeAction>();
 		}
 		public Task StoreAsync(bool catchUp = false) => Store.StoreAsync(new ScheduledMessage
 		{
 			Enabled = true, MessageName = typeof(ScopeAction).FullName!,
 			MessageBody = _serializer.Serialize(new ScopeAction("payload")),
-			NextExecutionUtc = DateTimeOffset.UtcNow.AddSeconds(catchUp ? -25 : -1),
+			NextExecutionUtc = Clock.GetUtcNow().AddSeconds(catchUp ? -25 : -1),
 			Interval = catchUp ? TimeSpan.FromSeconds(10) : null,
 			MissedExecutionBehavior = MissedExecutionBehavior.ExecuteAllMissed
 		}, CancellationToken.None);
@@ -148,15 +150,16 @@ public sealed class ScheduledOccurrenceScopeShould
 		}
 	}
 
-	private sealed class ObservingStore : IScheduleExecutionStore
+	private sealed class ObservingStore : IScheduleExecutionFailureStore
 	{
-		private readonly InMemoryScheduleStore _inner = new();
+		private readonly InMemoryScheduleStore _inner;
 		private int _releases;
 		public int Releases => Volatile.Read(ref _releases);
 		public TaskCompletionSource ProgressEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		public TaskCompletionSource AllowProgress { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		public ObservingStore(bool blockProgress)
+		public ObservingStore(bool blockProgress, TimeProvider clock)
 		{
+			_inner = new InMemoryScheduleStore(clock);
 			if (!blockProgress) { AllowProgress.TrySetResult(); }
 		}
 		public Task<IEnumerable<IScheduledMessage>> GetAllAsync(CancellationToken token) => _inner.GetAllAsync(token);
@@ -171,6 +174,22 @@ public sealed class ScheduledOccurrenceScopeShould
 			await AllowProgress.Task.WaitAsync(token);
 			return await _inner.TryUpdateProgressAsync(lease, result, token);
 		}
+		public Task<ScheduleFailureExecutionAdmission?> TryAcquireExecutionAsync(Guid id, Guid generation, DateTimeOffset occurrence, int maximum, CancellationToken ct) =>
+			_inner.TryAcquireExecutionAsync(id, generation, occurrence, maximum, ct);
+		public async Task<bool> TryCompleteExecutionAsync(ScheduleExecutionLease lease, ScheduleExecutionResult result, ScheduleExecutionCompletionDisposition disposition, CancellationToken ct)
+		{
+			ProgressEntered.TrySetResult();
+			await AllowProgress.Task.WaitAsync(ct);
+			return await _inner.TryCompleteExecutionAsync(lease, result, disposition, ct);
+		}
+		public Task<bool> TryRecordFailureAsync(ScheduleExecutionLease lease, ScheduleOccurrenceFailure failure, CancellationToken ct) =>
+			_inner.TryRecordFailureAsync(lease, failure, ct);
+		public Task<ScheduleQuarantineRecoveryReceipt?> TryResumeQuarantinedOccurrenceAsync(ScheduleQuarantineToken token, Guid command, CancellationToken ct) =>
+			_inner.TryResumeQuarantinedOccurrenceAsync(token, command, ct);
+		public Task<ScheduleOccurrenceFailureSnapshot?> GetOccurrenceFailureAsync(Guid id, Guid generation, DateTimeOffset occurrence, string? tenant, CancellationToken ct) =>
+			_inner.GetOccurrenceFailureAsync(id, generation, occurrence, tenant, ct);
+		public Task<IReadOnlyList<ScheduleOccurrenceFailureSnapshot>> GetQuarantinesAsync(string? tenant, Guid? cursor, int maximum, CancellationToken ct) =>
+			_inner.GetQuarantinesAsync(tenant, cursor, maximum, ct);
 		public async Task<bool> ReleaseExecutionAsync(ScheduleExecutionLease lease, CancellationToken token)
 		{
 			var released = await _inner.ReleaseExecutionAsync(lease, token);

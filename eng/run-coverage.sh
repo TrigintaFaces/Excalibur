@@ -6,6 +6,8 @@ set -e
 
 # Defaults
 THRESHOLD=95
+MINIMUM=1
+MINIMUM_SUPPLIED=false
 COMPONENT=""
 SKIP_BUILD=false
 GENERATE_HTML=false
@@ -13,6 +15,9 @@ GENERATE_HTML=false
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --minimum-executed-tests)
+            if $MINIMUM_SUPPLIED || [ $# -lt 2 ]; then echo 'Invalid/duplicate minimum option' >&2; exit 2; fi
+            MINIMUM_SUPPLIED=true; MINIMUM="$2"; shift 2 ;;
         --threshold)
             THRESHOLD="$2"
             shift 2
@@ -35,6 +40,8 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if ! [[ "$MINIMUM" =~ ^[1-9][0-9]{0,9}$ ]] || [ "$MINIMUM" -gt 2147483647 ]; then echo "Invalid coverage minimum" >&2; exit 2; fi
 
 echo "=== Excalibur Coverage Runner ==="
 
@@ -76,12 +83,18 @@ HANG_TIMEOUT="${COVERAGE_HANG_TIMEOUT:-10m}"
 # want the coverage report. So errexit is suspended for exactly this one command and restored
 # immediately. Not `|| true`: that is what produced the bug below.
 set +e
+if [ -n "$COMPONENT" ]; then
+    bash "$SCRIPT_DIR/ci/run-filtered-tests.sh" --minimum-executed-tests "$MINIMUM" --filter "Component=$COMPONENT" -- \
+        "$SOLUTION_ROOT/Excalibur.sln" --collect:"XPlat Code Coverage" --settings "$RUNSETTINGS_PATH" \
+        --results-directory "$ARTIFACTS_DIR" --blame-hang-timeout "$HANG_TIMEOUT" -c Release --no-build -v q
+else
 eval dotnet test "$SOLUTION_ROOT/Excalibur.sln" \
     --collect:"XPlat Code Coverage" \
     --settings "$RUNSETTINGS_PATH" \
     --results-directory "$ARTIFACTS_DIR" \
     --blame-hang-timeout "$HANG_TIMEOUT" \
     -c Release --no-build -v q $FILTER
+fi
 # Captured on the VERY NEXT statement — nothing, not even an echo, may run between.
 #
 # This previously read `... || true` followed by `TEST_EXIT_CODE=$?`, which recorded the exit

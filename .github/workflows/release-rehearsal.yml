@@ -98,6 +98,14 @@ jobs:
         shell: bash
         run: python3 ./eng/ci/promotion-contract-gate.py --self-test
 
+      - name: Verify SBOM binding policy and executable admission tamper controls
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          python3 eng/ci/sbom-binding-policy.test.py -v
+          python3 eng/ci/sbom-attestation-binding.test.py -v
+
       - name: Verify isolated official handoff controls
         shell: bash
         run: python3 ./eng/ci/official-handoff.test.py

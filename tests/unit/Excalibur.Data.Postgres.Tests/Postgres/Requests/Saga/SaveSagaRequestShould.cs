@@ -166,7 +166,13 @@ public sealed class SaveSagaRequestShould : IDisposable
 		paramNames.ShouldContain("TenantId"); // tenant scope bound on every save (bd-952rbe)
 		paramNames.ShouldContain("NewVersion");
 		paramNames.ShouldNotContain("ExpectedVersion");
-		paramNames.Count.ShouldBe(7);
+		paramNames.ShouldContain("RecoveryIncarnation");
+		paramNames.ShouldContain("RecoveryTracked");
+		paramNames.ShouldContain("RecoveryBatch");
+		paramNames.ShouldContain("RecoveryDigest");
+		paramNames.ShouldNotContain("RecoveryLastAck");
+		request.Parameters.Get<long>("NewVersion").ShouldBe(1);
+		paramNames.Count.ShouldBe(11);
 	}
 
 	[Fact]
@@ -186,7 +192,15 @@ public sealed class SaveSagaRequestShould : IDisposable
 		paramNames.ShouldContain("NewVersion");
 		paramNames.ShouldContain("CompletedAt"); // completion instant bound on every save (w8aqq3 saga-purge key)
 		paramNames.ShouldContain("TenantId"); // tenant scope bound on every save (bd-952rbe)
-		paramNames.Count.ShouldBe(8);
+		paramNames.ShouldContain("RecoveryIncarnation");
+		paramNames.ShouldContain("RecoveryTracked");
+		paramNames.ShouldContain("RecoveryBatch");
+		paramNames.ShouldContain("RecoveryDigest");
+		paramNames.ShouldContain("RecoveryLastAck");
+		request.Parameters.Get<string>("RecoveryLastAck").ShouldBe(Guid.Empty.ToString("N"));
+		request.Parameters.Get<long>("ExpectedVersion").ShouldBe(3);
+		request.Parameters.Get<long>("NewVersion").ShouldBe(4);
+		paramNames.Count.ShouldBe(13);
 	}
 
 	[Fact]

@@ -18,13 +18,11 @@ dotnet add package Excalibur.Dispatch.Caching
 ## Configuration
 
 ```csharp
-services.AddDispatch(options =>
+services.AddDispatchCaching(options =>
 {
-    options.UseCaching(cache =>
-    {
-        cache.UseDistributedCache();
-        cache.DefaultExpiration = TimeSpan.FromMinutes(5);
-    });
+    options.Enabled = true;
+    options.CacheMode = CacheMode.Distributed;
+    options.Behavior.DefaultExpiration = TimeSpan.FromMinutes(5);
 });
 ```
 

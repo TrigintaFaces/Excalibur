@@ -19,6 +19,11 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 	"the fence is keyed on the outbox table, not on a tenant: a fencing token orders competing processors of one table and has no tenant dimension to scope to")]
 internal sealed class GetOutboxFenceHighWaterRequest : DataRequestBase<IDbConnection, long?>
 {
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public GetOutboxFenceHighWaterRequest(
 		string fenceTableName,
 		string scope,
@@ -32,7 +37,10 @@ internal sealed class GetOutboxFenceHighWaterRequest : DataRequestBase<IDbConnec
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.QuerySingleOrDefaultAsync<long?>(Command).ConfigureAwait(false);
+			await StaticDbCommand.SingleOrDefaultAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "Scope", StaticDbCommand.Input<string>(Parameters, "Scope"), DbType.String);
+			}, static reader => reader.IsDBNull(0) ? (long?)null : StaticDbValue.Int64(reader, 0)).ConfigureAwait(false);
 	}
 }
 
@@ -51,6 +59,11 @@ internal sealed class GetOutboxFenceHighWaterRequest : DataRequestBase<IDbConnec
 	"the fence is keyed on the outbox table, not on a tenant: a fencing token orders competing processors of one table and has no tenant dimension to scope to")]
 internal sealed class ResetOutboxFenceHighWaterRequest : DataRequestBase<IDbConnection, bool>
 {
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public ResetOutboxFenceHighWaterRequest(
 		string fenceTableName,
 		string scope,
@@ -73,8 +86,14 @@ internal sealed class ResetOutboxFenceHighWaterRequest : DataRequestBase<IDbConn
 		parameters.Add("@Scope", scope);
 		parameters.Add("@NewHighWater", newHighWater);
 
-		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+		SqlServerAffectedRows.Declare(parameters);
+		Command = CreateCommand(sql + SqlServerAffectedRows.Capture, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
-		ResolveAsync = async connection => await connection.ExecuteAsync(Command).ConfigureAwait(false) > 0;
+		ResolveAsync = async connection => await StaticDbCommand.ExecuteOutputsAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "Scope", StaticDbCommand.Input<string>(Parameters, "Scope"), DbType.String);
+				StaticDbCommand.AddParameter(command, "NewHighWater", StaticDbCommand.Input<long>(Parameters, "NewHighWater"), DbType.Int64);
+				SqlServerAffectedRows.Bind(command);
+			}, command => SqlServerAffectedRows.Read(command, Parameters)).ConfigureAwait(false) == 1;
 	}
 }

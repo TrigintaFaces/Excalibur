@@ -29,6 +29,11 @@ BEGIN
         -- Saga metadata
         SagaType NVARCHAR(500) NOT NULL,
         StateJson NVARCHAR(MAX) NOT NULL,
+        TimerRecoveryIncarnation CHAR(32) NULL,
+        TimerRecoveryTracked BIT NOT NULL DEFAULT 0,
+        TimerRecoveryPendingBatch CHAR(32) NULL,
+        TimerRecoveryPendingDigest CHAR(64) NULL,
+
         IsCompleted BIT NOT NULL DEFAULT 0,
 
         -- Explicit completion instant (UTC; SagaState.CompletedAt). The retention purge

@@ -5,6 +5,10 @@ using System.Linq;
 using System.Reflection;
 
 using Excalibur.Data.CloudNative;
+using Excalibur.Data;
+using Excalibur.Outbox.Oracle;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Tests.Conformance.Persistence;
 
@@ -22,13 +26,22 @@ namespace Excalibur.Dispatch.Tests.Conformance.Persistence;
 /// <para>
 /// <strong>Two mutually-exclusive families.</strong> A backing store is EITHER a traditional
 /// polling-based <see cref="IOutboxStore"/> (SQL Server, Postgres, Oracle, Redis, Mongo, Elasticsearch,
-/// in-memory) OR a change-feed-based <see cref="ICloudNativeOutboxStore"/> (Cosmos DB, DynamoDB,
+/// in-memory, Marten) OR a change-feed-based <see cref="ICloudNativeOutboxStore"/> (Cosmos DB, DynamoDB,
 /// Firestore) — never both. The two are intentionally separate abstractions (see the doc on
 /// <see cref="ICloudNativeOutboxStore"/>).
 /// </para>
 /// <para>
-/// <strong>Optional capabilities are consumed via runtime <c>is</c>-checks with documented graceful
-/// fallback</strong>, so a store legitimately not implementing one is a coherent (not broken) state:
+/// <strong>Declarations are not instance availability or behavioral certification.</strong> Polling
+/// workers discover acquisition-scoped capabilities through <c>IOutboxStore.GetService</c>. The default
+/// processor requires plain claim completion and dead-letter completion; fenced topologies require the
+/// corresponding fenced capabilities. Missing required capabilities fail closed rather than downgrading
+/// to process-only completion. Marten deliberately lacks dead-letter completion; staging and a publisher
+/// route without store-terminal dead-letter have different prerequisites. Oracle additionally hides all
+/// worker capabilities unless an owned worker connection source is configured. The instance controls
+/// below exercise these availability differences without opening a database.
+/// </para>
+/// <para>
+/// Other optional capabilities have consumer-specific handling:
 /// </para>
 /// <list type="bullet">
 /// <item><see cref="IMultiTransportOutboxStore"/> — per-transport fan-out delivery tracking; only stores
@@ -40,13 +53,14 @@ namespace Excalibur.Dispatch.Tests.Conformance.Persistence;
 /// <strong>For a future provider author:</strong> when you add an <c>Excalibur.Outbox.&lt;Provider&gt;</c>
 /// backing store you MUST add its entry to <see cref="Matrix"/> below (family + capability footprint), or
 /// <see cref="Matrix_CoversEveryConcreteBackingStore"/> fails. If your provider deliberately omits an
-/// optional capability, confirm a documented graceful consumer handles its absence (as the three above do);
-/// if nothing guards the absence, that is an advertised-but-unwired gap that must be wired or the capability
+/// optional capability, confirm the documented consumer handles its absence, including startup refusal
+/// for a required worker capability. If nothing guards the absence, that is an advertised-but-unwired gap that must be wired or the capability
 /// dropped — not left silent.
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+[Trait("Pattern", "Regression")]
 public sealed class OutboxCapabilityMatrixShould
 {
 	private enum OutboxFamily
@@ -84,6 +98,8 @@ public sealed class OutboxCapabilityMatrixShould
 		typeof(ICloudNativeOutboxStoreBatch),
 		typeof(ICloudNativeOutboxStoreClaim),
 		typeof(IMultiTransportOutboxStore),
+		typeof(IClaimScopedOutboxStore),
+		typeof(IClaimScopedDeadLetterableOutboxStore),
 		typeof(IFencedOutboxStore),
 		typeof(IFencedClaimScopedOutboxStore),
 		typeof(IFencedDeadLetterableOutboxStore),
@@ -104,37 +120,52 @@ public sealed class OutboxCapabilityMatrixShould
 		// -- Traditional IOutboxStore family --
 		new("InMemory", typeof(global::Excalibur.Outbox.InMemory.InMemoryOutboxStore), OutboxFamily.Traditional,
 			[
+				typeof(IClaimScopedOutboxStore),
+				typeof(IClaimScopedDeadLetterableOutboxStore),
 				typeof(IFencedOutboxStore),
 				typeof(IFencedClaimScopedOutboxStore),
 				typeof(IFencedDeadLetterableOutboxStore)
 			]),
 		new("Postgres", typeof(global::Excalibur.Outbox.Postgres.PostgresOutboxStore), OutboxFamily.Traditional,
 			[
+				typeof(IClaimScopedOutboxStore),
+				typeof(IClaimScopedDeadLetterableOutboxStore),
 				typeof(IFencedOutboxStore),
 				typeof(IFencedClaimScopedOutboxStore),
 				typeof(IFencedDeadLetterableOutboxStore)
 			]),
 		new("Oracle", typeof(global::Excalibur.Outbox.Oracle.OracleOutboxStore), OutboxFamily.Traditional,
 			[
+				typeof(IClaimScopedOutboxStore),
+				typeof(IClaimScopedDeadLetterableOutboxStore),
 				typeof(IFencedOutboxStore),
 				typeof(IFencedClaimScopedOutboxStore),
 				typeof(IFencedDeadLetterableOutboxStore)
 			]),
-		new("Redis", typeof(global::Excalibur.Outbox.Redis.RedisOutboxStore), OutboxFamily.Traditional, []),
-		new("MongoDb", typeof(global::Excalibur.Outbox.MongoDB.MongoDbOutboxStore), OutboxFamily.Traditional, []),
+		new("Redis", typeof(global::Excalibur.Outbox.Redis.RedisOutboxStore), OutboxFamily.Traditional,
+			[typeof(IClaimScopedOutboxStore), typeof(IClaimScopedDeadLetterableOutboxStore)]),
+		new("MongoDb", typeof(global::Excalibur.Outbox.MongoDB.MongoDbOutboxStore), OutboxFamily.Traditional,
+			[typeof(IClaimScopedOutboxStore), typeof(IClaimScopedDeadLetterableOutboxStore)]),
 		// Redis and MongoDb declare NO fenced capability, and that is the frozen fact rather than an
 		// omission. Both were removed from IFencedOutboxStore because neither substrate can carry the
 		// contract: a fence needs its high-water to be monotone across failover, and an asynchronously
 		// replicated value can roll backwards. Restoring an entry here without restoring the interface
 		// would re-freeze a capability the stores do not have.
-		new("Elasticsearch", typeof(global::Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore), OutboxFamily.Traditional, []),
+		new("Elasticsearch", typeof(global::Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore), OutboxFamily.Traditional,
+			[typeof(IClaimScopedOutboxStore), typeof(IClaimScopedDeadLetterableOutboxStore)]),
 		new("SqlServer", typeof(global::Excalibur.Outbox.SqlServer.SqlServerOutboxStore), OutboxFamily.Traditional,
 			[
 				typeof(IMultiTransportOutboxStore),
+				typeof(IClaimScopedOutboxStore),
+				typeof(IClaimScopedDeadLetterableOutboxStore),
 				typeof(IFencedOutboxStore),
 				typeof(IFencedClaimScopedOutboxStore),
 				typeof(IFencedDeadLetterableOutboxStore)
 			]),
+
+		// Marten's C-only footprint is deliberate: no store-terminal DLQ or durable fencing is advertised.
+		new("Marten", typeof(global::Excalibur.Outbox.Marten.MartenOutboxStore), OutboxFamily.Traditional,
+			[typeof(IClaimScopedOutboxStore)]),
 
 		// -- Cloud-native ICloudNativeOutboxStore family --
 		new("CosmosDb", typeof(global::Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore), OutboxFamily.CloudNative,
@@ -254,7 +285,8 @@ public sealed class OutboxCapabilityMatrixShould
 	/// <c>Excalibur.Outbox.&lt;Provider&gt;</c> provider assemblies (excluding the core <c>Excalibur.Outbox</c>
 	/// assembly and its decorators) and asserts the set exactly equals the frozen <see cref="Matrix"/>. A new
 	/// provider referenced by this test but missing from the matrix — or a matrix entry whose type vanished —
-	/// fails here, so cross-provider conformance cannot be silently bypassed.
+	/// fails here. Discovery is bounded to the matrix provider assemblies: referencing a new assembly alone
+	/// does not prove it was loaded or discovered. This declaration gate does not replace real-provider tests.
 	/// </summary>
 	[Fact]
 	public void Matrix_CoversEveryConcreteBackingStore()
@@ -292,7 +324,7 @@ public sealed class OutboxCapabilityMatrixShould
 	[Fact]
 	public void Matrix_IsNonVacuous_AndCapabilityChecksDiscriminate()
 	{
-		Matrix.Length.ShouldBe(10, "the outbox backing-store family currently has 10 concrete providers.");
+		Matrix.Length.ShouldBe(11, "the matrix retains its ten providers and includes the Marten polling provider.");
 
 		// Positive controls — a capability that IS implemented is detected.
 		typeof(IMultiTransportOutboxStore).IsAssignableFrom(Resolve("SqlServer").StoreType).ShouldBeTrue();
@@ -304,6 +336,11 @@ public sealed class OutboxCapabilityMatrixShould
 		typeof(IOutboxStore).IsAssignableFrom(Resolve("CosmosDb").StoreType).ShouldBeFalse(
 			"cloud-native stores are intentionally NOT IOutboxStore — the two families are separate.");
 
+		typeof(IClaimScopedOutboxStore).IsAssignableFrom(Resolve("Marten").StoreType).ShouldBeTrue();
+		typeof(IClaimScopedDeadLetterableOutboxStore).IsAssignableFrom(Resolve("Marten").StoreType).ShouldBeFalse();
+		typeof(IFencedClaimScopedOutboxStore).IsAssignableFrom(Resolve("Redis").StoreType).ShouldBeFalse();
+		typeof(IClaimScopedOutboxStore).IsAssignableFrom(Resolve("CosmosDb").StoreType).ShouldBeFalse();
+
 		// The cloud-native stores (Cosmos/DynamoDb/Firestore) DECLARE ICloudNativeOutboxStoreBatch — the
 		// batch capability their providers were built for is now reachable, so CloudNativeOutboxStore-
 		// Extensions' is-check routes to the real batch path rather than the per-item fallback. Coherence:
@@ -312,6 +349,82 @@ public sealed class OutboxCapabilityMatrixShould
 			.ShouldAllBe(e => e.ExpectedCapabilities.Contains(typeof(ICloudNativeOutboxStoreBatch)));
 		Matrix.Where(e => e.Family == OutboxFamily.Traditional)
 			.ShouldAllBe(e => !e.ExpectedCapabilities.Contains(typeof(ICloudNativeOutboxStoreBatch)));
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Oracle_InstanceWorkerAvailabilityRequiresAnOwnedConnectionSource(bool ownedWorkers)
+	{
+		var borrowed = A.Fake<IDb>();
+		var callbackCalls = 0;
+		var expected = new InvalidOperationException("deliberate worker callback failure before any connection exists");
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox.UseOracle(oracle =>
+		{
+			oracle.ConnectionFactory(_ => borrowed);
+			if (ownedWorkers)
+			{
+				oracle.WorkerConnectionFactory((_, _) =>
+				{
+					callbackCalls++;
+					throw expected;
+				});
+			}
+		})));
+		await using var provider = services.BuildServiceProvider(validateScopes: true);
+		var store = provider.GetRequiredService<IOutboxStore>();
+		store.ShouldBeSameAs(provider.GetRequiredKeyedService<IOutboxStore>("oracle"));
+		store.ShouldBeSameAs(provider.GetRequiredKeyedService<IOutboxStore>("default"));
+		foreach (var capability in new[]
+		{
+			typeof(IClaimScopedOutboxStore), typeof(IClaimScopedDeadLetterableOutboxStore),
+			typeof(IFencedOutboxStore), typeof(IFencedClaimScopedOutboxStore), typeof(IFencedDeadLetterableOutboxStore),
+		})
+		{
+			capability.IsAssignableFrom(store.GetType()).ShouldBeTrue("a declaration alone cannot prove this instance is worker-admissible");
+			if (ownedWorkers) { store.GetService(capability).ShouldBeSameAs(store); }
+			else { store.GetService(capability).ShouldBeNull(); }
+		}
+		store.GetService(typeof(IOutboxStore)).ShouldBeSameAs(store);
+		store.GetService(typeof(ICloudNativeOutboxStore)).ShouldBeNull();
+		callbackCalls.ShouldBe(0, "capability discovery must not acquire a connection");
+		var actual = await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await ((IClaimScopedOutboxStore)store).MarkSentAsync("message", "claim", CancellationToken.None));
+		if (ownedWorkers)
+		{
+			actual.ShouldBeSameAs(expected);
+			callbackCalls.ShouldBe(1);
+		}
+		else
+		{
+			actual.Message.ShouldContain("WorkerConnectionFactory");
+			callbackCalls.ShouldBe(0);
+		}
+		A.CallTo(() => borrowed.Connection).MustNotHaveHappened();
+	}
+
+	[Fact]
+	public void Marten_InstanceExposesClaimCompletionWithoutInventingDeadLetterOrFencing()
+	{
+		var documentStore = A.Fake<global::Marten.IDocumentStore>();
+		using var concrete = new global::Excalibur.Outbox.Marten.MartenOutboxStore(documentStore,
+			global::Microsoft.Extensions.Options.Options.Create(new global::Excalibur.Outbox.Marten.MartenOutboxStoreOptions()),
+			NullLogger<global::Excalibur.Outbox.Marten.MartenOutboxStore>.Instance);
+		IOutboxStore store = concrete;
+		store.GetService(typeof(IClaimScopedOutboxStore)).ShouldBeSameAs(concrete);
+		store.GetService(typeof(IOutboxStore)).ShouldBeSameAs(concrete);
+		foreach (var missing in new[]
+		{
+			typeof(IClaimScopedDeadLetterableOutboxStore), typeof(IFencedOutboxStore),
+			typeof(IFencedClaimScopedOutboxStore), typeof(IFencedDeadLetterableOutboxStore),
+			typeof(ICloudNativeOutboxStore),
+		})
+		{
+			store.GetService(missing).ShouldBeNull();
+		}
+		Fake.GetCalls(documentStore).ShouldBeEmpty("capability discovery does not open a Marten session or certify database behavior");
 	}
 
 	private static bool IsConcreteBackingStore(Type t) =>

@@ -79,6 +79,7 @@ public class RetryPolicyMicroBenchmarks
 				BaseDelay = delay,
 				MaxDelay = delay,
 				UseJitter = false,
+				ShouldRetry = RetryBenchmarkFilter.Create(options),
 			}),
 			logger);
 	}

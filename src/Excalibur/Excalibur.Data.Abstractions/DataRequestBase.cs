@@ -3,6 +3,7 @@
 
 
 using System.Data;
+using System.Data.Common;
 
 using Dapper;
 
@@ -72,4 +73,43 @@ public abstract class DataRequestBase<TConnection, TModel> : IDataRequest<TConne
 			CommandFlags.Buffered,
 			cancellationToken);
 	}
+	/// <summary>Executes this request without runtime parameter discovery or generated command initialization.</summary>
+	/// <param name="connection">The existing provider connection.</param>
+	/// <param name="bind">Binds the operation's known parameters from their current request values.</param>
+	/// <returns>The affected row count.</returns>
+	/// <remarks>The request's command text, transaction, timeout, command type and cancellation token are preserved.</remarks>
+	protected Task<int> ExecuteNonQueryAsync(IDbConnection connection, Action<DbCommand> bind)
+	{
+		ArgumentNullException.ThrowIfNull(connection);
+		ArgumentNullException.ThrowIfNull(bind);
+		return StaticDbCommand.ExecuteAsync(connection, Command, bind);
+	}
+
+	/// <summary>Reads this request's scalar result without runtime parameter discovery.</summary>
+	/// <param name="connection">The existing provider connection.</param>
+	/// <param name="bind">Binds the operation's known parameters from their current request values.</param>
+	/// <returns>The provider's first-column scalar value.</returns>
+	protected Task<object?> ExecuteScalarAsync(IDbConnection connection, Action<DbCommand> bind)
+	{
+		ArgumentNullException.ThrowIfNull(connection);
+		ArgumentNullException.ThrowIfNull(bind);
+		return StaticDbCommand.ScalarAsync(connection, Command, bind);
+	}
+
+	/// <summary>Buffers rows with an explicit ordinal projection instead of runtime row mapping.</summary>
+	/// <typeparam name="TRow">The operation's statically known row type.</typeparam>
+	/// <param name="connection">The existing provider connection.</param>
+	/// <param name="bind">Binds the operation's known parameters from their current request values.</param>
+	/// <param name="materialize">Reads one current row using the operation's fixed projection.</param>
+	/// <returns>The fully buffered rows after reader cleanup.</returns>
+	/// <remarks>A borrowed open connection and transaction remain caller-owned. A connection opened for this request is closed afterward.</remarks>
+	protected Task<IEnumerable<TRow>> ReadRowsAsync<TRow>(IDbConnection connection, Action<DbCommand> bind,
+		Func<DbDataReader, TRow> materialize)
+	{
+		ArgumentNullException.ThrowIfNull(connection);
+		ArgumentNullException.ThrowIfNull(bind);
+		ArgumentNullException.ThrowIfNull(materialize);
+		return StaticDbCommand.QueryAsync(connection, Command, bind, materialize);
+	}
+
 }

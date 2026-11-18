@@ -13,7 +13,7 @@ public sealed class RabbitMqOptionsShould : UnitTestBase
 	public void ConnectionString_CanBeCustomized()
 	{
 		// Arrange
-		var options = new RabbitMqOptions();
+		var options = new RabbitMQTransportOptions();
 
 		// Act
 		options.Connection.ConnectionString = "amqp://user:pass@localhost:5672";

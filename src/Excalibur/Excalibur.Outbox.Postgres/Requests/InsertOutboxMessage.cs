@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
@@ -39,6 +39,11 @@ public sealed class InsertOutboxMessage : DataRequest<int>
 	/// <param name="outboxTableName">The name of the outbox table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public InsertOutboxMessage(
 		string messageId,
 		string messageType,
@@ -107,6 +112,31 @@ public sealed class InsertOutboxMessage : DataRequest<int>
 		parameters.Add("CreatedAt", new TimestampTzParameter(createdAt));
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.ExecuteAsync(conn, Command, Bind).ConfigureAwait(false);
+	}
+
+	internal Task<int> ExecuteInTransactionAsync(IDbConnection connection, IDbTransaction transaction) =>
+		StaticDbCommand.ExecuteAsync(connection,
+			new CommandDefinition(Command.CommandText, Command.Parameters, transaction, Command.CommandTimeout,
+				Command.CommandType, Command.Flags, Command.CancellationToken), Bind);
+
+	private void Bind(System.Data.Common.DbCommand command)
+	{
+		StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+		StaticDbCommand.AddParameter(command, "MessageType", StaticDbCommand.Input<string>(Parameters, "MessageType"), DbType.String);
+		StaticDbCommand.AddParameter(command, "MessageMetadata", StaticDbCommand.Input<string>(Parameters, "MessageMetadata"), DbType.String);
+		StaticDbCommand.AddParameter(command, "MessageBody", StaticDbCommand.RequiredInput<byte[]>(Parameters, "MessageBody"), DbType.Binary);
+		StaticDbCommand.AddParameter(command, "TenantId", StaticDbCommand.Input<string>(Parameters, "TenantId"), DbType.String);
+		StaticDbCommand.AddNullableStringParameter(command, "Destination", StaticDbCommand.Input<string?>(Parameters, "Destination"));
+		StaticDbCommand.AddNullableStringParameter(command, "CorrelationId", StaticDbCommand.Input<string?>(Parameters, "CorrelationId"));
+		StaticDbCommand.AddNullableStringParameter(command, "CausationId", StaticDbCommand.Input<string?>(Parameters, "CausationId"));
+		StaticDbCommand.AddParameter(command, "Priority", StaticDbCommand.Input<int>(Parameters, "Priority"), DbType.Int32);
+		StaticDbCommand.RequiredInput<TimestampTzParameter>(Parameters, "ScheduledAt").AddParameter(command, "ScheduledAt");
+		StaticDbCommand.AddNullableStringParameter(command, "PartitionKey", StaticDbCommand.Input<string?>(Parameters, "PartitionKey"));
+		StaticDbCommand.AddNullableStringParameter(command, "GroupKey", StaticDbCommand.Input<string?>(Parameters, "GroupKey"));
+		StaticDbCommand.AddParameter(command, "SequenceNumber", StaticDbCommand.Input<long>(Parameters, "SequenceNumber"), DbType.Int64);
+		StaticDbCommand.AddNullableStringParameter(command, "TargetTransports", StaticDbCommand.Input<string?>(Parameters, "TargetTransports"));
+		StaticDbCommand.AddParameter(command, "IsMultiTransport", StaticDbCommand.Input<bool>(Parameters, "IsMultiTransport"), DbType.Boolean);
+		StaticDbCommand.RequiredInput<TimestampTzParameter>(Parameters, "CreatedAt").AddParameter(command, "CreatedAt");
 	}
 }

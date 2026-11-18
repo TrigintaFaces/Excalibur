@@ -47,6 +47,10 @@ internal sealed class UpdateDataTaskAttempts : DataRequest<int>
 		parameters.Add("Attempts", attempts, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, parameters: parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = conn => DataTaskCommandExecutor.ExecuteAsync(conn, Command, command =>
+		{
+			DataTaskCommandExecutor.Add(command, "DataTaskId", DbType.Guid, parameters.Get<Guid>("DataTaskId"));
+			DataTaskCommandExecutor.Add(command, "Attempts", DbType.Int32, parameters.Get<int>("Attempts"));
+		});
 	}
 }

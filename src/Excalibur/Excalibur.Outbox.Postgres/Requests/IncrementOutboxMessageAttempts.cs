@@ -30,6 +30,11 @@ public sealed class IncrementOutboxMessageAttempts : DataRequest<int>
 	/// The update targets the globally-unique outbox <c>message_id</c>, which addresses exactly one row, so no
 	/// tenant predicate is applied: the drain is cross-tenant infrastructure and must always be able to update
 	/// the row it claimed, regardless of any ambient tenant context.
+	/// <para>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </para>
 	/// </remarks>
 	public IncrementOutboxMessageAttempts(string messageId, string outboxTableName, int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
@@ -44,6 +49,9 @@ public sealed class IncrementOutboxMessageAttempts : DataRequest<int>
 		parameters.Add("MessageId", messageId, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.ExecuteAsync(conn, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+			}).ConfigureAwait(false);
 	}
 }

@@ -493,12 +493,12 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		}
 	}
 
-	// A deterministic authoritative store: expiry is checked under the same lock as generation and ownership.
-	private sealed class ExpiringStore(TimeProvider clock) : IScheduleExecutionLeaseRenewal
+	// Expiry and observer hooks surround the real in-memory failure authority. The one-permit
+	// BCL channel serializes awaited operations without blocking a thread or owning a wait handle.
+	private sealed class ExpiringStore(TimeProvider clock) : IScheduleExecutionLeaseRenewal, IScheduleExecutionFailureStore
 	{
-		private readonly System.Threading.Lock _gate = new();
-		private readonly Guid _storeId = Guid.NewGuid();
-		private ScheduledMessage? _row;
+		private readonly System.Threading.Channels.Channel<byte> _gate = CreateGate();
+		private readonly InMemoryScheduleStore _authority = new(clock);
 		private ScheduleExecutionLease? _owner;
 		private DateTimeOffset _expires;
 		private TaskCompletionSource _renewed = Signal();
@@ -519,83 +519,209 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		public TaskCompletionSource Released { get; } = Signal();
 		public int ProgressCalls { get; private set; }
 		public bool Committed { get; private set; }
-		public Task NextRenewal() { lock (_gate) { return _renewed.Task; } }
-		public Task StoreAsync(IScheduledMessage row, CancellationToken ct)
+		public Task NextRenewal() => Volatile.Read(ref _renewed).Task;
+
+		public async Task StoreAsync(IScheduledMessage row, CancellationToken ct)
 		{
-			lock (_gate) { ct.ThrowIfCancellationRequested(); _row = ScheduleExecutionSnapshot.Copy(row); Generation = Guid.NewGuid(); _owner = null; Committed = false; }
-			return Task.CompletedTask;
+			await EnterAsync(ct);
+			try
+			{
+				await _authority.StoreAsync(row, ct);
+				await RefreshGenerationAsync(CancellationToken.None);
+				_owner = null;
+				Committed = false;
+			}
+			finally { Exit(); }
 		}
-		public Task CompleteAsync(Guid id, CancellationToken ct)
+
+		public async Task CompleteAsync(Guid id, CancellationToken ct)
 		{
-			lock (_gate) { ct.ThrowIfCancellationRequested(); if (_row?.Id == id) { _row.Enabled = false; Generation = Guid.NewGuid(); _owner = null; } }
-			return Task.CompletedTask;
+			await EnterAsync(ct);
+			try
+			{
+				var before = (await _authority.GetExecutionSnapshotsAsync(ct)).SingleOrDefault();
+				await _authority.CompleteAsync(id, ct);
+				var after = (await _authority.GetExecutionSnapshotsAsync(CancellationToken.None)).SingleOrDefault();
+				Generation = after?.Generation ?? Guid.Empty;
+				if (before?.Generation != after?.Generation || (before?.Message.Enabled == true && after?.Message.Enabled == false)) { _owner = null; }
+			}
+			finally { Exit(); }
 		}
-		public Task<IEnumerable<IScheduledMessage>> GetAllAsync(CancellationToken ct)
+
+		public async Task<IEnumerable<IScheduledMessage>> GetAllAsync(CancellationToken ct)
 		{
-			lock (_gate) { ct.ThrowIfCancellationRequested(); return Task.FromResult<IEnumerable<IScheduledMessage>>(_row is null ? [] : [ScheduleExecutionSnapshot.Copy(_row)]); }
+			await EnterAsync(ct);
+			try { return await _authority.GetAllAsync(ct); }
+			finally { Exit(); }
 		}
-		public Task<IReadOnlyList<ScheduleExecutionSnapshot>> GetExecutionSnapshotsAsync(CancellationToken ct)
+		public async Task<IReadOnlyList<ScheduleExecutionSnapshot>> GetExecutionSnapshotsAsync(CancellationToken ct)
 		{
-			lock (_gate) { ct.ThrowIfCancellationRequested(); return Task.FromResult<IReadOnlyList<ScheduleExecutionSnapshot>>(_row is null ? [] : [new(Generation, _row)]); }
+			await EnterAsync(ct);
+			try { return await _authority.GetExecutionSnapshotsAsync(ct); }
+			finally { Exit(); }
 		}
+
 		public async Task<ScheduleExecutionLease?> TryAcquireExecutionAsync(Guid id, Guid generation, DateTimeOffset occurrence, CancellationToken ct)
 		{
-			ScheduleExecutionLease lease;
-			lock (_gate)
+			ScheduleExecutionLease? lease;
+			await EnterAsync(ct);
+			try
 			{
 				ct.ThrowIfCancellationRequested();
 				Acquisitions++;
-				if (_row is null || !_row.Enabled || _row.Id != id || Generation != generation || _row.NextExecutionUtc != occurrence || (_owner is not null && clock.GetUtcNow() < _expires)) { return null; }
-				_owner = new(_storeId, id, generation, occurrence, Guid.NewGuid());
-				_expires = clock.GetUtcNow().Add(LeaseDuration); Committed = false;
-				lease = _owner;
+				if (!await PrepareAdmissionAsync(ct)) { return null; }
+				lease = await _authority.TryAcquireExecutionAsync(id, generation, occurrence, ct);
+				if (lease is null) { return null; }
+				Own(lease);
 			}
+			finally { Exit(); }
 			if (AfterAcquire is { } barrier) { await barrier(ct); }
 			return lease;
+		}
+		public async Task<ScheduleFailureExecutionAdmission?> TryAcquireExecutionAsync(Guid id, Guid generation, DateTimeOffset occurrence, int requestedMaxAdmissionAttempts, CancellationToken ct)
+		{
+			ScheduleFailureExecutionAdmission? admission;
+			await EnterAsync(ct);
+			try
+			{
+				ct.ThrowIfCancellationRequested();
+				Acquisitions++;
+				if (!await PrepareAdmissionAsync(ct)) { return null; }
+				admission = await _authority.TryAcquireExecutionAsync(id, generation, occurrence, requestedMaxAdmissionAttempts, ct);
+				if (admission is null) { return null; }
+				Own(admission.Lease);
+			}
+			finally { Exit(); }
+			if (AfterAcquire is { } barrier) { await barrier(ct); }
+			return admission;
+		}
+		private async Task<bool> PrepareAdmissionAsync(CancellationToken ct)
+		{
+			if (_owner is null) { return true; }
+			if (clock.GetUtcNow() < _expires) { return false; }
+			// Expiry revocation is not worker cleanup and emits no AfterRelease observation.
+			await _authority.ReleaseExecutionAsync(_owner, ct);
+			_owner = null;
+			return true;
+		}
+		private void Own(ScheduleExecutionLease lease)
+		{
+			_owner = lease;
+			_expires = clock.GetUtcNow().Add(LeaseDuration);
+			Committed = false;
 		}
 		public async Task<bool> TryRenewExecutionAsync(ScheduleExecutionLease lease, CancellationToken ct)
 		{
 			RenewalCalls++;
-			if (Renewal is { } custom)
-			{
-				var result = await custom(lease, ct);
-				return result;
-			}
-			lock (_gate)
+			// Deliberately uncooperative provider callbacks remain outside the authority gate.
+			if (Renewal is { } custom) { return await custom(lease, ct); }
+			await EnterAsync(ct);
+			try
 			{
 				ct.ThrowIfCancellationRequested();
 				if (!Matches(lease)) { return false; }
 				RenewalCount++;
 				_expires = clock.GetUtcNow().Add(LeaseDuration);
-				var signal = _renewed; _renewed = Signal(); signal.TrySetResult(); return true;
+				Interlocked.Exchange(ref _renewed, Signal()).TrySetResult();
+				return true;
 			}
+			finally { Exit(); }
 		}
-		public async Task<bool> TryUpdateProgressAsync(ScheduleExecutionLease lease, ScheduleExecutionResult result, CancellationToken ct)
+		public Task<bool> TryUpdateProgressAsync(ScheduleExecutionLease lease, ScheduleExecutionResult result, CancellationToken ct) =>
+			ProgressAsync(lease, result, null, ct);
+		public Task<bool> TryCompleteExecutionAsync(ScheduleExecutionLease lease, ScheduleExecutionResult result, ScheduleExecutionCompletionDisposition disposition, CancellationToken ct) =>
+			ProgressAsync(lease, result, disposition, ct);
+		private async Task<bool> ProgressAsync(ScheduleExecutionLease lease, ScheduleExecutionResult result, ScheduleExecutionCompletionDisposition? disposition, CancellationToken ct)
 		{
 			ProgressToken = ct;
 			ProgressCalls++;
 			if (BeforeProgress is { } barrier) { await barrier(ct); }
-			lock (_gate)
+			await EnterAsync(ct);
+			try
 			{
-				ct.ThrowIfCancellationRequested(); if (!Matches(lease) || Committed) { return false; }
-				_row!.LastExecutionUtc = result.LastExecutionUtc; _row.NextExecutionUtc = result.NextExecutionUtc;
-				if (result.Disable) { _row.Enabled = false; }
+				ct.ThrowIfCancellationRequested();
+				if (!Matches(lease) || Committed) { return false; }
+				var completed = disposition is { } typed
+					? await _authority.TryCompleteExecutionAsync(lease, result, typed, ct)
+					: await _authority.TryUpdateProgressAsync(lease, result, ct);
+				if (!completed) { return false; }
 				Committed = true;
 			}
+			finally { Exit(); }
 			if (AfterProgress is { } after) { await after(); }
 			return true;
 		}
-		public Task<bool> ReleaseExecutionAsync(ScheduleExecutionLease lease, CancellationToken ct)
+		public async Task<bool> TryRecordFailureAsync(ScheduleExecutionLease lease, ScheduleOccurrenceFailure failure, CancellationToken ct)
 		{
-			lock (_gate)
+			await EnterAsync(ct);
+			try
 			{
-				ct.ThrowIfCancellationRequested(); var matches = _owner == lease && Generation == lease.Generation;
+				ct.ThrowIfCancellationRequested();
+				return Matches(lease) && await _authority.TryRecordFailureAsync(lease, failure, ct);
+			}
+			finally { Exit(); }
+		}
+		public async Task<ScheduleQuarantineRecoveryReceipt?> TryResumeQuarantinedOccurrenceAsync(ScheduleQuarantineToken token, Guid commandId, CancellationToken ct)
+		{
+			await EnterAsync(ct);
+			try
+			{
+				var generation = Generation;
+				var receipt = await _authority.TryResumeQuarantinedOccurrenceAsync(token, commandId, ct);
+				if (receipt is not null)
+				{
+					await RefreshGenerationAsync(CancellationToken.None);
+					// Historical receipt replay is observation, not a new ownership mutation.
+					if (Generation != generation) { _owner = null; Committed = false; }
+				}
+				return receipt;
+			}
+			finally { Exit(); }
+		}
+		public async Task<ScheduleOccurrenceFailureSnapshot?> GetOccurrenceFailureAsync(Guid id, Guid generation, DateTimeOffset occurrence, string? tenantId, CancellationToken ct)
+		{
+			await EnterAsync(ct);
+			try { return await _authority.GetOccurrenceFailureAsync(id, generation, occurrence, tenantId, ct); }
+			finally { Exit(); }
+		}
+		public async Task<IReadOnlyList<ScheduleOccurrenceFailureSnapshot>> GetQuarantinesAsync(string? tenantId, Guid? after, int maximumCount, CancellationToken ct)
+		{
+			await EnterAsync(ct);
+			try { return await _authority.GetQuarantinesAsync(tenantId, after, maximumCount, ct); }
+			finally { Exit(); }
+		}
+		public async Task<bool> ReleaseExecutionAsync(ScheduleExecutionLease lease, CancellationToken ct)
+		{
+			await EnterAsync(ct);
+			try
+			{
+				ct.ThrowIfCancellationRequested();
+				var matches = SameAuthority(lease) && await _authority.ReleaseExecutionAsync(lease, ct);
 				if (matches) { _owner = null; }
 				ReleaseCount++; AfterRelease?.Invoke(ReleaseCount);
-				Released.TrySetResult(); return Task.FromResult(matches);
+				Released.TrySetResult();
+				return matches;
 			}
+			finally { Exit(); }
 		}
-		private bool Matches(ScheduleExecutionLease lease) => _owner == lease && Generation == lease.Generation && clock.GetUtcNow() < _expires;
+		private bool SameAuthority(ScheduleExecutionLease lease) => _owner is { } owner
+			&& owner.StoreId == lease.StoreId && owner.ScheduleId == lease.ScheduleId
+			&& owner.Generation == lease.Generation && owner.OccurrenceUtc == lease.OccurrenceUtc
+			&& owner.OwnerToken == lease.OwnerToken && Generation == lease.Generation;
+		private bool Matches(ScheduleExecutionLease lease) => SameAuthority(lease) && clock.GetUtcNow() < _expires;
+		private async Task RefreshGenerationAsync(CancellationToken ct) =>
+			Generation = (await _authority.GetExecutionSnapshotsAsync(ct)).SingleOrDefault()?.Generation ?? Guid.Empty;
+		private static System.Threading.Channels.Channel<byte> CreateGate()
+		{
+			var gate = System.Threading.Channels.Channel.CreateBounded<byte>(1);
+			if (!gate.Writer.TryWrite(0)) { throw new InvalidOperationException("The fixture gate could not initialize."); }
+			return gate;
+		}
+		private async ValueTask EnterAsync(CancellationToken ct) { _ = await _gate.Reader.ReadAsync(ct); }
+		private void Exit()
+		{
+			if (!_gate.Writer.TryWrite(0)) { throw new InvalidOperationException("The fixture gate was released twice."); }
+		}
 	}
 
 	// Observe timer registration rather than sleeping or racing the renewal task's asynchronous continuation.

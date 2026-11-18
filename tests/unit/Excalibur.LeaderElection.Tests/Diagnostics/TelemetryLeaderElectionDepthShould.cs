@@ -22,6 +22,7 @@ public sealed class TelemetryLeaderElectionDepthShould : IDisposable
 	public TelemetryLeaderElectionDepthShould()
 	{
 		_inner = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(_inner);
 		A.CallTo(() => _inner.CandidateId).Returns("candidate-1");
 		A.CallTo(() => _inner.IsLeader).Returns(false);
 		A.CallTo(() => _inner.CurrentLeaderId).Returns((string?)null);
@@ -167,6 +168,7 @@ public sealed class TelemetryLeaderElectionDepthShould : IDisposable
 		// Assert
 		eventRaised.ShouldBeTrue();
 		await sut.DisposeAsync();
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 	}
 
 	[Fact]
@@ -183,6 +185,7 @@ public sealed class TelemetryLeaderElectionDepthShould : IDisposable
 		// Assert
 		eventRaised.ShouldBeTrue();
 		await sut.DisposeAsync();
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 	}
 
 	[Fact]
@@ -199,6 +202,7 @@ public sealed class TelemetryLeaderElectionDepthShould : IDisposable
 		// Assert
 		eventRaised.ShouldBeTrue();
 		await sut.DisposeAsync();
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 	}
 
 	[Fact]
@@ -209,7 +213,9 @@ public sealed class TelemetryLeaderElectionDepthShould : IDisposable
 
 		// Act - dispose twice
 		await sut.DisposeAsync();
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 		await sut.DisposeAsync(); // Should not throw
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert - no exception means success
 	}
@@ -220,12 +226,14 @@ public sealed class TelemetryLeaderElectionDepthShould : IDisposable
 		// Arrange
 		var asyncDisposableInner = A.Fake<ILeaderElection>(builder =>
 			builder.Implements<IAsyncDisposable>());
+		SynchronousElectionFakeNotifications.Configure(asyncDisposableInner);
 		A.CallTo(() => asyncDisposableInner.CandidateId).Returns("test");
 
 		var sut = new TelemetryLeaderElection(asyncDisposableInner, _meter, _activitySource, "test");
 
 		// Act
 		await sut.DisposeAsync();
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 #pragma warning disable CA2012
@@ -240,12 +248,14 @@ public sealed class TelemetryLeaderElectionDepthShould : IDisposable
 		// even when IDisposable is also implemented (IAsyncDisposable priority pattern)
 		var disposableInner = A.Fake<ILeaderElection>(builder =>
 			builder.Implements<IDisposable>());
+		SynchronousElectionFakeNotifications.Configure(disposableInner);
 		A.CallTo(() => disposableInner.CandidateId).Returns("test");
 
 		var sut = new TelemetryLeaderElection(disposableInner, _meter, _activitySource, "test");
 
 		// Act
 		await sut.DisposeAsync();
+		await sut.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert — DisposeAsync takes priority over Dispose when both are available
 #pragma warning disable CA2012

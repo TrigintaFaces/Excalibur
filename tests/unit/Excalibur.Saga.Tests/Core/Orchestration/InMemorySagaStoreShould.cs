@@ -44,16 +44,21 @@ public sealed class InMemorySagaStoreShould
 		// Arrange
 		var sagaId = Guid.NewGuid();
 		var state1 = new TestSagaState { SagaId = sagaId, Completed = false, Version = 0 };
-		var state2 = new TestSagaState { SagaId = sagaId, Completed = true, Version = 1 };
 
 		// Act
 		await _sut.SaveAsync(state1, CancellationToken.None);
+		// Public load preserves the opaque concurrency/lifetime metadata for a detached update.
+		var state2 = (await _sut.LoadAsync<TestSagaState>(sagaId, CancellationToken.None)).ShouldNotBeNull();
+		state2.ShouldNotBeSameAs(state1);
+		state2.Version.ShouldBe(1);
+		state2.Completed = true;
 		await _sut.SaveAsync(state2, CancellationToken.None);
 
 		// Assert
 		var loaded = await _sut.LoadAsync<TestSagaState>(sagaId, CancellationToken.None);
 		loaded.ShouldNotBeNull();
 		loaded.Completed.ShouldBeTrue();
+		loaded.Version.ShouldBe(2);
 	}
 
 	[Fact]

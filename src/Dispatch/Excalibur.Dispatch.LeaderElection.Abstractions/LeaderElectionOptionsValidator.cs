@@ -11,28 +11,23 @@ namespace Excalibur.Dispatch.LeaderElection;
 /// <remarks>
 /// Ensures:
 /// <list type="bullet">
+/// <item>All four timing values are positive.</item>
 /// <item><see cref="LeaderElectionOptions.RenewInterval"/> is less than <see cref="LeaderElectionOptions.LeaseDuration"/>.</item>
 /// <item><see cref="LeaderElectionOptions.GracePeriod"/> is less than <see cref="LeaderElectionOptions.LeaseDuration"/>.</item>
 /// <item>
-/// The self-demotion deadline (<see cref="LeaderElectionOptions.RenewInterval"/> +
+/// The configured timing budget (<see cref="LeaderElectionOptions.RenewInterval"/> +
 /// <see cref="LeaderElectionOptions.GracePeriod"/> + a clock-skew margin) is strictly less than
-/// <see cref="LeaderElectionOptions.LeaseDuration"/>. A renewal loop waits one
-/// <see cref="LeaderElectionOptions.RenewInterval"/> and then self-demotes only after the grace
-/// period has elapsed, so the effective self-demotion happens roughly
-/// <c>RenewInterval + GracePeriod</c> after the last successful renewal. If the lease key expires
-/// at <see cref="LeaderElectionOptions.LeaseDuration"/> <em>before</em> the holder self-demotes,
-/// another node can acquire the lease while this node still believes it is the leader — a guaranteed
-/// split-brain overlap window. Enforcing the cross-property sum closes that window.
+/// <see cref="LeaderElectionOptions.LeaseDuration"/>. This validates configuration headroom only;
+/// it does not prove a runtime deadline, bound a provider call, or establish substrate ownership.
+/// Providers must enforce their own renewal/verification deadlines and actual backend lease rules.
 /// </item>
 /// </list>
 /// </remarks>
 public sealed class LeaderElectionOptionsValidator : IValidateOptions<LeaderElectionOptions>
 {
 	/// <summary>
-	/// Safety margin added to the self-demotion deadline so the holder relinquishes strictly before lease
-	/// expiry. It budgets for both modest clock drift between nodes and the store round-trip latency (RTT)
-	/// of a renewal call — a renewal that leaves in time but completes late (slow network) must still land
-	/// before the lease expires, so the margin covers skew + RTT together.
+	/// Headroom reserved by the configuration check. This constant is not a measured upper bound on
+	/// clock skew, scheduling pauses or network round-trip time, and does not bound provider calls.
 	/// </summary>
 	private static readonly TimeSpan ClockSkewMargin = TimeSpan.FromSeconds(1);
 
@@ -40,6 +35,23 @@ public sealed class LeaderElectionOptionsValidator : IValidateOptions<LeaderElec
 	public ValidateOptionsResult Validate(string? name, LeaderElectionOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+
+		if (options.LeaseDuration <= TimeSpan.Zero)
+		{
+			return ValidateOptionsResult.Fail($"{nameof(LeaderElectionOptions.LeaseDuration)} must be positive.");
+		}
+		if (options.RenewInterval <= TimeSpan.Zero)
+		{
+			return ValidateOptionsResult.Fail($"{nameof(LeaderElectionOptions.RenewInterval)} must be positive.");
+		}
+		if (options.RetryInterval <= TimeSpan.Zero)
+		{
+			return ValidateOptionsResult.Fail($"{nameof(LeaderElectionOptions.RetryInterval)} must be positive.");
+		}
+		if (options.GracePeriod <= TimeSpan.Zero)
+		{
+			return ValidateOptionsResult.Fail($"{nameof(LeaderElectionOptions.GracePeriod)} must be positive.");
+		}
 
 		if (options.RenewInterval >= options.LeaseDuration)
 		{
@@ -55,18 +67,17 @@ public sealed class LeaderElectionOptionsValidator : IValidateOptions<LeaderElec
 				$"{nameof(LeaderElectionOptions.LeaseDuration)} ({options.LeaseDuration}).");
 		}
 
-		// Cross-property rule: the self-demotion deadline must fall strictly before lease expiry,
-		// otherwise a validation-passing config still guarantees a split-brain overlap window.
-		var selfDemotionDeadline = options.RenewInterval + options.GracePeriod + ClockSkewMargin;
-		if (selfDemotionDeadline >= options.LeaseDuration)
+		// Configuration headroom is necessary but does not establish provider deadline enforcement.
+		// Subtraction preserves the strict sum relation without overflowing TimeSpan for extreme input.
+		var remainingLease = options.LeaseDuration - options.RenewInterval;
+		if (options.GracePeriod >= remainingLease || ClockSkewMargin >= remainingLease - options.GracePeriod)
 		{
 			return ValidateOptionsResult.Fail(
 				$"{nameof(LeaderElectionOptions.RenewInterval)} ({options.RenewInterval}) + " +
 				$"{nameof(LeaderElectionOptions.GracePeriod)} ({options.GracePeriod}) + clock-skew margin " +
 				$"({ClockSkewMargin}) must be less than {nameof(LeaderElectionOptions.LeaseDuration)} " +
-				$"({options.LeaseDuration}); otherwise the self-demotion deadline falls at or after lease " +
-				$"expiry, guaranteeing a split-brain overlap window where another node can acquire the lease " +
-				$"before this node relinquishes leadership.");
+				$"({options.LeaseDuration}); otherwise the configured renewal timing leaves no headroom " +
+				$"before lease expiry. Runtime deadline enforcement and ownership are provider-specific.");
 		}
 
 		return ValidateOptionsResult.Success;

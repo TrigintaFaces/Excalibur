@@ -33,15 +33,16 @@ namespace Excalibur.Compliance;
 /// erasure request dropped that way is a statutory right silently lost, with nothing anywhere reporting it.
 /// </para>
 /// <para>
-/// <b>Two different ways of reporting "not found" appear here, deliberately.</b>
-/// <see cref="UpdateStatusAsync"/> and <see cref="RecordCancellationAsync"/> return <see langword="false"/>
-/// when no matching request exists, because for those operations a missing request is an ordinary outcome
-/// a caller is expected to branch on. <see cref="UpdateStatusAsync"/> returns it for a second reason as
-/// well — a refused claim, described on that member — and a caller that needs to tell the two apart must
-/// read the status rather than infer it from the <see langword="false"/>. <see cref="RecordCompletionAsync"/> throws instead, because
-/// recording a completion asserts that an erasure actually happened: silently succeeding would attest to
-/// erasing data that was never requested, and that attestation is the evidence a data subject or a
-/// regulator is ultimately shown.
+/// <b>Expected write outcomes are explicit.</b> <see cref="UpdateStatusAsync"/> returns
+/// <see cref="ErasureWriteOutcome"/> to distinguish an applied write, a lost claim, an illegal status
+/// transition and a request absent from the ambient tenant. <see cref="RecordCompletionAsync"/> returns
+/// <see cref="ErasureWriteOutcome.Applied"/> or <see cref="ErasureWriteOutcome.ClaimLost"/>; an absent
+/// request or an ineligible completion status remains an anomaly signaled by
+/// <see cref="KeyNotFoundException"/>. Test for <see cref="ErasureWriteOutcome.Applied"/> by name; a
+/// refused write must never attest that erasure completed. Losing a claim requires standing down rather
+/// than overwriting the new executor. <see cref="RecordCancellationAsync"/> retains its Boolean result.
+/// Typed refusals do not replace the documented exceptions for invalid inputs, provisioning, tenant or
+/// infrastructure failures.
 /// </para>
 /// <para>
 /// <b>Tenant confinement.</b> Every member here is confined to the ambient tenant established for this
@@ -122,43 +123,218 @@ public interface IErasureStore
 	/// <param name="status">The new status.</param>
 	/// <remarks>
 	/// <para>
-	/// <b>The transition to <see cref="ErasureRequestStatus.InProgress"/> is a CLAIM, and it is
-	/// conditional.</b> It succeeds only for a request currently in
-	/// <see cref="ErasureRequestStatus.Scheduled"/>, and the test and the write are ONE indivisible
-	/// operation — a conditional update whose predicate names the expected prior state, never a read
-	/// followed by a write. Two callers racing to execute the same request must not both be told they
-	/// claimed it: exactly one receives <see langword="true"/> and the other <see langword="false"/>.
-	/// An implementation that updates the row unconditionally satisfies every single-threaded test and
-	/// grants the claim to both racers, each of which then erases the same subject and writes its own
-	/// completion certificate — one of them attesting that keys were destroyed when its own attempt
-	/// found nothing left to destroy.
+	/// <b>THIS MEMBER MAY NOT BE USED TO TAKE CUSTODY, and asking it to throws.</b> Writing
+	/// <see cref="ErasureRequestStatus.InProgress"/> through it raises
+	/// <see cref="System.ArgumentException"/>: that status records CUSTODY, claiming has its own door in
+	/// <see cref="ClaimForExecutionAsync"/>, and that is the only member which mints the identity a
+	/// fenced write presents. A second door would advance a request into the claimed status for a caller
+	/// holding no identity, and every fenced write it then made would compare against nothing.
 	/// </para>
 	/// <para>
-	/// Every other transition is unconditional: a request may be moved to a terminal or blocked state
-	/// from whatever state it is in, because those transitions record an outcome rather than acquire
-	/// ownership.
+	/// <i>Superseded wording, quoted so an implementation written against it is recognisable: "The
+	/// transition to InProgress is a CLAIM, and it is conditional. It succeeds only for a request
+	/// currently in Scheduled ... exactly one receives true and the other false." That was the contract
+	/// when the status column carried both OUTCOME and CUSTODY. Custody now has columns of its own and a
+	/// member of its own; this one refuses that status outright. The REASON has not changed and is worth
+	/// keeping: two callers both told they claimed a request each erase the same subject and each write
+	/// a completion certificate, one of them attesting that keys were destroyed when its own attempt
+	/// found nothing left to destroy.</i>
+	/// </para>
+	/// <para>
+	/// <b>The transition to <see cref="ErasureRequestStatus.Scheduled"/> is ALSO conditional, and for the
+	/// same reason read backwards.</b> It succeeds only for a request that is neither OWNED nor TERMINAL
+	/// — that is, not <see cref="ErasureRequestStatus.InProgress"/>,
+	/// <see cref="ErasureRequestStatus.AwaitingKeyDestruction"/>,
+	/// <see cref="ErasureRequestStatus.Completed"/> or <see cref="ErasureRequestStatus.Cancelled"/> — and
+	/// the test and the write are ONE indivisible operation. <c>Scheduled</c> is not an outcome: it is
+	/// the single state the claim above succeeds from, so writing it does not record what happened, it
+	/// GRANTS PERMISSION to the next caller. Writing it over a claimed request re-offers an erasure that
+	/// somebody is already executing, and the second caller's claim then succeeds because it is not a
+	/// second claim at all — producing exactly the two concurrent executions and two completion
+	/// certificates the paragraph above exists to prevent, reached from the other side. A caller that
+	/// reads the status first and then writes cannot establish this: the claim may land between its read
+	/// and its write.
+	/// </para>
+	/// <para>
+	/// <see cref="ErasureWriteOutcome.ClaimLost"/> is the store telling the caller that somebody else now
+	/// owns the request. A retry path must treat it as "not mine any more" and stand down silently,
+	/// never as a transient failure to write. It is distinct from
+	/// <see cref="ErasureWriteOutcome.StatusRefused"/>, which while holding the claim is a caller error
+	/// worth reporting.
+	/// </para>
+	/// <para>
+	/// <b>The transition to <see cref="ErasureRequestStatus.AwaitingKeyDestruction"/> is CONDITIONAL for
+	/// the same reason.</b> It succeeds only from <see cref="ErasureRequestStatus.InProgress"/> or from
+	/// <see cref="ErasureRequestStatus.AwaitingKeyDestruction"/> itself. That status is the completion
+	/// pass's DISCOVERY predicate and enables <c>RecordCompletionAsync</c>, so writing it enrolls the
+	/// request in a pass that asks the key-management provider to confirm destruction and then completes
+	/// and CERTIFIES it. Writing it over a cancelled request would feed a cancelled erasure's keys into
+	/// the destruction pipeline and could certify an erasure the consumer called off — and the status's
+	/// own documentation already says a request awaiting key destruction is not cancellable, while
+	/// nothing enforced the converse. The source set includes the target itself because the completion
+	/// pass legitimately rewrites the detail while the provider still holds the keys; a rule permitting
+	/// only <see cref="ErasureRequestStatus.InProgress"/> would break that pass.
+	/// </para>
+	/// <para>
+	/// Every remaining transition is unconditional: a request may be moved to a terminal or blocked state
+	/// from whatever state it is in, because those transitions genuinely record an outcome rather than
+	/// acquire ownership. <b>The partition is the rule, not the list:</b> a status is unconditionally
+	/// writable only if NO operation's precondition succeeds BECAUSE the request is in it. If a status
+	/// ever becomes such an enabling predicate, its write becomes conditional by that fact alone — and
+	/// that reclassification can be caused by adding a QUERY, with nothing in the write path's diff to
+	/// show it.
+	/// </para>
+	/// <para>
+	/// <b>THAT GAP IS NOW CLOSED, by the expected-status parameter rather than by more special cases.</b>
+	/// By the rule above <see cref="ErasureRequestStatus.Pending"/> is also an enabling status —
+	/// <c>RecordCancellationAsync</c> succeeds because a request is <c>Pending</c> or <c>Scheduled</c> —
+	/// and its write used to be unconditional here. A caller that cares now passes <c>Pending</c> as
+	/// <paramref name="expectedStatus"/> and the store refuses anything else.
+	/// </para>
+	/// <para>
+	/// <b><paramref name="expectedStatus"/> TIGHTENS; it never replaces.</b> <see langword="null"/> means
+	/// the partition above applies as written. A value means the partition applies AND the current status
+	/// must equal it. It is deliberately not a way to state the whole precondition yourself: that would
+	/// move this state machine into every caller, consumer callers included, and the guarantee that a
+	/// request cannot be enrolled in the destruction pipeline from a cancelled state rests on this store
+	/// holding the partition centrally. Because the parameter can only ever add a conjunct, LOOSENING the
+	/// precondition has no expression in this signature at all.
+	/// </para>
+	/// <para>
+	/// <i>Superseded wording, quoted so an implementation written against it is recognisable: "Every
+	/// other transition is unconditional: a request may be moved to a terminal or blocked state from
+	/// whatever state it is in, because those transitions record an outcome rather than acquire
+	/// ownership." The justification was sound for every status except <c>Scheduled</c>, which is not an
+	/// outcome, and all three shipped stores implemented the sentence as written.</i>
 	/// </para>
 	/// </remarks>
+	/// <param name="expectedStatus">
+	/// When non-null, the status the request must currently be in for this write to apply, in ADDITION to
+	/// the partition above. When null, only the partition applies.
+	/// </param>
 	/// <param name="errorMessage">Optional error message if failed.</param>
+	/// <param name="claimIdentity">
+	/// The identity of the claim this caller holds, or <see langword="null"/> to assert that the request
+	/// carries NO LIVE CLAIM.
+	/// <para>
+	/// <b>Null is the STRICTER argument, not the lenient one</b>, which is why a nullable here is not a
+	/// guard a caller can satisfy by omission. A non-null identity must equal the identity the request
+	/// currently carries. Null requires that no unlapsed claim exists at all, so for every status below
+	/// there is no value a caller can pass that writes through a live claim it does not hold.
+	/// </para>
+	/// <para>
+	/// <b>EXCEPT ONE, AND IT IS REACHABLE FROM THIS SURFACE.</b> A write of
+	/// <see cref="ErasureRequestStatus.BlockedByLegalHold"/> is admitted REGARDLESS of custody, and it
+	/// also RELEASES custody. So a caller holding nothing can take a live executor's request away from it
+	/// mid-run, and the executor learns of it only when its next attestation write is refused. That is
+	/// deliberate — a hold is a superior authority, and withholding an erasure is recoverable while
+	/// destroying held records is not — but it is an exception to the sentence above rather than an
+	/// illustration of it. Only this framework's own hold path writes that status today, and it passes
+	/// its identity; a consumer writing an admin tool or its own hold re-evaluation reaches it from this
+	/// documented surface on any configuration.
+	/// </para>
+	/// <para>
+	/// <i>Superseded wording, quoted so a reader who acted on it recognises it: "There is therefore no
+	/// value any caller can pass that writes through a live claim it does not hold." There is exactly
+	/// one, it is named above, and the claim was absolute where the code is not.</i>
+	/// </para>
+	/// <para>
+	/// Null is what a SUPERVISOR passes — a scheduler re-offering an abandoned request, or marking one
+	/// terminally failed after its retries are exhausted, or a hold re-evaluation resuming a deferred
+	/// request. None of those holds a claim, none can obtain one, and each means exactly "do this only if
+	/// nobody is working on it".
+	/// </para>
+	/// </param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>
-/// <see langword="true"/> if the row was updated; <see langword="false"/> if no matching request exists,
-/// or if the transition was refused because the request was not in the state this transition requires.
-/// </returns>
+	/// <see cref="ErasureWriteOutcome.Applied"/> when the row was written;
+	/// <see cref="ErasureWriteOutcome.ClaimLost"/> when the claim term did not hold, which is an ordinary
+	/// race the caller must stand down from silently; <see cref="ErasureWriteOutcome.StatusRefused"/> when
+	/// the transition is illegal or <paramref name="expectedStatus"/> did not match, which while holding
+	/// the claim is a caller error worth reporting; and <see cref="ErasureWriteOutcome.NotFound"/> when no
+	/// such request exists in this tenant.
+	/// </returns>
 	/// <exception cref="ErasureStoreNotProvisionedException">
-	/// The store's backing schema is absent or stale, so the update cannot be attempted at all. This is the
-	/// only condition under which this member does not return: a request that is not there is reported as
-	/// <see langword="false"/> and never as an exception, so a caller can always tell "no such request" from
-	/// "this store cannot answer".
+	/// The store's backing schema is absent or stale, so the update cannot be attempted at all. Together
+	/// with the custody refusal above, these are the only conditions under which this member does not
+	/// return: a request that is not there is reported as
+	/// <see cref="ErasureWriteOutcome.NotFound"/> and never as an exception, so a caller can always tell
+	/// "no such request" from "this store cannot answer".
 	/// </exception>
 	/// <exception cref="TenantRequiredException">
 	/// Multi-tenancy is active but no ambient tenant is established, so the update cannot be confined to a
 	/// tenant. It fails closed rather than mutating across tenants.
 	/// </exception>
-	Task<bool> UpdateStatusAsync(
+	Task<ErasureWriteOutcome> UpdateStatusAsync(
 		Guid requestId,
 		ErasureRequestStatus status,
+		ErasureRequestStatus? expectedStatus,
 		string? errorMessage,
+		string? claimIdentity,
+		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Takes custody of a request for execution, in one indivisible step, minting the identity the caller
+	/// must present on every attestation write it then makes.
+	/// </summary>
+	/// <param name="requestId">The request to claim.</param>
+	/// <param name="expectedStatus">
+	/// The status the request must currently be in. Claiming from
+	/// <see cref="ErasureRequestStatus.Scheduled"/> ADVANCES the status to in-progress; claiming from
+	/// <see cref="ErasureRequestStatus.AwaitingKeyDestruction"/> LEAVES THE STATUS ALONE, because that
+	/// status is a stage of the work rather than a statement about who is doing it.
+	/// </param>
+	/// <param name="claimDuration">
+	/// How long this claim remains live. <see cref="TimeSpan.Zero"/> is LEGAL and yields a claim that has
+	/// already lapsed — it is in this contract because it is the only lever a provider-agnostic
+	/// conformance test has to construct a lapsed claim without controlling a clock.
+	/// </param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>
+	/// <see cref="ErasureClaimOutcome.Granted"/> carrying a fresh opaque identity;
+	/// <see cref="ErasureClaimOutcome.AlreadyClaimed"/> when another claim is live, which returns of its
+	/// own accord once that claim lapses; <see cref="ErasureClaimOutcome.StatusMismatch"/> when the
+	/// request is in some other status, which does not; or
+	/// <see cref="ErasureClaimOutcome.NotFound"/>. An absent request is a VALUE here and never an
+	/// exception.
+	/// </returns>
+	/// <exception cref="ErasureStoreNotProvisionedException">
+	/// The store's backing schema is absent or stale, so the claim cannot be attempted at all.
+	/// </exception>
+	/// <exception cref="TenantRequiredException">
+	/// Multi-tenancy is active but no ambient tenant is established, so the claim cannot be confined to a
+	/// tenant. It fails closed rather than claiming across tenants.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// <b>ONE indivisible step.</b> The status test, the status write, the identity and the expiry all
+	/// happen together or not at all. An implementation that writes the identity in a second operation
+	/// has weakened the postcondition in a way no sequential test can observe: two callers can both be
+	/// granted, and the loser's writes then pass a fence that is comparing against its own identity.
+	/// </para>
+	/// <para>
+	/// <b>The expiry is written and compared BY THE STORE, from a clock no caller can supply.</b> A
+	/// caller-computed instant would make a lapse a comparison between two machines' clocks — the one
+	/// comparison that may never decide anything, since a fast clock hands its holder a claim that has
+	/// already expired and a slow one holds a claim nobody can take.
+	/// </para>
+	/// <para>
+	/// <b>A LAPSE DOES NOT REVOKE; A RE-CLAIM REVOKES.</b> Nothing tells a holder its claim has lapsed,
+	/// and nothing needs to: a holder whose run outlasted its own lease, but whom nobody superseded, still
+	/// holds the identity the request carries and its attestation writes still apply. If a lapse revoked
+	/// by itself, an executor that had destroyed a subject's keys could be refused its own completion, and
+	/// then the erasure would be done with no certificate able to attest it.
+	/// </para>
+	/// <para>
+	/// <b>What this never touches:</b> the staged intents and the destruction ledger. Those record what
+	/// has already physically happened and are shared across claims on purpose — see
+	/// <see cref="RecordKeyDestroyedAsync"/>.
+	/// </para>
+	/// </remarks>
+	Task<ErasureClaimResult> ClaimForExecutionAsync(
+		Guid requestId,
+		ErasureRequestStatus expectedStatus,
+		TimeSpan claimDuration,
 		CancellationToken cancellationToken);
 
 	/// <summary>
@@ -168,18 +344,31 @@ public interface IErasureStore
 	/// <param name="keysDeleted">Number of keys deleted.</param>
 	/// <param name="recordsAffected">Number of records affected.</param>
 	/// <param name="certificateId">The generated certificate ID.</param>
+	/// <param name="claimIdentity">
+	/// The identity of the claim this caller holds. Required, and non-nullable on purpose: this is the
+	/// signed attestation, so "I hold no claim" must be INEXPRESSIBLE here rather than merely refused.
+	/// Were it nullable, a superseded executor whose successor had also lapsed would satisfy a
+	/// no-live-claim test and write a full-coverage certificate for a run it had lost.
+	/// </param>
 	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>
+	/// <see cref="ErasureWriteOutcome.Applied"/> when the completion was recorded, or
+	/// <see cref="ErasureWriteOutcome.ClaimLost"/> when another claim has superseded this one — in which
+	/// case the caller must stand down silently and write nothing further, including any terminal-failure
+	/// record, because the request belongs to somebody else now.
+	/// </returns>
 	/// <exception cref="KeyNotFoundException">
-	/// No request with the given <paramref name="requestId"/> exists, so there is nothing whose completion
-	/// could be recorded. This throws rather than returning quietly: a completion is an attestation that
+	/// No request with the given <paramref name="requestId"/> exists in the ambient tenant, or its status
+	/// no longer permits completion. This throws rather than returning quietly: a completion is an attestation that
 	/// an erasure was carried out, so accepting one for a request that does not exist would record that
 	/// data was erased which nobody asked to erase, with nothing anywhere reporting it.
 	/// </exception>
-	Task RecordCompletionAsync(
+	Task<ErasureWriteOutcome> RecordCompletionAsync(
 		Guid requestId,
 		int keysDeleted,
 		int recordsAffected,
 		Guid certificateId,
+		string claimIdentity,
 		CancellationToken cancellationToken);
 
 	/// <summary>
@@ -290,6 +479,17 @@ public interface IErasureStore
 	/// <para>
 	/// A store that cannot persist this cannot certify a retried erasure, and no read of the subject's
 	/// ciphertext can ever report their erasure, so this is required rather than an optional capability.
+	/// </para>
+	/// <para>
+	/// <b>DELIBERATELY OUTSIDE THE CLAIM FENCE, and this is stated rather than left to inference.</b>
+	/// Every attestation write on the request row is refused when the caller's claim has been superseded.
+	/// This one is not, and must never become so. It records a physical act that has ALREADY happened: if
+	/// a superseded caller were refused here, the generation it destroyed would be unreadable forever —
+	/// the destruction took it — so no successor could record it either, and the subject's erasure would
+	/// become permanently unreportable. The sharing across claims is not an oversight: the ledger is keyed
+	/// on the generation, which is minted once and never reused, so two claims recording one generation
+	/// produce a single row idempotently. That is how a retried erasure attests what an earlier pass
+	/// achieved.
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentException">

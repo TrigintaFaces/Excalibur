@@ -1,9 +1,8 @@
 # WarmPath epoch, 2026-09-05 (post-Lean-deletion)
 
-Three runs of `MediatRWarmPathComparisonBenchmarks`, one after another on a quiet
-machine, per the three-run protocol. Built with `-p:BuildExamplesAndTests=true`
-and confirmed to emit no "Skipping compile" line, so these measure the tree they
-claim to and not a stale binary.
+The original record reports three sequential runs of `MediatRWarmPathComparisonBenchmarks`, with `-p:BuildExamplesAndTests=true` and no "Skipping compile" line. Those observations alone do not establish exact source/binary correspondence or isolation.
+
+The tables preserve this September epoch. Causal explanations below, including attributing competitor movement solely to machine drift and subtracting a 10-11 ns cost, are historical interpretations, not independently verified causal decompositions.
 
 ## The deciding arms
 
@@ -18,7 +17,7 @@ Allocation is unchanged: Dispatch 96 B, MediatR 152 B -- Dispatch allocates
 ## THIS EPOCH RECORDS A REGRESSION, AND THE CAUSE IS KNOWN
 
 The previous epoch measured 45.58 ns on the same arm. This one measures 60.04.
-That is not drift and not noise:
+The original record interpreted the following difference as a regression; these figures alone do not rule out drift or noise:
 
 | | pre-Lean (`95d8ccc8f7`) | this epoch | delta |
 |---|---|---|---|

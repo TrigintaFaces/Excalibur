@@ -14,6 +14,65 @@ public sealed class LeaderElectionOptionsValidatorShould : UnitTestBase
 {
 	private readonly LeaderElectionOptionsValidator _validator = new();
 
+	[Theory]
+	[InlineData(nameof(LeaderElectionOptions.LeaseDuration), 0L)]
+	[InlineData(nameof(LeaderElectionOptions.LeaseDuration), -1L)]
+	[InlineData(nameof(LeaderElectionOptions.LeaseDuration), -10000000L)]
+	[InlineData(nameof(LeaderElectionOptions.RenewInterval), 0L)]
+	[InlineData(nameof(LeaderElectionOptions.RenewInterval), -1L)]
+	[InlineData(nameof(LeaderElectionOptions.RenewInterval), -10000000L)]
+	[InlineData(nameof(LeaderElectionOptions.RetryInterval), 0L)]
+	[InlineData(nameof(LeaderElectionOptions.RetryInterval), -1L)]
+	[InlineData(nameof(LeaderElectionOptions.RetryInterval), -10000000L)]
+	[InlineData(nameof(LeaderElectionOptions.GracePeriod), 0L)]
+	[InlineData(nameof(LeaderElectionOptions.GracePeriod), -1L)]
+	[InlineData(nameof(LeaderElectionOptions.GracePeriod), -10000000L)]
+	public void RejectNonPositiveTimingWithItsConfigurationName(string property, long ticks)
+	{
+		var options = new LeaderElectionOptions();
+		var value = TimeSpan.FromTicks(ticks);
+		switch (property)
+		{
+			case nameof(LeaderElectionOptions.LeaseDuration): options.LeaseDuration = value; break;
+			case nameof(LeaderElectionOptions.RenewInterval): options.RenewInterval = value; break;
+			case nameof(LeaderElectionOptions.RetryInterval): options.RetryInterval = value; break;
+			case nameof(LeaderElectionOptions.GracePeriod): options.GracePeriod = value; break;
+			default: throw new ArgumentOutOfRangeException(nameof(property));
+		}
+		var result = _validator.Validate(null, options);
+		result.Failed.ShouldBeTrue();
+		result.FailureMessage.ShouldContain(property);
+	}
+
+	[Fact]
+	public void RejectAnOverflowingTimingSumAsValidationFailure()
+	{
+		var options = new LeaderElectionOptions
+		{
+			LeaseDuration = TimeSpan.MaxValue,
+			RenewInterval = TimeSpan.FromTicks(1),
+			GracePeriod = TimeSpan.MaxValue - TimeSpan.FromTicks(2),
+		};
+		var result = _validator.Validate(null, options);
+		result.Failed.ShouldBeTrue();
+		result.FailureMessage.ShouldContain(nameof(LeaderElectionOptions.LeaseDuration));
+	}
+
+	[Theory]
+	[InlineData(-1L, true)]
+	[InlineData(0L, false)]
+	[InlineData(1L, false)]
+	public void PreserveTheStrictHeadroomBoundary(long tickOffset, bool expectedSuccess)
+	{
+		var options = new LeaderElectionOptions
+		{
+			LeaseDuration = TimeSpan.FromSeconds(15),
+			RenewInterval = TimeSpan.FromSeconds(5),
+			GracePeriod = TimeSpan.FromSeconds(9) + TimeSpan.FromTicks(tickOffset),
+		};
+		_validator.Validate(null, options).Succeeded.ShouldBe(expectedSuccess);
+	}
+
 	[Fact]
 	public void Validate_WithNullOptions_ThrowsArgumentNullException()
 	{
@@ -140,9 +199,9 @@ public sealed class LeaderElectionOptionsValidatorShould : UnitTestBase
 	// --- ol729k (Lane C, AC-C5/C6): cross-property split-brain-window rule ---
 	// The pre-fix validator only checks RenewInterval and GracePeriod individually against
 	// LeaseDuration. A config where each is individually < LeaseDuration but their SUM exceeds it
-	// passes validation yet guarantees a split-brain window: the renewal loop self-demotes ~Renew+Grace
-	// after the last success while the lease expires at LeaseDuration. The validator MUST also enforce
-	// the cross-property rule Renew + Grace (+ skew margin) < Lease.
+	// passes validation despite insufficient configured headroom. The validator enforces the
+	// cross-property rule Renew + Grace (+ reserved margin) < Lease. These arithmetic tests do not
+	// establish provider runtime deadlines or prove exclusive ownership.
 
 	[Fact]
 	public void Validate_RenewPlusGracePeriodExceedsLeaseDuration_Fails()

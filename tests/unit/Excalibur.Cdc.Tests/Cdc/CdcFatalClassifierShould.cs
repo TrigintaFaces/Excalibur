@@ -17,13 +17,10 @@ namespace Excalibur.Cdc.Tests.Cdc;
 /// Authored independently of the implementer (BackendDeveloper). Two regimes:
 /// <b>with a classifier</b> → it is the single source of truth (Permanent/Poison ⇒ fatal; Transient ⇒
 /// keep reconnecting); <b>without a classifier (null)</b> → a conservative BCL-only fallback where only
-/// <em>definitively</em> non-retryable faults are fatal and everything unrecognised stays transient (a
-/// genuine transient must never be mistaken for fatal).
+/// <em>definitively</em> non-retryable faults are fatal and unrecognized faults stop for review without advancing.
 /// </para>
 /// <para>
-/// <b>RED mutants:</b> drop <c>or Poison</c> ⇒ the Poison-fatal fact RED; flip the unrecognised default
-/// <c>_ =&gt; false</c> to <c>true</c> ⇒ the transient-stays-transient facts RED (a transient fault would
-/// be terminated — the exact ADR-338 violation); drop a definitively-fatal arm ⇒ its fact RED.
+/// <b>RED mutants:</b> drop <c>or Poison</c> ⇒ the Poison-fatal fact RED; flip a known-transient arm to stop ⇒ the transient facts RED; drop a definitively-fatal arm ⇒ its fact RED.
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -61,10 +58,10 @@ public sealed class CdcFatalClassifierShould
 	}
 
 	[Theory]
-	[MemberData(nameof(TransientOrUnrecognisedExceptions))]
-	public void TreatTransientOrUnrecognised_AsNotFatal_WhenNoClassifier(Type exceptionType, string argument)
+	[MemberData(nameof(RecognizedTransientExceptions))]
+	public void TreatRecognizedTransient_AsNotFatal_WhenNoClassifier(Type exceptionType, string argument)
 	{
-		// Anything not definitively-fatal stays transient → bounded backoff-reconnect, not terminate.
+		// Recognized transient faults retain backoff-reconnect; unknown faults have separate stop controls.
 		CdcFatalClassifier.IsFatal(Create(exceptionType, argument), classifier: null).ShouldBeFalse();
 	}
 
@@ -75,9 +72,9 @@ public sealed class CdcFatalClassifierShould
 		var single = new AggregateException(new UnauthorizedAccessException("denied"));
 		CdcFatalClassifier.IsFatal(single, classifier: null).ShouldBeTrue();
 
-		// …but a genuine multi-fault aggregate is NOT unwrapped → stays transient (conservative).
+		// …but a genuine multi-fault aggregate is NOT unwrapped → stays unknown and stops for review.
 		var multi = new AggregateException(new UnauthorizedAccessException("a"), new UnauthorizedAccessException("b"));
-		CdcFatalClassifier.IsFatal(multi, classifier: null).ShouldBeFalse();
+		CdcFatalClassifier.IsFatal(multi, classifier: null).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -101,12 +98,11 @@ public sealed class CdcFatalClassifierShould
 		(typeof(ArgumentOutOfRangeException), "p"),
 	];
 
-	public static TheoryData<Type, string> TransientOrUnrecognisedExceptions =>
+	public static TheoryData<Type, string> RecognizedTransientExceptions =>
 	[
 		(typeof(TimeoutException), "timeout"),
 		(typeof(IOException), "io blip"),
-		(typeof(InvalidOperationException), "unrecognised"),
-		(typeof(OperationCanceledException), "cooperative cancel is not a fault"),
+				(typeof(OperationCanceledException), "cooperative cancel is not a fault"),
 	];
 
 	private static Exception Create(Type exceptionType, string argument) =>

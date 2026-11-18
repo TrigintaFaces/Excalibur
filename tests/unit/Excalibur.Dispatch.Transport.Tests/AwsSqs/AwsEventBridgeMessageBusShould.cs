@@ -1,3 +1,4 @@
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using System.Text;
 
 using Amazon.EventBridge;
@@ -177,6 +178,7 @@ public sealed class AwsEventBridgeMessageBusShould : UnitTestBase
 		var cloudEventOptions = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
 		var mapper = new AwsEventBridgeCloudEventAdapter(
 			cloudEventOptions,
+			TestCloudEventSerializers.Reflection,
 			Microsoft.Extensions.Options.Options.Create(new AwsEventBridgeCloudEventOptions()),
 			A.Fake<ILogger<AwsEventBridgeCloudEventAdapter>>());
 

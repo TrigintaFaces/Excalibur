@@ -38,6 +38,11 @@ public static class Program
 	public static async Task<int> Main(string[] args)
 	{
 		ArgumentNullException.ThrowIfNull(args);
+		if (args.Contains("--sql-orders", StringComparer.Ordinal))
+		{
+			return await SqlCommerceProfile.RunAsync(args).ConfigureAwait(false);
+		}
+		Console.WriteLine("Volatile order/inventory profile: all local state is lost on process restart; use --sql-orders for durable order intent.");
 
 		var emitTelemetryToConsole = args.Contains("--trace", StringComparer.Ordinal);
 
@@ -78,6 +83,7 @@ public static class Program
 
 				_ = services.AddSingleton<InMemoryOrderRepository>();
 				_ = services.AddSingleton<InMemoryEmailService>();
+				_ = services.AddSingleton<IEmailSender>(static provider => provider.GetRequiredService<InMemoryEmailService>());
 				_ = services.AddSingleton<InMemoryInventoryRepository>();
 
 				_ = services.AddSingleton<OrderScenario>();
@@ -101,10 +107,8 @@ public static class Program
 			options.EnableTracing = true;
 		});
 
-		// The shipping stores, composed through the canonical builder entry points. Only the provider line
-		// changes for a persistent deployment -- swap UseInMemory() for UseSqlServer(...) / UsePostgres(...)
-		// and nothing else here or below moves, because this sample only ever talks to IInboxStore,
-		// IOutboxStore and IScheduleStore.
+		// Shipping volatile stores for this local scenario. Reliable SQL order submission uses
+		// the separate explicit transaction profile; a provider-only swap cannot enlist business writes.
 		_ = services.AddExcaliburInbox(static inbox => inbox.UseInMemory());
 		_ = services.AddExcalibur(static excalibur => excalibur.AddOutbox(static outbox => outbox.UseInMemory()));
 

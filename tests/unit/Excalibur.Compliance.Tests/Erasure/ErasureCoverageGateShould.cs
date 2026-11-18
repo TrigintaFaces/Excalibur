@@ -83,7 +83,7 @@ public sealed class ErasureCoverageGateShould
         // Assert — the uncovered Outbox location MUST block a fully-Completed erasure (no Art.17 silent loss).
         result.Success.ShouldBeFalse(
             "an erasure leaving an uncovered store (Outbox) must NOT report success/Completed");
-        A.CallTo(() => _store.RecordCompletionAsync(requestId, A<int>._, A<int>._, A<Guid>._, A<CancellationToken>._))
+        A.CallTo(() => _store.RecordCompletionAsync(requestId, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
             .MustNotHaveHappened();
     }
 
@@ -186,7 +186,7 @@ public sealed class ErasureCoverageGateShould
             + "certificate issued on it attests to an absence of evidence rather than to an erasure");
 
         A.CallTo(() => _store.RecordCompletionAsync(
-                requestId, A<int>._, A<int>._, A<Guid>._, A<CancellationToken>._))
+                requestId, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
             .MustNotHaveHappened();
     }
 
@@ -262,7 +262,7 @@ public sealed class ErasureCoverageGateShould
         // Assert — annotated Health data was never located ⇒ erasure must NOT report Completed.
         result.Success.ShouldBeFalse(
             "annotated personal data (Health) with no discovered location must block a Completed certificate");
-        A.CallTo(() => _store.RecordCompletionAsync(requestId, A<int>._, A<int>._, A<Guid>._, A<CancellationToken>._))
+        A.CallTo(() => _store.RecordCompletionAsync(requestId, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
             .MustNotHaveHappened();
     }
 
@@ -464,7 +464,7 @@ public sealed class ErasureCoverageGateShould
             NullLogger<ErasureService>.Instance,
             TestDataSubjectHasher.Instance,
             _legalHoldService, _dataInventoryService, null,
-            annotations, TestRetentions.None, contributors);
+            annotations, TestRetentions.None, TestMintLedger.None, contributors);
     }
 
     private static IErasureContributor CreateContributor(string name, DataStoreKind covers, int recordsAffected)
@@ -490,7 +490,7 @@ public sealed class ErasureCoverageGateShould
             NullLogger<ErasureService>.Instance,
             TestDataSubjectHasher.Instance,
             _legalHoldService, _dataInventoryService, null,
-            TestAnnotationSource.None, TestRetentions.None, contributors);
+            TestAnnotationSource.None, TestRetentions.None, TestMintLedger.None, contributors);
     }
 
     private void SetupScheduledRequest(Guid requestId)
@@ -511,8 +511,16 @@ public sealed class ErasureCoverageGateShould
         };
         A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
             .Returns(Task.FromResult<ErasureStatus?>(status));
-        A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, null, A<CancellationToken>._))
-            .Returns(Task.FromResult(true));
+        A.CallTo(() => _store.ClaimForExecutionAsync(requestId, ErasureRequestStatus.Scheduled, A<TimeSpan>._, A<CancellationToken>._))
+            .Returns(ErasureClaimResult.Granted("test-claim-identity"));
+
+        // The completion returns an outcome now, where it used to return a bare Task with no value
+        // to arrange. A fake with no setup returns the default, the default is deliberately not
+        // Applied, and the service correctly stands down on anything else -- so without this every
+        // arm here reports a refusal. Applied is what a bare Task meant.
+        A.CallTo(() => _store.RecordCompletionAsync(
+        		A<Guid>._, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
+        	.Returns(ErasureWriteOutcome.Applied);
         A.CallTo(() => _legalHoldService.CheckHoldsAsync(
                 A<string>._, A<DataSubjectIdType>._, A<string?>._, A<CancellationToken>._))
             .Returns(Task.FromResult(new LegalHoldCheckResult { HasActiveHolds = false, ActiveHolds = [] }));

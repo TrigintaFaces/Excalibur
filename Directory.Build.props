@@ -84,10 +84,9 @@
 		     the "Configuration/Options binding" suppression sites before hand-converting any to
 		     Requires*. -->
 		<EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
-		<!-- The binder package's own targets opt its generator's interceptors into the .NET 8
-		     PREVIEW property name (InterceptorsPreviewNamespaces), retired once interceptors
-		     stabilised in .NET 9+. We target net10.0, where only InterceptorsNamespaces is read,
-		     so without this the generator's interceptors silently never activate. -->
+		<!-- Explicitly allow the binder generator namespace for projects importing this file.
+		     The pinned SDK also accepts InterceptorsPreviewNamespaces, which the Binder
+		     package sets itself. Shipping projects use their isolated src/Directory.Build.props. -->
 		<InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.Extensions.Configuration.Binder.SourceGeneration</InterceptorsNamespaces>
 		<!-- Sprint 329 T2.5: Re-enable analyzer warning gates (AD-329) -->
 		<!-- WARNING: All shipping projects must have zero warnings -->

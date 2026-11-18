@@ -17,9 +17,40 @@ namespace Excalibur.Compliance.Erasure;
 /// Data is lost when the application restarts.
 /// </remarks>
 internal sealed class InMemoryErasureStore
-	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureBackgroundQueryStore, IKeyDestructionLedger
+	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureBackgroundQueryStore, IKeyDestructionLedger, IKeyMintLedger
 {
 	private readonly ConcurrentDictionary<Guid, ErasureRequestData> _requests = new();
+
+	/// <summary>
+	/// The mint ledger: every handle this deployment has recorded an intent to mint, keyed by the handle.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Keyed by the HANDLE ALONE, and carrying no generation, because existence is a per-handle fact where a
+	/// destruction is a per-generation one. A handle minted, destroyed and minted again has one entry
+	/// throughout, and that entry stays true — so there is nothing to update and the entry is immutable once
+	/// written.
+	/// </para>
+	/// <para>
+	/// The owner and the subject token are carried as VALUES rather than being part of the key, because the
+	/// handle is an opaque digest: nothing can be recovered from it, so an erasure that must enumerate one
+	/// subject's handles has no other key to use. Ordinal throughout, matching the binary collation the SQL
+	/// schemas declare, so this store answers exactly as they do.
+	/// </para>
+	/// </remarks>
+	private readonly ConcurrentDictionary<string, MintedHandleRecord> _mintedHandles =
+		new(StringComparer.Ordinal);
+
+	/// <summary>
+	/// The longest handle the shipped derivation produces: a 64-character digest, optionally composed with a
+	/// separator and a 16-character obligation-class discriminator.
+	/// </summary>
+	/// <remarks>
+	/// Enforced rather than assumed, and refused rather than truncated: a truncated handle is a row that
+	/// matches no envelope, which is an omission from the set an erasure destroys from. The SQL schemas declare
+	/// the same bound, so this store refuses exactly what they refuse.
+	/// </remarks>
+	private const int MaxKeyHandleLength = 81;
 
 	/// <summary>
 	/// The destruction ledger, keyed on the GENERATION alone and nothing else.
@@ -122,19 +153,35 @@ internal sealed class InMemoryErasureStore
 	/// <paramref name="tenantContextOptions"/>, not by whether a context was supplied.
 	/// </param>
 	/// <param name="tenantContextOptions">
+	/// <param name="timeProvider">
+	/// The clock a claim lapse is decided against. Injected rather than read from the ambient clock so
+	/// that no caller can supply the instant -- which is the obligation the SQL providers meet with the
+	/// database's own clock inside the claiming statement.
+	/// </param>
 	/// The tenant-context options. Its <see cref="TenantContextOptions.RequireTenant"/> (set by
 	/// <c>AddMultiTenancy()</c>) selects the deployment mode.
 	/// </param>
 	public InMemoryErasureStore(
 		IDataSubjectHasher dataSubjectHasher,
 		ITenantContext tenantContext,
-		IOptions<TenantContextOptions> tenantContextOptions)
+		IOptions<TenantContextOptions> tenantContextOptions,
+		TimeProvider timeProvider)
 	{
 		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
 		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 		ArgumentNullException.ThrowIfNull(tenantContextOptions);
 		_requireTenant = tenantContextOptions.Value.RequireTenant;
+
+		// The instant a claim lapse is decided against must come from a clock NO CALLER CAN SUPPLY. The
+		// SQL providers satisfy that with the database's own clock inside the claiming statement; this
+		// store satisfies it with an injected TimeProvider. A caller-computed instant would make the
+		// lapse a comparison between two machines' clocks, which is the one comparison that may never
+		// decide anything: a fast clock hands its holder a claim that has already expired, and a slow one
+		// holds a claim nobody else can take.
+		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 	}
+
+	private readonly TimeProvider _timeProvider;
 
 	/// <summary>
 	/// Gets the count of requests in the store.
@@ -154,7 +201,7 @@ internal sealed class InMemoryErasureStore
 	{
 		ArgumentNullException.ThrowIfNull(request);
 		var tenant = AmbientScope;
-		var owner = new TenantId((_requireTenant ? tenant.TenantId : request.TenantId ?? _tenantContext.TenantId)!).Value;
+		var owner = ErasureRequestOwner.Resolve(_requireTenant, tenant, request, _tenantContext);
 
 		// The ambient term is authoritative on the write. Stamping the request's own TenantId would let a
 		// caller file a request into another tenant's partition — and, because every scoped read matches on
@@ -218,12 +265,25 @@ internal sealed class InMemoryErasureStore
 	}
 
 	/// <inheritdoc />
-	public Task<bool> UpdateStatusAsync(
+	public Task<ErasureWriteOutcome> UpdateStatusAsync(
 		Guid requestId,
 		ErasureRequestStatus status,
+		ErasureRequestStatus? expectedStatus,
 		string? errorMessage,
+		string? claimIdentity,
 		CancellationToken cancellationToken)
 	{
+		// Taking custody has its own door. Refused here rather than quietly handled, because a second
+		// door would advance a request into the claimed status for a caller holding no identity, and
+		// every fenced write it then made would be comparing against nothing.
+		if (status == ErasureRequestStatus.InProgress)
+		{
+			throw new ArgumentException(
+				"The in-progress status records CUSTODY and may only be written by ClaimForExecutionAsync, "
+				+ "which is the only member that mints the identity a fenced write presents.",
+				nameof(status));
+		}
+
 		// Resolved before the lookup so that an unresolved tenant fails closed whether or not the row exists.
 		var tenant = AmbientScope;
 
@@ -231,39 +291,213 @@ internal sealed class InMemoryErasureStore
 		// request" result as a missing one rather than mutating a row the caller cannot see.
 		if (!_requests.TryGetValue(requestId, out var data) || !MatchesAmbientTenant(tenant, data.TenantId))
 		{
-			return Task.FromResult(false);
+			return Task.FromResult(ErasureWriteOutcome.NotFound);
 		}
 
-		// Atomic compare-and-swap for InProgress transition to prevent TOCTOU
-		if (status == ErasureRequestStatus.InProgress)
+		lock (data.Transitions)
 		{
-			var previous = Interlocked.CompareExchange(ref data.StatusValue, (int)ErasureRequestStatus.InProgress, (int)ErasureRequestStatus.Scheduled);
-			if (previous != (int)ErasureRequestStatus.Scheduled)
+			// THE CLAIM TERM, and null is the STRICTER argument. A presented identity must be the one the
+			// request carries. No identity asserts that nobody holds the request at all -- which is what a
+			// supervisor means when it re-offers an abandoned request or marks one terminally failed.
+			//
+			// The expiry is consulted HERE and only here, never for a presented identity. A lapse does not
+			// revoke: a holder whose run outlasted its own lease, but whom nobody superseded, still holds
+			// the identity the row carries and its writes still apply. Were it otherwise, an executor that
+			// had already destroyed a subject's keys could be refused its own completion, leaving the
+			// erasure done and no certificate able to attest it.
+			// A LEGAL HOLD IS OUTSIDE THE FENCE, and for the same reason the destruction ledger is: refusing
+			// it loses something the law requires rather than preventing a false claim. A hold recorded
+			// while an executor holds the claim MUST land -- otherwise the hold is silently dropped and
+			// the run completes over data the controller has asserted a legal basis to retain, which is
+			// the one outcome this subsystem may never produce.
+			//
+			// The asymmetry is this subsystem's own stated principle: withholding an erasure is
+			// recoverable by releasing or narrowing the hold, and destroying held records is not. The
+			// worst a stale actor can do through this door is DENY an erasure another instance owns,
+			// which is visible in the status and reversible; the worst a fence here can do is destroy
+			// retained data and certify it.
+			if (status != ErasureRequestStatus.BlockedByLegalHold)
 			{
-				return Task.FromResult(false);
+				if (claimIdentity is null)
+				{
+					if (data.ClaimIdentity is not null && data.ClaimExpiresAt > _timeProvider.GetUtcNow())
+					{
+						return Task.FromResult(ErasureWriteOutcome.ClaimLost);
+					}
+				}
+				else if (!string.Equals(data.ClaimIdentity, claimIdentity, StringComparison.Ordinal))
+				{
+					return Task.FromResult(ErasureWriteOutcome.ClaimLost);
+				}
 			}
 
-			data.ExecutedAt = DateTimeOffset.UtcNow;
+			var current = data.Status;
+
+			// expectedStatus TIGHTENS the store's own partition and never replaces it, so a caller cannot
+			// use it to authorise a transition the partition forbids.
+			if (expectedStatus is { } required && current != required)
+			{
+				return Task.FromResult(ErasureWriteOutcome.StatusRefused);
+			}
+
+			if (IsConditionalTarget(status) && !IsLegalSourceFor(status, current))
+			{
+				return Task.FromResult(ErasureWriteOutcome.StatusRefused);
+			}
+
+			data.Status = status;
 			data.ErrorMessage = errorMessage;
 			data.UpdatedAt = DateTimeOffset.UtcNow;
-			return Task.FromResult(true);
+
+			// EVERY status write through this member ends custody. Taking custody has exactly ONE door, so
+			// a write here always means the run is finished with the request -- it reached an outcome, it
+			// was refused, or it handed the request to the next stage. An earlier version listed the
+			// statuses that release, and the list was wrong for the awaiting-key-destruction handoff: the
+			// executor kept its claim after handing over, so the confirmation pass could not claim until
+			// the lease lapsed and nothing completed in the meantime.
+			//
+			// Both halves clear together, holding the pairing invariant the SQL schemas enforce with a
+			// check constraint.
+			data.ClaimIdentity = null;
+			data.ClaimExpiresAt = null;
+
+			return Task.FromResult(ErasureWriteOutcome.Applied);
 		}
-
-		data.Status = status;
-		data.ErrorMessage = errorMessage;
-		data.UpdatedAt = DateTimeOffset.UtcNow;
-
-		return Task.FromResult(true);
 	}
 
 	/// <inheritdoc />
-	public Task RecordCompletionAsync(
+	public Task<ErasureClaimResult> ClaimForExecutionAsync(
+		Guid requestId,
+		ErasureRequestStatus expectedStatus,
+		TimeSpan claimDuration,
+		CancellationToken cancellationToken)
+	{
+		// Zero is legal and yields an already-lapsed claim. Negative is not: it would be a claim that
+		// expired before it was granted, which no caller can mean.
+		ArgumentOutOfRangeException.ThrowIfLessThan(claimDuration, TimeSpan.Zero);
+
+		var tenant = AmbientScope;
+
+		if (!_requests.TryGetValue(requestId, out var data) || !MatchesAmbientTenant(tenant, data.TenantId))
+		{
+			return Task.FromResult(ErasureClaimResult.NotFound());
+		}
+
+		lock (data.Transitions)
+		{
+			// CUSTODY IS TESTED BEFORE STATUS, and the order is load-bearing rather than stylistic.
+			// Granting a claim from Scheduled ADVANCES the status, so a second contender arriving a moment
+			// later finds the row in the claimed status -- and a status test first would answer
+			// StatusMismatch, which obliges the caller to STOP OFFERING the request. That is wrong and it
+			// is wrong in the direction this whole mechanism exists to prevent: the request IS coming back
+			// when the holder's claim lapses, and a caller told otherwise strands it. AlreadyClaimed is
+			// the honest answer whenever somebody holds it, whatever the status says.
+			if (data.ClaimIdentity is not null && data.ClaimExpiresAt > _timeProvider.GetUtcNow())
+			{
+				return Task.FromResult(ErasureClaimResult.AlreadyClaimed());
+			}
+
+			if (data.Status != expectedStatus)
+			{
+				return Task.FromResult(ErasureClaimResult.StatusMismatch());
+			}
+
+			// Opaque by construction: a GUID carries no order anyone could compare, which is the property
+			// the contract requires. It is minted here and nowhere else.
+			var identity = Guid.NewGuid().ToString("N");
+
+			data.ClaimIdentity = identity;
+			data.ClaimExpiresAt = _timeProvider.GetUtcNow().Add(claimDuration);
+
+			// Claiming from Scheduled ADVANCES the status; claiming from AwaitingKeyDestruction leaves it
+			// alone, because that status is a STAGE of the work rather than a statement about who is doing
+			// it. One SET for both would silently un-stage a request mid-confirmation.
+			if (expectedStatus == ErasureRequestStatus.Scheduled)
+			{
+				data.Status = ErasureRequestStatus.InProgress;
+				data.ExecutedAt = DateTimeOffset.UtcNow;
+			}
+
+			data.UpdatedAt = DateTimeOffset.UtcNow;
+
+			return Task.FromResult(ErasureClaimResult.Granted(identity));
+		}
+	}
+
+	/// <summary>
+	/// Whether a write PRODUCING this status must name a legal prior state rather than land
+	/// unconditionally.
+	/// </summary>
+	/// <remarks>
+	/// A status is conditional when some other operation's precondition succeeds BECAUSE the row is in
+	/// it -- writing such a status is a grant of permission, not the recording of an outcome. That is
+	/// true of <c>Scheduled</c> (the execution claim reads it) and of <c>AwaitingKeyDestruction</c> (the
+	/// completion pass discovers by it, and <c>RecordCompletionAsync</c> is enabled by it).
+	/// <c>InProgress</c> is conditional too and keeps its own compare-and-swap above, which is stricter
+	/// than this and predates it.
+	/// </remarks>
+	private static bool IsConditionalTarget(ErasureRequestStatus status) =>
+		status is ErasureRequestStatus.Scheduled or ErasureRequestStatus.AwaitingKeyDestruction;
+
+	/// <summary>
+	/// Whether <paramref name="target" /> may be written over a request currently in
+	/// <paramref name="source" />.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <c>Scheduled</c> re-offers the request for execution, so it must not land on one that is owned or
+	/// finished.
+	/// </para>
+	/// <para>
+	/// <c>AwaitingKeyDestruction</c> puts the request into the completion pass's discovery set, and that
+	/// pass asks the key provider to confirm destruction. Writing it over a CANCELLED request would feed
+	/// a cancelled erasure's keys into the destruction pipeline, which that status's own documentation
+	/// says cannot happen. Both legitimate writers are already inside the permitted set: the execution
+	/// path records it from the claimed window, and the completion pass REWRITES it with a fresh detail
+	/// message when it cannot yet complete -- which is why the source set includes the target itself and
+	/// a stricter "from InProgress only" rule would break that pass.
+	/// </para>
+	/// </remarks>
+	private static bool IsLegalSourceFor(ErasureRequestStatus target, ErasureRequestStatus source) =>
+		target switch
+		{
+			ErasureRequestStatus.Scheduled => !IsOwnedOrTerminal(source),
+			ErasureRequestStatus.AwaitingKeyDestruction =>
+				source is ErasureRequestStatus.InProgress or ErasureRequestStatus.AwaitingKeyDestruction,
+
+			// Every other target records an outcome and is unconditional; IsConditionalTarget gates the
+			// call, so this arm is never reached for one.
+			_ => true,
+		};
+
+	/// <summary>
+	/// Whether a request in this status is owned by an executor or has reached a terminal outcome, and so
+	/// must not be put back to <see cref="ErasureRequestStatus.Scheduled" />.
+	/// </summary>
+	/// <remarks>
+	/// <c>InProgress</c> and <c>AwaitingKeyDestruction</c> are OWNED -- an executor is mid-run, or the
+	/// key-management provider holds keys it has irreversibly scheduled for destruction. <c>Completed</c>
+	/// and <c>Cancelled</c> are TERMINAL. Every other status (<c>Pending</c>, <c>Scheduled</c>,
+	/// <c>BlockedByLegalHold</c>, <c>Failed</c>, <c>PartiallyCompleted</c>) describes a request nobody is
+	/// running, so offering it again is legitimate and is how a transient failure is ever retried.
+	/// </remarks>
+	private static bool IsOwnedOrTerminal(ErasureRequestStatus status) =>
+		status is ErasureRequestStatus.InProgress
+			or ErasureRequestStatus.AwaitingKeyDestruction
+			or ErasureRequestStatus.Completed
+			or ErasureRequestStatus.Cancelled;
+
+	/// <inheritdoc />
+	public Task<ErasureWriteOutcome> RecordCompletionAsync(
 		Guid requestId,
 		int keysDeleted,
 		int recordsAffected,
 		Guid certificateId,
+		string claimIdentity,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(claimIdentity);
+
 		// Resolved before the lookup so that an unresolved tenant fails closed whether or not the row exists.
 		var tenant = AmbientScope;
 
@@ -287,16 +521,32 @@ internal sealed class InMemoryErasureStore
 				+ "out of the run deliberately, and a completion must not overwrite it.");
 		}
 
-		data.Status = ErasureRequestStatus.Completed;
-		data.KeysDeleted = keysDeleted;
-		data.RecordsAffected = recordsAffected;
-		data.CertificateId = certificateId;
-		data.CompletedAt = DateTimeOffset.UtcNow;
-		data.UpdatedAt = DateTimeOffset.UtcNow;
+		lock (data.Transitions)
+		{
+			// THE FENCE, and it compares the identity and ONLY the identity. The expiry is not consulted:
+			// a lapse does not revoke, so a holder nobody superseded still completes its own run. If this
+			// also tested the expiry, an executor that had destroyed a subject's keys and overrun its
+			// lease would be refused the certificate attesting what it had already done.
+			if (!string.Equals(data.ClaimIdentity, claimIdentity, StringComparison.Ordinal))
+			{
+				return Task.FromResult(ErasureWriteOutcome.ClaimLost);
+			}
 
-		_requestToCertificate[requestId] = certificateId;
+			data.Status = ErasureRequestStatus.Completed;
+			data.KeysDeleted = keysDeleted;
+			data.RecordsAffected = recordsAffected;
+			data.CertificateId = certificateId;
+			data.CompletedAt = DateTimeOffset.UtcNow;
+			data.UpdatedAt = DateTimeOffset.UtcNow;
 
-		return Task.CompletedTask;
+			// Custody ends with the run, and both halves clear together to hold the pairing invariant.
+			data.ClaimIdentity = null;
+			data.ClaimExpiresAt = null;
+
+			_requestToCertificate[requestId] = certificateId;
+
+			return Task.FromResult(ErasureWriteOutcome.Applied);
+		}
 	}
 
 	/// <inheritdoc />
@@ -435,6 +685,136 @@ internal sealed class InMemoryErasureStore
 		return new ValueTask<bool>(_destroyedGenerations.ContainsKey(new DestroyedKey(keyHandle, keyGeneration)));
 	}
 
+	/// <inheritdoc />
+	/// <inheritdoc />
+	/// <remarks>
+	/// <b>FALSE, and it is the honest answer rather than a limitation to work around.</b> Rows live in a
+	/// <c>ConcurrentDictionary</c> and are gone when the process is. An erasure run after a restart would
+	/// enumerate nothing, destroy only the handles it can derive from declared retentions, and certify --
+	/// so this store must not supply the mint ledger in any deployment whose erasures are relied upon.
+	/// Startup validation refuses that composition unless the consumer states the choice by name.
+	/// </remarks>
+	public bool IsDurable => false;
+
+	public Task RecordMintIntentAsync(
+		string keyHandle,
+		TenantId tenantId,
+		string dataSubjectIdHash,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(keyHandle);
+		ArgumentNullException.ThrowIfNull(tenantId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(dataSubjectIdHash);
+
+		if (keyHandle.Length > MaxKeyHandleLength)
+		{
+			throw new ArgumentException(
+				$"A key handle is at most {MaxKeyHandleLength} characters and this one is {keyHandle.Length}. "
+				+ "Refusing rather than storing it: a truncated handle is a row that matches no envelope, "
+				+ "which is an omission from the enumeration an erasure destroys from.",
+				nameof(keyHandle));
+		}
+
+		// MintedAt is left NULL: the key does not exist yet, and this row must not claim otherwise.
+		var entry = new MintedHandleRecord(
+			tenantId.Value, dataSubjectIdHash, DateTimeOffset.UtcNow, MintedAt: null);
+
+		// TryAdd, so recording a handle that already has an entry is a no-op and the FIRST instant stands.
+		// A lost race is a SUCCESS, not an error: the first write per subject and obligation class races with
+		// every other, and failing here would fail a perfectly good personal-data write on a path that is
+		// deliberately fail-closed.
+		if (_mintedHandles.TryAdd(keyHandle, entry))
+		{
+			return Task.CompletedTask;
+		}
+
+		// THE ENUMERATION KEY MUST AGREE, and a disagreement is refused rather than silently keeping the
+		// first spelling. A handle is derived from the owner and the subject, so a collision between two of
+		// them is either a derivation defect or a hash collision. Keeping the first silently would leave the
+		// handle recorded while the CORRECT owner's enumeration returned nothing -- worse than no row at all,
+		// because the erasure then destroys what it found and certifies.
+		var existing = _mintedHandles[keyHandle];
+
+		if (!string.Equals(existing.TenantId, tenantId.Value, StringComparison.Ordinal)
+			|| !string.Equals(existing.DataSubjectIdHash, dataSubjectIdHash, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException(
+				"This key handle is already recorded for a different owner or data subject. A handle is "
+				+ "derived from both, so a collision is either a derivation defect or a hash collision, and "
+				+ "silently keeping the first spelling would leave the handle unenumerable for the owner "
+				+ "whose data it actually holds.");
+		}
+
+		return Task.CompletedTask;
+	}
+
+	/// <inheritdoc />
+	public Task<MintLedgerSnapshot> ListHandlesAsync(
+		TenantId tenantId,
+		string dataSubjectIdHash,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(tenantId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(dataSubjectIdHash);
+
+		// ORDINAL on both terms, and this is the one place in this store where a tenant term is load-bearing
+		// rather than redundant: the enumeration is addressed by (owner, subject) and NOT by the ledger's key,
+		// so without the term it would return every subject's handles. A folding comparison would let one
+		// owner's handles be enumerated for another -- and this set is what an erasure DESTROYS.
+		//
+		// Complete, with no paging and no limit: a truncated answer here is a handle the erasure does not
+		// destroy, which is a subject reported erased whose data is still readable.
+		// ONE ENUMERATION, SPLIT ONCE. Taking the rows in a single pass and partitioning them here is what
+		// makes the two sets a coherent snapshot; two passes over a live dictionary could observe a row
+		// moving from pending to minted and report it in neither set.
+		var rows = _mintedHandles
+			.Where(entry =>
+				string.Equals(entry.Value.TenantId, tenantId.Value, StringComparison.Ordinal)
+				&& string.Equals(entry.Value.DataSubjectIdHash, dataSubjectIdHash, StringComparison.Ordinal))
+			.Select(entry => (entry.Key, entry.Value.MintedAt))
+			.ToList();
+
+		IReadOnlyList<string> minted = [.. rows.Where(r => r.MintedAt is not null).Select(r => r.Key)];
+		IReadOnlyList<string> pending = [.. rows.Where(r => r.MintedAt is null).Select(r => r.Key)];
+
+		return Task.FromResult(new MintLedgerSnapshot(minted, pending));
+	}
+
+	/// <inheritdoc />
+	public Task MarkMintedAsync(string keyHandle, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(keyHandle);
+		cancellationToken.ThrowIfCancellationRequested();
+
+		// REFUSED when no row exists, rather than inserting one. The intent row is always written first, so
+		// its absence here means the caller skipped that step -- and a key may then exist at a handle no
+		// erasure will enumerate, which is the failure this ledger exists to remove. Inserting a row now
+		// would paper over it and lose the owner and subject the row has to carry.
+		if (!_mintedHandles.TryGetValue(keyHandle, out var existing))
+		{
+			throw new InvalidOperationException(
+				$"No mint-ledger row exists for key handle '{keyHandle}', so its key creation cannot be "
+				+ "confirmed. The row is written before the key is created, always; its absence means the "
+				+ "intent step was skipped and a key may exist at a handle no erasure can enumerate.");
+		}
+
+		// IDEMPOTENT, and the FIRST confirmation stands. A later confirmation must not move the instant: the
+		// row records when the key came into existence, and that is not a fact a retry may restate.
+		if (existing.MintedAt is not null)
+		{
+			return Task.CompletedTask;
+		}
+
+		// A lost race against another confirmation is a SUCCESS -- both callers want the row confirmed, and
+		// it is. Nothing else mutates this row, so no other update can be clobbered here.
+		_ = _mintedHandles.TryUpdate(
+			keyHandle,
+			existing with { MintedAt = DateTimeOffset.UtcNow },
+			existing);
+
+		return Task.CompletedTask;
+	}
+
 	/// <summary>
 	/// Resolves the request a key record is about to be written against, failing closed on an unresolved tenant
 	/// and treating another tenant's request as absent.
@@ -523,6 +903,30 @@ internal sealed class InMemoryErasureStore
 		DateTimeOffset DestroyedAt,
 		string RecordedBy);
 
+	/// <summary>
+	/// A mint-ledger entry: this handle was recorded for this subject under this owner, at this instant.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// It carries NO obligation class. The handle is derived from the class, so storing the class as well
+	/// would duplicate derivable state and create an axis on which the entry could disagree with the handle
+	/// it names. An erasure decides an entry's obligation by testing its handle against the handles the
+	/// currently-declared retentions produce — equality on an opaque value, with nothing to interpret.
+	/// </para>
+	/// <para>
+	/// <b>MintedAt is NULLABLE, and the null is the whole point.</b> The row is written BEFORE the key is
+	/// created, so at that moment nothing can say whether the key exists. Null means exactly that and
+	/// nothing more -- it is not a default standing in for a value nobody measured. An erasure that finds a
+	/// null cannot tell a write in flight from a write abandoned, which is why it must report a concurrent
+	/// write rather than certify; see <see cref="MintLedgerSnapshot"/>.
+	/// </para>
+	/// </remarks>
+	private sealed record MintedHandleRecord(
+		string TenantId,
+		string DataSubjectIdHash,
+		DateTimeOffset IntentAt,
+		DateTimeOffset? MintedAt);
+
 	/// <inheritdoc />
 	public Task<bool> RecordCancellationAsync(
 		Guid requestId,
@@ -539,32 +943,38 @@ internal sealed class InMemoryErasureStore
 			return Task.FromResult(false);
 		}
 
-		// Atomic compare-and-swap: only cancel if currently Pending or Scheduled
-		var previous = Interlocked.CompareExchange(
-			ref data.StatusValue,
-			(int)ErasureRequestStatus.Cancelled,
-			(int)ErasureRequestStatus.Pending);
-
-		if (previous != (int)ErasureRequestStatus.Pending)
+		// UNDER THE ROW'S TRANSITION LOCK, like every other writer of this field. This used to be two
+		// bare compare-and-swaps, and being atomic per-field is not the same as being atomic with
+		// respect to the other writers: the status write and the completion write both decide under the
+		// lock and then store, so a cancellation landing between one of those decisions and its store
+		// was overwritten and the caller was still told TRUE.
+		//
+		// The interleaving, with no claim involved and the request merely Scheduled:
+		//   T1 UpdateStatusAsync(Failed) takes the lock, reads Scheduled, the partition admits Failed;
+		//   T2 this method's CAS Scheduled -> Cancelled succeeds and returns TRUE;
+		//   T1 stores Failed over Cancelled.
+		// The store then reports an erasure the caller was told was cancelled, with the cancellation
+		// reason and actor stamped on a request whose status says it failed. Neither SQL provider can
+		// produce it -- a single conditional UPDATE holds the row -- so this was the reference store
+		// failing to be a subtype of its own contract, which is the direction that matters least for
+		// safety and most for a consumer writing against the in-memory store first.
+		lock (data.Transitions)
 		{
-			// Try Scheduled → Cancelled
-			previous = Interlocked.CompareExchange(
-				ref data.StatusValue,
-				(int)ErasureRequestStatus.Cancelled,
-				(int)ErasureRequestStatus.Scheduled);
+			var current = (ErasureRequestStatus)Volatile.Read(ref data.StatusValue);
 
-			if (previous != (int)ErasureRequestStatus.Scheduled)
+			if (current is not (ErasureRequestStatus.Pending or ErasureRequestStatus.Scheduled))
 			{
 				return Task.FromResult(false);
 			}
+
+			data.Status = ErasureRequestStatus.Cancelled;
+			data.CancelledAt = DateTimeOffset.UtcNow;
+			data.CancellationReason = reason;
+			data.CancelledBy = cancelledBy;
+			data.UpdatedAt = DateTimeOffset.UtcNow;
+
+			return Task.FromResult(true);
 		}
-
-		data.CancelledAt = DateTimeOffset.UtcNow;
-		data.CancellationReason = reason;
-		data.CancelledBy = cancelledBy;
-		data.UpdatedAt = DateTimeOffset.UtcNow;
-
-		return Task.FromResult(true);
 	}
 
 	/// <inheritdoc />
@@ -582,9 +992,13 @@ internal sealed class InMemoryErasureStore
 	{
 		var now = DateTimeOffset.UtcNow;
 
+		// THE SECOND DISJUNCT IS WHAT MAKES AN INTERRUPTED ERASURE COME BACK. A request whose executor
+		// died stays in the claimed status with nothing to advance it, and this query is the only thing
+		// that offers work -- so without the lapse term it is excluded forever, correctly and silently,
+		// and the subject's data is never erased.
 		var scheduled = _requests.Values
-			.Where(r => r.Status == ErasureRequestStatus.Scheduled &&
-						r.ScheduledExecutionAt <= now)
+			.Where(r => (r.Status == ErasureRequestStatus.Scheduled && r.ScheduledExecutionAt <= now)
+						|| (r.Status == ErasureRequestStatus.InProgress && HasLapsedClaim(r)))
 			.OrderBy(r => r.ScheduledExecutionAt)
 			.Take(maxResults)
 			.Select(ToStatus)
@@ -597,17 +1011,78 @@ internal sealed class InMemoryErasureStore
 	public Task<IReadOnlyList<ErasureStatus>> GetAwaitingKeyDestructionRequestsAsync(
 		int pageNumber, int pageSize, CancellationToken cancellationToken)
 	{
+		// NOT DiscoverByStatus, and the divergence is deliberate: this status is the only one a
+		// confirmation pass CLAIMS from, so a live claim means another confirmer already holds the
+		// request. Offering it anyway makes the second confirmer take a claim it cannot get, be refused
+		// at its first write, and log a defect on every poll for as long as the first one holds -- a
+		// defect report that says nothing is wrong. The hold-deferred query keeps the shared helper
+		// because nothing claims a deferred request.
+		// THE PAGING GUARDS ARE THE SHARED HELPER'S, COPIED RATHER THAN PARAPHRASED. My first
+		// hand-written version dropped the widened offset, so paging at int.MaxValue overflowed to a
+		// wrapped negative, which LINQ and both engines read as "skip nothing" -- a page far past the
+		// end returned the FIRST page instead of nothing. A tenant-scope arm caught it.
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+		ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 1000);
+		cancellationToken.ThrowIfCancellationRequested();
+
+		// ESTATE-WIDE AND DELIBERATELY UNSCOPED, like the other background discovery surfaces: this runs
+		// from a host that has no tenant, so a tenant predicate here returns nothing and the whole
+		// confirmation pass silently stops. The claim exclusion below is the only new term.
+		var offset = ((long)pageNumber - 1) * pageSize;
+		var matching = _requests.Values
+			.Where(r => r.Status == ErasureRequestStatus.AwaitingKeyDestruction && !HasLiveClaim(r))
+			.OrderBy(r => r.RequestedAt).ThenBy(r => r.RequestId).ToArray();
+
+		return Task.FromResult<IReadOnlyList<ErasureStatus>>(offset >= matching.Length
+			? []
+			: matching.Skip((int)offset).Take(pageSize).Select(ToStatus).ToList());
+	}
+
+	/// <summary>Whether this request is held by a claim that has not lapsed.</summary>
+	/// <remarks>
+	/// Read WITHOUT the row's transition lock on purpose: a discovery pass that observed a claim granted
+	/// or released a moment later is simply offered, or not offered, one poll early or late. The lock
+	/// protects the ATOMICITY of taking custody, and the claim itself is what refuses a stale offer, so
+	/// taking it here would serialise every poll against every executor for no safety.
+	/// </remarks>
+	private bool HasLiveClaim(ErasureRequestData data) =>
+		data.ClaimIdentity is not null && data.ClaimExpiresAt > _timeProvider.GetUtcNow();
+
+	/// <summary>Whether this request carries a claim that has elapsed, so it may be recovered.</summary>
+	private bool HasLapsedClaim(ErasureRequestData data) =>
+		data.ClaimIdentity is not null && data.ClaimExpiresAt <= _timeProvider.GetUtcNow();
+
+	/// <inheritdoc />
+	public Task<IReadOnlyList<ErasureStatus>> GetHoldDeferredRequestsAsync(
+		int pageNumber, int pageSize, CancellationToken cancellationToken) =>
+		DiscoverByStatus(ErasureRequestStatus.BlockedByLegalHold, pageNumber, pageSize, cancellationToken);
+
+	/// <summary>
+	/// The estate-wide discovery both background members are served by.
+	/// </summary>
+	/// <remarks>
+	/// Shared deliberately: the two members differ only in the status they look for, and what drifts
+	/// between hand-copied discovery paths is the paging, the ordering and the tenancy rather than the
+	/// constant. No ambient-tenant match is applied, which the nearest sibling reads in this file DO --
+	/// a background worker runs under no tenant scope. This reference store cannot catch an ambient
+	/// term wrongly added by a provider, because its own match short-circuits to true under single
+	/// tenancy, which is how most callers exercise it; the shared conformance arm is what catches that.
+	/// </remarks>
+	private Task<IReadOnlyList<ErasureStatus>> DiscoverByStatus(
+		ErasureRequestStatus status, int pageNumber, int pageSize, CancellationToken cancellationToken)
+	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
 		ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 1000);
 		cancellationToken.ThrowIfCancellationRequested();
 		var offset = ((long)pageNumber - 1) * pageSize;
-		var waiting = _requests.Values
-			.Where(row => row.Status == ErasureRequestStatus.AwaitingKeyDestruction)
+		var matching = _requests.Values
+			.Where(row => row.Status == status)
 			.OrderBy(row => row.RequestedAt).ThenBy(row => row.RequestId).ToArray();
-		return Task.FromResult<IReadOnlyList<ErasureStatus>>(offset >= waiting.Length
+		return Task.FromResult<IReadOnlyList<ErasureStatus>>(offset >= matching.Length
 			? []
-			: waiting.Skip((int)offset).Take(pageSize).Select(ToStatus).ToList());
+			: matching.Skip((int)offset).Take(pageSize).Select(ToStatus).ToList());
 	}
 
 	/// <inheritdoc />
@@ -793,6 +1268,27 @@ internal sealed class InMemoryErasureStore
 		// scoped by request, so leaving it behind would let a cleared store keep reporting generations as
 		// destroyed -- an arm that then asserted "not destroyed" could never fail.
 		_destroyedGenerations.Clear();
+
+		// THE MINT LEDGER IS DELIBERATELY *NOT* CLEARED, and the superseded reasoning is quoted below because
+		// it was wrong in a way worth recognising rather than deleting.
+		//
+		// Clearing the DESTRUCTION ledger above moves toward the SAFE answer: no record, no tombstone, the
+		// read proceeds. Clearing the MINT ledger moves toward the CATASTROPHIC one: an erasure then
+		// enumerates fewer handles than exist, destroys what it found, and certifies. The contract states
+		// that rows are insert-only and permanent -- "no sweep, no expiry, no administrative reset" -- for
+		// exactly that reason, so a member that removes one makes this type a non-subtype of the contract it
+		// declares: the abstraction forbids the transition row-present to row-absent and this permitted it.
+		//
+		// SUPERSEDED, and the flaw is in its last step rather than its premises: "It is cleared here anyway,
+		// and that is coherent only because this store is DEVELOPMENT-ONLY and already loses every row on a
+		// process restart. Clear() is the same loss on demand, not a new one, so the contract's durability
+		// requirement is what rules this store out of a deployment whose erasures are relied upon -- not this
+		// line." Every clause of that is true of the STORE and none of it establishes anything about the
+		// TYPE. It justifies one contract violation by appealing to a second one, which is an argument that
+		// can license anything.
+		//
+		// Nothing needed it. A fresh instance is how a caller gets a fresh ledger, and the conformance kit
+		// already builds one per arm.
 	}
 
 	// Not static: the destroyed-handle set is derived from the instance's ledger rather than carried on the
@@ -908,6 +1404,39 @@ internal sealed class InMemoryErasureStore
 		public string? CancellationReason { get; set; }
 		public string? CancelledBy { get; set; }
 		public int StatusValue;
+
+		/// <summary>
+		/// Serialises every transition of this request's STATUS and its CUSTODY together.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// This replaced three separate compare-and-swaps on <see cref="StatusValue"/>, and the reason is
+		/// that the atomic step is no longer one integer wide. Granting a claim writes the status, the
+		/// identity and the expiry, and those three must become visible together or not at all: two
+		/// interlocked operations would let a second caller observe the status it needs between them, be
+		/// granted as well, and then write past a fence that is comparing against its own identity. That
+		/// is a weakened postcondition NO SEQUENTIAL TEST CAN OBSERVE, which is why it is structural here
+		/// rather than argued in a comment.
+		/// </para>
+		/// <para>
+		/// A lock rather than a wider interlocked value because the correctness is then obvious instead of
+		/// derived, and because this store is a development and test substrate where per-request
+		/// contention costs nothing. The SQL providers get the same indivisibility from a single
+		/// conditional UPDATE.
+		/// </para>
+		/// </remarks>
+		public readonly object Transitions = new();
+
+		/// <summary>The identity of the claim currently held, or null when nobody holds this request.</summary>
+		/// <remarks>
+		/// Only ever read or written under <see cref="Transitions"/>. Paired with
+		/// <see cref="ClaimExpiresAt"/>: both null or both set, never one, which is the same invariant the
+		/// SQL schemas enforce with a check constraint.
+		/// </remarks>
+		public string? ClaimIdentity;
+
+		/// <summary>When the current claim stops being live. Null exactly when <see cref="ClaimIdentity"/> is.</summary>
+		public DateTimeOffset? ClaimExpiresAt;
 
 		public ErasureRequestStatus Status
 		{

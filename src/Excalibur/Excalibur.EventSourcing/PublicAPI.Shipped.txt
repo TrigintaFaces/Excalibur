@@ -141,6 +141,8 @@ Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.
 Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.GetByIdAsync(TKey aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TAggregate?>!
 Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.SaveAsync(TAggregate! aggregate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.SaveResult>!
 Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.SaveAsync(TAggregate! aggregate, string? expectedETag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.SaveResult>!
+Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.TransactionalProjections.get -> Excalibur.EventSourcing.ITransactionalProjectionCoordinator?
+Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.TransactionalProjections.init -> void
 Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate>
 Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate>.EventSourcedRepository(Excalibur.EventSourcing.IEventStore! eventStore, Excalibur.Dispatch.IEventSerializer! eventSerializer, System.Func<string!, TAggregate!>! aggregateFactory, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions!>! options, Microsoft.Extensions.Options.IOptionsMonitor<Excalibur.EventSourcing.AutoSnapshotOptions!>? autoSnapshotOptions = null, Excalibur.Dispatch.IUpcastingPipeline? upcastingPipeline = null, Excalibur.EventSourcing.ISnapshotManager? snapshotManager = null, Excalibur.EventSourcing.ISnapshotStrategy? snapshotStrategy = null, Excalibur.Dispatch.ITransactionalOutboxWriter? transactionalOutboxWriter = null, Excalibur.Dispatch.IOutboxStore? outboxStore = null, Excalibur.EventSourcing.Snapshots.SnapshotVersionManager? snapshotVersionManager = null, Excalibur.EventSourcing.IEventNotificationBroker? eventNotificationBroker = null, System.TimeProvider? timeProvider = null, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate!, string!>!>? logger = null) -> void
 Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions
@@ -247,6 +249,7 @@ Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Async() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Ephemeral() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Inline() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
+Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.TransactionalInline(string! aggregateType) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WhenDeleted(System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! deleteAction) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WithCacheTtl(System.TimeSpan ttl) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WithOptions(System.Action<Excalibur.EventSourcing.Projections.ProjectionOptions!>! configure) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
@@ -271,6 +274,62 @@ Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>.RefoldA
 Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>.UpsertAtPositionAsync(string! id, TProjection! projection, long? expectedPosition, long newPosition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.ProjectionAdvanceResult>!
 Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>.UpsertUnnumberedAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentOperations.get -> int
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentOperations.set -> void
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentReads.get -> int
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentReads.set -> void
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentRebuilds.get -> int
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentRebuilds.set -> void
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentWrites.get -> int
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentWrites.set -> void
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxResources.get -> int
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxResources.set -> void
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.ProjectionCapacityOptions() -> void
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.QueueLimit.get -> int
+Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.QueueLimit.set -> void
+Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
+Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome.Contested = 2 -> Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
+Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome.CutOver = 3 -> Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
+Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome.NewGenerationCursorAbsent = 0 -> Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
+Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome.NewGenerationLagAboveThreshold = 1 -> Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
+Excalibur.EventSourcing.Projections.ProjectionGenerationControl<TProjection>
+Excalibur.EventSourcing.Projections.ProjectionGenerationControl<TProjection>.CutOverAsync(string! newProjectionKey, System.Guid? expectedRevision, long maxAcceptableLag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult>!
+Excalibur.EventSourcing.Projections.ProjectionGenerationControl<TProjection>.DecommissionAsync(System.Guid expectedRevision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.EventSourcing.Projections.ProjectionGenerationControl<TProjection>.ReadGenerationAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Subscriptions.ProjectionGeneration?>!
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutover
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutover.CutOverAsync(Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult>!
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutover.ProjectionGenerationCutover(Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore! checkpoints, Excalibur.EventSourcing.Queries.IGlobalStreamQuery! globalStream) -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.ExpectedRevision.get -> System.Guid?
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.ExpectedRevision.init -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.MaxAcceptableLag.get -> long
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.MaxAcceptableLag.init -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.NewProjectionKey.get -> string!
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.NewProjectionKey.init -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.ReaderName.get -> string!
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.ReaderName.init -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.SubscriptionName.get -> string!
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.SubscriptionName.init -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.HeadPosition.get -> long
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.HeadPosition.init -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.Lag.get -> long?
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.Lag.init -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.NewGenerationCursor.get -> long?
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.NewGenerationCursor.init -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.Outcome.get -> Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.Outcome.init -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.ProjectionGenerationCutoverResult() -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.ProjectionGenerationCutoverResult(Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome Outcome, long? NewGenerationCursor, long HeadPosition, long? Lag) -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>
+Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>! typeInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.GetByIdAsync(string! id, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>! typeInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
+Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
+Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.ProjectionGenerationReader(Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore! checkpoints, Excalibur.EventSourcing.IProjectionStore<TProjection!>! store, string! subscriptionName, string! readerName, System.Collections.Generic.IReadOnlyCollection<string!>? compatibleProjectionKeys = null) -> void
+Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>! typeInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
 Excalibur.EventSourcing.Projections.ProjectionLag
 Excalibur.EventSourcing.Projections.ProjectionLag.CheckpointPosition.get -> long?
 Excalibur.EventSourcing.Projections.ProjectionLag.CheckpointPosition.init -> void
@@ -304,6 +363,8 @@ Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.BatchSize.get -> in
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.BatchSize.set -> void
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.MaxParallelism.get -> int
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.MaxParallelism.set -> void
+Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.OfflineRebuildAcknowledged.get -> bool
+Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.OfflineRebuildAcknowledged.set -> void
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.ProjectionRebuildOptions() -> void
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.RebuildOnStartup.get -> bool
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.RebuildOnStartup.set -> void
@@ -359,6 +420,8 @@ Excalibur.EventSourcing.Services.MaterializedViewRefreshOptions.MaxRetryDelay.ge
 Excalibur.EventSourcing.Services.MaterializedViewRefreshOptions.MaxRetryDelay.set -> void
 Excalibur.EventSourcing.Services.MaterializedViewRefreshOptions.RefreshInterval.get -> System.TimeSpan?
 Excalibur.EventSourcing.Services.MaterializedViewRefreshOptions.RefreshInterval.set -> void
+Excalibur.EventSourcing.Sharding.ITenantShardReadinessProbe
+Excalibur.EventSourcing.Sharding.ITenantShardReadinessProbe.ProbeShardAsync(string! shardId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Sharding.ShardMapOptionsValidator
 Excalibur.EventSourcing.Sharding.ShardMapOptionsValidator.ShardMapOptionsValidator(Excalibur.Data.Sharding.ITenantShardMap? shardMap = null) -> void
 Excalibur.EventSourcing.Sharding.ShardMapOptionsValidator.Validate(string? name, Excalibur.Data.Sharding.ShardMapOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
@@ -372,6 +435,12 @@ Excalibur.EventSourcing.Sharding.TenantScopedSagaStore.PurgeAllTenantsCompletedB
 Excalibur.EventSourcing.Sharding.TenantScopedSagaStore.PurgeCompletedBeforeAsync(System.DateTimeOffset threshold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.EventSourcing.Sharding.TenantScopedSagaStore.SaveAsync<TSagaState>(TSagaState! sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Sharding.TenantScopedSagaStore.TenantScopedSagaStore(Excalibur.Dispatch.Messaging.ISagaStore! inner, Excalibur.Dispatch.ITenantContext! tenantContext) -> void
+Excalibur.EventSourcing.Sharding.TenantShardHealthCheckOptions
+Excalibur.EventSourcing.Sharding.TenantShardHealthCheckOptions.MaxConcurrentProbes.get -> int
+Excalibur.EventSourcing.Sharding.TenantShardHealthCheckOptions.MaxConcurrentProbes.set -> void
+Excalibur.EventSourcing.Sharding.TenantShardHealthCheckOptions.TenantShardHealthCheckOptions() -> void
+Excalibur.EventSourcing.Sharding.TenantShardHealthCheckOptions.Timeout.get -> System.TimeSpan
+Excalibur.EventSourcing.Sharding.TenantShardHealthCheckOptions.Timeout.set -> void
 Excalibur.EventSourcing.Snapshots.CompositeSnapshotStrategy
 Excalibur.EventSourcing.Snapshots.CompositeSnapshotStrategy.AddStrategy(Excalibur.EventSourcing.ISnapshotStrategy! strategy) -> void
 Excalibur.EventSourcing.Snapshots.CompositeSnapshotStrategy.CompositeMode
@@ -490,15 +559,55 @@ Excalibur.EventSourcing.Subscriptions.IEventSubscription.UnsubscribeAsync(System
 Excalibur.EventSourcing.Subscriptions.IEventSubscriptionManager
 Excalibur.EventSourcing.Subscriptions.IEventSubscriptionManager.CreateSubscription(string! name, Excalibur.EventSourcing.Subscriptions.EventSubscriptionOptions! options) -> Excalibur.EventSourcing.Subscriptions.IEventSubscription!
 Excalibur.EventSourcing.Subscriptions.IEventSubscriptionManager.GetSubscription(string! name) -> Excalibur.EventSourcing.Subscriptions.IEventSubscription?
+Excalibur.EventSourcing.Subscriptions.IProjectionGenerationStore
+Excalibur.EventSourcing.Subscriptions.IProjectionGenerationStore.ReadGenerationAsync(string! subscriptionName, string! readerName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Subscriptions.ProjectionGeneration?>!
+Excalibur.EventSourcing.Subscriptions.IProjectionGenerationStore.TryRemoveGenerationAsync(string! subscriptionName, string! readerName, System.Guid expectedRevision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.EventSourcing.Subscriptions.IProjectionGenerationStore.TrySetGenerationAsync(string! subscriptionName, string! readerName, System.Guid? expectedRevision, string! projectionKey, System.Guid bindingId, long minimumPosition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointDurability
 Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore
+Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.AdvanceCheckpointAsync(string! subscriptionName, string! projectionKey, System.Guid bindingId, long? expectedPosition, long newPosition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Subscriptions.CheckpointAdvanceOutcome>!
+Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.BindSubscriptionAsync(string! subscriptionName, System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Subscriptions.SubscriptionMember!>! members, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Subscriptions.SubscriptionRoster!>!
 Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.EnumerateCheckpointsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint>!>!
+Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.GetCheckpointAsync(string! subscriptionName, string! projectionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long?>!
+Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.ReadSubscriptionAsync(string! subscriptionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Subscriptions.SubscriptionRoster!>!
+Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.ReleaseSubscriptionMemberAsync(string! subscriptionName, string! projectionKey, System.Guid bindingId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.EventSourcing.Subscriptions.ProjectionGeneration
+Excalibur.EventSourcing.Subscriptions.ProjectionGeneration.Member.get -> Excalibur.EventSourcing.Subscriptions.SubscriptionMember!
+Excalibur.EventSourcing.Subscriptions.ProjectionGeneration.Member.init -> void
+Excalibur.EventSourcing.Subscriptions.ProjectionGeneration.ProjectionGeneration(System.Guid Revision, Excalibur.EventSourcing.Subscriptions.SubscriptionMember! Member) -> void
+Excalibur.EventSourcing.Subscriptions.ProjectionGeneration.Revision.get -> System.Guid
+Excalibur.EventSourcing.Subscriptions.ProjectionGeneration.Revision.init -> void
 Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint
 Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.Position.get -> long
 Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.Position.init -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.ProjectionKey.get -> string!
+Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.ProjectionKey.init -> void
 Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.SubscriptionCheckpoint() -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.SubscriptionCheckpoint(string! SubscriptionName, string! ProjectionKey, long Position) -> void
 Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.SubscriptionName.get -> string!
 Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.SubscriptionName.init -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionKeys
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.BindingId.get -> System.Guid
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.BindingId.init -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.DefinitionHash.get -> string!
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.DefinitionHash.init -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.Destination.get -> string!
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.Destination.init -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.DestinationScope.get -> string?
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.DestinationScope.init -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.Position.get -> long?
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.Position.init -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.ProjectionKey.get -> string!
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.ProjectionKey.init -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionMember.SubscriptionMember(string! ProjectionKey, string! DefinitionHash, string! Destination) -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionRoster
+Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.Identity.get -> string!
+Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.Members.get -> System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Subscriptions.SubscriptionMember!>!
+Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.Members.init -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.SubscriptionName.get -> string!
+Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.SubscriptionName.init -> void
+Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.SubscriptionRoster(string! SubscriptionName, System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Subscriptions.SubscriptionMember!>! Members) -> void
 Excalibur.EventSourcing.Subscriptions.SubscriptionStartPosition
 Excalibur.EventSourcing.Subscriptions.SubscriptionStartPosition.Beginning = 0 -> Excalibur.EventSourcing.Subscriptions.SubscriptionStartPosition
 Excalibur.EventSourcing.Subscriptions.SubscriptionStartPosition.End = 1 -> Excalibur.EventSourcing.Subscriptions.SubscriptionStartPosition
@@ -566,6 +675,7 @@ Microsoft.Extensions.DependencyInjection.InMemoryProjectionStoreServiceCollectio
 Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ProjectionCheckpointAcknowledgementServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ProjectionGenerationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ProjectionRebuildServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions
@@ -680,6 +790,10 @@ static Excalibur.EventSourcing.Queries.GlobalStreamPosition.Start.get -> Excalib
 static Excalibur.EventSourcing.Snapshots.NoSnapshotStrategy.Instance.get -> Excalibur.EventSourcing.Snapshots.NoSnapshotStrategy!
 static Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult.Compatible(int version) -> Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult!
 static Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult.Incompatible(int storedVersion, int currentVersion, string? reason = null) -> Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult!
+static Excalibur.EventSourcing.Subscriptions.SubscriptionKeys.CheckpointName(string! subscriptionName, string! projectionKey) -> string!
+static Excalibur.EventSourcing.Subscriptions.SubscriptionKeys.DefinitionFingerprint(string! subscriptionScope, string! subscriptionRevision, string! assemblyName, string! projectionKey, string! destination) -> string!
+static Excalibur.EventSourcing.Subscriptions.SubscriptionKeys.ProjectionKey(System.Type! projectionType) -> string!
+static Excalibur.EventSourcing.Subscriptions.SubscriptionKeys.ProjectionKey(System.Type! projectionType, int version) -> string!
 static Microsoft.Extensions.DependencyInjection.AutoSnapshotServiceCollectionExtensions.UseAutoSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.AutoSnapshotServiceCollectionExtensions.UseAutoSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.AutoSnapshotOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddEventNotificationHandlersFromAssembly(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
@@ -711,6 +825,7 @@ static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilder
 static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions.AddEventStoreHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "event-store", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions.AddProjectionsHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "projections", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions.AddSnapshotStoreHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "snapshot-store", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions.AddTenantShardHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, Excalibur.EventSourcing.Sharding.TenantShardHealthCheckOptions! options, string! name = "tenant-shard", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingHealthChecksBuilderExtensions.AddTenantShardHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "tenant-shard", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingOpenTelemetryExtensions.AddEventSourcingInstrumentation(this OpenTelemetry.IOpenTelemetryBuilder! builder) -> OpenTelemetry.IOpenTelemetryBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingOpenTelemetryExtensions.AddEventSourcingInstrumentation(this OpenTelemetry.Trace.TracerProviderBuilder! builder) -> OpenTelemetry.Trace.TracerProviderBuilder!
@@ -733,6 +848,8 @@ static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollecti
 static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEventSourcingMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEventSourcingMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Migration.MigrationRunnerOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ProjectionCheckpointAcknowledgementServiceCollectionExtensions.AllowInMemoryProjectionCheckpoints(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ProjectionGenerationServiceCollectionExtensions.AddInlineProjectionGenerationReader<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! readerName, System.Collections.Generic.IReadOnlyCollection<string!>? compatibleProjectionKeys = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ProjectionGenerationServiceCollectionExtensions.AddProjectionGenerationReader<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! subscriptionName, string! readerName, System.Collections.Generic.IReadOnlyCollection<string!>? compatibleProjectionKeys = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ProjectionRebuildServiceCollectionExtensions.AddProjectionRebuild(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions.EnableTenantSharding(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions.EnableTenantSharding(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.Data.Sharding.ShardMapOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
@@ -753,111 +870,3 @@ virtual Excalibur.EventSourcing.Decorators.IsolatingEventStoreDecorator.Forwarda
 virtual Excalibur.EventSourcing.Decorators.IsolatingEventStoreDecorator.WrapCapability(System.Type! serviceType) -> object?
 virtual Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.WrapCapability(System.Type! serviceType) -> object?
 virtual Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.DeleteAsync(TAggregate! aggregate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.AdvanceCheckpointAsync(string! subscriptionName, string! projectionKey, System.Guid bindingId, long? expectedPosition, long newPosition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Subscriptions.CheckpointAdvanceOutcome>!
-Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.BindSubscriptionAsync(string! subscriptionName, System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Subscriptions.SubscriptionMember!>! members, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Subscriptions.SubscriptionRoster!>!
-Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.GetCheckpointAsync(string! subscriptionName, string! projectionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long?>!
-Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.ReleaseSubscriptionMemberAsync(string! subscriptionName, string! projectionKey, System.Guid bindingId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.ProjectionKey.get -> string!
-Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.ProjectionKey.init -> void
-Excalibur.EventSourcing.Subscriptions.SubscriptionCheckpoint.SubscriptionCheckpoint(string! SubscriptionName, string! ProjectionKey, long Position) -> void
-Excalibur.EventSourcing.Subscriptions.SubscriptionKeys
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.DefinitionHash.get -> string!
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.DefinitionHash.init -> void
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.Destination.get -> string!
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.Destination.init -> void
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.ProjectionKey.get -> string!
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.ProjectionKey.init -> void
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.SubscriptionMember(string! ProjectionKey, string! DefinitionHash, string! Destination) -> void
-Excalibur.EventSourcing.Subscriptions.SubscriptionRoster
-Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.Members.get -> System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Subscriptions.SubscriptionMember!>!
-Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.Members.init -> void
-Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.SubscriptionName.get -> string!
-Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.SubscriptionName.init -> void
-Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.SubscriptionRoster(string! SubscriptionName, System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Subscriptions.SubscriptionMember!>! Members) -> void
-static Excalibur.EventSourcing.Subscriptions.SubscriptionKeys.CheckpointName(string! subscriptionName, string! projectionKey) -> string!
-static Excalibur.EventSourcing.Subscriptions.SubscriptionKeys.DefinitionFingerprint(string! subscriptionScope, string! subscriptionRevision, string! assemblyName, string! projectionKey, string! destination) -> string!
-Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
-Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome.CutOver = 3 -> Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
-Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome.NewGenerationCursorAbsent = 0 -> Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
-Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome.NewGenerationLagAboveThreshold = 1 -> Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
-Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome.Contested = 2 -> Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutover
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutover.CutOverAsync(Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult>!
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutover.ProjectionGenerationCutover(Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore! checkpoints, Excalibur.EventSourcing.Queries.IGlobalStreamQuery! globalStream) -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.MaxAcceptableLag.get -> long
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.MaxAcceptableLag.init -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.NewProjectionKey.get -> string!
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.NewProjectionKey.init -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.ReaderName.get -> string!
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.ReaderName.init -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.SubscriptionName.get -> string!
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.SubscriptionName.init -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.HeadPosition.get -> long
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.HeadPosition.init -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.Lag.get -> long?
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.Lag.init -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.NewGenerationCursor.get -> long?
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.NewGenerationCursor.init -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.Outcome.get -> Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.Outcome.init -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.ProjectionGenerationCutoverResult() -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult.ProjectionGenerationCutoverResult(Excalibur.EventSourcing.Projections.ProjectionCutoverOutcome Outcome, long? NewGenerationCursor, long HeadPosition, long? Lag) -> void
-Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.ReadSubscriptionAsync(string! subscriptionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Subscriptions.SubscriptionRoster!>!
-Excalibur.EventSourcing.Subscriptions.SubscriptionRoster.Identity.get -> string!
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.BindingId.get -> System.Guid
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.BindingId.init -> void
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.Position.get -> long?
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.Position.init -> void
-static Excalibur.EventSourcing.Subscriptions.SubscriptionKeys.ProjectionKey(System.Type! projectionType) -> string!
-static Excalibur.EventSourcing.Subscriptions.SubscriptionKeys.ProjectionKey(System.Type! projectionType, int version) -> string!
-Excalibur.EventSourcing.Subscriptions.IProjectionGenerationStore
-Excalibur.EventSourcing.Subscriptions.IProjectionGenerationStore.ReadGenerationAsync(string! subscriptionName, string! readerName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Subscriptions.ProjectionGeneration?>!
-Excalibur.EventSourcing.Subscriptions.IProjectionGenerationStore.TrySetGenerationAsync(string! subscriptionName, string! readerName, System.Guid? expectedRevision, string! projectionKey, System.Guid bindingId, long minimumPosition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.EventSourcing.Subscriptions.IProjectionGenerationStore.TryRemoveGenerationAsync(string! subscriptionName, string! readerName, System.Guid expectedRevision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.EventSourcing.Subscriptions.ProjectionGeneration
-Excalibur.EventSourcing.Subscriptions.ProjectionGeneration.ProjectionGeneration(System.Guid Revision, Excalibur.EventSourcing.Subscriptions.SubscriptionMember! Member) -> void
-Excalibur.EventSourcing.Subscriptions.ProjectionGeneration.Revision.get -> System.Guid
-Excalibur.EventSourcing.Subscriptions.ProjectionGeneration.Revision.init -> void
-Excalibur.EventSourcing.Subscriptions.ProjectionGeneration.Member.get -> Excalibur.EventSourcing.Subscriptions.SubscriptionMember!
-Excalibur.EventSourcing.Subscriptions.ProjectionGeneration.Member.init -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.ExpectedRevision.get -> System.Guid?
-Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverRequest.ExpectedRevision.init -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>
-Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.ProjectionGenerationReader(Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore! checkpoints, Excalibur.EventSourcing.IProjectionStore<TProjection!>! store, string! subscriptionName, string! readerName, System.Collections.Generic.IReadOnlyCollection<string!>? compatibleProjectionKeys = null) -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
-Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.GetByIdAsync(string! id, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>! typeInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
-Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
-Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>! typeInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
-Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
-Excalibur.EventSourcing.Projections.ProjectionGenerationReader<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>! typeInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
-Microsoft.Extensions.DependencyInjection.ProjectionGenerationServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.ProjectionGenerationServiceCollectionExtensions.AddProjectionGenerationReader<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! subscriptionName, string! readerName, System.Collections.Generic.IReadOnlyCollection<string!>? compatibleProjectionKeys = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.DestinationScope.get -> string?
-Excalibur.EventSourcing.Subscriptions.SubscriptionMember.DestinationScope.init -> void
-Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.OfflineRebuildAcknowledged.get -> bool
-Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.OfflineRebuildAcknowledged.set -> void
-Excalibur.EventSourcing.Projections.ProjectionGenerationControl<TProjection>
-Excalibur.EventSourcing.Projections.ProjectionGenerationControl<TProjection>.ReadGenerationAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Subscriptions.ProjectionGeneration?>!
-Excalibur.EventSourcing.Projections.ProjectionGenerationControl<TProjection>.CutOverAsync(string! newProjectionKey, System.Guid? expectedRevision, long maxAcceptableLag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionGenerationCutoverResult>!
-static Microsoft.Extensions.DependencyInjection.ProjectionGenerationServiceCollectionExtensions.AddInlineProjectionGenerationReader<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! readerName, System.Collections.Generic.IReadOnlyCollection<string!>? compatibleProjectionKeys = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.EventSourcing.Projections.ProjectionGenerationControl<TProjection>.DecommissionAsync(System.Guid expectedRevision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.ProjectionCapacityOptions() -> void
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentReads.get -> int
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentReads.set -> void
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentWrites.get -> int
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentWrites.set -> void
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentRebuilds.get -> int
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentRebuilds.set -> void
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.QueueLimit.get -> int
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.QueueLimit.set -> void
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxResources.get -> int
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxResources.set -> void
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentOperations.get -> int
-Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentOperations.set -> void
-Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.TransactionalProjections.get -> Excalibur.EventSourcing.ITransactionalProjectionCoordinator?
-Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.TransactionalProjections.init -> void
-Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.TransactionalInline(string! aggregateType) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!

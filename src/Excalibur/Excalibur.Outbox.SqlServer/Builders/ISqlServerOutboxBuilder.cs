@@ -115,6 +115,11 @@ public interface ISqlServerOutboxBuilder
 	/// <summary>
 	/// Enables SQL Server health checks for the outbox store.
 	/// </summary>
+	/// <remarks>
+	/// The check queries the outbox store itself, so it distinguishes a reachable database from a
+	/// usable outbox: a database that answers while the outbox table cannot serve the drain reports
+	/// unhealthy. Because it issues a query, treat it as a READINESS check rather than a liveness one.
+	/// </remarks>
 	/// <param name="name">Optional health check name. Default: "sqlserver-outbox".</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	ISqlServerOutboxBuilder EnableHealthChecks(string? name = null);

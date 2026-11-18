@@ -51,8 +51,18 @@ public sealed class PostgresErasureStoreTenantIsolationShould : IntegrationTestB
     [InlineData(false)]
     [InlineData(true)]
     public Task RecoverDestructionEvidenceUsingFreshStoresAndServices(bool deferred) =>
+        // A CONFORMING hasher, because this control builds a real erasure service and a real field
+        // encryptor, and both derive a per-subject key handle from whatever this returns. A handle must be
+        // a fixed-width uppercase hexadecimal digest -- the retained variant is that value with a
+        // separator and a discriminator appended, so an identifier-shaped token lets one subject's handle
+        // equal another's retained handle. The pass-through below stays where it is used: the store
+        // construction, which pseudonymises records and derives no handle.
         global::Excalibur.Dispatch.Integration.Tests.Compliance.ErasureRecoveryControls.RecoverAsync(
-            () => CreateStore(OwningTenant), new PassThroughDataSubjectHasher(), OwningTenant, deferred, TestCancellationToken);
+            () => CreateStore(OwningTenant),
+            global::Excalibur.Dispatch.Integration.Tests.Compliance.ConformanceDataSubjectHasher.Instance,
+            OwningTenant,
+            deferred,
+            TestCancellationToken);
 	private const string OwningTenant = "pg-erasure-tenant-owning";
 	private const string ForeignTenant = "pg-erasure-tenant-foreign-owns-nothing";
 
@@ -170,10 +180,13 @@ public sealed class PostgresErasureStoreTenantIsolationShould : IntegrationTestB
 		var request = CreateRequest();
 		await CreateStore(OwningTenant).SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(30), TestCancellationToken);
 
-		var mutated = await CreateStore(ForeignTenant).UpdateStatusAsync(
-			request.RequestId, ErasureRequestStatus.Failed, "set by a tenant that does not own this request", TestCancellationToken);
+		var mutated = await CreateStore(ForeignTenant).UpdateStatusAsync(request.RequestId, ErasureRequestStatus.Failed, expectedStatus: null, "set by a tenant that does not own this request", claimIdentity: null, TestCancellationToken);
 
-		mutated.ShouldBeFalse(
+		// NotFound, not a generic refusal: this store treats another tenant's row as ABSENT, which is
+		// what makes a cross-tenant write indistinguishable from a write to a request that does not
+		// exist. Naming the outcome is stronger than the old boolean -- it asserts WHICH refusal.
+		mutated.ShouldBe(
+			ErasureWriteOutcome.NotFound,
 			"a foreign tenant must not mutate another tenant's erasure request. If this is true, one tenant "
 			+ "can fail or cancel another tenant's right-to-erasure and neither party is told.");
 	}
@@ -188,32 +201,48 @@ public sealed class PostgresErasureStoreTenantIsolationShould : IntegrationTestB
 		var request = CreateRequest();
 		await owner.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(30), TestCancellationToken);
 
-		var mutated = await owner.UpdateStatusAsync(
-			request.RequestId, ErasureRequestStatus.InProgress, errorMessage: null, TestCancellationToken);
+		var mutated = await owner.ClaimForExecutionAsync(
+			request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), TestCancellationToken);
 
-		mutated.ShouldBeTrue(
+		// LIVENESS, and named rather than truthy: a store whose predicate matches nothing would pass
+		// every cross-tenant arm while freezing the estate, so this asserts the grant by name.
+		mutated.Outcome.ShouldBe(
+			ErasureClaimOutcome.Granted,
 			"a tenant must be able to advance its own erasure request. An UPDATE scoped so tightly that it "
 			+ "matches nothing passes the cross-tenant arm and freezes every erasure in the estate.");
 	}
 
 	/// <summary>
-	/// SAFETY. A request filed while tenant A is ambient must be stored as A's, not as whatever tenant the
-	/// caller wrote onto the request object.
+	/// SAFETY. A request naming a tenant other than the one this deployment resolved is REFUSED, and
+	/// nothing is filed in either partition.
 	/// </summary>
+	/// <remarks>
+	/// <b>This summary used to read</b> <i>"A request filed while tenant A is ambient must be stored as A's,
+	/// not as whatever tenant the caller wrote onto the request object"</i> — the stamping behaviour this
+	/// arm asserted before the owner seam began refusing the disagreement. Stamping silently discarded a
+	/// term the caller set deliberately, and an erasure derives its key handle from the owner, so a request
+	/// executed under a tenant the write path never used destroys nothing while reporting a completed
+	/// erasure. Refusing is strictly stronger: the row reaches NO partition rather than the right one.
+	/// </remarks>
 	[Fact]
 	public async Task StampTheAmbientTenant_NotTheTenantNamedOnTheRequest()
 	{
 		var owner = CreateStore(OwningTenant);
 		var request = CreateRequest() with { TenantId = ForeignTenant };
-		await owner.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(30), TestCancellationToken);
+
+		_ = await Should.ThrowAsync<ErasureOperationException>(
+			() => owner.SaveRequestAsync(request, DateTimeOffset.UtcNow.AddDays(30), TestCancellationToken));
 
 		var plantedOnTheForeignTenant = await CreateStore(ForeignTenant).GetStatusAsync(request.RequestId, TestCancellationToken);
 		var visibleToItsAuthor = await owner.GetStatusAsync(request.RequestId, TestCancellationToken);
 
 		plantedOnTheForeignTenant.ShouldBeNull(
 			"naming another tenant on the request must not file the row into that tenant's partition.");
-		visibleToItsAuthor.ShouldNotBeNull(
-			"the row belongs to the tenant that filed it and must be readable by them.");
+		visibleToItsAuthor.ShouldBeNull(
+			"the save was REFUSED, so there is no row for the author either. This is the half that changed: "
+			+ "the seam no longer silently stamps the resolved tenant over the one the caller named, because "
+			+ "an erasure derives its key handle from the owner and a handle the write path never used "
+			+ "destroys nothing while reporting a completed erasure.");
 	}
 
 
@@ -233,8 +262,33 @@ public sealed class PostgresErasureStoreTenantIsolationShould : IntegrationTestB
 		await owner.SaveRequestAsync(ownRequest, requestedAt, TestCancellationToken);
 		await foreign.SaveRequestAsync(foreignRequest, requestedAt, TestCancellationToken);
 		await owner.SaveRequestAsync(scheduled, requestedAt, TestCancellationToken);
-		(await owner.UpdateStatusAsync(ownRequest.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, null, TestCancellationToken)).ShouldBeTrue();
-		(await foreign.UpdateStatusAsync(foreignRequest.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, null, TestCancellationToken)).ShouldBeTrue();
+		// ENROL VIA THE CLAIM, because that is the only way the product reaches this status. Writing
+		// AwaitingKeyDestruction is conditional on the request having been claimed: the status is the
+		// completion pass's DISCOVERY predicate, and a request that was never executed has had no keys
+		// destroyed for the provider to confirm. A fixture that wrote it directly was asserting over a row
+		// the store now refuses to create.
+		var ownerClaim = await owner.ClaimForExecutionAsync(ownRequest.RequestId, ErasureRequestStatus.Scheduled,
+			TimeSpan.FromMinutes(5), TestCancellationToken);
+		ownerClaim.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+
+		// PRESENT THE CLAIM THIS SETUP JUST TOOK. Passing null here is not the lenient argument, it is the
+		// STRICTER one: the contract defines a null identity as asserting that no unlapsed claim exists at
+		// all, and the claim granted on the line above is one. So null reported ClaimLost, correctly, and
+		// this setup never reached the state the arm is actually about.
+		(await owner.UpdateStatusAsync(ownRequest.RequestId, ErasureRequestStatus.AwaitingKeyDestruction,
+			expectedStatus: null, null, ownerClaim.ClaimIdentity, TestCancellationToken))
+			.ShouldBe(ErasureWriteOutcome.Applied);
+		var foreignClaim = await foreign.ClaimForExecutionAsync(foreignRequest.RequestId, ErasureRequestStatus.Scheduled,
+			TimeSpan.FromMinutes(5), TestCancellationToken);
+		foreignClaim.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+
+		// PRESENT THE CLAIM THIS SETUP JUST TOOK. Passing null here is not the lenient argument, it is the
+		// STRICTER one: the contract defines a null identity as asserting that no unlapsed claim exists at
+		// all, and the claim granted on the line above is one. So null reported ClaimLost, correctly, and
+		// this setup never reached the state the arm is actually about.
+		(await foreign.UpdateStatusAsync(foreignRequest.RequestId, ErasureRequestStatus.AwaitingKeyDestruction,
+			expectedStatus: null, null, foreignClaim.ClaimIdentity, TestCancellationToken))
+			.ShouldBe(ErasureWriteOutcome.Applied);
 
 		var background = owner.GetService(typeof(IErasureBackgroundQueryStore))
 			.ShouldBeAssignableTo<IErasureBackgroundQueryStore>();
@@ -303,7 +357,7 @@ public sealed class PostgresErasureStoreTenantIsolationShould : IntegrationTestB
 			CertificatesTableName = $"erasure_certificates_tenant_isolation_{_suffix}",
 			AutoCreateSchema = true,
 		}),
-		new PassThroughDataSubjectHasher(),
+		ConformanceDataSubjectHasher.Instance,
 		EnabledTestLogger.Create<PostgresErasureStore>(),
 		new FixedTenantContext(ambientTenant),
 		// RequireTenant is what AddMultiTenancy sets, and it is the multi-tenant deployment mode. Without it
@@ -322,15 +376,5 @@ public sealed class PostgresErasureStoreTenantIsolationShould : IntegrationTestB
 		public string? TenantId { get; } = tenantId;
 
 		public bool HasTenant => !string.IsNullOrWhiteSpace(TenantId);
-	}
-
-	/// <summary>
-	/// Implements <see cref="IDataSubjectHasher"/> directly and inherits no first-party base. Hashing is not
-	/// the property under test, and a stable identity keeps the seeded row findable without making the
-	/// assertion depend on a hash algorithm.
-	/// </summary>
-	private sealed class PassThroughDataSubjectHasher : IDataSubjectHasher
-	{
-		public string HashDataSubjectId(string dataSubjectId) => dataSubjectId;
 	}
 }

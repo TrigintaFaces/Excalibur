@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
@@ -125,11 +125,27 @@ public static class DispatchContextInitializer
 	}
 
 	/// <summary>
-	/// Creates a <see cref="MessageContext" /> from HTTP headers.
+	/// Creates a <see cref="MessageContext" /> from HTTP headers, reading the context fields this
+	/// framework defines and ignoring the rest.
 	/// </summary>
 	/// <param name="headers"> Header dictionary containing context values. </param>
 	/// <returns> A new <see cref="MessageContext" />. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="headers" /> is null. </exception>
+	/// <remarks>
+	/// <para>
+	/// Only the correlation, causation, trace, user and tenant headers are read. <strong>No other header
+	/// is copied into <see cref="IMessageContext.Items"/>.</strong> This method previously copied every
+	/// entry of the supplied dictionary, which meant a caller passing their request's headers — the use
+	/// the name invites — placed the caller's <c>Authorization</c> and <c>Cookie</c> in the context, from
+	/// where every remote transport puts them on the wire and one outbox provider persists them.
+	/// </para>
+	/// <para>
+	/// To carry an additional header beyond this process, mark it with
+	/// <see cref="MessageContextPropagationExtensions.SetPropagatedItem"/> after this call. Setting it on
+	/// <see cref="IMessageContext.Items"/> keeps it request-local and it will not travel. Either way the
+	/// decision — and its consequence — stays at the point where the value is known to be safe to forward.
+	/// </para>
+	/// </remarks>
 	public static MessageContext CreateFromHeaders(IDictionary<string, string?> headers)
 	{
 		ArgumentNullException.ThrowIfNull(headers);
@@ -159,11 +175,6 @@ public static class DispatchContextInitializer
 		if (headers.TryGetValue("X-Tenant-ID", out var tenantId) && !string.IsNullOrWhiteSpace(tenantId))
 		{
 			context.GetOrCreateIdentityFeature().TenantId = tenantId;
-		}
-
-		foreach (var pair in headers)
-		{
-			context.Items[pair.Key] = pair.Value ?? string.Empty;
 		}
 
 		return context;

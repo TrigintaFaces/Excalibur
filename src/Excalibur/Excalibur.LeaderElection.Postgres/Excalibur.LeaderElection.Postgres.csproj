@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -15,6 +15,8 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
+    <InternalsVisibleTo Include="Excalibur.LeaderElection.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Npgsql" />

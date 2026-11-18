@@ -174,8 +174,14 @@ public sealed class OutboxUnrecognisedOutcomeShould
 	/// interface's own requirement.
 	/// </remarks>
 	private sealed class OutcomeReportingStore(OutboxCompletionOutcome outcome)
-		: IOutboxStore, IClaimScopedOutboxStore, IDeadLetterableOutboxStore
+		: IOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore, IDeadLetterableOutboxStore
 	{
+
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.Applied);
+
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount,
+			string claimIdentity, CancellationToken cancellationToken) => MarkDeadLetteredAsync(messageId, reason, attemptCount, cancellationToken);
 		private int _served;
 
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(

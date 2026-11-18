@@ -24,13 +24,10 @@ namespace Excalibur.Dispatch.Serialization;
 /// [Byte 0: Serializer ID] [Bytes 1..N: Serialized Payload]
 /// </code>
 /// <para>
-/// <b>Performance Characteristics:</b>
+/// Serialization and format-detection costs depend on the implementation, serializer, payload,
+/// runtime, and configuration. This interface does not guarantee a fixed latency or allocation cost.
+/// Measure the complete serialization or deserialization operation with representative payloads.
 /// </para>
-/// <list type="bullet">
-///   <item>Serialize: ~2ns overhead (magic byte prepend)</item>
-///   <item>Deserialize (fast path): &lt;1ns overhead (current serializer match)</item>
-///   <item>Deserialize (migration path): ~5ns overhead (registry lookup for legacy format)</item>
-/// </list>
 /// <para>
 /// <b>Usage:</b>
 /// </para>

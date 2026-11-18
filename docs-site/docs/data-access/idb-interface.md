@@ -6,7 +6,7 @@ description: Database connection abstraction with Dapper integration
 
 # IDb Interface
 
-The `IDb` interface provides a lightweight abstraction over database connections, designed to work with Dapper for all SQL operations. This approach keeps dependencies minimal while maintaining full control over SQL queries.
+The `IDb` interface provides a lightweight abstraction over database connections, supporting Dapper queries and request-owned explicit ADO execution. This approach keeps dependencies minimal while maintaining full control over SQL queries.
 
 ## Before You Start
 
@@ -24,15 +24,15 @@ Excalibur intentionally avoids Entity Framework Core:
 
 | Concern | EF Core | IDb + Dapper |
 |---------|---------|--------------|
-| **Dependencies** | Heavy (~15 packages) | Minimal (Dapper only) |
-| **Performance** | Tracking overhead | Direct SQL execution |
-| **Control** | Generated queries | Explicit SQL |
-| **Complexity** | Change tracking, migrations | Simple connection management |
+| **Dependencies** | EF Core and selected provider dependencies | Dapper, selected provider and framework dependencies |
+| **Tracking** | Tracking and no-tracking query modes | No EF-style entity change tracker |
+| **Control** | LINQ query translation and SQL APIs | Explicit SQL |
+| **Facilities** | Change tracking, migrations | Connection management and explicit queries |
 | **AOT Support** | Depends on provider and query path | Depends on provider and query generation |
 
 :::note Design Decision
 
-For a framework distributed as NuGet packages, minimal dependencies and maximum performance are critical. Dapper provides the best balance of usability and efficiency.
+This abstraction uses Dapper to keep SQL explicit and connection management separate from entity tracking. The table describes design choices, not measured performance rankings or fixed dependency counts. EF Core supports [tracking and no-tracking queries](https://learn.microsoft.com/en-us/ef/core/querying/tracking); compare equivalent result shapes, identity-resolution requirements and transaction behavior before drawing performance conclusions.
 :::
 
 `IDb` is a connection abstraction; it does not establish NativeAOT compatibility for the
@@ -40,7 +40,9 @@ queries executed through it. Standard Dapper uses reflection and runtime code ge
 For application-owned queries, [Dapper.AOT](https://aot.dapperlib.dev/gettingstarted.html)
 provides an explicit build-time generation option with documented API limitations.
 Enabling it in an application does not transform calls inside an already compiled provider
-package. Verify the chosen provider and query path with an actual NativeAOT executable.
+package. For fixed request-owned SQL, [protected ADO execution](./data-request.md#explicit-ado-execution)
+provides explicit parameter binding and ordinal row projection without invoking Dapper's execution
+path. Verify the chosen provider and query path with an actual NativeAOT executable.
 
 ## IDb Interface
 
@@ -554,7 +556,7 @@ public async Task<OrderSummary> GetOrderSummaryAsync(
 
 ## Bulk Operations
 
-For high-performance bulk inserts:
+For bulk inserts:
 
 ```csharp
 public async Task BulkInsertOrdersAsync(

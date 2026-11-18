@@ -8,12 +8,87 @@ description: Guidelines for when to use the Items dictionary vs direct propertie
 
 This document explains when to use the `IMessageContext.Items` dictionary versus direct properties, and catalogs legitimate Items dictionary usage across the Excalibur framework.
 
+## Items is request-local. Read this before using it to carry anything
+
+**Nothing in this framework serializes, persists, transmits or emits `context.Items`.** An entry you put
+there is visible to your handlers and middleware for the life of the request, and it stops at the process
+boundary.
+
+To carry a value with the message, mark it:
+
+```csharp
+// Travels: staged into the outbox headers, emitted as a CloudEvents extension attribute, and
+// carried on every transport that publishes CloudEvents.
+context.SetPropagatedItem("order-region", "eu-west");
+
+// Request-local: your own code can read it, and it goes nowhere.
+context.Items["cachedCustomerRecord"] = record;
+```
+
+```csharp
+foreach (var (key, value) in context.GetPropagatedItems())
+{
+    // the values marked on this context, string-keyed and string-valued
+}
+```
+
+Use `RemovePropagatedItem` to remove one marked value. Keys match exactly, and the method returns
+`true` when it removes an existing value. Child contexts have their own propagated collection, so
+removing a value from a child preserves the parent's values for retries and other children:
+
+```csharp
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
+
+public static class ChildPropagatedItemExample
+{
+    public static bool RemoveFromChild(IMessageContext context)
+    {
+
+        context.SetPropagatedItem("request-label", "incoming");
+        var child = context.CreateChildContext();
+
+        return child.RemovePropagatedItem("request-label"); // true
+        // context.GetPropagatedItem("request-label") still returns "incoming".
+    }
+}
+```
+
+Removal changes only the selected context's marked values. Request-local `Items`, including an item
+with the same key, remain unchanged.
+
+This is the split `System.Diagnostics.Activity` already makes, for the same reason: `Activity.Tags` stay
+in the process and `Activity.Baggage` is propagated, and they are two collections rather than one
+collection with a naming convention. Whether a write crosses a trust boundary is decided by **which
+method you call**, never by how you spell a key — so reading a line of your own code tells you where the
+value goes.
+
+**Marked values are `string`.** They are already their own wire form, which is what W3C baggage, broker
+headers and CloudEvents extension attributes each require. There is no total way to render an arbitrary
+object onto a wire: a dictionary rendered to its own type name, reported as success, is a loss and not a
+rendering.
+
+CloudEvents extension names are normalized to lowercase ASCII letters and digits. A final name that
+collides with a reserved attribute, including the payload name `data`, is omitted while the payload and
+ordinary extensions are preserved. This check applies after any encoder prefix is composed: a legal
+prefixed name such as `routedata` remains valid.
+
+**There is no option that propagates `Items` wholesale, and that absence is deliberate.** A switch would
+make the meaning of a write to `Items` depend on deployment configuration, so you could not tell what
+your own handler does without also knowing how it was deployed.
+
+> **If you are upgrading:** previously, entries in `Items` reached the broker on some paths. Replace any
+> entry you relied on travelling with `SetPropagatedItem`, using the same key. CloudEvents applies the extension-name
+> projection described above. An entry left in `Items` no longer travels, and nothing fails: it is simply absent on the far
+> side, so a reader that tolerates a missing key will silently see one.
+
 ## Overview
 
-`IMessageContext` provides two mechanisms for storing contextual data:
+`IMessageContext` provides two mechanisms for request-local contextual data, plus the propagation surface
+above for values that must travel:
 
-1. **Direct Properties** - Strongly-typed properties, sub-nanosecond access
-2. **Items Dictionary** - Flexible key-value storage, around 6 ns per read
+1. **Direct Properties** - Direct typed access
+2. **Items Dictionary** - Flexible request-local key-value storage; historical September fixture reported around 6 ns per read
 
 ### When to Use Direct Properties
 
@@ -33,6 +108,7 @@ Examples of direct properties:
 
 Use the Items dictionary for data that:
 
+- Stays **inside this process** — if it must reach another service, mark it with `SetPropagatedItem`
 - Is **transport-specific** (only relevant to RabbitMQ, SQS, etc.)
 - Has **unpredictable keys** (custom headers, user-defined attributes)
 - Is accessed **infrequently** (once during message setup, not on every dispatch)
@@ -95,6 +171,9 @@ context.Items[$"ce.{attr.Name}"] = cloudEvent[attr.Name];
 **Rationale**: CloudEvents extension attributes are defined by the CloudEvents spec and vary by event type.
 
 ### Service Mesh Integration
+
+These are written by the framework for **your code to read**. They are request-local, like every other
+entry below — a mesh header in `Items` does not reach the next hop. If you need one to travel, mark it.
 
 ```csharp
 // Set by ServiceMeshMiddleware for Envoy/Istio integration
@@ -201,6 +280,8 @@ context.Items["PayloadSizeWarning"] = warningMessage;
 
 ### DO
 
+- Use `SetPropagatedItem` for every value that must reach another service
+- Use Items for request-local state your own handlers and middleware read
 - Use Items for transport-specific metadata that varies by transport
 - Use Items for user-defined headers/attributes with unpredictable keys
 - Prefix internal framework keys with `Dispatch:` to avoid collisions
@@ -208,21 +289,23 @@ context.Items["PayloadSizeWarning"] = warningMessage;
 
 ### DON'T
 
+- Put a credential, cookie or bearer token in either collection. A marked value leaves the process by
+  design, and a request-local one still reaches your logs and any diagnostic snapshot you enable
+- Expect an entry in Items to arrive at the far side — mark it instead
 - Use Items for data accessed on every dispatch (use direct properties)
 - Use Items for cross-cutting concerns like correlation or tenancy
 - Store large objects in Items (impacts memory and pooling)
-- Rely on Items for data that should propagate to child contexts
 
 ## Migration from Items to Direct Properties
 
 If you previously used Items for hot-path data, migrate to the new direct properties:
 
 ```csharp
-// Before (Items dictionary - around 6 ns per read)
+// Before (Items dictionary - around 6 ns per read in the September fixture)
 context.Items["ValidationPassed"] = true;
 var passed = (bool)context.Items["ValidationPassed"];
 
-// After (Direct property - under one CPU cycle)
+// After (Direct typed access; no current timing claim)
 context.ValidationPassed = true;
 var passed = context.ValidationPassed;
 ```
@@ -258,13 +341,11 @@ Measured 2026-09-04, `MessageContextBenchmarks`, BenchmarkDotNet 0.15.8 in-proce
 :::note What these numbers do and do not say
 
 **The direct-property figure is at the resolution limit.** ~0.2 ns is well under one cycle on this
-CPU, which is what a field read the JIT can hoist looks like. Read it as *effectively free*, not as
-a precise 0.2.
+CPU, which is what a field read the JIT can hoist looks like. Treat it as below reliable measurement resolution; it does not establish zero cost.
 
-**A feature extension is not cheaper than the Items dictionary.** They measure the same, around
-6 ns, and typed `GetItem<T>()` is the cheapest of the three non-property options. If you were
-choosing a feature extension over `Items` for speed, that reason does not hold -- choose on type
-safety and intent instead.
+**These historical observations do not establish a current ordering of access costs.**
+Feature-extension and Items rows were around 6 ns in the September fixture. Choose an
+access method for type safety and intent; a performance claim requires matched current measurements.
 
 **A reliable speedup ratio is not established** because the direct-property denominator is below resolution. The 10-20x ratio
 previously stated here is also unverified. Choose typed access for intent and type safety. The historical rows below the first measured single-digit nanoseconds with zero reported allocation.

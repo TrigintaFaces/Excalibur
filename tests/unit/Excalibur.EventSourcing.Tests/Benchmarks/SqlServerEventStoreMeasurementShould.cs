@@ -34,11 +34,10 @@ public sealed class SqlServerEventStoreMeasurementShould(SqlServerContainerFixtu
             ], out var diagnosis);
             exitCode.ShouldBe(0, diagnosis);
             var report = Directory.GetFiles(Path.Combine(artifacts, "results"), "*-report.csv").ShouldHaveSingleItem();
-            var rows = File.ReadAllLines(report);
-            rows.Length.ShouldBe(8);
-            var meanIndex = Array.IndexOf(rows[0].Split(','), "Mean");
-            meanIndex.ShouldBeGreaterThanOrEqualTo(0);
-            rows.Skip(1).All(row => row.Split(',')[meanIndex] != "NA").ShouldBeTrue();
+            using var reader = File.OpenText(report);
+            var means = BenchmarkCsvReports.ReadMeans(reader);
+            means.Length.ShouldBe(7);
+            means.ShouldAllBe(mean => BenchmarkCsvReports.IsPositiveFiniteDuration(mean));
         }
         finally
         {

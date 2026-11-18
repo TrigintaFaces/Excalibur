@@ -13,6 +13,10 @@ inputs:
     description: 'dotnet test --filter value (empty to run all tests in the slnf)'
     required: false
     default: ''
+  minimum-executed-tests:
+    description: 'Aggregate actually executed tests required by this lane'
+    required: false
+    default: '1'
   collect-coverage:
     description: 'Collect XPlat Code Coverage (true/false)'
     required: false
@@ -228,11 +232,14 @@ runs:
         TEST_COLLECT_COVERAGE: ${{ inputs.collect-coverage }}
         TEST_MAX_CPU_COUNT: ${{ inputs.max-cpu-count }}
         TEST_SESSION_TIMEOUT: ${{ inputs.test-session-timeout }}
+        MINIMUM_EXECUTED_TESTS: ${{ inputs.minimum-executed-tests }}
         TEST_EXTRA_RUN_SETTINGS: ${{ inputs.extra-run-settings }}
       run: |
         if ((git rev-parse HEAD) -cne $env:EVIDENCE_SHA) { throw 'Checkout differs from expected test candidate.' }
+        if ($env:MINIMUM_EXECUTED_TESTS -cnotmatch '\A[1-9][0-9]*\z' -or $env:MINIMUM_EXECUTED_TESTS.Length -gt 10 -or [long]$env:MINIMUM_EXECUTED_TESTS -gt 2147483647) { throw 'Invalid lane executed minimum.' }
         $contextPath = Join-Path $env:RUNNER_TEMP "$env:EVIDENCE_SHARD.required-context.json"
         @{
+          minimumExecutedTests = [int]$env:MINIMUM_EXECUTED_TESTS
           candidateSha = $env:EVIDENCE_SHA
           runId = $env:GITHUB_RUN_ID
           runAttempt = $env:GITHUB_RUN_ATTEMPT
@@ -253,6 +260,7 @@ runs:
           ResultsPrefix    = $env:EVIDENCE_SHARD
           BlameTimeout     = $env:TEST_BLAME_TIMEOUT
           RequiredTestContext = $contextPath
+          MinimumExecutedTests = $env:MINIMUM_EXECUTED_TESTS
         }
         if ($env:TEST_FILTER)                         { $params.TestFilter         = $env:TEST_FILTER }
         if ($env:TEST_COLLECT_COVERAGE -eq 'true')    { $params.Coverage           = $true }

@@ -57,7 +57,7 @@ public interface ISerializer
 	string ContentType { get; }
 
 	/// <summary>
-	/// Serializes a value to a buffer writer (zero-allocation primary path).
+	/// Serializes a value to a buffer writer. Allocation depends on the implementation, writer and value.
 	/// </summary>
 	/// <typeparam name="T">The type to serialize.</typeparam>
 	/// <param name="value">The value to serialize.</param>

@@ -29,7 +29,7 @@ namespace Excalibur.LeaderElection.Redis;
 /// systems fencing-token pattern described by Martin Kleppmann.
 /// </para>
 /// </remarks>
-internal sealed class RedisFencingTokenProvider : IFencingTokenProvider
+internal sealed class RedisFencingTokenProvider : IFencingTokenIssuer
 {
 	/// <summary>The Redis key prefix under which per-resource fencing counters are stored.</summary>
 	private const string KeyPrefix = "fencing:";
@@ -101,10 +101,19 @@ internal sealed class RedisFencingTokenProvider : IFencingTokenProvider
 		cancellationToken.ThrowIfCancellationRequested();
 
 		// null = no token has ever been issued for this resource (no active leader). Never a
-		// fabricated/sentinel value — the idiomatic "no value" signal (Decision 2).
+		// fabricated/sentinel value — the idiomatic "no value" signal.
+		// A stored ZERO is not a mark. The contract requires null -- never zero -- when no token has been
+		// issued, INCLUDING when the backing store's counter exists but was never advanced, and the
+		// reason is stated there: validation is a high-water comparison, so a mark reported as zero has
+		// a value, passes the has-a-mark term, and then admits EVERY non-negative token presented
+		// against it, a fabricated zero included. The state that must refuse everything is exactly the
+		// state that would otherwise admit everything. This provider never writes zero, so the state
+		// arrives from outside -- a restore, a migration, an external writer to the consumer's own
+		// store, or a counter written by an older build -- and the comparison below is what makes it
+		// inexpressible as a mark rather than merely unlikely.
 		var db = _redis.GetDatabase();
-		var value = await db.StringGetAsync(KeyPrefix + resourceId).ConfigureAwait(false);
-		return value.HasValue ? (long)value : null;
+		var value = await db.StringGetAsync(KeyPrefix + resourceId, CommandFlags.DemandMaster).ConfigureAwait(false);
+		return value.HasValue && (long)value > 0L ? (long)value : null;
 	}
 
 	/// <inheritdoc />

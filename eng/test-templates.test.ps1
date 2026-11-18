@@ -119,7 +119,7 @@ throw "Unexpected native stage $stage"
     $script:TemplateCandidateSha='native-control'
     $script:TemplatePackageHash='native-control'
     $script:RuntimeSourceIdentity=@{sha256='native-control'}
-    $LocalFeed='';$LocalFeedVersion='';$NoCleanUp=$false
+    $LocalFeed='';$LocalFeedVersion='';$TemplatePackageVersion='';$NoCleanUp=$false
     function Write-TestResult {
         param([string]$TestName,$Passed,[string]$Details='')
         $script:Results.Add(@{Name=$TestName;Passed=[bool]$Passed;Details=$Details})
@@ -199,6 +199,33 @@ throw "Unexpected native stage $stage"
     $env:TEMPLATE_NATIVE_LOG=Join-Path $fixture 'artifact-install.calls'
     Test-TemplateInstallation
     $installHealthy=@(Get-Content -LiteralPath $env:TEMPLATE_NATIVE_LOG).Count -eq 3 -and $script:FailCount -eq 0
+    $defaultPack = (Get-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'template-pack/pack.receipt.json') -Raw | ConvertFrom-Json).arguments
+    if (@($defaultPack | Where-Object { $_ -like '-p:PackageVersion=*' }).Count -ne 0) { throw 'Default template pack gained a version override.' }
+    $templateSpec = Join-Path $env:TEMPLATE_NATIVE_PACKAGE_ROOT 'fixture.nuspec'
+    $originalSpec = [IO.File]::ReadAllBytes($templateSpec)
+    try {
+        $TemplatePackageVersion = '10.0.0-alpha.22'
+        '<package><metadata><version>10.0.0-alpha.22</version><packageTypes><packageType name="Template" /></packageTypes></metadata></package>' |
+            Set-Content -LiteralPath $templateSpec
+        $env:TEMPLATE_NATIVE_LOG = Join-Path $fixture 'explicit-template-version.calls'
+        Test-TemplateInstallation
+        $explicitPack = (Get-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'template-pack/pack.receipt.json') -Raw | ConvertFrom-Json).arguments
+        if (@(Get-Content -LiteralPath $env:TEMPLATE_NATIVE_LOG).Count -ne 3 -or $explicitPack -cnotcontains '-p:PackageVersion=10.0.0-alpha.22') {
+            throw 'Explicit template version was not passed to the real pack invocation before install.'
+        }
+        '<package><metadata><version>0.1.0</version><packageTypes><packageType name="Template" /></packageTypes></metadata></package>' |
+            Set-Content -LiteralPath $templateSpec
+        $env:TEMPLATE_NATIVE_LOG = Join-Path $fixture 'wrong-template-version.calls'
+        $wrongVersionRefused = $false
+        try { Test-TemplateInstallation } catch { $wrongVersionRefused = $_.Exception.Message -match 'Packed template version does not match requested' }
+        if (-not $wrongVersionRefused -or @(Get-Content -LiteralPath $env:TEMPLATE_NATIVE_LOG).Count -ne 1) {
+            throw 'Wrong template artifact version reached install or was accepted.'
+        }
+        Write-Host 'PASS: default version unchanged, explicit pack version observed and wrong artifact refused before install.'
+    } finally {
+        $TemplatePackageVersion = ''
+        [IO.File]::WriteAllBytes($templateSpec,$originalSpec)
+    }
     $installation=@($ast.FindAll({param($node)$node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Test-TemplateInstallation'},$true))[0].Extent.Text
     $mutant=$installation.Replace("'install', `$packages[0].FullName", "'install', `$TemplatesDir")
     if($mutant -ceq $installation){throw 'Installation mutation matched nothing.'}

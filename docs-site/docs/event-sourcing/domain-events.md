@@ -369,7 +369,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing());
 // Default: JSON (System.Text.Json) -- works with any POCO event type.
 // For binary serialization, install the provider package and call a single method:
 
-// MemoryPack for maximum .NET performance
+// MemoryPack for a .NET-oriented binary format; benchmark the complete event pipeline
 services.AddMemoryPackSerializer();
 
 // Or MessagePack for cross-language support

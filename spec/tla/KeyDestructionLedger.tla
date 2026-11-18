@@ -1,6 +1,6 @@
 ---------------------------- MODULE KeyDestructionLedger ----------------------------
 (***************************************************************************)
-(* SCOPE -- read this before trusting any result from this model.          *)
+(* SCOPE: read this before trusting any result from this model.            *)
 (*                                                                         *)
 (* WHAT IS MODELLED. One key handle, a set of key generations provisioned  *)
 (* at it over time, one erasure that destroys the handle, and the two      *)

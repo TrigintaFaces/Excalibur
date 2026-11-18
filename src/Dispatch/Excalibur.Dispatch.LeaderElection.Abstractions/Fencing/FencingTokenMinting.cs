@@ -34,7 +34,8 @@ public static class FencingTokenMinting
 	/// <returns> The minted token. </returns>
 	/// <exception cref="ArgumentNullException"> <paramref name="provider"/> or <paramref name="resourceId"/> is <see langword="null"/>. </exception>
 	/// <exception cref="FencingTokenExhaustedException">
-	/// The token domain has no values left. Raised on the first attempt and never retried: it is permanent,
+	/// No strictly-positive token can be issued because the mint domain is exhausted.
+	/// Raised on the first attempt and never retried: it is permanent,
 	/// so retrying returns the same answer while consuming the grace period, and the caller is documented to
 	/// handle this type rather than to unwrap it from another exception.
 	/// </exception>
@@ -44,7 +45,7 @@ public static class FencingTokenMinting
 	/// relinquish leadership rather than act as a leader whose fence never advanced.
 	/// </exception>
 	public static async Task<long> MintWithRetryAsync(
-		IFencingTokenProvider provider,
+		IFencingTokenIssuer provider,
 		string resourceId,
 		CancellationToken cancellationToken,
 		int maxAttempts = DefaultMaxAttempts)

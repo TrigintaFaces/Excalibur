@@ -127,6 +127,13 @@ MAP_ROWS=(
     'compliance[.]erasure_destroyed_keys|src/Excalibur/Excalibur.Compliance.Postgres/Erasure/PostgresErasureStore.cs|_options[.]FullDestroyedKeysTableName|postgres destruction records'
     'compliance[.]erasure_destruction_intents|src/Excalibur/Excalibur.Compliance.Postgres/Erasure/PostgresErasureStore.cs|_options[.]FullDestructionIntentsTableName|postgres destruction intents'
     'SampleEffectLog|samples/11-real-world/TwoProcessProjections/NotificationHandler.cs|literal:SampleEffectLog|sample effect receipt'
+    # The ECommerce sample owns BOTH sides of this table: the same file carries the CREATE TABLE and
+    # the INSERT, so the sample is its own write path. There is no src/** owner to name -- the table
+    # is the sample's, not a framework table a sample happens to provision. Mapped rather than
+    # baselined because the sweep CAN evaluate it: the INSERT names five columns, above the default
+    # non-vacuity floor of three, so a column added to the write path without the DDL now reports
+    # drift instead of a REFUSE. Schema-qualified in the SQL throughout, hence qualifiedTable.
+    'dbo[.]CommerceOrders|samples/11-real-world/ECommerceSample/Durable/CommerceOrderRequests.cs|literal:dbo.CommerceOrders|sample single-tenant order store (sample owns the DDL and the write path)'
     # The docs spell these schema-qualified (public.outbox); the write path and the older docs
     # spell them bare. Matching is anchored (^re$), so an unqualified pattern silently stops
     # matching the moment a doc gains its schema prefix -- which is how these three entered the

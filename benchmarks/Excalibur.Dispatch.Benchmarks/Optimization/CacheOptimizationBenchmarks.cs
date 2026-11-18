@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 using BenchmarkDotNet.Attributes;
@@ -14,7 +15,7 @@ using Excalibur.Dispatch.Configuration;
 namespace Excalibur.Dispatch.Benchmarks.Optimization;
 
 /// <summary>
-/// Microbenchmarks asking whether three per-call caches actually pay for themselves.
+/// Microbenchmarks comparing fixture-local string caches and current profile selection.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -42,9 +43,9 @@ namespace Excalibur.Dispatch.Benchmarks.Optimization;
 /// </item>
 /// </list>
 /// <para>
-/// The <c>Control</c> arm exists so the reader can tell a real measurement from a folded-away one.
-/// It returns a compile-time constant, which is the floor an arm measures when the JIT has optimised
-/// its body to nothing. An arm materially above that floor is doing real work; an arm at it is not.
+/// The <c>Control</c> arm returns a compile-time constant as an intentionally trivial control.
+/// Similar timings do not establish that another arm was folded away or performed equivalent work;
+/// that conclusion requires inspecting generated code and the executed workload.
 /// </para>
 /// </remarks>
 [MemoryDiagnoser]
@@ -74,10 +75,19 @@ public class CacheOptimizationBenchmarks
 	[GlobalSetup]
 	public void Setup()
 	{
+		if (Activity.Current is not null)
+		{
+			throw new InvalidOperationException("An ambient Activity would retain unclassified-message events during this benchmark.");
+		}
+
 		_actionMessage = new TestActionMessage();
 
 		_warmRegistry = new PipelineProfileRegistry();
-		_ = _warmRegistry.SelectProfile(_actionMessage);
+		var selectedProfile = _warmRegistry.SelectProfile(_actionMessage);
+		if (selectedProfile is null || !ReferenceEquals(selectedProfile, _warmRegistry.GetProfile(DefaultPipelineProfiles.Strict)))
+		{
+			throw new InvalidOperationException("The unclassified fixture message must select the registered strict profile.");
+		}
 
 		_messageType = typeof(TestActionMessage);
 		_ = TypeNameCache.TryAdd(_messageType, _messageType.Name);
@@ -92,12 +102,11 @@ public class CacheOptimizationBenchmarks
 	}
 
 	/// <summary>
-	/// Fails the run if any arm would silently measure something other than its name.
+	/// Validates the seeded string caches and their expected values before measurement.
 	/// </summary>
 	/// <remarks>
-	/// Without this, a cache that was never seeded measures its factory, a registry that failed to
-	/// freeze measures the warm path, and a mis-seeded cache returns the wrong string -- all of which
-	/// still produce a clean-looking report. Every one of those has already happened in this class.
+	/// An unseeded cache measures its factory, and a mis-seeded cache returns the wrong string.
+	/// Setup validates profile selection separately; these checks do not prove timing equivalence.
 	/// </remarks>
 	private void VerifyArmsMeasureWhatTheyClaim()
 	{
@@ -132,9 +141,8 @@ public class CacheOptimizationBenchmarks
 	#region Folding Floor Control
 
 	/// <summary>
-	/// Returns a compile-time constant. Nothing measurable happens here, so this arm's mean is the
-	/// cost of BenchmarkDotNet's own call -- the floor an arm reports when the JIT has folded its
-	/// body away. Read every other arm against this before calling any of them "too fast to be real".
+	/// Returns a compile-time constant as a synthetic control. Its timing is not framework coverage
+	/// and does not prove that an arm with a similar result was folded away.
 	/// </summary>
 	[Benchmark(Description = "Control: return a constant (folding floor)")]
 	public string Control_ReturnConstant() => FoldingFloor;
@@ -144,9 +152,10 @@ public class CacheOptimizationBenchmarks
 	#region Profile Selection
 
 	/// <summary>
-	/// Warm-path profile selection: a per-type <see cref="ConcurrentDictionary{TKey, TValue}"/> hit.
+	/// Profile selection for an unclassified message using the registered profile snapshot.
+	/// Classification and compatibility checks run on each call; this is not a cached selection.
 	/// </summary>
-	[Benchmark(Description = "ProfileSelect: warm (ConcurrentDictionary)")]
+	[Benchmark(Description = "ProfileSelect: unclassified message (profile snapshot)")]
 	public IPipelineProfile? ProfileSelect_Warm() => _warmRegistry.SelectProfile(_actionMessage);
 
 	#endregion

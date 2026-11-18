@@ -46,6 +46,7 @@ conventions:
 seams:
   - name: outbox
     architecture_md: src/Excalibur/Excalibur.Outbox/ARCHITECTURE.md
+    implemented_by: ["src/Excalibur/Excalibur.Outbox.*/"]
     blast_radius: catastrophic
     why: "An atomic claim that is inert publishes one message twice, or marks sent a message never sent. Silent at the consumer."
     met: [R1, R2]
@@ -53,6 +54,12 @@ seams:
 
   - name: elasticsearch-projection-errors
     architecture_md: src/Excalibur/Excalibur.Data.ElasticSearch/ARCHITECTURE.md
+    # RULED 2026-11-10: NO implemented_by, and that is a decision rather than an omission. The only
+    # sibling package is Excalibur.Data.ElasticSearch.Azure, which is three files -- a Key Vault
+    # options type, a Key Vault provider and a DI extension. It supplies CREDENTIALS. It writes no
+    # projection-error record and holds no index identity, so it implements neither of this
+    # directory's two guarantees and listing it would tell its author they owe R4 for supplying a
+    # secret.
     blast_radius: catastrophic
     why: "A dropped projection-error record is the only durable evidence that a projection failed, so its loss is silent: nothing downstream ever learns the projection broke."
     met: [R1, R2]
@@ -64,6 +71,12 @@ seams:
   # two rungs, which is the honest direction: the guarantee existed undeclared before.
   - name: elasticsearch-projection-index-identity
     architecture_md: src/Excalibur/Excalibur.Data.ElasticSearch/ARCHITECTURE.md
+    # RULED 2026-11-10: NO implemented_by, and that is a decision rather than an omission. The only
+    # sibling package is Excalibur.Data.ElasticSearch.Azure, which is three files -- a Key Vault
+    # options type, a Key Vault provider and a DI extension. It supplies CREDENTIALS. It writes no
+    # projection-error record and holds no index identity, so it implements neither of this
+    # directory's two guarantees and listing it would tell its author they owe R4 for supplying a
+    # secret.
     blast_radius: catastrophic
     why: "Two read models resolving to one index on one cluster overwrite each other wherever their document ids coincide. No error is raised, nothing is logged, and nothing downstream ever learns the read model is wrong."
     met: [R1, R2]
@@ -78,6 +91,7 @@ seams:
 
   - name: inbox
     architecture_md: src/Excalibur/Excalibur.Inbox/ARCHITECTURE.md
+    implemented_by: ["src/Excalibur/Excalibur.Inbox.*/"]
     blast_radius: catastrophic
     why: "Dedup that does not hold turns exactly-once into at-least-once with no signal to the handler."
     met: [R1, R2]
@@ -85,13 +99,39 @@ seams:
 
   - name: leader-election
     architecture_md: src/Excalibur/Excalibur.LeaderElection/ARCHITECTURE.md
+    implemented_by: ["src/Excalibur/Excalibur.LeaderElection.*/"]
+    models: ["spec/tla/LeaderFenceTokens.tla"]
     blast_radius: catastrophic
     why: "Split brain. Two holders each believe they are sole leader; fencing tokens are the only thing between that and double-processing."
     met: [R1, R2]
     unmet: [R3, R4]
+    # R4 IS PARTLY MODELLED AND IS DELIBERATELY STILL LISTED UNMET. spec/tla/LeaderFenceTokens.tla
+    # checks the FENCE: that once a write from one tenure is admitted, no earlier tenure's write is
+    # admitted again, and that the never-issued state refuses every token. Its five arms run in
+    # spec/tla/check-models.sh -- the shipped at-or-above relation holds, and four arms reproduce four
+    # SHIPPED defects (in-memory per-process mark, Consul unreadable payload read as 0, Kubernetes
+    # leaseTransitions 0 treated as a value, SqlServer never-drawn sequence reporting START), each
+    # violating a named invariant.
+    #
+    # WHY THAT IS NOT R4 FOR THIS SEAM. The `why` above names TWO properties and the model covers one.
+    # Mutual exclusion -- that two holders cannot both believe they are leader -- is M1/M2 in the
+    # ARCHITECTURE.md and is NOT modelled; the model takes the tenure sequence as given and asks only
+    # what the fence does with tokens. Marking R4 met here would claim the split-brain half on the
+    # strength of a model that never looks at it.
+    #
+    # The model also states its own blindness in its SCOPE block rather than in this comment: it
+    # abstracts away time, leases and grace periods, and it ASSUMES each provider's mint is atomic
+    # rather than checking it. A reader who needs the fence argument should read that block first.
 
   - name: event-sourcing
     architecture_md: src/Excalibur/Excalibur.EventSourcing/ARCHITECTURE.md
+    implemented_by: ["src/Excalibur/Excalibur.EventSourcing.*/"]
+    # FOUR models, each naming files in this package in its own correspondence block: the global
+    # position allocation, the cooperative page/checkpoint protocol, the subscription roster the
+    # freshness attestation quantifies over, and that binding's lifetime. ProjectionModelSelfTest.tla
+    # is excluded deliberately -- it is a checker self-test, not a model of this seam -- as are the
+    # evidence-*/ directories, which hold archived output a previous run wrote.
+    models: ["spec/tla/EventStoreGlobalPosition.tla", "spec/tla/cooperative-projection/CooperativeProjection.tla", "spec/tla/subscription-roster/SubscriptionRoster.tla", "spec/tla/subscription-roster/BindingLifetime.tla"]
     blast_radius: catastrophic
     why: "A lost or misordered append is unrecoverable: the stream IS the record, there is no second copy to reconcile against."
     # SCOPE WARNING -- this ONE row covers SEVEN guarantees, because the manifest's unit is the FILE and
@@ -173,6 +213,7 @@ seams:
 
   - name: saga
     architecture_md: src/Excalibur/Excalibur.Saga/ARCHITECTURE.md
+    implemented_by: ["src/Excalibur/Excalibur.Saga.*/"]
     blast_radius: catastrophic
     why: "Tenant isolation and event dedup. A dedup key colliding on simple type name silently discards distinct events."
     met: [R1, R2]
@@ -194,6 +235,38 @@ seams:
 
   - name: compliance-erasure
     architecture_md: src/Excalibur/Excalibur.Compliance/ARCHITECTURE.md
+    # RULED 2026-11-10, per package rather than by a glob over Excalibur.Compliance.*/, because that
+    # glob would include two packages that implement none of this guarantee. Measured by what each
+    # sibling actually contains:
+    #   Postgres, SqlServer  -- the erasure stores and the token-fingerprint ledgers: 7 and 6 files
+    #                           referencing the erasure store contracts.
+    #   MongoDb              -- a compliance store carrying legal-hold and data-inventory state. It
+    #                           implements no erasure store, and it is IN anyway: a hold lookup that
+    #                           returns empty is what lets an erasure proceed over data the law
+    #                           required kept, so its answer is inside this guarantee's blast radius.
+    #   Aws, Azure, Vault    -- key providers. They perform the IRREVERSIBLE destruction, which is
+    #                           the half no store can undo.
+    # OUT, with the reason stated so nobody re-adds them by sweep: Analyzers is a Roslyn analyzer and
+    # Pdf renders reports -- neither can affect whether an erasure is correct. Abstractions declares
+    # the contracts and implements none of them; a contract change here is an architect ruling
+    # regardless, and listing it would tell a contracts-only package it owes R4.
+    # ONE LINE, inline, deliberately: the capsule block that surfaces these obligations parses this
+    # file LINE-WISE and reads a flow sequence off a single line. A YAML block list parses correctly
+    # in the gate and silently yields nothing in the capsule -- which would leave the agents who most
+    # need the obligation seeing none of it, the exact failure this field was added to fix.
+    implemented_by: ["src/Excalibur/Excalibur.Compliance.Postgres/", "src/Excalibur/Excalibur.Compliance.SqlServer/", "src/Excalibur/Excalibur.Compliance.MongoDb/", "src/Excalibur/Excalibur.Compliance.Aws/", "src/Excalibur/Excalibur.Compliance.Azure/", "src/Excalibur/Excalibur.Compliance.Vault/"]
+    # MODELS, declared explicitly because a seam's models CANNOT be derived from its name -- the same
+    # reason implemented_by is explicit. Measured 2026-11-10, when the gate resolved R4 artifacts by
+    # the name glob spec/tla/<seam>.tla alone: 0 of 14 seams resolved to a model and 0 of 9 models
+    # carried the SCOPE: token the gate requires, so a seam claiming R4 would have FAILED on "no
+    # artifact exists" however sound its model was. The branch is reached only by an R4 claim and
+    # nothing claims R4, so nothing ever surfaced it. ONE LINE, like implemented_by: the capsule
+    # block that surfaces these obligations parses this file LINE-WISE.
+    # FIVE models carry this seam, each a different obligation: tenant ownership of a destroyed
+    # handle, the destruction/receipt ordering, the data-subject token fingerprint, the obligation
+    # class a key handle determines, and whether a stale instance may destroy a retained type. No
+    # filename convention can express five-to-one.
+    models: ["spec/tla/ComplianceErasureOwner.tla", "spec/tla/KeyDestructionLedger.tla", "spec/tla/TokenFingerprintLedger.tla", "spec/tla/SubjectKeyObligationPartition.tla", "spec/tla/RetentionDeclarationView.tla"]
     blast_radius: catastrophic
     # SUPERSEDED 2026-10-01, and the old wording is quoted because it is instructive rather than
     # merely wrong. It read: "A Completed erasure certificate that a region failover undoes is a
@@ -204,13 +277,93 @@ seams:
     # key material at all -- so a failover cannot resurrect a destroyed key. The failover fault is
     # real and runs the OTHER WAY: it loses the record, it does not falsify it. Modelling the old
     # sentence would have produced a correct proof about a trajectory this system does not fly.
+    # CORRECTED 2026-11-05. The sentence below said "the owner and recovery models cover bounded
+    # safety and recovery obligations" while the OWNER model was invoked by NOTHING: spec/tla/
+    # ComplianceErasureOwner.tla was referenced by no arm of check-models.sh, so this justification
+    # cited an artifact no checker had ever run, and a reader of this row inherited confidence in it.
+    # The recovery half (KeyDestructionLedger) was and is checked. The owner model is now wired with
+    # four arms -- the shipped configuration required to HOLD, plus three refutations required to go
+    # RED: a handle omitting the tenant violates InvOtherOwner, an unenforced owner violates
+    # InvReadOwner, and a handle-keyed rather than pair-keyed ledger violates InvNoFalseTombstone.
+    # check-models.sh now also REFUSES to report PASS while any committed model is unreferenced, so
+    # this class cannot recur silently. None of that changes met/unmet below: an arm giving its
+    # required answer is not model ADEQUACY, and R4 stays unmet for the reasons stated.
     why: "Erasure must preserve the request's exact tenant owner, destroy only that owner's key handles,
       and bind destruction evidence to both handle and generation. Irreversible provider effects and
       durable receipts must remain consistent across retries and failover: neither a missing key nor a
-      scheduled deletion alone proves completed destruction. The owner and recovery models cover
-      bounded safety and recovery obligations, assuming truthful provider confirmation; they do not
-      establish cloud-provider refinement or every concurrent remint and cross-request execution.
-      R3 and R4 remain unmet until those remaining obligations have evidence. Previous-alpha data
+      scheduled deletion alone proves completed destruction. The owner and recovery models are both
+      checked by the runner and cover bounded safety and recovery obligations, assuming truthful
+      provider confirmation; they do not establish cloud-provider refinement or every concurrent
+      remint and cross-request execution.
+      The obligation-partition model no longer grants the two checks it once did -- its coverage set is
+      the set a request enumerated, as the implementation's is, and no conjunct bars certification while
+      a write is mid-flight. Removing them turned both shipped-design arms red on a reachable violation,
+      and the violation was real: a write whose ledger row and key creation both landed between an
+      erasure's enumeration and its attestation was examined by nothing and certified over. That is
+      fixed, and the arms now separate the mechanisms one at a time instead of assuming them together.
+      TWO grants remain and both are declared constants rather than shapes the model is built in. The
+      attestation re-read and the certificate are one action there and two in the code, so a row written
+      between those two steps is still unseen, and the arm turning that constant off is required to go
+      red. The destruction was the second: it was one atomic action covering the fence check and every
+      key, and the implementation checks the fence ONCE and then awaits N key destructions.
+      THE PER-KEY DESTRUCTION LOOP IS NOW MODELLED AND IT FOUND A VIOLATION, which replaces the
+      sentence that called it unmodelled. With the destruction split, InvNoRetainedDestructionPerKey is
+      violated with every mechanism on, and the counterexample contains ONE key: the window is between
+      the fence check on entry and the FIRST key destruction, so this is a check-then-act that exists at
+      N=1 and does not scale with N -- only the exposure window does.
+      The fence is NOT the discriminator, and the first version of this paragraph said it was. Measured
+      both ways: the same invariant is violated identically with the fence OFF, because the fence
+      excludes a declaration arriving before the destruction begins and excludes nothing arriving after.
+      The discriminator is the ATOMICITY of the destruction, and the arm set now measures the fence's
+      irrelevance rather than asserting it. The atomic arm is a differential partner that isolates the
+      split and is VACUOUS BY CONSTRUCTION -- the recording variable is written only by the split
+      action -- so it is not a non-vacuity control and the runner says so; the non-vacuity evidence is
+      that the split arm goes red.
+      AND NO FENCE-SHAPED FIX EXISTS, measured before one was built: re-checking the registry inside the
+      destruction's own guard holds over ~200,000 states and is a grant, because a guard is evaluated
+      atomically with its action and the implementation cannot make an in-process read and an external
+      key destruction indivisible. Written honestly as its own action it violates again one step later.
+      So what this seam owes is a BOUND AND AN OUTCOME rather than an invariant: detect the conflict at
+      the next key, stop the loop, keep a completed certificate unreachable, and record how many keys
+      had already gone. The implementation already states exactly that, in prose, for LEGAL HOLDS -- the
+      window is irreducible, so it is bounded to a single key and made loud -- while the retention
+      obligation is read once from a frozen snapshot outside the loop. Two obligations of one shape, one
+      bounded and loud, the other unbounded and silent; under the silence-not-severity discriminator the
+      silent one is the serious half, and that is a finding about shipped behaviour rather than a
+      modelling result.
+      Mechanism 4's safety necessity remains unmeasured and this arm does not measure it: the claim
+      enters only through the enumeration guard, which holds on both settings when there is one request,
+      so independence is by construction.
+      Reachability needs only that an operator declared a retention while an erasure was in flight. The
+      obligation state in the model is the WORLD's, not the destroying process's view of it, and a
+      compliance property conditioned on what the actor believed would be self-certifying. The shipped
+      registry being frozen from options at construction means a stale process cannot OBSERVE the change,
+      which makes the rolling-deployment case an illustration rather than the load-bearing premise.
+      THE RETENTION-DECLARATION VIEW IS NOW MODELLED, at design time, and it CORRECTED A SENTENCE IN
+      THE GUARANTEE DOC rather than confirming one. The shipped containment predicate HOLDS over the
+      modelled space; the superseded strict-subset predicate is refuted in three steps by an instance
+      that is ahead in one type and behind in another; and a latch closing on a PREFIX is refuted in
+      three steps because an unrecorded pair is invisible to every instance. That third arm is the
+      correction: both the guarantee doc and the gate said containment made the advance COMPLETION
+      irrelevant to safety, which is false -- it makes a partially filled record sound to compare
+      against, and says nothing about the pairs that never landed. Both sites now state it correctly
+      with the superseded wording quoted. A liveness arm is required to go RED so the predicate cannot
+      be satisfied by a gate that refuses every erasure. The model covers ONE deploy generation
+      reaching a fleet, not a sequence of deploys, and it models the destruction as atomic with its own
+      check -- the split check-then-act across N keys stays refuted by the per-key arm above, so this
+      model neither covers nor weakens that finding.
+      R3 HAS A RESOLVING ARTIFACT AND IS STILL UNMET, which is a distinction worth stating because the
+      next reader will find the file and assume otherwise. tests/property/
+      Excalibur.EventSourcing.Properties/ComplianceErasureProperties.cs exists and the gate resolves it
+      by filename, but it is seeded sampling of FIELD-CRYPTO OWNER ISOLATION over generated
+      write/erase/remint schedules -- its own summary disclaims provider crashes, ErasureService
+      orchestration and durable database behaviour. So its generator does not span the guarantee this
+      seam states, and an artifact existing is not a rung discharged. What R3 owes here is a generator
+      over the erasure LIFECYCLE: claim, hold, refusal, retry and certificate, with the shrunk case
+      printed so a failure reproduces.
+      R3 and R4 remain unmet until the remaining obligations have evidence: an arm giving its required
+      answer is not model adequacy, the attestation grant and mechanism 4's necessity are both still
+      unmeasured, and the sampling-class suites say nothing about the state space. Previous-alpha data
       migration is outside the supported greenfield transition."
     met: [R1, R2]
     unmet: [R3, R4]
@@ -224,6 +377,7 @@ seams:
 
   - name: transport-settlement
     architecture_md: src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/ARCHITECTURE.md
+    implemented_by: ["src/Dispatch/Excalibur.Dispatch.Transport.*/"]
     blast_radius: catastrophic
     why: "Settling twice has two contradictory answers across transports; a reject(requeue) reported successful that did not redeliver loses the message."
     met: [R1, R2]
@@ -231,6 +385,17 @@ seams:
 
   - name: audit-logging
     architecture_md: src/Excalibur/Excalibur.AuditLogging/ARCHITECTURE.md
+    # RULED 2026-11-10. The guarantee is that a broken hash chain is DETECTABLE on verification, so
+    # the implementors are the stores that carry the chain and verify it -- not every sink that
+    # receives a record. Measured: SqlServerAuditStore writes under EnableHashChain and calls
+    # VerifyAsync; Postgres does the same. The other seven siblings are exporters and forwarders --
+    # Aws, Datadog, Elasticsearch, GoogleCloud, OpenSearch, Splunk, Sentinel -- and a forwarded copy
+    # is not where the chain is established or checked.
+    # ONE FALSE POSITIVE WORTH RECORDING, because the next person will grep the same way: Sentinel
+    # matched a hash search on hmac.ComputeHash in SentinelAuditExporter, which authenticates the
+    # request to the ingestion API and has nothing to do with the audit chain. Grepping for "hash"
+    # finds cryptography, not participation; read the hit.
+    implemented_by: ["src/Excalibur/Excalibur.AuditLogging.Postgres/", "src/Excalibur/Excalibur.AuditLogging.SqlServer/"]
     blast_radius: high
     why: "A broken hash chain is detectable by the consumer on verification, but only after the fact."
     met: [R1, R2]

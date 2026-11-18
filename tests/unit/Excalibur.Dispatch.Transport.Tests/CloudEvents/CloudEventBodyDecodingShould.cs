@@ -141,6 +141,7 @@ public sealed class CloudEventBodyDecodingShould
 	{
 		var adapter = new AzureEventHubsCloudEventAdapter(
 			CreateOptions(),
+			TestCloudEventSerializers.Reflection,
 			Microsoft.Extensions.Options.Options.Create(new AzureEventHubsCloudEventOptions()));
 
 		var transport = await adapter
@@ -154,6 +155,7 @@ public sealed class CloudEventBodyDecodingShould
 	{
 		var adapter = new RabbitMqCloudEventAdapter(
 			CreateOptions(),
+			TestCloudEventSerializers.Reflection,
 			Microsoft.Extensions.Options.Options.Create(new RabbitMqCloudEventOptions()),
 			NullLogger<RabbitMqCloudEventAdapter>.Instance);
 
@@ -168,6 +170,7 @@ public sealed class CloudEventBodyDecodingShould
 	{
 		var adapter = new KafkaCloudEventAdapter(
 			CreateOptions(),
+			TestCloudEventSerializers.Reflection,
 			new KafkaCloudEventOptions(),
 			NullLogger<KafkaCloudEventAdapter>.Instance);
 
@@ -182,6 +185,7 @@ public sealed class CloudEventBodyDecodingShould
 	{
 		var adapter = new GooglePubSubCloudEventAdapter(
 			CreateOptions(),
+			TestCloudEventSerializers.Reflection,
 			new GooglePubSubCloudEventOptions(),
 			NullLogger<GooglePubSubCloudEventAdapter>.Instance);
 

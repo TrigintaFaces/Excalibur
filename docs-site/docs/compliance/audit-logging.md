@@ -1177,7 +1177,7 @@ await _audit
 
 ### Safety Guards
 
-- **False assertions are free**: `AssertAsync(false, ...)` returns `null` immediately with no allocation and no I/O
+- **False assertions skip audit creation**: The default context completes with `null` before constructing an audit event or calling `IAuditLogger`. Arguments are still evaluated before the call; this is not a whole-call zero-allocation or zero-cost guarantee.
 - **Max assertions per scope**: Excess assertions beyond `MaxAssertionsPerScope` (default: 25) are logged as warnings and dropped -- never thrown
 - **Actor fallback**: If `IAuditActorProvider` is not registered or throws, the actor defaults to `"system"`
 - **No aggregate dependency**: Works in any handler -- command, query, or integration event

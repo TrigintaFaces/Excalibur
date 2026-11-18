@@ -178,7 +178,9 @@ internal sealed partial class AzureEventHubMessageBus(
 			SentTimestampUtc = context.GetSentTimestampUtc(),
 		};
 
-		foreach (var item in context.Items)
+		// Only the values the application marked for propagation. Items is request-local: this envelope
+		// becomes a CloudEvent on a broker, often read by a system we did not write.
+		foreach (var item in context.GetPropagatedItems())
 		{
 			envelope.SetItem(item.Key, item.Value);
 		}

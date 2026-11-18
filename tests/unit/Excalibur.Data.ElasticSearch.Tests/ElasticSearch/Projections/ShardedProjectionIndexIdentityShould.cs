@@ -110,6 +110,8 @@ public sealed class ShardedProjectionIndexIdentityShould
 		public ShardInfo GetShardInfo(string tenantId) =>
 			new("shard1", "http://shard-a:9200", IndexPrefix: "shard1");
 
+		public ShardInfo GetShardById(string shardId) => shardId == "shard1" ? new("shard1", "http://shard-a:9200", IndexPrefix: "shard1") : throw new KeyNotFoundException(shardId);
+
 		public IReadOnlyCollection<string> GetRegisteredShardIds() => ["shard1"];
 	}
 

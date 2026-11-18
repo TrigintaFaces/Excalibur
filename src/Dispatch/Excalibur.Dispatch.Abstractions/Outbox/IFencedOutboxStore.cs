@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Dispatch;
 
@@ -67,8 +66,6 @@ public interface IFencedOutboxStore : IOutboxStore
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException"> Thrown when batchSize is less than 1. </exception>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 		int batchSize,
 		long fencingToken,
@@ -81,20 +78,47 @@ public interface IFencedOutboxStore : IOutboxStore
 	/// <param name="messageId"> The unique identifier of the message to mark as sent. </param>
 	/// <param name="fencingToken"> The fencing token for the caller's current leadership tenure. </param>
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
-	/// <returns> A task representing the asynchronous mark-sent operation. </returns>
+	/// <returns>What the store did, decided by the same atomic action that performed the mutation.</returns>
 	/// <remarks>
 	/// Implementations MUST apply the mutation as a single atomic compare-and-swap: only apply it when
 	/// <paramref name="fencingToken"/> is greater than or equal to the stored high-water mark, and atomically
 	/// advance the stored high-water mark to the maximum of its current value and
-	/// <paramref name="fencingToken"/>. A presented token below the stored high-water mark indicates a
-	/// superseded (stale) leader attempting to complete work it no longer owns; the store MUST reject the
-	/// mutation and fail closed by throwing <see cref="StaleOutboxFencingTokenException"/> rather than
-	/// silently ignoring it.
+	/// <paramref name="fencingToken"/>. A presented token below the stored high-water mark identifies a
+	/// superseded leader attempting to complete work it no longer owns, and the store MUST NOT apply the
+	/// mutation.
+	/// <para>
+	/// <b>A REFUSAL IS REPORTED IN THE RETURN VALUE, NEVER SMUGGLED THROUGH A SUCCESS OR A FAILURE.</b> This
+	/// member used to return <c>ValueTask</c>, and a void-returning mutation can express exactly two
+	/// outcomes: it threw, or it did not. This seam needs three — applied, refused, and an infrastructure
+	/// fault — so refusal had to travel through an exception, and implementations reached independently for
+	/// four different wrong encodings of it. One reported a refusal as already-sent; one typed it as a
+	/// generic failure that a catch-all then dead-lettered; one summed rowcounts across a multi-statement
+	/// batch so the caller's own refusal test could never fire. A refusal indistinguishable from a failure
+	/// gets disposed of as a failure, and one indistinguishable from a success gets disposed of as a
+	/// success — and the second marks a message sent that was never sent. Returning the outcome is what
+	/// makes both unrepresentable rather than merely unlikely.
+	/// </para>
+	/// <para>
+	/// <b>ROW-SCOPED AND TENURE-SCOPED REFUSALS DIFFER, and the distinction decides how much
+	/// work the caller abandons.</b> <see cref="OutboxCompletionOutcome.FenceRefused"/> means a NEWER TENURE
+	/// exists, so every remaining write this caller would make is unfenced and it must stop draining
+	/// altogether. <see cref="OutboxCompletionOutcome.ClaimLost"/>,
+	/// <see cref="OutboxCompletionOutcome.AlreadyTerminal"/> and
+	/// <see cref="OutboxCompletionOutcome.MessageNotFound"/> concern THIS MESSAGE ONLY: the caller records
+	/// them and carries on with the rest of its batch. A caller that stands down on a row-scoped refusal
+	/// strands messages a live tenure still owns; one that carries on after a fence refusal lets a
+	/// superseded tenure keep writing.
+	/// </para>
+	/// <para>
+	/// <b>Callers MUST test for <see cref="OutboxCompletionOutcome.Applied"/> BY NAME.</b> Deciding success
+	/// by excluding the refusals known at compile time makes every value added to the enumeration later
+	/// begin life as a silent success, which is the way this contract fails open.
+	/// </para>
+	/// <para>
+	/// Infrastructure faults still throw. A refusal is an expected outcome of losing leadership and is not
+	/// an error; a connection that dropped is.
+	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentException"> Thrown when messageId is null or empty. </exception>
-	/// <exception cref="StaleOutboxFencingTokenException">
-	/// Thrown when <paramref name="fencingToken"/> is below the stored high-water mark.
-	/// </exception>
-	/// <exception cref="InvalidOperationException"> Thrown when the message does not exist or is already marked as sent. </exception>
-	ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken);
+	ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken);
 }

@@ -26,6 +26,32 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 [Trait("Component", "Dispatch.Core")]
 public sealed class FinalDispatchHandlerRetryPolicyShould
 {
+	private sealed class UnclassifiedFailureException(string message) : Exception(message);
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task PreserveUnknownFanoutEvidenceAlongsideHealthyOrUncertainDestinations(bool uncertain)
+	{
+		var (message, context, first, second, third) = ConfigureThreeDestinationFanout();
+		var fault = new UnclassifiedFailureException("UNKNOWN-A");
+		A.CallTo(() => first.PublishAsync(message, context, A<CancellationToken>._)).Returns(Task.FromException(fault));
+		A.CallTo(() => second.PublishAsync(message, context, A<CancellationToken>._)).Returns(uncertain
+			? Task.FromException(new Excalibur.Dispatch.Exceptions.DispatchDeliveryUncertainException("unestablished"))
+			: Task.CompletedTask);
+		A.CallTo(() => third.PublishAsync(message, context, A<CancellationToken>._)).Returns(Task.CompletedTask);
+		using var owner = RetryOwnershipScope.Enter(message, context);
+		var attempt = owner.BeginAttempt();
+		var result = await CreateHandler(CreatePollyPolicy()).HandleAsync(message, context, CancellationToken.None);
+		result.Succeeded.ShouldBeFalse();
+		RetryOwnershipScope.TryGetKnownFailureKind(attempt, result, out var kind, out var original).ShouldBeTrue();
+		kind.ShouldBe(MessageFailureKind.Unknown);
+		if (uncertain) { original.ShouldBeOfType<AggregateException>().InnerExceptions.ShouldContain(fault); }
+		else { original.ShouldBeSameAs(fault); }
+		A.CallTo(() => first.PublishAsync(message, context, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => third.PublishAsync(message, context, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+	}
+
 	[Theory]
 	[InlineData(true)]
 	[InlineData(false)]

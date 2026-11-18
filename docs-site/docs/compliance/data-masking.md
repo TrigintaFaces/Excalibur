@@ -271,24 +271,27 @@ public class MaskingActionFilter : IAsyncActionFilter
 
 ## Performance
 
-The masker uses compiled regex patterns with timeout guards for optimal performance:
+The masker reuses static standard regex patterns with timeout guards. These implementation choices
+do not establish a measured overhead or an optimal configuration for every payload:
 
 | Metric | Value |
 |--------|-------|
-| Overhead | Design target: under 2% per operation. **Not a measured figure** — no masking benchmark ships; measure against your own payloads. |
+| Overhead | Design target: under 2% per operation. **Not a measured figure** — no matching measured overhead is established here; measure against your own payloads. |
 | Regex engine | `NonBacktracking` — linear time, ReDoS-resistant by construction |
 | Regex timeout | 2 seconds (a backstop, not the primary defence) |
-| Pattern caching | The six standard patterns are static and compiled once |
+| Pattern caching | The six standard regex instances are static and reused |
 | Thread safety | Fully thread-safe |
 
 ```csharp
-// The standard patterns are compiled once, in a static initializer.
+// The standard regex instances are created once, in a static initializer.
 // Safe for concurrent access from multiple threads.
 var masker = new RegexDataMasker(MaskingRules.Default);
 ```
 
 `MaskObject` additionally builds one property-name pattern per masked property on **every call**, and
-those are not compiled. Prefer `Mask` or `MaskAll` on hot paths.
+those are not compiled. It also serializes and deserializes the object. `Mask` and `MaskAll` operate on
+strings; they are not drop-in replacements for attribute-directed object masking. Compare operations
+only when they preserve the required masking policy and output, and measure the complete path.
 
 ## Security Considerations
 

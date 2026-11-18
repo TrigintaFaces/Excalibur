@@ -290,12 +290,8 @@ public sealed class SqlServerCdcSecondPollIntegrationShould : IntegrationTestBas
 
 		var (connectionString, provider, processor) = await ArrangeAsync(
 			"BlockedProducer",
-			(services, database, _) => services.AddSingleton<IDatabaseOptions>(new DatabaseOptions
+			(services, database, _) => services.AddSingleton<IDatabaseOptions>(new DatabaseOptions(database, $"cdc-{database}", $"state-{database}")
 			{
-				DatabaseName = database,
-				DatabaseConnectionIdentifier = $"cdc-{database}",
-				StateConnectionIdentifier = $"state-{database}",
-
 				// REQUIRED, and its absence is why the first run of this arm delivered nothing. The
 				// provider's own factory populates Tables from TrackTable(...); pre-registering
 				// IDatabaseOptions replaces that factory wholesale, so the tracked table has to be

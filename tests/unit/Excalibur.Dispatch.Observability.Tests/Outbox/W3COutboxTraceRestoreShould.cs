@@ -35,10 +35,15 @@ public sealed class W3COutboxTraceRestoreShould
     /// </summary>
     private static async Task<IMessageContext> FlushAndCaptureContextAsync(OutboundMessage staged)
     {
-        var outboxStore = A.Fake<IOutboxStore>();
+        var outboxStore = A.Fake<IOutboxStore>(o => o.Implements<IClaimScopedOutboxStore>());
+        const string ClaimIdentity = "observability-trace-claim";
+        staged.DispatcherId = ClaimIdentity;
+        A.CallTo(() => outboxStore.GetService(typeof(IClaimScopedOutboxStore))).Returns(outboxStore);
+        var claimScoped = (IClaimScopedOutboxStore)outboxStore;
+        A.CallTo(() => claimScoped.MarkSentAsync(staged.Id, ClaimIdentity, A<CancellationToken>._))
+            .Returns(new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied));
         A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
             .ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(new[] { staged }));
-        // MarkSentAsync returns a non-generic ValueTask — a faked call completes by default (no setup needed).
 
         var serializer = A.Fake<IPayloadSerializer>();
         Excalibur.Dispatch.Delivery.Registry.MessageTypeRegistry.RegisterType<TraceEvent>();
@@ -49,9 +54,11 @@ public sealed class W3COutboxTraceRestoreShould
 
         IMessageContext? capturedContext = null;
         var messageBus = A.Fake<IMessageBusAdapter>();
+        var publishResult = A.Fake<IMessageResult>();
+        A.CallTo(() => publishResult.Succeeded).Returns(true);
         A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
             .Invokes((IDispatchMessage _, IMessageContext ctx, CancellationToken _) => capturedContext = ctx)
-            .Returns(Task.FromResult(A.Fake<IMessageResult>()));
+            .Returns(Task.FromResult(publishResult));
 
         var publisher = new MessageBusOutboxPublisher(outboxStore, serializer, messageBus, serviceProvider, logger);
 
@@ -69,7 +76,14 @@ public sealed class W3COutboxTraceRestoreShould
         flushActivity.ShouldNotBeNull("test harness must establish a flush-time ambient activity");
         flushActivity!.Id.ShouldNotBe(EnqueueTimeTraceParent, "flush activity must differ from the enqueue-time trace");
 
-        await publisher.PublishPendingMessagesAsync(CancellationToken.None);
+        var publishing = await publisher.PublishPendingMessagesAsync(CancellationToken.None);
+
+        publishing.IsSuccess.ShouldBeTrue();
+        publishing.SuccessCount.ShouldBe(1);
+        publishing.FailureCount.ShouldBe(0);
+        A.CallTo(() => claimScoped.MarkSentAsync(staged.Id, ClaimIdentity, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => outboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 
         capturedContext.ShouldNotBeNull("message bus must have received the rebuilt publish context");
         return capturedContext!;

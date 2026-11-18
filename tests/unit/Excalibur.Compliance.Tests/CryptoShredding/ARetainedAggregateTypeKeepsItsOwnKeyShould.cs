@@ -8,6 +8,8 @@ using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Compliance.Tests.CryptoShredding;
 
@@ -343,16 +345,75 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 		RetentionPeriod = TimeSpan.FromDays(365 * 6),
 	};
 
-	// Exactly what the erasure destroys: the data subject's own key handle for the tenant whose erasure this
-	// is. These arms are single-tenant, so that is the framework default identity -- the same one the write
-	// path resolves from an unconfigured ambient context. Destroying the bare subject-id hash, as this helper
-	// used to, would destroy a key nothing was written under and leave every arm below satisfied by an
-	// erasure that achieved nothing.
+	/// <summary>
+	/// Runs a REAL erasure through <see cref="ErasureService"/> against this stack's own store.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>It used to destroy one handle this test computed itself</b> — the data subject's plain handle —
+	/// and the superseded version is quoted here because the file's own prose had already diagnosed why
+	/// that was wrong, two arms away: <i>"the erase helper in this file destroys the plain subject handle
+	/// directly, so an end-to-end claim made here would assert a set the test computed itself rather than
+	/// the one the service computes, and would pass whether or not the service destroys the widened
+	/// handle."</i> Three arms below depended on that helper.
+	/// </para>
+	/// <para>
+	/// <b>The handle set CANNOT be re-derived here, and that is the structural reason this helper must call
+	/// the service rather than imitate it.</b> The write path now scopes a handle per obligation class
+	/// unconditionally, so a subject has one handle per aggregate type their data spans, and the erasure
+	/// decides each one by joining a DECLARED retention against the handle it derived for that type. A
+	/// handle is an opaque digest, so nothing outside that join can map a handle back to its aggregate type
+	/// — a test holding only the handles could destroy all of them or none, and neither is the behaviour
+	/// these arms are about. The spare decision exists in exactly one place; this helper now reads it from
+	/// there.
+	/// </para>
+	/// </remarks>
 	private static async Task EraseAsync(IServiceProvider services, string subjectId = Subject)
 	{
-		var hasher = services.GetRequiredService<IDataSubjectHasher>();
+		var store = services.GetRequiredService<InMemoryErasureStore>();
+		var requestId = Guid.NewGuid();
 
-		await DestroyAndRecordAsync(services, SubjectKeyHandle.ForSubject(SingleTenant, subjectId, hasher).Value);
+		// The store hashes the identifier itself, so the erasure and the write path agree on the subject by
+		// construction rather than by a literal repeated in two places.
+		await store.SaveRequestAsync(
+			new ErasureRequest
+			{
+				RequestId = requestId,
+				DataSubjectId = subjectId,
+				IdType = DataSubjectIdType.UserId,
+				Scope = ErasureScope.User,
+				LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+				RequestedBy = "admin",
+				RequestedAt = DateTimeOffset.UtcNow.AddHours(-1),
+				TenantId = TenantDefaults.DefaultTenantId,
+			},
+			DateTimeOffset.UtcNow,
+			TestContext.Current.CancellationToken);
+
+		var service = new ErasureService(
+			store,
+			services.GetRequiredService<IKeyManagementAdmin>(),
+			Options.Create(new ErasureOptions
+			{
+				// Coverage is taken off the critical path by the documented opt-in rather than by a fixture
+				// that fakes it: the subject of these arms is which KEYS the erasure destroys, not the
+				// structural coverage gate, which has its own suite.
+				KeyShredOnlyErasure = true,
+				Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+			}),
+			NullLogger<ErasureService>.Instance,
+			services.GetRequiredService<IDataSubjectHasher>(),
+			services.GetRequiredService<ILegalHoldService>(),
+			dataInventoryService: null,
+			keyEscrowService: null,
+			services.GetRequiredService<IErasureRetentionRegistry>(),
+
+			// THE SAME INSTANCE the write path recorded into. Resolving a separate mint ledger here would
+			// let these arms pass against a composition the framework cannot produce.
+			store,
+			contributors: null);
+
+		_ = await service.ExecuteAsync(requestId, TestContext.Current.CancellationToken);
 	}
 
 	/// <summary>
@@ -430,6 +491,10 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 		// so nothing records the destruction for them -- see DestroyAndRecordAsync, which does what the service
 		// does at that seam.
 		_ = services.AddInMemoryErasureStore();
+
+		// The erasure service requires a legal-hold service: "we hold nothing" is a stated position here,
+		// registered explicitly, rather than an omission that reads the same as a forgotten registration.
+		_ = services.AddNoLegalHolds();
 
 		return services.BuildServiceProvider();
 	}

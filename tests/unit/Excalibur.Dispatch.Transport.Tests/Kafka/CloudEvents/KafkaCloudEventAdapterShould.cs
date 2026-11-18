@@ -4,6 +4,7 @@
 #pragma warning disable IL2026 // RequiresUnreferencedCode
 #pragma warning disable IL3050 // RequiresDynamicCode
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using System.Text;
 using System.Text.Json;
 
@@ -36,6 +37,7 @@ public sealed class KafkaCloudEventAdapterShould
 
 		_adapter = new KafkaCloudEventAdapter(
 			options,
+			TestCloudEventSerializers.Reflection,
 			new KafkaCloudEventOptions { PartitioningStrategy = KafkaPartitioningStrategy.CorrelationId },
 			NullLogger<KafkaCloudEventAdapter>.Instance);
 	}
@@ -46,6 +48,7 @@ public sealed class KafkaCloudEventAdapterShould
 		Should.Throw<ArgumentNullException>(() =>
 			new KafkaCloudEventAdapter(
 				null!,
+				TestCloudEventSerializers.Reflection,
 				new KafkaCloudEventOptions(),
 				NullLogger<KafkaCloudEventAdapter>.Instance));
 	}

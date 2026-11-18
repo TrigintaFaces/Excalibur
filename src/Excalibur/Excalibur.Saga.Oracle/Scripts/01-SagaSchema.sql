@@ -34,6 +34,11 @@ CREATE TABLE DISPATCH.SAGAS (
     SagaId       RAW(16)                                              NOT NULL,
     SagaType     VARCHAR2(500)                                        NOT NULL,
     StateJson    CLOB                                                 NOT NULL,
+    TimerRecoveryIncarnation VARCHAR2(32 CHAR) NULL,
+    TimerRecoveryTracked NUMBER(1) DEFAULT 0 NOT NULL,
+    TimerRecoveryPendingBatch VARCHAR2(32 CHAR) NULL,
+    TimerRecoveryPendingDigest VARCHAR2(64 CHAR) NULL,
+
     -- Oracle has no boolean column type; the store reads and writes 0/1.
     IsCompleted  NUMBER(1)     DEFAULT 0                              NOT NULL,
     -- NOT NULL, carrying a reserved sentinel for a saga that is genuinely not tenant-scoped,

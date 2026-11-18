@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
+using Oracle.ManagedDataAccess.Client;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Oracle;
 
@@ -56,4 +58,27 @@ public sealed class OracleSagaTimeoutStoreShould
 			_logger,
 			tenantContext: null!));
 	}
+    [Fact]
+    public void ExposeRecoveryThroughTheExistingSelectedStoreFacetWithoutOpeningAConnection()
+    {
+        var calls = 0;
+        var store = new OracleSagaTimeoutStore(() => { calls++; return new OracleConnection(); }, _logger, new TestTenantContext());
+        ((IServiceProvider)store).GetService(typeof(ISagaTimerRecoveryStore)).ShouldBeSameAs(store);
+        calls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task PreservePreCancelledRecoveryTokenBeforeConnectionFactoryActivity()
+    {
+        var calls = 0;
+        var store = new OracleSagaTimeoutStore(() => { calls++; return new OracleConnection(); }, _logger, new TestTenantContext());
+        var receiver = ((IServiceProvider)store).GetService(typeof(ISagaTimerRecoveryStore)).ShouldBeAssignableTo<ISagaTimerRecoveryStore>();
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+        OperationCanceledException? observed = null;
+        try { await receiver.ObserveFenceAsync(new(TenantDefaults.DefaultTenantId, Guid.NewGuid()), cancellation.Token); }
+        catch (OperationCanceledException error) { observed = error; }
+        observed.ShouldNotBeNull().CancellationToken.ShouldBe(cancellation.Token);
+        calls.ShouldBe(0);
+    }
 }

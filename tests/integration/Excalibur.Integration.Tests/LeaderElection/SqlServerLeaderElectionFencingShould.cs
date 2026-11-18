@@ -1,11 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
+using System.Text;
+
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.Integration.Tests.Data;
 using Excalibur.LeaderElection.SqlServer;
 
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Integration.Tests.LeaderElection;
@@ -37,7 +42,7 @@ namespace Excalibur.Integration.Tests.LeaderElection;
 /// </para>
 /// <para>
 /// <b>Fact 2 — fail-CLOSED (RED on the mint-after-grant + swallow mutant):</b> a throwing
-/// <see cref="IFencingTokenProvider"/> is injected into the public <see cref="SqlServerLeaderElection"/> ctor.
+/// <see cref="IFencingTokenIssuer"/> is injected into the public <see cref="SqlServerLeaderElection"/> ctor.
 /// On the pre-fix fail-OPEN ordering (declare leadership first, mint afterward, swallow the failure)
 /// <see cref="SqlServerLeaderElection.IsLeader"/> would be <c>true</c> and <c>BecameLeader</c> would fire →
 /// both RED. The fix mints BEFORE declaring leadership and, on bounded-retry exhaustion, calls
@@ -78,7 +83,7 @@ public sealed class SqlServerLeaderElectionFencingShould : IntegrationTestBase
 		var servicesA = new ServiceCollection();
 		_ = servicesA.AddSqlServerFencingTokenProvider(_fixture.ConnectionString);
 		await using var serviceProviderA = servicesA.BuildServiceProvider();
-		var providerA = serviceProviderA.GetRequiredService<IFencingTokenProvider>();
+		var providerA = serviceProviderA.GetRequiredService<IFencingTokenIssuer>();
 
 		var firstToken = await providerA.IssueTokenAsync(resourceId, TestCancellationToken);
 		firstToken.ShouldBeGreaterThanOrEqualTo(1L,
@@ -89,7 +94,7 @@ public sealed class SqlServerLeaderElectionFencingShould : IntegrationTestBase
 		var servicesB = new ServiceCollection();
 		_ = servicesB.AddSqlServerFencingTokenProvider(_fixture.ConnectionString);
 		await using var serviceProviderB = servicesB.BuildServiceProvider();
-		var providerB = serviceProviderB.GetRequiredService<IFencingTokenProvider>();
+		var providerB = serviceProviderB.GetRequiredService<IFencingTokenIssuer>();
 
 		var afterHandoverToken = await providerB.IssueTokenAsync(resourceId, TestCancellationToken);
 		afterHandoverToken.ShouldBeGreaterThan(firstToken,
@@ -126,7 +131,7 @@ public sealed class SqlServerLeaderElectionFencingShould : IntegrationTestBase
 		var services = new ServiceCollection();
 		_ = services.AddSqlServerFencingTokenProvider(_fixture.ConnectionString);
 		await using var serviceProvider = services.BuildServiceProvider();
-		var provider = serviceProvider.GetRequiredService<IFencingTokenProvider>();
+		var provider = serviceProvider.GetRequiredService<IFencingTokenIssuer>();
 
 		const int issuances = 40;
 		var tasks = Enumerable.Range(0, issuances)
@@ -137,6 +142,126 @@ public sealed class SqlServerLeaderElectionFencingShould : IntegrationTestBase
 		tokens.Distinct().Count().ShouldBe(
 			issuances,
 			"pblbmb: every concurrently-minted fencing token must be unique — an atomic SEQUENCE mint never issues a duplicate to two racing callers.");
+	}
+
+	/// <summary>
+	/// Mirrors <c>SqlServerFencingTokenProvider.SequenceName</c> exactly (documented on that type's own
+	/// remarks: <c>"fencing_"</c> + the full uppercase-hex SHA-256 of the resource id) so this test can
+	/// address the same real sequence the provider creates, without needing internals access.
+	/// </summary>
+	private static string FencingSequenceName(string resourceId)
+	{
+		var hash = SHA256.HashData(Encoding.UTF8.GetBytes(resourceId));
+		return "fencing_" + Convert.ToHexString(hash);
+	}
+
+	[Fact]
+	[SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities",
+		Justification = "The sequence name comes from FencingSequenceName(), which is 'fencing_' + the hex " +
+			"SHA-256 of the resource id -- exclusively [0-9A-F], never raw input, mirroring the production " +
+			"provider's own identical justification. CREATE SEQUENCE cannot parameterize an identifier.")]
+	public async Task RefuseEveryTokenWhenTheSequenceExistsButWasNeverDrawn()
+	{
+		// F1 fail-CLOSED on a never-drawn sequence. The issue path creates the per-resource SEQUENCE and
+		// draws NEXT VALUE FOR in ONE batch with NO enclosing transaction, so an interruption between the
+		// two statements -- a cancelled CancellationToken being the likeliest route -- leaves a sequence
+		// that EXISTS and was NEVER DRAWN, with nothing to roll it back.
+		//
+		// THE DEFECT THIS BINDS IS AN INVERSION, NOT AN OFF-BY-ONE. sys.sequences.current_value is declared
+		// sql_variant NOT NULL and documented as returning the START WITH value when the sequence has never
+		// been used, so a provider reading it sees a high-water mark of 1 for a resource whose token was
+		// never issued -- and the fail-closed comparison in ValidateTokenAsync then ADMITS 1 and every value
+		// above it. The state that must refuse everything instead admits everything, and every admission is
+		// logged as a success. last_used_value is sql_variant NULL, documented as the last value GENERATED
+		// by NEXT VALUE FOR, so it can express never-issued and the fence refuses.
+		//
+		// ROUTE: the never-drawn sequence is created DIRECTLY here, with the provider's own DDL, rather than
+		// by cancelling a real IssueTokenAsync. The cancel point sits INSIDE a single server round-trip,
+		// between two statements of one batch, so it is a race no test can steer deterministically; creating
+		// the object reproduces the resulting STATE exactly, and the state is what the catalog view answers
+		// about. The LIVENESS tail below confirms the reproduction is faithful -- the provider's own issue
+		// path adopts this sequence (its IF NOT EXISTS finds it) and the first real draw is 1, which holds
+		// only if the object created here matches the one the provider would have created itself.
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"fail-closed fencing on a never-drawn sequence is a split-brain safety control -- this real-SqlServer lock must never be skipped");
+
+		var resourceId = $"neverdrawn-{Guid.NewGuid():N}";
+
+		await using (var connection = new SqlConnection(_fixture.ConnectionString))
+		{
+			await connection.OpenAsync(TestCancellationToken);
+			await using var create = new SqlCommand(
+				$"CREATE SEQUENCE {FencingSequenceName(resourceId)} AS bigint START WITH 1 INCREMENT BY 1",
+				connection);
+			_ = await create.ExecuteNonQueryAsync(TestCancellationToken);
+		}
+
+		var services = new ServiceCollection();
+		_ = services.AddSqlServerFencingTokenProvider(_fixture.ConnectionString);
+		await using var serviceProvider = services.BuildServiceProvider();
+		var provider = serviceProvider.GetRequiredService<IFencingTokenIssuer>();
+
+		// SAFETY -- no token was ever issued, so there is no high-water mark to report. A value here is a
+		// fabrication: the sequence has never generated one.
+		(await provider.GetTokenAsync(resourceId, TestCancellationToken)).ShouldBeNull(
+			"a sequence that exists but was never drawn has issued NO token, so the high-water mark must be "
+			+ "reported as absent rather than as the START WITH value the sequence was created with");
+
+		// SAFETY -- the arm that encodes the requirement. 1 is the EXACT value the inversion admitted,
+		// because it is the START WITH value current_value reports for a never-used sequence.
+		(await provider.ValidateTokenAsync(resourceId, 1L, TestCancellationToken)).ShouldBeFalse(
+			"token 1 must be REFUSED on a never-drawn sequence -- 1 is the precise value a current_value read "
+			+ "admits, so this is the assertion that separates fail-closed from the fail-OPEN inversion");
+		(await provider.ValidateTokenAsync(resourceId, long.MaxValue, TestCancellationToken)).ShouldBeFalse(
+			"with no token ever issued EVERY token must be refused -- including one far above any plausible "
+			+ "high-water mark, which a comparison against a fabricated 1 would admit");
+		(await provider.ValidateTokenAsync(resourceId, -1L, TestCancellationToken)).ShouldBeFalse(
+			"a negative token must be refused too -- the refusal is 'nothing was issued', not 'this value is low'");
+
+		// LIVENESS -- the refusal above is caused by the never-drawn state, NOT by a provider that refuses
+		// everything always. Mint for real on this same sequence and the fence opens for the minted token.
+		var minted = await provider.IssueTokenAsync(resourceId, TestCancellationToken);
+		minted.ShouldBe(1L,
+			"the provider's issue path must adopt the existing sequence and draw its first value -- 1 proves "
+			+ "the object created above is the one the provider itself would have created");
+		(await provider.ValidateTokenAsync(resourceId, minted, TestCancellationToken)).ShouldBeTrue(
+			"once a token has genuinely been issued the fence must ACCEPT it -- a provider that refused every "
+			+ "token unconditionally would satisfy the safety arms above while fencing nothing");
+	}
+
+	[Fact]
+	public async Task ReportTheLastIssuedTokenAsTheHighWaterMark()
+	{
+		// The other direction of non-vacuity for the fail-closed read above. A provider that answered "no
+		// token was ever issued" unconditionally would pass every safety arm of the never-drawn fact and
+		// leave the fence permanently shut; this binds the high-water mark to the value actually issued.
+		// Nothing else asserts GetTokenAsync's returned VALUE -- the sibling facts assert only the accept /
+		// refuse verdicts derived from it.
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"the high-water-mark read is the input to every fencing verdict -- this real-SqlServer lock must never be skipped");
+
+		var resourceId = $"highwater-{Guid.NewGuid():N}";
+
+		var services = new ServiceCollection();
+		_ = services.AddSqlServerFencingTokenProvider(_fixture.ConnectionString);
+		await using var serviceProvider = services.BuildServiceProvider();
+		var provider = serviceProvider.GetRequiredService<IFencingTokenIssuer>();
+
+		var first = await provider.IssueTokenAsync(resourceId, TestCancellationToken);
+		var second = await provider.IssueTokenAsync(resourceId, TestCancellationToken);
+		second.ShouldBeGreaterThan(first, "the mint is strictly monotonic");
+
+		(await provider.GetTokenAsync(resourceId, TestCancellationToken)).ShouldBe(second,
+			"the high-water mark must be the token LAST GENERATED, so a reader can tell an issued fence from "
+			+ "an absent one by value and not merely by presence");
+
+		(await provider.ValidateTokenAsync(resourceId, second, TestCancellationToken)).ShouldBeTrue(
+			"the current token must be accepted");
+		(await provider.ValidateTokenAsync(resourceId, second + 1, TestCancellationToken)).ShouldBeTrue(
+			"a token above the high-water mark must be accepted -- the check is at-or-above, so a successor "
+			+ "that already advanced the fence is not fenced out by a stale read");
+		(await provider.ValidateTokenAsync(resourceId, first, TestCancellationToken)).ShouldBeFalse(
+			"the superseded token must be refused -- a superseded leader presenting a stale token is rejected");
 	}
 
 	[Fact]
@@ -152,7 +277,7 @@ public sealed class SqlServerLeaderElectionFencingShould : IntegrationTestBase
 		var optionsA = Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions
 		{
 			InstanceId = "candidate-A",
-			LeaseDuration = TimeSpan.FromMinutes(5),
+			LeaseDuration = TimeSpan.FromMinutes(10),
 			// Neutralize the background renewal loop for the deterministic test window: its first iteration waits
 			// one RenewInterval, so a long interval guarantees the loop never re-attempts acquire+mint before we
 			// assert and StopAsync.
@@ -188,7 +313,7 @@ public sealed class SqlServerLeaderElectionFencingShould : IntegrationTestBase
 		var optionsB = Microsoft.Extensions.Options.Options.Create(new LeaderElectionOptions
 		{
 			InstanceId = "candidate-B",
-			LeaseDuration = TimeSpan.FromMinutes(5),
+			LeaseDuration = TimeSpan.FromMinutes(10),
 			RenewInterval = TimeSpan.FromMinutes(5),
 			GracePeriod = TimeSpan.FromSeconds(5),
 			RetryInterval = TimeSpan.FromSeconds(5),
@@ -209,7 +334,7 @@ public sealed class SqlServerLeaderElectionFencingShould : IntegrationTestBase
 	/// <summary>
 	/// A fencing-token provider whose mint always fails — drives the nxmjpm fail-CLOSED relinquish path.
 	/// </summary>
-	private sealed class AlwaysThrowingFencingTokenProvider : IFencingTokenProvider
+	private sealed class AlwaysThrowingFencingTokenProvider : IFencingTokenIssuer
 	{
 		public ValueTask<long> IssueTokenAsync(string resourceId, CancellationToken cancellationToken)
 			=> throw new InvalidOperationException("Simulated fencing-store outage: token mint unavailable.");

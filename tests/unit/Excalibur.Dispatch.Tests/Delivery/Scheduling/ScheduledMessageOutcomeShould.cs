@@ -84,10 +84,12 @@ public sealed class ScheduledMessageOutcomeShould
             .Invokes((IScheduledMessage updated, CancellationToken _) => { persisted = updated; written.TrySetResult(); }).Returns(Task.CompletedTask);
         var policy = A.Fake<ITimePolicy>(o => o.Implements<ITimePolicyConfiguration>());
         var cronOptions = Microsoft.Extensions.Options.Options.Create(new CronScheduleOptions());
-        using var service = new ScheduledMessageService(store, provider.GetRequiredService<IDispatcher>(), serializer,
+        var clock = new FakeTimeProvider(now);
+        using var authority = new ScheduleFixtureFailureAuthority(store, clock);
+        using var service = new ScheduledMessageService(authority.RuntimeStore, provider.GetRequiredService<IDispatcher>(), serializer,
             new CronScheduler(cronOptions, NullLogger<CronScheduler>.Instance),
             Microsoft.Extensions.Options.Options.Create(new SchedulerOptions { PollInterval = TimeSpan.FromSeconds(1), EnableAdaptivePolling = false }),
-            cronOptions, NullLogger<ScheduledMessageService>.Instance, provider.GetRequiredService<IServiceScopeFactory>(), policy, timeProvider: new FakeTimeProvider(now));
+            cronOptions, NullLogger<ScheduledMessageService>.Instance, provider.GetRequiredService<IServiceScopeFactory>(), policy, timeProvider: clock);
         try
         {
             await service.StartAsync(CancellationToken.None);
@@ -181,7 +183,8 @@ public sealed class ScheduledMessageOutcomeShould
         var cronOptions = Microsoft.Extensions.Options.Options.Create(new CronScheduleOptions());
         var clock = new FakeTimeProvider(now);
         using var scopeProvider = new ServiceCollection().BuildServiceProvider();
-        using var service = new ScheduledMessageService(store, dispatcher, serializer,
+        using var authority = new ScheduleFixtureFailureAuthority(store, clock);
+        using var service = new ScheduledMessageService(authority.RuntimeStore, dispatcher, serializer,
             new CronScheduler(cronOptions, NullLogger<CronScheduler>.Instance),
             Microsoft.Extensions.Options.Options.Create(new SchedulerOptions { PollInterval = TimeSpan.FromSeconds(1), EnableAdaptivePolling = false }),
             cronOptions, NullLogger<ScheduledMessageService>.Instance, scopeProvider.GetRequiredService<IServiceScopeFactory>(), policy, timeProvider: clock);
@@ -224,7 +227,7 @@ public sealed class ScheduledMessageOutcomeShould
                 {
                     Volatile.Read(ref overdueCalls).ShouldBe(1, "an unsuccessful replay must stop catch-up");
                     var written = writes.Single();
-                    written.Next.ShouldNotBeNull().ShouldBeGreaterThan(now);
+                    written.Next.ShouldBe(overdue.NextExecutionUtc, "failed admitted work must remain recoverable at its original occurrence");
                     written.Last.ShouldBe(now.AddMinutes(-5), "a failed dispatch must not overwrite the prior execution timestamp");
                 }
             }

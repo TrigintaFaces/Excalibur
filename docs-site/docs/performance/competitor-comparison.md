@@ -20,10 +20,19 @@ We disclose our affiliation with this framework and provide methodology and raw 
 reproduction and independent review. **Measure your own workload before choosing a framework.**
 :::
 
-## Current command observations, 19 October 2026
+## Reading these results with newer component measurements
+
+The tables below retain their original source and runtime epochs. They do not describe
+performance after subsequent framework changes. The [November 4 pooled metadata query
+measurement](./index.md#november-4-component-evidence) uses a different, untyped managed
+WarmPath fixture and supports a scoped before/after finding only. It cannot replace these
+typed-query rows or establish a current competitive ranking. The linked report records
+commands, source hashes, uncertainty, raw evidence and separate NativeAOT correctness checks.
+
+## Historical command observations, 19 October 2026 {/* #current-command-observations-19-october-2026 */}
 
 Three independent original warm-path processes measured the single-command pair
-against the selected current runtime, with the configuration described below.
+against the runtime selected for that epoch, with the configuration described below.
 
 | Original method | Median process mean | Process-mean range | Allocation |
 |---|---:|---:|---:|
@@ -39,10 +48,10 @@ claim. No actual NativeAOT timing or general competitive ranking is established.
 Full provenance and process details: repository report
 `docs/performance/hot-command-comparison-2026-10-19.md`.
 
-## Current query observations, 19 October 2026
+## Historical query observations, 19 October 2026 {/* #current-query-observations-19-october-2026 */}
 
 Three independent original `MediatRWarmPathComparisonBenchmarks` processes used
-the same selected current runtime after the fixture rental-lifecycle repair.
+the same runtime selected for that epoch after the fixture rental-lifecycle repair.
 BenchmarkDotNet 0.15.8, original adaptive `warmpath-inproc` job, in-process emit,
 .NET 10.0.12 / SDK 10.0.401, x64 RyuJIT, Intel Core i9-14900K and Windows 11
 build 26300.9711. Each query uses ID `123` and returns `246`.
@@ -61,7 +70,7 @@ epochs and shared timing movement prevent a causal regression or improvement cla
 Allocation stayed unchanged. No stable latency, general ranking or actual NativeAOT
 performance is established.
 
-Four separate current-runtime controls verified 256 original calls, sixteen input
+Four separate controls for that October 19 runtime verified 256 original calls, sixteen input
 probes and 48 rejecting checks. Independent review rehashed 6,754 inputs and checked
 all twelve means, deviations, iteration counts and GC allocation ratios. All 218
 listed runtime files were identical across the three processes, and nine selected
@@ -75,8 +84,8 @@ Per-process measurements and evidence:
 ## Earlier measurements, 17 October 2026 {/* #current-measurements-17-october-2026 */}
 
 The following table preserves the October 17 command observations and isolated
-query experiment. Its command and query latency values are superseded as the latest measured
-epochs by the October 19 observations above; the allocation experiment remains valid
+query experiment. Its command and query latency values precede the later October
+epochs documented above; the allocation experiment remains valid
 within its original scope.
 
 BenchmarkDotNet 0.15.8, adaptive warm-path job (`warmpath-inproc`), in-process emit toolchain.
@@ -96,7 +105,7 @@ NativeAOT performance.
 | Typed query, direct context-less profile | ~68 ns | 288 B |
 | Typed query, singleton promotion configured | ~69 ns | 288 B |
 
-Both fixtures use no-op handlers, so they measure dispatch and completion overhead rather than
+The fixtures use trivial handlers: command completion and query arithmetic. They measure dispatch and completion overhead rather than
 application work. One command process reported a multimodal distribution (`mValue = 2.86`); that
 observation is retained rather than discarded, and no stable-latency or percentile claim follows
 from three processes.
@@ -117,7 +126,7 @@ claimed. The change also passed 2,102 Abstractions tests and a focused Native AO
 
 ### Scope of these measurements
 
-These are warm, in-process, single-operation fixtures with no-op handlers. They measure the cost of
+These are warm, in-process, single-operation fixtures with trivial command completion and query arithmetic. They measure the cost of
 the dispatch machinery. They are **not** cold-start figures, Native AOT figures, sustained
 throughput, or percentile SLOs.
 
@@ -147,7 +156,7 @@ Per-process results, exact workload, independent source/semantic checks and reta
 
 From the September 5 2026 epoch. These values predate a correction to default correlation and
 causation initialization, so read the latencies as indicative of shape rather than as current path
-costs. The allocation column has been stable across epochs.
+costs. The allocation values also belong to that historical workload and configuration.
 
 | Profile | Allocation | Latency | When to use |
 |---------|-----------|---------|-------------|
@@ -167,18 +176,21 @@ costs. The allocation column has been stable across epochs.
 - **Those Dispatch local fixture calls omit an extra `async` wrapper.** Wrapper allocation depends on the exact
   call shape, completion path and runtime. These observations do not establish a universal byte
   cost for an async frame or your own `await`.
-- **Microbenchmarks measure framework overhead, not production latency.** A database round trip is
-  roughly ten thousand times the figures on this page. If dispatch overhead looks like your
-  bottleneck, confirm that with a profiler before optimising for it.
+- **Microbenchmarks measure framework overhead, not production latency.** Profile actual database,
+  handler and dispatch work in your application before choosing what to optimize. These fixtures
+  do not establish their relative costs in production.
 
 The separately dated MassTransit query fixture has its own allocation ranges and distribution
 warnings above. Its original MassTransit method is async and retains request-client construction.
 
 :::warning Do not cross-diff across the April 2026 methodology boundary
 
-Baselines from before April 2026 used BenchmarkDotNet 0.15.4, which auto-tuned `InvocationCount` and
-produced numerically different, qualitatively equivalent ns-scale figures. Individual Mean values are
-not comparable across that boundary. See `benchmarks/RUNBOOK.md` for the methodology shift.
+Historical records on opposite sides of this boundary used different tooling and
+reported job behavior. They do not establish a matched comparison of the current
+source. Preserve their epochs and avoid direct differences; the tool version alone
+does not prove the cause of the timing shift. Ratios within a report still require
+equivalent completed work and an uncertainty assessment. See `benchmarks/RUNBOOK.md`.
+
 :::
 
 ## Benchmark configurations
@@ -188,32 +200,48 @@ Two configurations serve different purposes:
 - **WarmPath** (`WarmPathBenchmarkConfig`) -- BenchmarkDotNet defaults with auto-calibrated
   `InvocationCount` and `UnrollFactor`. Measures steady-state cost with warm JIT and caches. This is
   the configuration behind the published figures above.
-- **ColdPath** (`ComparativeBenchmarkConfig`) -- `InvocationCount=1`, `UnrollFactor=1`,
-  `IterationCount=3`. Measures single-invocation cost including framework setup. Used by the CI
-  regression gates.
+- **Single-invocation diagnostics** (`ComparativeBenchmarkConfig`) -- `InvocationCount=1`,
+  `UnrollFactor=1`, `IterationCount=10`, `WarmupCount=3`, using `InProcessEmitToolchain`.
+  Used by CI regression gates; this configuration does not establish process isolation or cold startup.
 
-WarmPath measures steady-state performance for these workloads; it does not establish production
-latency. ColdPath exercises the separately configured single-invocation path.
+WarmPath uses warmed managed execution for these fixtures; the profile name alone does not establish
+stationarity, reproducibility or production latency. The separately configured single-invocation path is also managed execution.
 
 ## Running the benchmarks
 
-```bash
-# Build once
-dotnet build benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj -c Release --nologo -v minimal
+```powershell
+# Build before measuring, from the directory containing the scoped solution.
+Push-Location benchmarks/Excalibur.Dispatch.Benchmarks
+try {
+    dotnet build -c Release -m:1 -p:BuildExamplesAndTests=true -p:UseSharedCompilation=false -nodeReuse:false
+    if ($LASTEXITCODE -ne 0) { throw "Benchmark build failed." }
+    dotnet bin/Release/net10.0/Excalibur.Dispatch.Benchmarks.dll --list flat
+    if ($LASTEXITCODE -ne 0) { throw "Benchmark discovery failed." }
+    $runId = [Guid]::NewGuid().ToString("N")
+    $artifacts = "BenchmarkDotNet.Artifacts/notification-$runId"
 
-# WarmPath -- the configuration behind the published figures
-dotnet run -c Release --project benchmarks/Excalibur.Dispatch.Benchmarks -- --filter *WarmPath* --join --anyCategories WarmPath
-
-# ColdPath / CI gates -- single-invocation
-dotnet run -c Release --project benchmarks/Excalibur.Dispatch.Benchmarks -- --filter *ComparisonBenchmarks* --join
-
-# The full matrix
-pwsh ./eng/run-benchmark-matrix.ps1 -NoRestore -NoBuild
+    # One original managed WarmPath case; repeat in independent processes.
+    dotnet bin/Release/net10.0/Excalibur.Dispatch.Benchmarks.dll --filter "Excalibur.Dispatch.Benchmarks.Comparative.MediatRWarmPathComparisonBenchmarks.Dispatch_NotificationMultipleHandlers" --exporters fulljson --artifacts $artifacts
+    if ($LASTEXITCODE -ne 0) { throw "Benchmark process failed; preserve its artifacts." }
+}
+finally {
+    Pop-Location
+}
 ```
 
-Results are written to `benchmarks/runs/BenchmarkDotNet.Artifacts/results/` unless `-ArtifactsPath`
-is provided.
+Each invocation writes to a distinct `BenchmarkDotNet.Artifacts/notification-<runId>` directory.
+A successful process exit still requires exact-case and raw-result reconciliation.
+Discover and run other exact names in small sequential subsets. The former
+`--filter "*WarmPath*" --join --anyCategories WarmPath` command selects zero current
+cases: those fixtures do not declare that category. Removing the category restriction
+selects the existing WarmPath family without changing its jobs. Likewise,
+`*ComparisonBenchmarks*` matches both warm and cold classes; it is not a cold-only filter.
+Historical commands and results do not automatically describe the current source epoch.
 
-The benchmark project also contains fixtures that exercise other messaging libraries. They are used
-during development to sanity-check our own path costs, are not maintained as a published
-comparison, and their results are not reported here.
+The repository matrix runner uses `benchmarks/runs/BenchmarkDotNet.Artifacts` by
+default and accepts `-ArtifactsPath`. Its `CiSmoke` switch selects classes without
+shortening their original jobs. Reconcile exact completed cases before treating any
+runner output as evidence.
+
+Additional comparative fixtures remain unpublished or unverified; the dated observations above
+retain their stated scope.

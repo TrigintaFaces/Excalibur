@@ -6,7 +6,7 @@ description: Repository patterns and data access abstractions for Excalibur appl
 
 # Data Access
 
-Excalibur provides data access abstractions that work alongside event sourcing and domain modeling. These patterns use Dapper for all SQL operations, avoiding Entity Framework to keep dependencies minimal and performance optimal.
+Excalibur provides data access abstractions that work alongside event sourcing and domain modeling. The SQL patterns use Dapper with explicit queries. This design does not establish a performance advantage over other data-access approaches; compare equivalent queries, materialization and transaction behavior on the chosen provider.
 
 ## Before You Start
 
@@ -56,7 +56,7 @@ See [IDb Interface](idb-interface.md) for detailed examples of both patterns.
 
 ## Important Notes
 
-- **No Entity Framework**: Excalibur uses Dapper for all SQL operations
+- **No Entity Framework requirement**: SQL requests support Dapper or [explicit ADO execution](./data-request.md#explicit-ado-execution)
 - Data access is separate from event sourcing - use `IEventSourcedRepository<T>` for event-sourced aggregates
 - `ResourceException` and `ConcurrencyException` are thrown for data access errors
 

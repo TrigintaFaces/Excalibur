@@ -62,7 +62,7 @@ public sealed class PostgresLegalHoldStoreTenantIsolationShould : IntegrationTes
 		await CreateStore(OwningTenant).SaveHoldAsync(hold, TestCancellationToken);
 
 		var disclosed = await CreateStore(ForeignTenant).GetActiveHoldsForDataSubjectAsync(
-			hold.DataSubjectIdHash!, tenantId: null, TestCancellationToken);
+			hold.DataSubjectIdHash!, tenantId: null, DateTimeOffset.UtcNow, TestCancellationToken);
 
 		disclosed.ShouldNotContain(
 			h => h.HoldId == hold.HoldId,
@@ -80,7 +80,7 @@ public sealed class PostgresLegalHoldStoreTenantIsolationShould : IntegrationTes
 		var hold = CreateHold();
 		await CreateStore(OwningTenant).SaveHoldAsync(hold, TestCancellationToken);
 
-		var disclosed = await CreateStore(ForeignTenant).GetActiveHoldsForTenantAsync(OwningTenant, TestCancellationToken);
+		var disclosed = await CreateStore(ForeignTenant).GetActiveHoldsForTenantAsync(OwningTenant, DateTimeOffset.UtcNow, TestCancellationToken);
 
 		disclosed.ShouldNotContain(
 			h => h.HoldId == hold.HoldId,
@@ -99,7 +99,7 @@ public sealed class PostgresLegalHoldStoreTenantIsolationShould : IntegrationTes
 		await owner.SaveHoldAsync(hold, TestCancellationToken);
 
 		var found = await owner.GetActiveHoldsForDataSubjectAsync(
-			hold.DataSubjectIdHash!, tenantId: null, TestCancellationToken);
+			hold.DataSubjectIdHash!, tenantId: null, DateTimeOffset.UtcNow, TestCancellationToken);
 
 		found.ShouldContain(
 			h => h.HoldId == hold.HoldId,
@@ -125,7 +125,7 @@ public sealed class PostgresLegalHoldStoreTenantIsolationShould : IntegrationTes
 		await CreateUnscopedStore().SaveHoldAsync(globalHold, TestCancellationToken);
 
 		var seenByTenant = await CreateStore(OwningTenant).GetActiveHoldsForDataSubjectAsync(
-			globalHold.DataSubjectIdHash!, tenantId: null, TestCancellationToken);
+			globalHold.DataSubjectIdHash!, tenantId: null, DateTimeOffset.UtcNow, TestCancellationToken);
 
 		seenByTenant.ShouldContain(
 			h => h.HoldId == globalHold.HoldId,
@@ -147,7 +147,7 @@ public sealed class PostgresLegalHoldStoreTenantIsolationShould : IntegrationTes
 			globalHold with { Description = "re-homed by a single tenant" }, TestCancellationToken);
 
 		var stillVisibleToEveryoneElse = await CreateStore(ForeignTenant).GetActiveHoldsForDataSubjectAsync(
-			globalHold.DataSubjectIdHash!, tenantId: null, TestCancellationToken);
+			globalHold.DataSubjectIdHash!, tenantId: null, DateTimeOffset.UtcNow, TestCancellationToken);
 
 		reHomed.ShouldBeFalse("a tenant-facing update must not match a global hold at all.");
 		stillVisibleToEveryoneElse.ShouldContain(
@@ -187,7 +187,7 @@ public sealed class PostgresLegalHoldStoreTenantIsolationShould : IntegrationTes
 			TestCancellationToken);
 
 		var survivors = await owner.GetActiveHoldsForDataSubjectAsync(
-			hold.DataSubjectIdHash!, tenantId: null, TestCancellationToken);
+			hold.DataSubjectIdHash!, tenantId: null, DateTimeOffset.UtcNow, TestCancellationToken);
 
 		released.ShouldBeFalse("a foreign tenant's release must not match another tenant's hold.");
 		survivors.ShouldContain(

@@ -12,7 +12,7 @@ namespace CdcEventStoreElasticsearch.Api.Models;
 /// </summary>
 /// <remarks>
 /// Lightweight manual mapping — no AutoMapper dependency needed for a sample.
-/// In production, consider source generators like Mapperly for zero-allocation mapping.
+/// In production, consider source generators like Mapperly for generated mapping code; measure allocations for the mapped types.
 /// </remarks>
 internal static class OrderMapper
 {

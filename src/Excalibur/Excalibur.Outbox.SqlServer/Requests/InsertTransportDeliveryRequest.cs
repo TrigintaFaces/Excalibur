@@ -29,6 +29,11 @@ public sealed class InsertTransportDeliveryRequest : DataRequestBase<IDbConnecti
 	/// <param name="transaction">Optional transaction to participate in.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public InsertTransportDeliveryRequest(
 		string tableName,
 		OutboundMessageTransport delivery,
@@ -72,6 +77,17 @@ public sealed class InsertTransportDeliveryRequest : DataRequestBase<IDbConnecti
 		Command = CreateCommand(sql, parameters, transaction, commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			await StaticDbCommand.ExecuteAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "TenantId", StaticDbCommand.Input<string>(Parameters, "TenantId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "Id", StaticDbCommand.Input<string>(Parameters, "Id"), DbType.String);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "TransportName", StaticDbCommand.Input<string>(Parameters, "TransportName"), DbType.String);
+				StaticDbCommand.AddNullableStringParameter(command, "Destination", StaticDbCommand.Input<string?>(Parameters, "Destination"));
+				StaticDbCommand.AddParameter(command, "Status", StaticDbCommand.Input<int>(Parameters, "Status"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "CreatedAt", StaticDbCommand.Input<DateTimeOffset>(Parameters, "CreatedAt"), DbType.DateTimeOffset);
+				StaticDbCommand.AddParameter(command, "RetryCount", StaticDbCommand.Input<int>(Parameters, "RetryCount"), DbType.Int32);
+				StaticDbCommand.AddNullableStringParameter(command, "TransportMetadata", StaticDbCommand.Input<string?>(Parameters, "TransportMetadata"));
+			}).ConfigureAwait(false);
 	}
 }

@@ -10,6 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Time.Testing;
 
+using Shouldly;
+
 using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace Excalibur.Dispatch.Patterns.Tests.Sagas.Services;
@@ -70,6 +72,111 @@ public sealed class SagaCleanupBackgroundServiceShould
 			.ShouldBeNull("the cleanup service must purge completed sagas older than the retention period");
 
 		await service.StopAsync(CancellationToken.None);
+	}
+
+
+	/// <summary>
+	/// SAFETY: a store that cannot purge estate-wide must FAULT the service, never let the host carry on
+	/// with automatic cleanup enabled and nothing enforcing the retention period.
+	/// </summary>
+	/// <returns>The arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// This is the shard-per-tenant composition. The tenant-routing saga store refuses the estate-wide
+	/// purge deliberately, because its resolver maps a known tenant to a shard and cannot enumerate the
+	/// shards that exist. That refusal is correct. What was wrong is that the driver read it as "nothing
+	/// to do": it logged one Error and broke the loop, so the hosted service was finished for the whole
+	/// process lifetime while <see cref="SagaOptions.EnableAutomaticCleanup"/> was true and a retention
+	/// period was configured. Nothing after that first line ever said retention was not running.
+	/// </para>
+	/// <para>
+	/// The assertion is on the service's own ExecuteTask rather than on a log, because a log is not a
+	/// control: an operator who misses one Error line at startup has no second signal, which is precisely
+	/// the failure. A fault is observable to the host, and the hosted-service default stops it.
+	/// </para>
+	/// <para>
+	/// Non-vacuity: restore the log-and-break in the NotSupportedException branch of
+	/// SagaCleanupBackgroundService.ExecuteAsync and this arm reddens, because the task then completes
+	/// successfully. The deliberate no-store case is covered separately by
+	/// <see cref="ResolveAndRunSagaCleanupService_WithNoStoreRegistered_DoesNotThrow"/>, which must keep
+	/// passing: no store means sagas are not in use and there is genuinely nothing to retain, which must
+	/// not share an outcome with this.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task FaultTheService_WhenTheStoreCannotPurgeAcrossAllTenants()
+	{
+		var timeProvider = new FakeTimeProvider(Origin);
+		var options = new SagaOptions
+		{
+			EnableAutomaticCleanup = true,
+			CleanupInterval = TimeSpan.FromMinutes(5),
+			SagaRetentionPeriod = TimeSpan.FromDays(30),
+		};
+
+		var storeProvider = new ServiceCollection()
+			.AddSingleton<ISagaStore>(new RefusesEstateWidePurgeSagaStore())
+			.BuildServiceProvider();
+
+		using var service = new SagaCleanupBackgroundService(
+			storeProvider, MsOptions.Create(options), timeProvider, NullLogger<SagaCleanupBackgroundService>.Instance);
+
+		await service.StartAsync(CancellationToken.None);
+
+		var fault = await Should.ThrowAsync<InvalidOperationException>(async () =>
+		{
+			await WaitUntilAsync(() =>
+			{
+				timeProvider.Advance(options.CleanupInterval);
+				return Task.FromResult(service.ExecuteTask?.IsCompleted == true);
+			});
+
+			if (service.ExecuteTask is { } execute)
+			{
+				await execute;
+			}
+		});
+
+		fault.Message.ShouldContain(
+			"EnableAutomaticCleanup",
+			Case.Sensitive,
+			"the fault must name the option an operator can turn off, or it reports a problem with no "
+			+ "stated resolution. A consumer under shard-per-tenant routing has exactly two moves: drive "
+			+ "retention per shard from the host, or stop claiming it is automatic.");
+
+		_ = fault.InnerException.ShouldBeOfType<NotSupportedException>(
+			"the store's own refusal must be preserved as the cause rather than replaced, so the log names "
+			+ "which store refused and why");
+	}
+
+	/// <summary>
+	/// An <see cref="ISagaStore"/> that refuses the estate-wide purge, as the tenant-routing store does.
+	/// </summary>
+	/// <remarks>
+	/// Implements the interface DIRECTLY and inherits no first-party base, so the arm binds the
+	/// <see cref="ISagaStore"/> contract rather than re-testing a shipped store that happens to supply the
+	/// member. The per-tenant purge deliberately SUCCEEDS here: the defect is specifically that an
+	/// estate-wide refusal was read as "retention is handled", and a fixture that refused everything could
+	/// not tell that apart from a store that is simply broken.
+	/// </remarks>
+	private sealed class RefusesEstateWidePurgeSagaStore : ISagaStore
+	{
+		public Task<TSagaState?> LoadAsync<TSagaState>(Guid sagaId, CancellationToken cancellationToken)
+			where TSagaState : SagaState =>
+			Task.FromResult<TSagaState?>(null);
+
+		public Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
+			where TSagaState : SagaState =>
+			Task.CompletedTask;
+
+		public Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken) =>
+			Task.FromResult(0);
+
+		public Task<int> PurgeAllTenantsCompletedBeforeAsync(
+			DateTimeOffset threshold, CancellationToken cancellationToken) =>
+			throw new NotSupportedException(
+				"A tenant-routing store resolves a known tenant to its shard and cannot enumerate the "
+				+ "shards that exist, so an estate-wide purge is not expressible.");
 	}
 
 	[Fact]

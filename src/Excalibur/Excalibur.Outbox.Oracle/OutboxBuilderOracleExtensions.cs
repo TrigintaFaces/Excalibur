@@ -1,15 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using Excalibur.Data;
-using Excalibur.Dispatch;
 
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
-using Oracle.ManagedDataAccess.Client;
 
 namespace Excalibur.Outbox.Oracle;
 
@@ -85,88 +78,7 @@ public static class OutboxBuilderOracleExtensions
 		var oracleBuilder = new OracleOutboxBuilder(oracleOptions);
 		configure(oracleBuilder);
 
-		// Register Oracle options
-		_ = builder.Services.AddOptions<OracleOutboxStoreOptions>()
-			.Configure(opt =>
-			{
-				opt.SchemaName = oracleOptions.SchemaName;
-				opt.OutboxTableName = oracleOptions.OutboxTableName;
-				opt.DeadLetterTableName = oracleOptions.DeadLetterTableName;
-				opt.ReservationTimeout = oracleOptions.ReservationTimeout;
-				opt.MaxAttempts = oracleOptions.MaxAttempts;
-				opt.BatchProcessing.BatchProcessingTimeout = oracleOptions.BatchProcessing.BatchProcessingTimeout;
-			})
-			.ValidateOnStart();
-
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<OracleOutboxStoreOptions>, OracleOutboxStoreOptionsValidator>());
-
-		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
-		// multi-tenancy composition replaces it with the ambient context. It is NOT what makes this outbox
-		// tenant-safe and the store registration below no longer depends on it: the outbox carries the tenant
-		// on the row (stamped on enqueue, returned on drain), which is a different mechanism from reading an
-		// ambient discriminator, and it is attested as that mechanism rather than as ambient scoping.
-		builder.Services.AddDefaultTenantContext();
-
-		// Register services based on connection mode
-		if (oracleBuilder.ConfiguredDbFactory is not null)
-		{
-			var dbFactory = oracleBuilder.ConfiguredDbFactory;
-
-			// Register Oracle outbox store with IDb factory. AddTenantAwareStore emits the
-			// ITenantPartitionedCapability<IOutboxStore> marker as part of THIS registration, so the marker
-			// cannot exist without the store factory. It is the partitioned seam rather than the scoped one
-			// because OracleOutboxStore reads no ambient tenant on any path: it persists TENANTID per message
-			// and returns it on drain, so the owning tenant is re-established from the row. That seam takes no
-			// ITenantContext, so there is no dependency here to be handed and silently discarded.
-			builder.Services.AddTenantAwareStore<IOutboxStore, OracleOutboxStore>(sp =>
-			{
-				var db = dbFactory(sp);
-				var options = sp.GetRequiredService<IOptions<OracleOutboxStoreOptions>>();
-				var logger = sp.GetRequiredService<ILogger<OracleOutboxStore>>();
-				var metrics = sp.GetService<OracleOutboxStoreMetrics>();
-				return new OracleOutboxStore(db, options, logger, metrics);
-			});
-		}
-		else if (oracleBuilder.ConfiguredConnectionString is not null)
-		{
-			var connectionString = oracleBuilder.ConfiguredConnectionString;
-
-			// Registers IDb, which is what the store below resolves. The type argument is explicit and the
-			// factory takes the provider: a no-argument lambda cannot bind the factory overload, so it bound
-			// the INSTANCE overload instead and registered a Func<OracleConnection> under its own type. IDb was then
-			// registered nowhere, and the store threw on resolve the first time a host used this path.
-			builder.Services.TryAddSingleton<IDb>(_ =>
-			{
-				var connection = new OracleConnection(connectionString);
-				connection.Open();
-				return new OutboxDb(connection);
-			});
-
-			// Register Oracle outbox store (DI-constructed). AddTenantAwareStore emits the
-			// ITenantPartitionedCapability<IOutboxStore> marker inseparably from this registration. The tenant
-			// is message-carried (TENANTID per row), not ambient, so this is the partitioned seam and there is
-			// no ITenantContext to thread or to drop.
-			builder.Services.AddTenantAwareStore<IOutboxStore, OracleOutboxStore>(
-				static sp => ActivatorUtilities.CreateInstance<OracleOutboxStore>(sp));
-		}
-		else
-		{
-			throw new InvalidOperationException(
-				"Oracle outbox requires a connection. " +
-				"Call ConnectionString() or ConnectionFactory() on the builder. " +
-				"Example: outbox.UseOracle(pg => pg.ConnectionString(\"Host=...\"))");
-		}
-
-		builder.Services.AddKeyedSingleton<IOutboxStore>("oracle", (sp, _) => sp.GetRequiredService<OracleOutboxStore>());
-		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
-			sp.GetRequiredKeyedService<IOutboxStore>("oracle"));
-
-		// The ITenantPartitionedCapability<IOutboxStore> marker is emitted by AddTenantAwareStore
-		// above, inseparably from the store registration. It attests the mechanism this store actually
-		// implements: TENANTID stamped and persisted on enqueue and returned on drain for the processor's
-		// per-message BeginScope. The drain itself is deliberately estate-wide.
-		builder.Services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<OracleOutboxStore>());
+		OracleOutboxRegistration.Register(builder, oracleBuilder, oracleOptions);
 
 		return builder;
 	}

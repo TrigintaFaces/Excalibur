@@ -33,14 +33,6 @@ public sealed class KubernetesLeaderElectionOptions : LeaderElectionOptions
 	public string? LeaseName { get; set; }
 
 	/// <summary>
-	/// Gets or sets the candidate ID. If not specified, will use pod name or generate one.
-	/// </summary>
-	/// <value>
-	/// The candidate ID. If not specified, will use pod name or generate one.
-	/// </value>
-	public string? CandidateId { get; set; }
-
-	/// <summary>
 	/// Gets or sets the maximum number of retries for Kubernetes API operations.
 	/// </summary>
 	/// <value>

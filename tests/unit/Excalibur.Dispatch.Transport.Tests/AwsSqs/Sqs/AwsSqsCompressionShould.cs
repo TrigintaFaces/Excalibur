@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Text;
@@ -23,7 +23,7 @@ public sealed class AwsSqsCompressionShould
 
 		// Act
 		var compressed = AwsSqsCompression.Compress(original, algorithm);
-		var decompressed = AwsSqsCompression.Decompress(compressed, algorithm);
+		var decompressed = AwsSqsCompression.Decompress(compressed, algorithm, maxDecompressedBytes: null);
 
 		// Assert
 		decompressed.ShouldBe(original);
@@ -55,7 +55,7 @@ public sealed class AwsSqsCompressionShould
 		var empty = ReadOnlySpan<byte>.Empty;
 
 		// Act
-		var result = AwsSqsCompression.Decompress(empty, algorithm);
+		var result = AwsSqsCompression.Decompress(empty, algorithm, maxDecompressedBytes: null);
 
 		// Assert
 		result.ShouldBeEmpty();
@@ -80,7 +80,7 @@ public sealed class AwsSqsCompressionShould
 
 		// Act & Assert
 		Should.Throw<NotSupportedException>(() =>
-			AwsSqsCompression.Decompress(payload, CompressionAlgorithm.Snappy));
+			AwsSqsCompression.Decompress(payload, CompressionAlgorithm.Snappy, maxDecompressedBytes: null));
 	}
 
 	[Fact]
@@ -102,7 +102,7 @@ public sealed class AwsSqsCompressionShould
 
 		// Act & Assert
 		Should.Throw<NotSupportedException>(() =>
-			AwsSqsCompression.Decompress(payload, (CompressionAlgorithm)999));
+			AwsSqsCompression.Decompress(payload, (CompressionAlgorithm)999, maxDecompressedBytes: null));
 	}
 
 	[Theory]

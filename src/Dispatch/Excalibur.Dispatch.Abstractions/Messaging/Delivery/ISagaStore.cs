@@ -33,8 +33,22 @@ namespace Excalibur.Dispatch.Messaging;
 /// </para>
 /// </remarks>
 [TenantOwned]
-public interface ISagaStore
+public interface ISagaStore : IServiceProvider
 {
+    /// <summary>Discovers a capability implemented by this selected outer store, or null when unsupported.</summary>
+    /// <param name="serviceType">The capability interface.</param>
+    /// <returns>The supported capability, or null.</returns>
+    /// <remarks>
+    /// Leaf stores answer only for interfaces they actually implement. Decorators must explicitly mediate
+    /// known capabilities; the default does not forward to an inner/raw store. Unknown wrappers therefore
+    /// fail closed. Durable orchestration must not fall back to a separately resolved concrete provider.
+    /// </remarks>
+    object? IServiceProvider.GetService(Type serviceType)
+    {
+        ArgumentNullException.ThrowIfNull(serviceType);
+        return serviceType.IsInstanceOfType(this)?this:null;
+    }
+
 	/// <summary>
 	/// Asynchronously loads the saga state for the specified saga identifier from persistent storage. This method enables saga recovery and
 	/// continuation of business processes across system boundaries.

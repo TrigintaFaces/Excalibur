@@ -8,6 +8,7 @@ using Excalibur.Dispatch.LeaderElection;
 using Excalibur.LeaderElection.SqlServer;
 
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 
@@ -23,8 +24,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 ///    connection leaves it alive but no longer owning the applock, so the post-fix probe returns false
 ///    while the pre-fix <c>SELECT 1</c> returns true (RED). A hard <c>KILL</c> is vacuous (it closes the
 ///    connection → pre-fix <c>SELECT 1</c> also fails). Credit: ProductManager 14952; mechanism per
-///    PlatformDeveloper 14965. The lock is acquired via a direct reflect-invoke of
-///    <c>TryAcquireLockAsync</c> (not <c>StartAsync</c>) to avoid the renewal-loop self-demotion race.
+///    PlatformDeveloper 14965. Public StartAsync and a controlled renewal clock bind the current protocol;
+///    reflection only obtains the owned physical connection for fault injection, never a private probe.
 /// 2. <b>Connection hardening</b> (<c>ConnectRetryCount=0</c> + <c>Pooling=false</c>) — guarded
 ///    structurally in <c>SqlServerLeaderElectionConnectionHardeningShould</c>.
 /// </para>
@@ -44,7 +45,7 @@ public sealed class SqlServerLeaderElectionIntegrationShould : IntegrationTestBa
 		_fixture = fixture;
 	}
 
-	private SqlServerLeaderElection CreateElection(string lockResource)
+	private SqlServerLeaderElection CreateElection(string lockResource, TimeProvider? timeProvider = null)
 	{
 		var electionOptions = new LeaderElectionOptions
 		{
@@ -58,7 +59,7 @@ public sealed class SqlServerLeaderElectionIntegrationShould : IntegrationTestBa
 			_fixture.ConnectionString,
 			lockResource,
 			Microsoft.Extensions.Options.Options.Create(electionOptions),
-			EnabledTestLogger.Create<SqlServerLeaderElection>());
+			EnabledTestLogger.Create<SqlServerLeaderElection>(), timeProvider: timeProvider);
 	}
 
 	[Fact]
@@ -96,75 +97,92 @@ public sealed class SqlServerLeaderElectionIntegrationShould : IntegrationTestBa
 	[Fact]
 	public async Task VerifyLockReturnsFalse_WhenApplockReleasedOnLiveSession()
 	{
-		// AC-C4 (ownership half, :409) — the "alive-but-not-owning" state: the lock-holding session stays
-		// OPEN but no longer owns the applock. VerifyLockAsync MUST report not-owning (APPLOCK_MODE), not
-		// merely alive (SELECT 1).
 		var resource = "le-sql-ownership-" + Guid.NewGuid().ToString("N");
-		await using var sut = CreateElection(resource);
+		var clock = new RenewalClock();
+		await using var sut = CreateElection(resource, clock);
+		var stoppedFromLoss = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
+		sut.LostLeadership += (_, _) => stoppedFromLoss.TrySetResult(sut.StopAsync(CancellationToken.None));
+		await sut.StartAsync(TestCancellationToken);
+		sut.IsLeader.ShouldBeTrue("precondition: public StartAsync acquired the applock");
+		sut.CurrentLeadership.ShouldNotBeNull();
+		await clock.RenewalArmed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestCancellationToken);
 
-		// Acquire the applock on the provider's _connection WITHOUT starting the renewal loop, so the loop
-		// can't self-demote + null _connection underneath the assertion (PlatformDeveloper 14965).
-		await InvokeTryAcquireLockAsync(sut);
-		sut.IsLeader.ShouldBeTrue("precondition: TryAcquireLockAsync acquired the applock");
+		var connection = ReadOwnedConnection(sut);
+		var before = await ReadSessionProofAsync(connection, resource, TestCancellationToken);
+		before.Mode.ShouldBe("Exclusive");
+		before.Alive.ShouldBe(1);
+		await ReleaseApplockOnLiveSessionAsync(connection, resource, TestCancellationToken);
+		connection.State.ShouldBe(ConnectionState.Open);
+		var after = await ReadSessionProofAsync(connection, resource, TestCancellationToken);
+		after.Session.ShouldBe(before.Session, "fault injection must not replace or kill the owning SQL session");
+		after.Mode.ShouldBe("NoLock");
+		after.Alive.ShouldBe(1, "SELECT 1 remains true and cannot establish ownership");
+		sut.IsLeader.ShouldBeTrue("the controlled clock has not yet admitted the next ownership probe");
 
-		// Manufacture alive-but-not-owning on the provider's OWN live session (connection stays Open).
-		ReleaseApplockOnLiveSession(sut, resource);
-
-		// Assert — directly bind the :409 probe. Non-vacuity: post-fix APPLOCK_MODE='NoLock' → false
-		// (GREEN); the :409→SELECT-1 mutant / pre-fix returns true on the still-open connection (RED).
-		var stillOwnsLock = await InvokeVerifyLockAsync(sut);
-		stillOwnsLock.ShouldBeFalse(
-			"VerifyLockAsync must verify OWNERSHIP (APPLOCK_MODE), not mere liveness (SELECT 1)");
+		// Advance only to renewal, NOT the two-second local deadline. A SELECT-1 ownership
+		// mutant cannot satisfy LostLeadership by ordinary deadline expiry in this arm.
+		clock.Advance(TimeSpan.FromSeconds(1));
+		await (await stoppedFromLoss.Task.WaitAsync(TimeSpan.FromSeconds(5), TestCancellationToken))
+			.WaitAsync(TimeSpan.FromSeconds(5), TestCancellationToken);
+		sut.IsLeader.ShouldBeFalse("the public protocol must observe absent ownership on a still-live session");
+		sut.CurrentLeadership.ShouldBeNull();
 	}
 
-	private static async Task InvokeTryAcquireLockAsync(SqlServerLeaderElection election)
+	private static SqlConnection ReadOwnedConnection(SqlServerLeaderElection election)
 	{
-		var method = typeof(SqlServerLeaderElection).GetMethod(
-			"TryAcquireLockAsync", BindingFlags.NonPublic | BindingFlags.Instance);
-		method.ShouldNotBeNull();
-		await (Task)method!.Invoke(election, [CancellationToken.None])!;
+		// Read-only fault injection, not an oracle for leadership. No provider private method is invoked.
+		var field = typeof(SqlServerLeaderElection).GetField("_slot", BindingFlags.NonPublic | BindingFlags.Instance);
+		field.ShouldNotBeNull();
+		var slot = field.GetValue(election).ShouldNotBeNull();
+		var run = ReadProperty(slot, "Run");
+		var kernel = ReadProperty(run, "Kernel");
+		var tenure = ReadProperty(kernel, "Current");
+		var session = ReadProperty(tenure, "OwnershipProof");
+		var connection = session.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+			.Single(candidate => candidate.FieldType == typeof(SqlConnection));
+		return connection.GetValue(session).ShouldBeOfType<SqlConnection>();
 	}
 
-	private static async Task<bool> InvokeVerifyLockAsync(SqlServerLeaderElection election)
+	private static object ReadProperty(object value, string name)
 	{
-		var method = typeof(SqlServerLeaderElection).GetMethod(
-			"VerifyLockAsync", BindingFlags.NonPublic | BindingFlags.Instance);
-		method.ShouldNotBeNull();
-
-		// rqntzf 3-state refactor: VerifyLockAsync now returns Task<LeaderVerifyResult>
-		// (StillLeader / DefinitivelyLost / Indeterminate), not Task<bool>. "Still owns the lock" maps
-		// to StillLeader only — a released applock on the live session probes APPLOCK_MODE='NoLock' →
-		// DefinitivelyLost → false (the ownership signal this lock binds; pre-fix SELECT-1 liveness → true).
-		var task = (Task)method!.Invoke(election, [CancellationToken.None])!;
-		await task.ConfigureAwait(false);
-		var result = task.GetType().GetProperty("Result")!.GetValue(task)!;
-		return string.Equals(result.ToString(), "StillLeader", StringComparison.Ordinal);
+		var property = value.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+		property.ShouldNotBeNull();
+		return property.GetValue(value).ShouldNotBeNull();
 	}
 
-	/// <summary>
-	/// Releases the session-scoped <c>sp_getapplock</c> on the provider's held-open lock connection (an
-	/// applock can only be released on its owning session), reaching the alive-but-not-owning state without
-	/// closing the connection. Reflection reaches the live session only; the connection is not substituted.
-	/// </summary>
-	private static void ReleaseApplockOnLiveSession(SqlServerLeaderElection election, string resource)
+	private static async Task<(int Session, string Mode, int Alive)> ReadSessionProofAsync(
+		SqlConnection connection, string resource, CancellationToken cancellationToken)
 	{
-		var field = typeof(SqlServerLeaderElection).GetField(
-			"_connection", BindingFlags.NonPublic | BindingFlags.Instance);
-		field.ShouldNotBeNull("_connection (the held-open lock connection) must exist");
-		var connection = (SqlConnection)field!.GetValue(election)!;
-		connection.ShouldNotBeNull("the lock connection must be open after the applock is acquired");
+		await using var command = connection.CreateCommand();
+		command.CommandText = "SELECT CONVERT(int, @@SPID), APPLOCK_MODE(N'public', @Resource, N'Session'), 1";
+		command.CommandTimeout = 3;
+		command.Parameters.Add("@Resource", SqlDbType.NVarChar, 255).Value = resource;
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+		(await reader.ReadAsync(cancellationToken)).ShouldBeTrue();
+		return (reader.GetInt32(0), reader.GetString(1), reader.GetInt32(2));
+	}
 
-		using var command = new SqlCommand("sp_releaseapplock", connection) { CommandType = CommandType.StoredProcedure };
-		_ = command.Parameters.AddWithValue("@Resource", resource);
-		_ = command.Parameters.AddWithValue("@LockOwner", "Session");
-		var returnValue = command.Parameters.Add("@ReturnValue", SqlDbType.Int);
-		returnValue.Direction = ParameterDirection.ReturnValue;
+	private static async Task ReleaseApplockOnLiveSessionAsync(SqlConnection connection, string resource,
+		CancellationToken cancellationToken)
+	{
+		await using var command = new SqlCommand("sp_releaseapplock", connection) { CommandType = CommandType.StoredProcedure };
+		command.Parameters.Add("@Resource", SqlDbType.NVarChar, 255).Value = resource;
+		command.Parameters.Add("@LockOwner", SqlDbType.VarChar, 32).Value = "Session";
+		var returned = command.Parameters.Add("@ReturnValue", SqlDbType.Int);
+		returned.Direction = ParameterDirection.ReturnValue;
+		_ = await command.ExecuteNonQueryAsync(cancellationToken);
+		Convert.ToInt32(returned.Value, System.Globalization.CultureInfo.InvariantCulture).ShouldBeGreaterThanOrEqualTo(0,
+			"sp_releaseapplock must actually succeed before the ownership probe is tested");
+	}
 
-		_ = command.ExecuteNonQuery();
-
-		// sp_releaseapplock returns >= 0 on success; a negative code means the release did not happen (which
-		// would make this lock vacuous), so fail loud rather than silently testing nothing.
-		Convert.ToInt32(returnValue.Value, System.Globalization.CultureInfo.InvariantCulture)
-			.ShouldBeGreaterThanOrEqualTo(0, "sp_releaseapplock must succeed for this lock to be meaningful");
+	private sealed class RenewalClock : FakeTimeProvider
+	{
+		internal TaskCompletionSource RenewalArmed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+		{
+			var timer = base.CreateTimer(callback, state, dueTime, period);
+			if (dueTime == TimeSpan.FromSeconds(1)) { RenewalArmed.TrySetResult(); }
+			return timer;
+		}
 	}
 }

@@ -42,6 +42,10 @@ public sealed class AutoSnapshotIntegrationShould
 			});
 		}
 
+		// Reaching a version beyond int.MaxValue by appending events is not feasible in a test, so the
+		// arms covering that boundary stamp it directly.
+		public void ForceVersion(long version) => Version = version;
+
 		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is ValueSetEvent e)
@@ -339,6 +343,73 @@ public sealed class AutoSnapshotIntegrationShould
 		await repo.SaveAsync(aggregate, CancellationToken.None);
 
 		// Assert
+		A.CallTo(() => snapshotManager.CreateSnapshotAsync(
+			A<SnapshotTestAggregate>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task FailLoudlyWhenTheEventCountSinceTheLastSnapshotExceedsAnInt()
+	{
+		// SAFETY. The count of events since the last snapshot is a long subtraction narrowed to int. An
+		// unchecked narrowing of a version past int.MaxValue WRAPS to a negative count, which reads as
+		// "fewer events than any threshold" and so suppresses every subsequent snapshot silently. The
+		// narrowing is checked, so a version that far out of range is an exception nobody can miss.
+		var snapshotManager = A.Fake<ISnapshotManager>();
+		_ = A.CallTo(() => snapshotManager.CreateSnapshotAsync(
+			A<SnapshotTestAggregate>._, A<CancellationToken>._))
+			.Returns(A.Fake<ISnapshot>());
+
+		var options = CreateOptions(o => o.EventCountThreshold = 1);
+		var eventStore = CreateFakeEventStore("agg-1");
+
+		var repo = new EventSourcedRepository<SnapshotTestAggregate>(
+			eventStore,
+			CreateFakeSerializer(),
+			id => new SnapshotTestAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()),
+			snapshotManager: snapshotManager,
+			autoSnapshotOptions: options);
+
+		var aggregate = new SnapshotTestAggregate("agg-1");
+		aggregate.SetValue(1);
+		aggregate.ForceVersion((long)int.MaxValue + 8);
+
+		_ = await Should.ThrowAsync<OverflowException>(
+			async () => _ = await repo.SaveAsync(aggregate, CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task StillEvaluateWhenTheEventCountSinceTheLastSnapshotIsTheLargestItCanHold()
+	{
+		// LIVENESS, and the boundary the arm above must not swallow: a count that fits in an int is still
+		// evaluated normally. Without this, a narrowing that rejected everything would pass that arm.
+		var snapshotManager = A.Fake<ISnapshotManager>();
+		var fakeSnapshot = A.Fake<ISnapshot>();
+		_ = A.CallTo(() => snapshotManager.CreateSnapshotAsync(
+			A<SnapshotTestAggregate>._, A<CancellationToken>._))
+			.Returns(fakeSnapshot);
+
+		var options = CreateOptions(o => o.EventCountThreshold = 1);
+		var eventStore = CreateFakeEventStore("agg-1");
+
+		var repo = new EventSourcedRepository<SnapshotTestAggregate>(
+			eventStore,
+			CreateFakeSerializer(),
+			id => new SnapshotTestAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()),
+			snapshotManager: snapshotManager,
+			autoSnapshotOptions: options);
+
+		var aggregate = new SnapshotTestAggregate("agg-1");
+		aggregate.SetValue(1);
+
+		// One event commits on save, so the post-save version is exactly int.MaxValue.
+		aggregate.ForceVersion(int.MaxValue - 1);
+
+		await repo.SaveAsync(aggregate, CancellationToken.None);
+
+		aggregate.Version.ShouldBe(int.MaxValue);
 		A.CallTo(() => snapshotManager.CreateSnapshotAsync(
 			A<SnapshotTestAggregate>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();

@@ -71,6 +71,7 @@ public sealed class TelemetryLeaderElectionFactoryDepthShould : IDisposable
 	{
 		// Arrange
 		var innerElection = A.Fake<ILeaderElection>();
+		SynchronousElectionFakeNotifications.Configure(innerElection);
 		A.CallTo(() => innerElection.CandidateId).Returns("candidate-1");
 		A.CallTo(() => _innerFactory.CreateElection("resource-1", "candidate-1")).Returns(innerElection);
 

@@ -114,6 +114,17 @@
           PackagePath=""
           Visible="false" />
 
+    <!-- Root THIRD-PARTY-NOTICES.md. Ships in EVERY package, which is what Microsoft's own packages
+         do with THIRD-PARTY-NOTICES.TXT: one repo-wide notices file, byte-identical across packages,
+         regardless of which third-party code any single package actually contains. It carries the
+         dependency table and the licence terms for vendored upstream source. No per-package subset
+         can express the second of those, because nothing in a package's declared dependencies
+         changes when source is copied in. Empty PackagePath for the OPC Part URI reason above. -->
+    <None Include="$(MSBuildThisFileDirectory)THIRD-PARTY-NOTICES.md"
+          Pack="true"
+          PackagePath=""
+          Visible="false" />
+
     <!-- All license files from licenses/ directory -->
     <None Include="$(MSBuildThisFileDirectory)licenses/LICENSE-*.txt"
           Pack="true"

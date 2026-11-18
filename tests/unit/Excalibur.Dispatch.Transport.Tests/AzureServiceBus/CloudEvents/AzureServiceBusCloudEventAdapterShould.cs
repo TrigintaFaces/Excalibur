@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using CloudNative.CloudEvents;
 
 using Excalibur.Dispatch.CloudEvents;
@@ -41,7 +42,7 @@ public sealed class AzureServiceBusCloudEventAdapterShould
         {
             DefaultSource = new Uri("https://test.excalibur.io"),
             DefaultMode = CloudEventMode.Binary,
-        }),
+        }), TestCloudEventSerializers.Reflection,
         Microsoft.Extensions.Options.Options.Create(new AzureServiceBusCloudEventOptions()),
         NullLogger<AzureServiceBusCloudEventAdapter>.Instance);
 

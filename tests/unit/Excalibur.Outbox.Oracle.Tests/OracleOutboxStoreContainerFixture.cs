@@ -86,6 +86,7 @@ public sealed class OracleOutboxStoreContainerFixture : ContainerFixtureBase
 	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
+		await ProvisionControlPrivilegesAsync(connection).ConfigureAwait(false);
 
 		// The schema is the one the package SHIPS, applied in the order a consumer applies it. This
 		// fixture used to restate the DDL, and a restatement can drift permissively -- a nullable column
@@ -100,6 +101,26 @@ public sealed class OracleOutboxStoreContainerFixture : ContainerFixtureBase
 		foreach (var unit in units)
 		{
 			await CreateTableIfAbsentAsync(connection, unit).ConfigureAwait(false);
+		}
+	}
+
+	// Test-only DDL/lock-observer prerequisites, following OracleEventStoreContainerFixture's
+	// container-local OS-authenticated admin setup. Production applications need no catalog grant.
+	private async Task ProvisionControlPrivilegesAsync(OracleConnection connection)
+	{
+		await using var userCommand = connection.CreateCommand();
+		userCommand.CommandText = "SELECT USER FROM DUAL";
+		var user = (await userCommand.ExecuteScalarAsync().ConfigureAwait(false))?.ToString();
+		if (string.IsNullOrEmpty(user) || user.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '_'))
+		{
+			throw new InvalidOperationException("Unexpected Oracle test user identifier; control privileges were not granted.");
+		}
+		var setup = await _container!.ExecAsync(["bash", "-c",
+			$"sqlplus -s / as sysdba <<'SQL'\nWHENEVER SQLERROR EXIT FAILURE\nALTER SESSION SET CONTAINER = FREEPDB1;\nGRANT CREATE VIEW, CREATE SYNONYM TO \"{user}\";\nGRANT SELECT ON SYS.V_$SESSION TO \"{user}\";\nEXIT\nSQL"])
+			.ConfigureAwait(false);
+		if (setup.ExitCode != 0)
+		{
+			throw new InvalidOperationException("Failed to provision Oracle test-only control privileges: " + setup.Stdout + setup.Stderr);
 		}
 	}
 

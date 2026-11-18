@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Collections.Concurrent;
+
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Storage;
 
@@ -176,6 +178,7 @@ public sealed class InMemorySagaTimeoutStoreShould
 
 		// Act - Concurrent schedule, cancel, and query operations
 		var tasks = new List<Task>();
+		var scheduleOutcomes = new ConcurrentDictionary<string, Exception?>();
 
 		// 50 concurrent schedules
 		for (var i = 0; i < operationCount / 2; i++)
@@ -184,9 +187,10 @@ public sealed class InMemorySagaTimeoutStoreShould
 			var dueAt = now.AddMinutes(i % 10); // Mix of due and not-due times
 			tasks.Add(Task.Run(async () =>
 			{
-				await store.ScheduleTimeoutAsync(
+				var outcome = await Record.ExceptionAsync(() => store.ScheduleTimeoutAsync(
 					CreateTimeout(sagaId, timeoutId, dueAt),
-					CancellationToken.None).ConfigureAwait(false);
+					CancellationToken.None)).ConfigureAwait(false);
+				scheduleOutcomes[timeoutId] = outcome;
 			}));
 		}
 
@@ -211,8 +215,23 @@ public sealed class InMemorySagaTimeoutStoreShould
 
 		await Task.WhenAll(tasks);
 
-		// Assert - Store is in consistent state (no exception, count >= 0)
-		store.GetPendingCount().ShouldBeGreaterThanOrEqualTo(0);
+		// Cancel-first refuses only that exact ID; schedule-first is removed by the same cancellation.
+		scheduleOutcomes.Count.ShouldBe(operationCount / 2);
+		var cancelledIds = Enumerable.Range(0, operationCount / 4).Select(i => $"timeout-{i}").ToHashSet(StringComparer.Ordinal);
+		foreach (var (timeoutId, outcome) in scheduleOutcomes)
+		{
+			if (outcome is not null)
+			{
+				cancelledIds.ShouldContain(timeoutId);
+				outcome.ShouldBeOfType<InvalidOperationException>().Message.ShouldBe(
+					"Public Schedule cannot overwrite a recovery-tracked timer ID; use conditional recovery authority.");
+			}
+		}
+
+		var remaining = await store.GetDueTimeoutsAsync(now.AddMinutes(10), CancellationToken.None);
+		remaining.Select(item => item.TimeoutId).OrderBy(id => id, StringComparer.Ordinal).ShouldBe(
+			Enumerable.Range(25, 25).Select(i => $"timeout-{i}").OrderBy(id => id, StringComparer.Ordinal));
+		store.GetPendingCount().ShouldBe(25);
 
 		// Verify we can still perform operations after concurrent load
 		var finalTimeout = CreateTimeout(sagaId, "final-timeout", now.AddMinutes(1));
@@ -220,6 +239,30 @@ public sealed class InMemorySagaTimeoutStoreShould
 
 		var dueTimeouts = await store.GetDueTimeoutsAsync(now.AddMinutes(5), CancellationToken.None);
 		_ = dueTimeouts.ShouldNotBeNull();
+		dueTimeouts.ShouldContain(item => item.TimeoutId == finalTimeout.TimeoutId);
+		store.GetPendingCount().ShouldBe(26);
+	}
+
+	[Fact]
+	[Trait("Pattern", "Regression")]
+	public async Task RefuseOnlyTheIdCancelledBeforeItsFirstPublicSchedule()
+	{
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext());
+		var sagaId = Guid.NewGuid().ToString();
+		var now = DateTime.UtcNow;
+		var cancelled = CreateTimeout(sagaId, "cancelled-before-schedule", now);
+		await store.CancelTimeoutAsync(sagaId, cancelled.TimeoutId, CancellationToken.None);
+
+		var refusal = await Should.ThrowAsync<InvalidOperationException>(() =>
+			store.ScheduleTimeoutAsync(cancelled, CancellationToken.None));
+		refusal.Message.ShouldBe("Public Schedule cannot overwrite a recovery-tracked timer ID; use conditional recovery authority.");
+		store.GetPendingCount().ShouldBe(0);
+
+		var other = CreateTimeout(sagaId, "unrelated-id", now);
+		await store.ScheduleTimeoutAsync(other, CancellationToken.None);
+		var remaining = await store.GetDueTimeoutsAsync(now.AddMinutes(1), CancellationToken.None);
+		remaining.ShouldHaveSingleItem().TimeoutId.ShouldBe(other.TimeoutId);
+		store.GetPendingCount().ShouldBe(1);
 	}
 
 	/// <summary>

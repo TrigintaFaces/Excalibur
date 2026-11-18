@@ -234,7 +234,7 @@ public sealed class LeaderElectionBuilderShould
 			.UseInMemory()
 			.WithFencingTokens());
 
-		// Assert -- check registration exists (don't resolve, since IFencingTokenProvider
+		// Assert -- check registration exists (don't resolve, since IFencingTokenIssuer
 		// must be registered separately by the consumer)
 		var descriptor = services.FirstOrDefault(sd =>
 			sd.ServiceType == typeof(FencingTokenMiddleware));

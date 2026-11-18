@@ -3,6 +3,7 @@
 
 using System.Buffers;
 using System.Threading.Channels;
+using Excalibur.EventSourcing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -72,6 +73,8 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
         UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(updateCompletedCount);
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<long> run;
         lock (_lifecycle)
         {
             ObjectDisposedException.ThrowIf(_disposedFlag != 0, this);
@@ -80,10 +83,20 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
                 throw new InvalidOperationException("A data processor instance can only run once. Resolve a new instance to retry.");
             }
 
-            _runTask = RunCoreAsync(completedCount, processedCursor, updateCompletedCount, cancellationToken);
-            return _runTask;
+            run = _runTask = RunCoreAsync(start.Task, completedCount, processedCursor, updateCompletedCount, cancellationToken);
         }
+        // Publish ownership before any derived code or service constructor can execute.
+        start.SetResult();
+        return run;
     }
+
+    /// <summary>Gets whether inline projection waits are deferred until all records have been processed.</summary>
+    /// <value>False by default. When true, an <see cref="IProjectionProcessor"/> registration is required.</value>
+    /// <remarks>
+    /// Opt in only when handlers do not require updated projections during the run. Records remain sequential
+    /// and durable checkpoints are unchanged. A final catch-up attempt does not guarantee projection freshness.
+    /// </remarks>
+    protected virtual bool DeferInlineProjectionWait => false;
 
     /// <inheritdoc />
     public abstract Task<CursorFetchResult<TRecord>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken);
@@ -123,10 +136,62 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
         finally { _stop.Dispose(); }
     }
 
-    private async Task<long> RunCoreAsync(long completedCount, string? cursor,
+    private async Task<long> RunCoreAsync(Task start, long completedCount, string? cursor,
         UpdateCompletedCount checkpoint, CancellationToken cancellationToken)
     {
+        await start.ConfigureAwait(false);
         using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stop.Token);
+        var token = runCancellation.Token;
+        token.ThrowIfCancellationRequested();
+        if (!DeferInlineProjectionWait)
+        {
+            return await ProcessRecordsAsync(completedCount, cursor, checkpoint, runCancellation).ConfigureAwait(false);
+        }
+
+        var scope = _serviceProvider.CreateAsyncScope();
+        Exception? primaryFailure = null;
+        long result;
+        try
+        {
+            var projections = scope.ServiceProvider.GetRequiredService<IProjectionProcessor>();
+            using (InlineProjectionWait.Suppress())
+            {
+                result = await ProcessRecordsAsync(completedCount, cursor, checkpoint, runCancellation).ConfigureAwait(false);
+            }
+            token.ThrowIfCancellationRequested();
+            var outcome = await projections.ProcessPendingAsync(token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (outcome.Outcome == ProjectionProcessingOutcome.Cancelled)
+            {
+                throw new OperationCanceledException("Projection processing was cancelled.", token);
+            }
+            if (outcome.Outcome != ProjectionProcessingOutcome.CaughtUp)
+            {
+                LogProjectionsBehind(result, outcome.Outcome, outcome.HaltReason);
+            }
+        }
+        catch (Exception ex)
+        {
+            primaryFailure = ex;
+            throw;
+        }
+        finally
+        {
+            try { await scope.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception ex) when (primaryFailure is not null)
+            {
+                // Diagnostics must not replace the processing/cancellation failure either.
+                try { LogDisposeAsyncError(ex); }
+                catch (Exception) { }
+            }
+        }
+        token.ThrowIfCancellationRequested();
+        return result;
+    }
+
+    private async Task<long> ProcessRecordsAsync(long completedCount, string? cursor,
+        UpdateCompletedCount checkpoint, CancellationTokenSource runCancellation)
+    {
         var token = runCancellation.Token;
         // Both loops are supervised: either failure must release a sibling blocked on the bounded channel.
         var producer = Task.Factory.StartNew(() => SuperviseAsync(() => ProducerLoopAsync(cursor, token), runCancellation),

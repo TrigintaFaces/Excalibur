@@ -11,6 +11,31 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 [Trait("Pattern", "Concurrency")]
 public sealed class RetryOwnershipScopeShould
 {
+	private sealed class UnclassifiedFailureException(string message) : Exception(message);
+
+	[Fact]
+	public async Task PreserveUnknownPublicationAndFanoutEvidenceWithoutAuthorizingReplay()
+	{
+		using var owner = RetryOwnershipScope.Enter(A.Fake<IDispatchEvent>(), new MessageContext());
+		var fault = new UnclassifiedFailureException("unrecognized");
+		var calls = 0;
+		Task Publish() { calls++; return Task.FromException(fault); }
+		var first = await owner.PublishDestinationAsync(owner.BeginAttempt(), "unknown", Publish, CancellationToken.None);
+		first.FailureKind.ShouldBe(MessageFailureKind.Unknown);
+		first.Retryable.ShouldBeFalse();
+		first.Fault.ShouldNotBeNull().SourceException.ShouldBeSameAs(fault);
+		var next = owner.BeginAttempt();
+		var second = await owner.PublishDestinationAsync(next, "unknown", Publish, CancellationToken.None);
+		second.ShouldBeSameAs(first);
+		calls.ShouldBe(1);
+		var result = A.Fake<IMessageResult>();
+		RetryOwnershipScope.ReportFanout(next, result, true, MessageFailureKind.Unknown, fault);
+		RetryOwnershipScope.TryGetKnownFailureKind(next, result, out var kind, out var original).ShouldBeTrue();
+		kind.ShouldBe(MessageFailureKind.Unknown);
+		original.ShouldBeSameAs(fault);
+		RetryOwnershipScope.AllowsRetryAfterResult(next, result).ShouldBeTrue("another destination may still recover");
+	}
+
 	[Fact]
 	public async Task ShareConcurrentPublicationAndRetryTransientDestinationOnlyOnNextAttempt()
 	{

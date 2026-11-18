@@ -2,7 +2,7 @@
 
 Summary
 
-- Core uses MemoryPack for internal/default serialization (AOT‑friendly, low allocations).
+- Core uses MemoryPack for internal/default serialization. Verify allocations and native compatibility for the selected wrapper APIs and payload contracts.
 - JSON support remains available via the `IJsonSerializer` abstraction and hosting packages (e.g., Patterns.Hosting.Json).
 
 Key points
@@ -15,7 +15,7 @@ Key points
 Why
 
 - Avoids System.Text.Json in core hot paths; keeps JSON at the public boundary.
-- Improves AOT readiness and performance while maintaining flexibility.
+- Serializer separation provides a choice of implementations; it does not establish a performance improvement or NativeAOT compatibility for the complete application. See the [MemoryPack verification scope](../Excalibur.Dispatch.Serialization.MemoryPack/README.md#performance-characteristics).
 
 ## License
 

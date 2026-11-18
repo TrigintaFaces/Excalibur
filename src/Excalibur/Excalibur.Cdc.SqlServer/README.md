@@ -2,6 +2,25 @@
 
 SQL Server Change Data Capture (CDC) implementation for Excalibur.
 
+## SQL execution
+
+CDC queries and checkpoint operations use explicit ADO.NET commands, parameters and typed
+readers rather than runtime-generated Dapper execution. Capture identifiers remain validated;
+record values remain parameterized. Every repository query, including `GetNextValidLsnAsync`,
+honors the repository's configured command timeout and forwards cancellation.
+
+Checkpoint storage opens and disposes a connection per operation. Enumeration buffers before
+yielding so a paused consumer does not retain a SQL session. The state schema's `ProcessedAt`
+column is `DATETIMEOFFSET`; use the shipped DDL. Fencing compares leadership tokens and does
+not independently prevent a caller from writing an older LSN with an accepted token.
+
+Static SQL execution alone is not certification of every transitive dependency or NativeAOT
+application. Validate the actual published application and the provider operations it uses.
+
+## Position-reset logging
+
+`CdcRecoveryOptions.EnableStructuredLogging` controls the structured warning emitted after a stale checkpoint is successfully reset in memory. It defaults to `true`. Set it to `false` to suppress that reset warning; recovery strategy selection, the `OnPositionReset` callback, cancellation, and checkpoint persistence retain their behavior. Recovery failures and other diagnostic events are not disabled. A refused or canceled reset does not emit a successful-reset warning.
+
 ## License
 
 This project is multi-licensed under:

@@ -67,9 +67,27 @@ public interface IMessageContext
 	IServiceProvider RequestServices { get; set; }
 
 	/// <summary>
-	/// Gets a dictionary for storing transport-specific metadata and extensibility data during message processing.
+	/// Gets this context's request-local scratch collection.
 	/// </summary>
-	/// <value>The transport-specific and extensibility items dictionary scoped to this message context.</value>
+	/// <remarks>
+	/// <para>
+	/// <strong>Request-local.</strong> Nothing in this framework serializes, persists, transmits or emits
+	/// these entries. To carry a value beyond this process, mark it with
+	/// <see cref="MessageContextPropagationExtensions.SetPropagatedItem" /> instead. The two collections are
+	/// separate for the reason <see cref="System.Diagnostics.Activity" /> keeps
+	/// <see cref="System.Diagnostics.Activity.Tags" /> and
+	/// <see cref="System.Diagnostics.Activity.Baggage" /> apart: whether a write crosses a trust boundary
+	/// must be decided by the call, never by the spelling of a key.
+	/// </para>
+	/// <para>
+	/// <strong>Contract an implementation must keep.</strong> Returns the one collection owned by this
+	/// context. Never <see langword="null" />. <em>The same instance on every call</em>, for the life of
+	/// the context. Mutable, and a write is observable to every subsequent read. Returning a fresh
+	/// collection per call satisfies the signature and breaks this framework silently — several components
+	/// write an entry through one call and read it back through another.
+	/// </para>
+	/// </remarks>
+	/// <value>The request-local items collection owned by this message context.</value>
 	IDictionary<string, object> Items { get; }
 
 	/// <summary>
@@ -85,6 +103,16 @@ public interface IMessageContext
 	/// var processing = context.GetOrCreateProcessingFeature();
 	/// processing.ProcessingAttempts++;
 	/// </code>
+	/// <para>
+	/// <strong>Contract an implementation must keep — the same one <see cref="Items" /> states, and now
+	/// load-bearing here too.</strong> Returns the one collection owned by this context. Never
+	/// <see langword="null" />. <em>The same instance on every call</em>, for the life of the context.
+	/// Mutable, and a write is observable to every subsequent read. Returning a fresh collection per
+	/// call satisfies the signature and breaks this framework silently: the propagated set
+	/// (<see cref="MessageContextPropagationExtensions.SetPropagatedItem" />) is stored here, so a
+	/// context that forgets a feature write loses every marked value with nothing raised and nothing
+	/// logged.
+	/// </para>
 	/// </remarks>
 	/// <value>The features dictionary keyed by feature interface type.</value>
 	IDictionary<Type, object> Features { get; }

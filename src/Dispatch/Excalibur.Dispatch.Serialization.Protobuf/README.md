@@ -7,7 +7,7 @@ Opt-in Protocol Buffers serialization support for the Excalibur framework.
 Provides Protocol Buffers (Protobuf) serialization for:
 - Google Cloud Platform (GCP) interoperability
 - AWS service integration requiring Protobuf
-- High-performance binary protocols
+- Protocol Buffers binary protocols
 - External systems using `.proto` schema definitions
 
 ## Installation
@@ -55,9 +55,9 @@ public partial class UserCreatedEvent : IMessage<UserCreatedEvent>
 
 ## AOT Compatibility
 
-**Native AOT compatible** with source-generated Protobuf types.
-
-Ensure your `.proto` files are compiled with `protoc` to generate C# code, and the generated types will be trim-safe.
+Use generated Protobuf types and verify the selected serializer APIs, payloads and dependencies
+in a published native executable with trimming and AOT warnings enabled. Generated types alone
+do not certify the wrapper or application.
 
 ## Wire Formats
 
@@ -79,7 +79,7 @@ opts.WireFormat = ProtobufWireFormat.Json;
 
 - Human-readable JSON representation
 - Useful for debugging or external API boundaries
-- Slower than binary format
+- Measure JSON and binary APIs with the same payload before comparing performance
 
 ## When to Use This Package
 
@@ -105,9 +105,9 @@ Per Excalibur framework requirements:
 
 ## Performance characteristics
 
-Protobuf produces a compact binary payload and is normally faster to serialize, and smaller on
-the wire, than JSON. This package carries no current matched-workload measurement of its own, so
-no latency or throughput figure is published here.
+Protobuf uses a binary representation. Relative payload size, latency and allocations depend
+on the message and API; this package has no current matched comparison. No latency or throughput
+figure is published here.
 
 Earlier revisions of this document quoted 100–500 ns/op for binary serialization and figures in
 the millions of messages per second. **Those were never backed by a verified matched workload and

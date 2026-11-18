@@ -47,6 +47,11 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
     /// than merely unqueryable: an operator could no longer attribute the entry, and a redrive could no
     /// longer re-enter the partition the message came from.
     /// </para>
+    /// <para>
+    /// This framework request binds its fixed primitive input and output schema without runtime emit.
+    /// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+    /// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+    /// </para>
     /// </remarks>
     public MarkMessageDeadLetteredRequest(
         string messageId,
@@ -96,6 +101,11 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
 
         Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
         ResolveAsync = async connection =>
-            await connection.QuerySingleAsync<int>(Command).ConfigureAwait(false);
+            await StaticDbCommand.SingleAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "Reason", StaticDbCommand.Input<string>(Parameters, "Reason"), DbType.String);
+				StaticDbCommand.AddParameter(command, "AttemptCount", StaticDbCommand.Input<int>(Parameters, "AttemptCount"), DbType.Int32);
+			}, static reader => StaticDbValue.Int32(reader, 0)).ConfigureAwait(false);
     }
 }

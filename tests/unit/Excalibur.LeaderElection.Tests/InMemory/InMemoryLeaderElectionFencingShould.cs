@@ -103,7 +103,7 @@ public sealed class InMemoryLeaderElectionFencingShould : UnitTestBase
 		var election = factory.CreateElection(resourceName, candidateId: null);
 
 		AcquisitionFailedReason? failedReason = null;
-		election.AcquisitionFailed += (_, args) => failedReason = new AcquisitionFailedReason(args.Reason);
+		election.AcquisitionFailed += (_, args) => failedReason = new AcquisitionFailedReason(args.Reason, args.Exception);
 
 		// Act
 		await election.StartAsync(TestContext.Current.CancellationToken);
@@ -115,7 +115,67 @@ public sealed class InMemoryLeaderElectionFencingShould : UnitTestBase
 			"a leadership attempt whose fencing mint overflows the int64 domain must NOT declare leadership — " +
 			"wrapping to a reused low token would let a later, genuinely-stale leader validate as current.");
 		failedReason.ShouldNotBeNull("AcquisitionFailed must fire so the caller can observe the fail-closed relinquish.");
-		failedReason!.Value.Reason.ShouldBe("fencing token domain exhausted");
+		failedReason!.Value.Reason.ShouldBe("fencing token mint failed");
+		failedReason!.Value.Exception.ShouldBeOfType<FencingTokenExhaustedException>(
+			"the relinquish now carries the cause rather than a bare reason string, so a subscriber can tell " +
+			"an exhausted domain from a store that was merely unreachable");
+
+		await ((IAsyncDisposable)election).DisposeAsync();
+	}
+
+	[Fact]
+	public async Task RelinquishRatherThanLead_WhenTheMintFailsForATransientReason()
+	{
+		// THE ARM THAT BINDS THE FIX, and the reachable one. The acquisition takes the resource out of the
+		// shared dictionary, then mints. Pre-fix only an exhausted domain gave the resource back; any other
+		// mint failure left this candidate HOLDING the entry while never announcing leadership, so every
+		// other in-process candidate lost the race to a leader that did not exist and could not write.
+		// Exhaustion needs a counter at long.MaxValue to reach; a store error needs nothing.
+		var resourceName = $"fencing-transient-{Guid.NewGuid():N}";
+
+		var throwing = A.Fake<IFencingTokenIssuer>();
+		_ = A.CallTo(() => throwing.IssueTokenAsync(A<string>._, A<CancellationToken>._))
+			.ThrowsAsync(new InvalidOperationException("the fencing counter is unreachable"));
+
+		// An explicit shared state rather than the process-wide default, so the dictionary assertion below
+		// reads the instance THIS election used and cannot be perturbed by a concurrent arm.
+		var sharedState = new InMemoryLeaderElectionSharedState();
+
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSingleton(sharedState);
+
+		// Registered BEFORE AddInMemoryLeaderElection, which uses TryAddSingleton for the provider, so
+		// this one wins and the election under test is the real DI-composed one rather than a hand-wired
+		// instance.
+		_ = services.AddSingleton(throwing);
+            services.AddSingleton<IFencingTokenProvider>(throwing);
+		_ = services.AddInMemoryLeaderElection();
+		await using var provider = services.BuildServiceProvider(validateScopes: false);
+
+		var factory = provider.GetRequiredKeyedService<ILeaderElectionFactory>("default");
+		var election = factory.CreateElection(resourceName, candidateId: null);
+
+		AcquisitionFailedReason? failedReason = null;
+		election.AcquisitionFailed += (_, args) => failedReason = new AcquisitionFailedReason(args.Reason, args.Exception);
+
+		await election.StartAsync(TestContext.Current.CancellationToken);
+		await WaitUntilAsync(() => failedReason is not null, TimeSpan.FromSeconds(5));
+
+		election.CurrentLeadership.ShouldBeNull(
+			"a candidate that cannot fence its writes must not lead, whatever the mint failed for");
+		failedReason.ShouldNotBeNull("AcquisitionFailed must fire so the caller can observe the relinquish");
+		failedReason!.Value.Reason.ShouldBe("fencing token mint failed");
+		failedReason!.Value.Exception.ShouldBeOfType<InvalidOperationException>();
+
+		// The resource must be BACK, which is the half the pre-fix code failed, and it is asserted against
+		// the shared dictionary rather than by standing a second candidate up: with this provider in the
+		// container the second candidate's own mint fails too, so it could never acquire and its failure
+		// would prove nothing about whether the first one let go. Asserting only that this candidate did
+		// not lead is satisfied by one that silently kept the entry forever.
+		sharedState.Leaders.TryGetValue(resourceName, out _).ShouldBeFalse(
+			"the failed candidate must have given the resource back; holding it blocks every other " +
+			"candidate while no leader exists, which is a liveness stall and not fail-closed safety");
 
 		await ((IAsyncDisposable)election).DisposeAsync();
 	}
@@ -145,5 +205,5 @@ public sealed class InMemoryLeaderElectionFencingShould : UnitTestBase
 			() => fencingProvider.IssueTokenAsync(resourceId, TestContext.Current.CancellationToken).AsTask());
 	}
 
-	private readonly record struct AcquisitionFailedReason(string Reason);
+	private readonly record struct AcquisitionFailedReason(string Reason, Exception? Exception);
 }

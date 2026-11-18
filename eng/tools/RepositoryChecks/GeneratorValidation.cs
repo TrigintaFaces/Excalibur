@@ -47,9 +47,26 @@ internal static class GeneratorValidation
         }
     }
 
+    /// <summary>Applies the actual consumer generator context before strict documentation diagnostics.</summary>
+    internal static Compilation UpdateCompilation(Project? project, CSharpCompilation compilation, CSharpParseOptions options, out IEnumerable<Diagnostic> diagnostics)
+    {
+        diagnostics = [];
+        if (project is null)
+        {
+            return compilation;
+        }
+
+        var driver = CSharpGeneratorDriver.Create(
+            Discover(project), project.AnalyzerOptions.AdditionalFiles, options,
+            project.AnalyzerOptions.AnalyzerConfigOptionsProvider);
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var evaluated, out var generatedDiagnostics);
+        diagnostics = generatedDiagnostics;
+        return evaluated;
+    }
+
     /// <summary>Loads generator instances without trusting cached discovery results.</summary>
     /// <exception cref="InvalidOperationException">A generator reference cannot be loaded.</exception>
-    private static List<ISourceGenerator> Discover(Project project)
+    internal static List<ISourceGenerator> Discover(Project project)
     {
         var generators = new List<ISourceGenerator>();
         foreach (var reference in project.AnalyzerReferences)

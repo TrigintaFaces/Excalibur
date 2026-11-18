@@ -64,6 +64,85 @@ For NativeAOT, select a codec with generated metadata for the worker's message t
 - Familiarity with [Dispatch pipeline](../pipeline/index.md) and database transactions
 - A SQL Server or PostgreSQL database for outbox storage
 
+## Publisher tenure refusal
+
+When `MessageBusOutboxPublisher` uses an active leader gate, it captures one fencing token for each drain
+and carries that exact token through claim, completion and failure reporting. A store-reported or thrown
+tenure refusal prevents later local admissions in that authority domain at that token or any older token, including scheduled,
+retry and subsequent polling calls. A genuinely newer gate-authorized token can start a fresh drain.
+Publishers sharing the same gate reference share the local watermark across recreation. Custom scoped
+wrappers can implement `ILeaderProcessingAuthorityDomain` and return the same stable, nonnull
+`AuthorityDomain` object for their underlying monotonic token sequence. Different domains remain isolated
+even when numeric tokens or object equality compare equal. Do not reuse a domain for an unrelated election
+or reset its token sequence while retaining that identity; the framework never disposes the domain. Row-scoped `ClaimLost`, `AlreadyTerminal` and `MessageNotFound` outcomes do not stop other claimed rows.
+
+Check `PublishingResult.Outcome` or `IsSuccess`, rather than `FailureCount == 0` alone.
+`Completed` is the existing normal-workflow outcome (including ordinary partial fanout); `TenureRefused`
+means authority refused continuation, and `Interrupted` means an infrastructure fault aborted the operation.
+`IsTenureRefused` is a convenience for that outcome. Both incomplete outcomes make `IsSuccess` false
+without fabricating failed rows; unknown outcome values also fail closed. If both authority refusal and
+infrastructure interruption occur, TenureRefused is retained and the actual errors remain visible.
+A refusal is not a transport failure: `FailureCount` does not increase for unattempted rows, and
+`SuccessCount` retains actual transport acceptances even when their durable completion is refused.
+If the transport accepts a message and durable completion then throws, the result is `Interrupted`.
+The acceptance remains in `SuccessCount`, the original error is retained, and no delivery-failure
+report or retry attempt is invented. The durable commit may be unknown. New work stops for that
+operation; a later operation under the same valid authority can resume.
+An unrecognized durable completion outcome also interrupts only the current operation. It retains
+the actual acceptance count and reports a protocol error; it does not fabricate a failed delivery
+or reject the shared authority. Known row-scoped outcomes retain their continuation behavior.
+A fanout message is counted once if any admitted delivery succeeds; the per-transport API instead counts
+deliveries. Known unattempted remaining rows can be counted as skipped. `SuccessRate` is a row metric and
+can be 100 percent while the operation is refused. Already admitted sends and fanout tasks are joined;
+refusal cannot retract an external transport effect. A registry or scheduling fault after one accepted
+fanout retains that partial acceptance and exact error, with Interrupted rather than reporting a complete
+operation. Consumers still require idempotency.
+
+The local admission/refusal gate orders learned refusal against later admissions; it does not make
+separately sampled leader-gate properties an atomic authority snapshot. Durable safety still requires the
+store's atomic fence and claim capabilities. An empty fenced claim is not evidence of refusal because
+that API also returns no rows when no work is due. An active gate without a token fails closed. With no
+election configured, or with an explicit `SingleActiveWriter` declaration, the existing unfenced route
+remains available.
+
+For a stale-token claim, InMemory, SQL Server, Postgres and Oracle emit an `OutboxClaimFenceRefused`
+warning with the presented token and the high-water captured by that claim's atomic guard, and increment
+`excalibur.outbox.fence_refusals`. Collect `Excalibur.Outbox.InMemory` (`backend=inmemory`),
+`Excalibur.Outbox.SqlServer` (`backend=sqlserver`), `Excalibur.Outbox.Postgres` (`backend=postgres`) or
+`Excalibur.Outbox.Oracle` (`backend=oracle`) as appropriate. The only other counter tag is
+`reason=stale_claim`; IDs, tenants and token values are not metric tags. An accepted empty batch emits
+neither refusal signal. InMemory reports after releasing its claim lock; SQL Server and Oracle report
+after their owned commit succeeds. Postgres reports after its statement and buffered-reader cleanup
+succeed, which includes implicit commit in its normal claim profile; it does not certify a caller-owned
+outer transaction's commit. Metric and logger observers are independently guarded so their failures do
+not turn the zero-row refusal into an exception. Each refused poll can report again. These diagnostics
+do not reset a high-water, grant authority or strengthen delivery guarantees.
+
+Multi-transport admissions share the local rejected-token watermark, but the existing per-transport
+sent/failed/skipped and aggregate status methods do not expose a durable fenced claim/outcome contract.
+This change does not add that capability or certify the separate `OutboxProcessor` parallel and
+minimized-window paths. NativeAOT workers retain the same generated serialization metadata requirements;
+the admission state introduces no reflection or dynamic-code dependency.
+
+### Processor run authority and partial results
+
+Each `OutboxProcessor.DispatchPendingMessagesAsync` run captures one leadership token for its claims and
+completion paths. Reacquiring leadership does not give older work permission to use the newer token.
+After a tenure refusal, the processor stops new transport and claim admissions and joins operations
+already admitted, preserving their actual accepted-dispatch count. The returned integer does not mean
+every accepted message was durably marked complete or that the queue is empty. In particular, zero
+after a refused admission does not mean there was no pending work. Unattempted claims remain available
+for ordinary lease recovery; they are not recorded as delivery failures.
+
+Sequential, parallel minimized-window and at-least-once processing use the same shared authority-domain
+refusal state as the publisher. Recreating a scoped processor cannot clear a refusal for the same
+authority. Custom transient gate wrappers should expose one stable
+`ILeaderProcessingAuthorityDomain.AuthorityDomain` identity for the underlying monotonic token sequence.
+An unrelated election needs a different identity, even when its numeric fencing token is equal. A newer
+authorized token can start a new drain. An already admitted operation may still settle after refusal;
+this local admission ordering does not promise atomic observation of a remote lease or exactly-once
+delivery. Consumers must remain idempotent.
+
 ## The Problem
 
 Without the outbox pattern, you risk inconsistency:
@@ -169,7 +248,7 @@ publisher can own a separate policy without consuming the default processor's de
 These are starting points, not a mechanism -- each is just the set of `WithProcessing` values below,
 which you type out for the profile you want. There is no preset argument to pass.
 
-| Setting | High throughput | Balanced | High reliability |
+| Setting | Larger parallel batch | Moderate parallel batch | Sequential batch |
 |---------|-----------------|----------|------------------|
 | `BatchSize` | 1000 | 100 | 10 |
 | `PollingInterval` | 100ms | 1s | 5s |
@@ -179,11 +258,11 @@ which you type out for the profile you want. There is no preset argument to pass
 
 | Profile | Use case |
 |---------|----------|
-| **High throughput** | Real-time event processing, high-volume systems |
-| **Balanced** | Most production workloads |
-| **High reliability** | Financial transactions, critical systems |
+| **Larger parallel batch** | Evaluate resource use and ordering constraints |
+| **Moderate parallel batch** | Evaluate completed throughput |
+| **Sequential batch** | Evaluate sequential processing and retry requirements |
 
-Balanced, spelled out:
+Moderate parallel batch, spelled out:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
@@ -197,7 +276,7 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
     .EnableBackgroundProcessing()));
 ```
 
-High reliability -- small batches, long backoff, sequential:
+Sequential batch -- small batches and longer backoff; not a reliability guarantee:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
@@ -212,7 +291,9 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
 
 ### Usage in Handlers
 
-Inject `IOutboxWriter` into your handler and call `WriteAsync` to stage outbound messages. The consistency guarantee (eventually-consistent vs. transactional) is determined by configuration -- your handler code stays the same regardless of mode:
+Inject `IOutboxWriter` into your handler and call `WriteAsync` to stage outbound messages.
+Verify the actual staging path and transaction participation; `ConsistencyMode` alone does not
+make a separate business write atomic with staging:
 
 ```csharp ignore
 using Excalibur.Dispatch.Outbox;
@@ -243,7 +324,7 @@ public class CreateOrderHandler : IDispatchHandler<CreateOrderAction>
             new { Id = orderId, action.CustomerId },
             transaction);
 
-        // Write to outbox -- behavior depends on configured ConsistencyMode
+        // Stage outbound work; verify transaction participation separately.
         await _outboxWriter.WriteAsync(
             new OrderCreatedEvent(orderId, action.CustomerId),
             destination: "orders",
@@ -303,10 +384,13 @@ verify the path your store actually takes; `ConsistencyMode` alone will not give
 
 :::
 
-| Mode | Behavior | Risk | Requires |
-|------|----------|------|----------|
-| **EventuallyConsistent** (default) | Messages buffered during handler execution, flushed to outbox after handler + transaction complete | Messages lost if process crashes between commit and flush | Nothing extra |
-| **Transactional** | Messages written to `IOutboxStore` within the ambient transaction | None (atomic with business data) | `IOutboxStore` registration + `TransactionMiddleware` |
+| Mode | Dispatch-side startup requirement | Write-path guarantee |
+|------|----------------------------------|----------------------|
+| **EventuallyConsistent** (default) | `UseOutbox()` requires an `IOutboxStore`; no additional transaction-middleware requirement | Does not select or prove atomic staging |
+| **Transactional** | Requires `IOutboxStore` registration and transaction middleware | Does not select or prove atomic staging; participating writes must share a supported transaction |
+
+Atomic staging does not eliminate duplicate delivery. Verify the actual staging strategy and
+transaction participation, and keep consumers idempotent.
 
 
 ## Outbox Stores
@@ -314,13 +398,32 @@ verify the path your store actually takes; `ConsistencyMode` alone will not give
 ### SQL Server
 
 ```csharp
-services.AddSqlServerOutboxStore(options =>
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Excalibur.Dispatch;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class SqlOutboxRegistration
 {
-    options.ConnectionString = connectionString;
-    options.SchemaName = "outbox";
-    options.OutboxTableName = "OutboxMessages";
-});
+    public static void Run(IServiceCollection services, string connectionString)
+    {
+        services.AddSqlServerOutboxStore(options =>
+        {
+            options.ConnectionString = connectionString;
+            options.Tables.SchemaName = "outbox";
+            options.Tables.OutboxTableName = "OutboxMessages";
+        });
+    }
+}
 ```
+
+With fluent SQL Server registration, `sql.BindConfiguration("Outbox:SqlServer")` binds
+`SqlServerOutboxOptions`, including its `Tables` and `Processing` sections, using generated
+configuration binding. Connection modes are mutually exclusive: the last call to select
+`ConnectionString`, `ConnectionStringName`, `ConnectionFactory` or `BindConfiguration` wins.
+Configuration reload updates `IOptionsMonitor<SqlServerOutboxOptions>`; it does not reconnect
+an already constructed outbox store. Configure the store before starting workers.
 
 ### PostgreSQL
 
@@ -371,6 +474,16 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
     });
 }));
 ```
+
+MongoDB requires a dedicated ordinary outbox collection with **simple (binary) collation** and its
+simple unique `_id` index. Both constructors inspect the effective namespace before provider row actions
+or automatic index creation. An absent collection is explicitly created with simple collation; an
+incompatible existing collection is rejected without rewriting rows or indexes. Language-aware collation
+can equate distinct message IDs or acquisition receipts; adding a secondary index does not repair that
+identity namespace. Grant metadata-inspection permissions as well as normal data permissions. Migrate an
+incompatible collection only through a separately planned procedure with producers/workers quiesced;
+do not replace the namespace under an initialized live store. Other application collections can retain
+their own collation. See [Polling provider capabilities](#polling-provider-capabilities).
 
 ### Elasticsearch
 
@@ -434,7 +547,7 @@ on, and it does not change when the CLR type moves. See
 
 ### SQL Server
 
-The SQL Server store does **not** auto-create tables — create the schema before starting the application. The `IX_OutboxMessages_Claim` index backs the atomic claim predicate (status + retry-visibility) and the partition-ordered delivery guarantee.
+The SQL Server store does **not** auto-create tables — create the schema before starting the application. The `IX_OutboxMessages_Claim` index supports the claim predicate and eligible-row selection; it does not establish ordered delivery completion.
 
 `Excalibur.Outbox.SqlServer` packs its DDL as numbered scripts under `scripts/` in the NuGet package.
 Those files are the authority for this schema — the store's own statements are derived from them.
@@ -558,8 +671,8 @@ CREATE TABLE IF NOT EXISTS public.outbox (
 -- timezone on reload, so a scheduled message becomes due at the wrong instant.
 
 -- Supports the claim cursor's ordering. The drain selects eligible rows ordered by partition_key,
--- sequence_number, occurred_on, which is what preserves per-partition ordering across concurrent
--- drains. Do not narrow this index to a partial one: the drain's ordering needs every row.
+-- sequence_number, occurred_on. Ordered selection does not guarantee completion order across
+-- concurrent drains or retries. Validate index changes against the actual claim predicate.
 CREATE INDEX IF NOT EXISTS ix_outbox_claim_order ON public.outbox (partition_key, sequence_number, occurred_on);
 
 -- Supports releasing a reservation by dispatcher, which matches on dispatcher_id alone.
@@ -743,7 +856,7 @@ makes the outbox drain **single-active (leader-fenced) by default** — only the
 every claim/mark carries a **monotonic fencing token**, checked against the store's recorded fencing
 high-water mark, so a superseded leader's claim or mark is rejected.
 
-**PostgreSQL, Oracle, MongoDB, and SQL Server record the high-water mark in a dedicated fence control
+**PostgreSQL, Oracle, and SQL Server record the high-water mark in a dedicated fence control
 table that outbox cleanup never touches**, so the rejection survives cleanup — closing the split-brain
 window that would otherwise double-deliver under a leader handover. (Delivery is at-least-once either way; this removes a specific split-brain duplicate source.) SQL Server's `OutboxFence` table is
 advanced by a single serializable `MERGE` (a compare-and-advance under `HOLDLOCK`) that raises the mark
@@ -765,12 +878,12 @@ drain. (For a fencing-capable store you can still call `outbox.WithLeaderElectio
 composes idempotently with the automatic wiring.)
 
 **Fail-fast on a store that cannot fence.** If a leader election is registered and the configured store
-does not implement `IFencedOutboxStore` — so it cannot enforce a fencing high-water mark — the processor
-**refuses to start**, throwing an `InvalidOperationException` at startup rather than draining unfenced.
-Fencing-capable first-party stores are **SQL Server, PostgreSQL, Oracle, MongoDB, and the in-memory
-store** — all record the leadership high-water mark in a durable fence control table that survives outbox
-cleanup. Some stores (for example Elasticsearch) cannot express an atomic fencing high-water mark with
-their native primitives and therefore always require the opt-out below under a leader election.
+does not expose the required fenced acquisition/completion capabilities through `GetService`, the
+processor **refuses to start** with an `InvalidOperationException`. Fencing-capable polling stores are
+**SQL Server, PostgreSQL, Oracle with an owned worker connection source, and in-memory**. In-memory
+high-water state does not survive process loss. Redis, MongoDB, Elasticsearch and Marten do not advertise
+this fenced route. A genuine single-drainer deployment can use the explicit topology assertion below;
+that assertion does not manufacture durable fencing or missing claim/dead-letter capabilities.
 
 **Fail-fast on an ungated drain.** The check above keys on the presence of the **leader election**, not on
 the presence of the gate that fences the drain — a guard that keyed on the gate could not detect the case it
@@ -789,7 +902,7 @@ explicitly with `AsSingleWriter()`:
 services.AddExcalibur(exc => exc
     .AddOutbox(outbox => outbox
         .UseElasticSearch(es => es.NodeUri("http://localhost:9200"))
-        .AsSingleWriter())   // "I am the single active writer" - fences out a demoted leader.
+        .AsSingleWriter())   // Asserts a single-active-drainer topology and opts out of fencing.
                          // Delivery is still at-least-once; consumers must be idempotent.
     .AddLeaderElection(le => le.UseSqlServer(sql => sql
         .ConnectionString(leaderConnectionString)
@@ -799,8 +912,9 @@ services.AddExcalibur(exc => exc
 `AsSingleWriter()` runs the drain **unfenced** and is deliberately **observable**: the outbox logs a
 startup **warning** (`OutboxUnfencedBySingleWriterOptOut`). Enable it only for a genuine
 single-active-writer deployment — using it in a multi-writer deployment reopens the split-brain window
-fencing exists to close. When no leader election is registered at all, the outbox runs single-instance
-and unfenced by design, emitting a one-time startup **info** log (`OutboxRunningUnfenced`).
+fencing exists to close. When no leader election is registered, draining is unfenced and emits a
+one-time startup **info** log (`OutboxRunningUnfenced`). Absence of election does not enforce a
+single-process deployment.
 
 ## Publisher Configuration
 
@@ -896,7 +1010,8 @@ queue and outbox; verify the selected provider and recovery path.
 
 ### Exhausted delivery during a dead-letter outage
 
-`MaxRetryCount` bounds the recorded logical delivery attempts, including the initial send.
+The facade's `MaxRetryCount` excludes the initial attempt. Its delivery-option mapping adds the
+initial attempt to obtain `MaxAttempts`; explicit delivery-option overrides require separate review.
 If dead-letter disposition fails, the polling processor records the observed count and
 pending disposition with the original claim authority. A recovered claim retries disposition
 before decoding or sending, so a queue outage does not reset an already exhausted budget.
@@ -911,11 +1026,15 @@ and monitor both delivery failures and disposition failures.
 
 ## Ordering and Retry Scheduling
 
-### Partition-Ordered Delivery
+### Claim Selection Order
 
-Each outbound message carries three ordering fields — `PartitionKey`, `GroupKey`, and a monotonically increasing `SequenceNumber`. The polling claim selects eligible rows in `(PartitionKey, SequenceNumber)` order, so **messages that share a `PartitionKey` are delivered in ascending `SequenceNumber` (per-partition FIFO)**. Messages without a `PartitionKey` have no cross-message ordering guarantee. `GroupKey` is an independent label for logical grouping and does not affect claim order.
+Outbound messages carry `PartitionKey`, `GroupKey`, and `SequenceNumber`. Verify eligible-row
+selection behavior for the chosen provider. Ordering eligible rows for a claim does not guarantee
+delivery or completion order: parallel processing, retries and multiple drainers can reorder effects.
+An earlier row may be temporarily ineligible for retry while a later row proceeds. `GroupKey` is an
+independent logical grouping label; it does not itself establish an ordering guarantee.
 
-> This is message-level ordering persisted on each row. It is distinct from [Partitioned Outbox](#partitioned-outbox) processing, which shards the *processor loops* for throughput.
+> This is message-level ordering persisted on each row. It is distinct from [Partitioned Outbox](#partitioned-outbox) processing, which divides processor loops into partitions; measure completed throughput while preserving required ordering and ownership.
 
 ### Retry Backoff Is Applied
 
@@ -924,13 +1043,79 @@ The facade default uses the configured fixed retry delay; a registered calculato
 adapter for exponential backoff and jitter, takes precedence. Backoff-capable stores retain that
 schedule and apply their failure floor. The claim predicate excludes the message until it is eligible.
 
-A **circuit-breaker-open** short-circuit is treated differently: because no delivery was actually attempted, no backoff is applied — the message stays immediately eligible and retries as soon as the breaker closes.
+A **circuit-breaker-open** short-circuit consumes no delivery attempt and applies no calculated retry backoff. The store's failure-visibility floor can still delay the next acquisition; this is separate from the calculated schedule.
 
-Backoff scheduling requires the optional `IBackoffSchedulableOutboxStore` capability
-(`MarkFailedWithBackoffAsync`). SQL Server, PostgreSQL, MongoDB, Redis, Oracle and in-memory stores
-implement it. The processor uses `MarkFailedAsync` when the capability is unavailable; that provider's
-own retry-visibility rules still apply, but the processor cannot promise its computed schedule was
-persisted. Telemetry and encrypting decorators forward the capability when their inner store offers it.
+Framework worker completion requires acquisition-scoped capabilities discovered through the store's
+`IServiceProvider` seam. `IClaimScopedOutboxStore` includes sent, plain failure and scheduled failure;
+the processor preserves the captured message ID and claim identity on each route. With active leadership
+fencing, `IFencedClaimScopedOutboxStore` carries both terms in `OutboxWriteAuthority`. A missing capability
+or a refused completion is never permission to downgrade to an ID-only or token-only write.
+
+`OutboxProcessor` also requires `IClaimScopedDeadLetterableOutboxStore`, or
+`IFencedDeadLetterableOutboxStore` on its fenced route, because it owns a terminal disposition even when
+the consumer explicitly selects `NullDeadLetterQueue`. A custom `MessageBusOutboxPublisher` route that
+does not invoke the store's terminal operation requires the sent/failure capability, without that extra
+dead-letter capability. `AsSingleWriter()` removes the leadership-fencing requirement; it does not remove
+acquisition ownership, because the same process can reclaim an expired lease.
+
+The legacy `IBackoffSchedulableOutboxStore` and ID-only methods retain their direct-use contracts.
+Staging-only hosts do not acquire or complete rows; validate the worker composition in whichever host
+actually drains them. Telemetry and encrypting decorators preserve the capabilities their inner store
+provides; custom decorators must do the same without inventing capabilities.
+
+## Polling provider capabilities
+
+Choose a provider **and a supported connection/worker mode**. This table describes polling `IOutboxStore`
+implementations. Discover capabilities on the resolved instance through `GetService`; a CLR interface
+on its type is not proof that the current mode exposes it. **C** is `IClaimScopedOutboxStore` (sent,
+plain failure and scheduled failure), **D** is `IClaimScopedDeadLetterableOutboxStore`, and **F/FD** are
+the fenced claim/completion and fenced dead-letter routes. Default `OutboxProcessor` needs C+D;
+a fenced processor needs the corresponding fenced routes. Staging alone does not meet worker prerequisites.
+
+| Store | Exposed polling capabilities | Atomic authority boundary and eligibility clock | Connection / persistence limits |
+|---|---|---|---|
+| In-memory | C, D, F/FD | One store instance's claim lock; injected `TimeProvider` | Volatile, process-local state; no durable restart or failover guarantee |
+| SQL Server | C, D, F/FD | Owned transaction orders scope/row locks; post-lock SQL Server clock | Row and durable scope-fence transition share the transaction; sent row retained |
+| PostgreSQL | C, D, F/FD | PostgreSQL scope/row locks; post-lock `clock_timestamp()` | Connection/transaction mode matters; effects in a caller transaction remain provisional until caller commit; successful sent completion deletes the row |
+| Oracle | C, D, F/FD **only with an owned worker connection source** | Owned ReadCommitted transaction locks the physical table scope before row authority; post-lock `SYSTIMESTAMP` | String/named/bound registrations supply owned workers; borrowed `IDb` needs explicit `WorkerConnectionFactory`. Borrowed Stage remains available without worker capabilities. Sent completion deletes the row |
+| Redis | C, D; no F/FD | One Lua action compares stored receipt and live lease using Redis `TIME` | Atomicity is within its configured key/index topology; no durable monotonic scope fence across asynchronous replica rollback |
+| MongoDB | C, D; no F/FD | Single-document update pipeline/preimage; `$$NOW` | Requires admitted simple-binary collection/unique `_id` identity. One document's atomicity does not include unrelated business documents |
+| Elasticsearch | C, D; no F/FD | Sequence-number/primary-term CAS and script recheck using node clock | Bounded conflicts can return `Unknown`; refresh/search visibility differs from accepted mutation |
+| Marten | C only; no D or F/FD | Owned PostgreSQL transaction locks acquisition row before Marten document; database claim clock | Document and claim settle together. Default processor fails closed without D; a publisher route without terminal store dead-letter is a different composition |
+
+Stored send timestamps and conversion of requested retry instants can use a client clock even when live
+lease eligibility uses the server clock. A lease is acquisition ownership, not a durable leadership fence.
+All eight persist tenant provenance and expose estate-wide drains/`GetAllTenants` administration; they do
+not automatically confine a worker or operator query to the request's ambient tenant. Message identity,
+lease authority and tenant provenance must be preserved separately.
+
+Cosmos DB, DynamoDB and Firestore use the separate `ICloudNativeOutboxStore` family and its change-feed,
+claim and batch contracts. They are not interchangeable polling rows. SQL Server's multi-transport row
+capability does not by itself certify per-leg acquisition ownership or every broker/store combination.
+Delivery remains at-least-once; side effects outside the specified transaction need idempotency.
+
+### Verification scope
+
+The 2026-11-13 verification snapshot contains separate bounded runs, not one full-CI result or every
+provider/connection/isolation/transport combination:
+
+| Control population | Recorded passing cases | Scope qualification |
+|---|---|---|
+| SQL Server | 87 | Real SQL claim/metadata controls |
+| PostgreSQL | 163 | Real PostgreSQL strong-completion controls |
+| Oracle | 196 | Real Oracle suite, including the executed scope-fencing composite. The base per-document overwrite representation is explicitly not applicable; it is not counted as a separate measured pass. The nightly composite was also run separately |
+| Redis | 102 | Real Redis controls, including fresh per-acquisition receipts and retained legacy-owner behavior |
+| MongoDB | 111 | Real-server simple-schema admission/refusal, receipt identity, separate case IDs and point-lookup controls; broader unit controls are separate |
+| Elasticsearch | 95 | Real Elasticsearch completion controls |
+| Marten | 91 | Real Marten claim/document controls; does not invent DLQ support |
+
+Unit, in-memory and capability-discovery controls supplement these real-server populations; they do
+not certify persistence. Their changing test counts are deliberately omitted here.
+These dated counts identify tested populations, not performance values or blanket supported-mode certificates.
+The earlier MongoDB linguistic-collation counterexample remains a recorded failure; the supported repair
+rejects that schema, rather than claiming binary identity works under it. Later successful runs do not
+erase earlier failures. NativeAOT is a separate axis: MongoDB and Marten require a JIT runtime, and this
+matrix does not certify vendor drivers, payload serializers or native execution of other provider routes.
 
 ## Administrative operations reach every tenant
 
@@ -947,8 +1132,9 @@ Estate-wide operations here are reached by **name**, never by passing a wildcard
 **No preset schedules cleanup, and the framework runs no cleanup service for the outbox.** What happens to a
 sent message depends entirely on the provider you registered:
 
-- **SQL Server, PostgreSQL, Oracle, Marten, in-memory** — nothing removes it. Run the cleanup operation
-  yourself, as shown below.
+- **PostgreSQL, Oracle** — successful sent completion deletes the outbox row immediately; there is no
+  retained sent row for cleanup. This is completion behavior, not a TTL window.
+- **SQL Server, Marten, in-memory** — retained sent entries need a cleanup operation you schedule yourself.
 - **Redis, MongoDB, Cosmos DB** — the store expires sent messages natively, on by default (7 days).
 - **DynamoDB** — expires on the default path: with `CreateTableIfNotExists` left `true`, the store creates
   the table and enables TTL on it. If you provision the table yourself, enable TTL or nothing is deleted.
@@ -1026,13 +1212,13 @@ The preset-based API validates configuration at build time:
 
 | Practice | Recommendation |
 |----------|----------------|
-| **Use presets** | Start with Balanced, adjust only if needed |
+| **Select settings** | Evaluate illustrative profiles against application requirements |
 | Transaction scope | Keep outbox add in same transaction as domain changes |
-| Batch size | Use preset defaults (HighThroughput: 1000, Balanced: 100, HighReliability: 10) |
-| Processing interval | Use preset defaults; 100ms for real-time, 1-5s for standard |
-| Retention | 7 days for most workloads, 30 days for compliance |
+| Batch size | Measure completed work, memory use and database costs |
+| Processing interval | Measure end-to-end delivery latency and polling load |
+| Retention | Select according to recovery, operational and compliance requirements |
 | Monitoring | Alert on high pending count or age |
-| Preset selection | HighReliability for financial, Balanced for most, HighThroughput for event streaming |
+| Concurrency | Enable only when ordering, consistency and recovery contracts permit it |
 
 ## Troubleshooting
 
@@ -1053,10 +1239,7 @@ WHERE [Error] IS NOT NULL;
 
 ### High Latency
 
-- Increase batch size
-- Reduce processing interval
-- Add database indexes
-- Scale out processors (with locking)
+Identify the limiting resource before changing batch size, polling interval, indexes or processor count. Evaluate each change with completed-work measurements while preserving ordering, recovery and retention requirements.
 
 ## Event Sourcing Outbox Integration
 
@@ -1067,9 +1250,9 @@ When using event sourcing, integration events can be staged to the unified outbo
 | Strategy | Behavior | Trade-off |
 |----------|----------|-----------|
 | `Auto` (default) | Framework selects the best available strategy | No configuration needed |
-| `Transactional` | Stages events in the same DB transaction as the event append | Zero message loss, adds save latency |
-| `EventuallyConsistent` | Stages events after a successful append in a separate call | Minimal latency, tiny loss window on crash |
-| `Deferred` | No staging during save; a background service picks up events later | Zero added latency, higher delivery delay |
+| `Transactional` | Stages events in the same supported DB transaction as the event append | Atomicity depends on transaction participation; delivery duplicates remain possible |
+| `EventuallyConsistent` | Stages events after a successful append in a separate call | A crash between append and staging leaves a recovery gap; measure save and delivery costs |
+| `Deferred` | No staging during save; a background service picks up events later | Recovery and delivery depend on the background path; measure complete operation costs |
 
 ### Configuration
 
@@ -1153,7 +1336,9 @@ The `OutboxHeaderNames` class provides well-known constants used in outbox messa
 
 ## Partitioned Outbox
 
-At high event rates (100K+ events/sec), the single outbox table becomes a contention bottleneck. Partitioned outbox splits processing into multiple independent loops, each handling a subset of messages.
+Consider partitioning when measurements identify contention in the single-table processing path.
+Partitioned outbox uses multiple loops, each handling a subset of messages; evaluate the resulting
+ordering, recovery and resource costs.
 
 ### Enable Partitioned Processing
 
@@ -1177,9 +1362,9 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 
 | Strategy | Description | Use Case |
 |----------|-------------|----------|
-| `None` | Single processor loop (default) | Low-to-moderate throughput |
+| `None` | Single processor loop (default) | Processing without partitioning |
 | `PerShard` | One partition per tenant shard | When tenant sharding is active |
-| `ByTenantHash` | `XxHash32(tenantId) % N` partitions | High throughput without sharding infrastructure |
+| `ByTenantHash` | `XxHash32(tenantId) % N` partitions | Tenant-hash partitioning without tenant-shard routing |
 
 ### How It Works
 
@@ -1234,6 +1419,102 @@ public interface IOutboxPartitioner
 | Override support | Presets provide opinionated defaults; `.With*()` methods allow surgical overrides |
 | Fail-fast validation | Validation at `Build()` time, not at registration |
 | API consistency | Parallel `InboxOptions` presets for consistent experience |
+
+## Generated SQL Server header metadata
+
+Raw outbox staging receives an already serialized payload, but arbitrary header values still need JSON metadata.
+For SQL Server, select the overload that takes an explicit `OutboxMetadataSerialization`:
+
+```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Excalibur.Dispatch;
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Outbox;
+using Microsoft.Extensions.Configuration;
+
+public static class MetadataOutboxRegistration
+{
+    public static void Run(IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
+    {
+        var metadata = new OutboxMetadataSerialization(options => new ApplicationHeaderContext(options));
+        services.AddSqlServerOutboxStore(metadata, options =>
+            options.ConnectionString = configuration.GetConnectionString("Outbox")!);
+    }
+}
+```
+
+The same configuration type works with the outbox builder:
+
+```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Excalibur.Dispatch;
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Outbox.SqlServer;
+
+public static class FluentMetadataOutboxRegistration
+{
+    public static void Run(IServiceCollection services, Excalibur.Outbox.OutboxMetadataSerialization metadata, string connectionString)
+    {
+        services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+            outbox.UseSqlServer(metadata, sql => sql.ConnectionString(connectionString))));
+    }
+}
+```
+
+Create the context using the supplied options. A context's `Default` instance is already bound to different
+options and is not the header factory's configuration. Register every actual runtime header value type,
+including nested object-valued members. Use generated string-enum metadata or type-level converters to retain
+the canonical enum representation:
+
+```csharp
+using System.Text.Json.Serialization;
+
+public sealed record ApplicationHeader(string Value);
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, UseStringEnumConverter = true)]
+[JsonSerializable(typeof(ApplicationHeader))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(int))]
+internal partial class ApplicationHeaderContext : JsonSerializerContext { }
+```
+
+Each constructed store creates one bound, frozen writer. Missing metadata fails before that Stage operation
+opens or mutates its database transaction; the external transaction remains caller-owned. Normal staging,
+explicit transport staging and external-transaction staging share the same conversion. SQL same-database inbox
+metadata uses that selected writer too, so register its actual value types when using that capability. Payload
+codec selection remains separate: a NativeAOT worker still needs a generated payload codec for materialization.
+Managed payload convenience and legacy format detection retain their annotated lazy fallback when invoked;
+generated raw construction does not initialize that fallback.
+
+An explicit provider argument wins for that store without changing a separately registered common default.
+`AddOutboxMetadataSerialization` and `WithMetadataSerialization` provide an optional default for ordinary
+managed registration and do not activate workers or require common `OutboxOptions`. Those legacy registration
+overloads remain annotated because their runtime choice may use reflection. Supplying an optional DI service
+cannot remove a static warning; trimming/NativeAOT callers use the overload with a required metadata argument.
+The fixed provider/default aliases still select one SQL Server store in a service provider; this does not add
+independently named SQL stores. Separate service providers construct independent writer options.
+
+This generated Stage route is SQL Server-specific here. Header metadata does not configure arbitrary dead-letter
+payload serialization or establish a full NativeAOT guarantee for every provider and transport.
+
+## SQL Server mutation outcomes
+
+SQL Server guarded settlement, batch mutation counts and administrative fence resets use the affected count captured immediately after their own mutation. `SET NOCOUNT ON` and trigger work cannot turn a refused mutation into a successful outcome. Same-database outbox/inbox completion requires exactly one eligible outbox row before inserting its inbox entry in the same transaction; successful completion also clears the outbox lease.
+
+## SQL Server claim-scoped completion
+
+SQL Server exposes `IClaimScopedOutboxStore`, `IFencedClaimScopedOutboxStore`, `IClaimScopedDeadLetterableOutboxStore` and `IFencedDeadLetterableOutboxStore` through the store capability resolver. Capture the message ID and `DispatcherId` immediately after acquisition, before delivery callbacks. Pass that immutable identity to strict sent/failure/dead-letter completion; a leadership path also carries its captured positive fencing token in `OutboxWriteAuthority`.
+
+A strict completion checks the exact current acquisition and a live lease at the database decision point. A same-process reclaim receives a new generation: an old attempt cannot complete its successor. Claim identity uses ordinal UTF-16 bytes, including case, accents and trailing spaces, independently of database collation. SQL Server stores the whole processor-plus-generation in `NVARCHAR(255)`; an oversized identity fails rather than being truncated.
+
+Fenced acquisition and completion hold durable scope authority before row locks in one owned transaction. Claimed rows are buffered and the transaction commits before they are returned. A valid newer fence advances even when its row-level completion reports missing, terminal or lost claim. Outcomes are determined under the same locks: `FenceRefused` takes precedence, followed by `MessageNotFound`, `AlreadyTerminal`, `ClaimLost` or `Applied`. Only `Applied` means a transition happened. No separate state reread reconstructs success.
+
+The ID-only, token-only, process-prefix, batch and administrative methods retain their weaker direct-use contracts. They are not interchangeable with acquisition-scoped completion. Multi-transport delivery legs require their own ownership contract; row completion alone does not prove leg ownership. Transport delivery remains at-least-once, so handlers still need idempotency. This ownership mechanism does not establish serializer or driver NativeAOT support by itself.
 
 ## Next Steps
 

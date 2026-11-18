@@ -53,6 +53,13 @@ internal static class BackgroundContextSnapshot
 					ProcessingAttempts = processing.ProcessingAttempts, IsRetry = processing.IsRetry,
 					FirstAttemptTime = processing.FirstAttemptTime, DeliveryCount = processing.DeliveryCount,
 				},
+				// The values marked for propagation. A string-keyed, string-valued dictionary is the one
+				// feature here with nothing to share by reference, so it is trivially ownable -- and it
+				// is the one feature that MUST travel, since a consumer who marks a value and then
+				// dispatches to background expects it on the far side. Before this arm existed it fell
+				// to the refusal below and threw, which was a loud break rather than silent loss (that
+				// is what the catch-all buys) but a break on a path a consumer can reach.
+				MessagePropagationFeature propagation => propagation.Clone(),
 				_ => throw new InvalidOperationException($"Background feature '{feature.Key.Name}' cannot cross the ownership boundary. Use a durable handoff or await dispatch."),
 			};
 		}

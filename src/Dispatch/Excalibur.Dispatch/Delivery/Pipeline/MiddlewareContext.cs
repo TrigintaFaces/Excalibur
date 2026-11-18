@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 namespace Excalibur.Dispatch.Delivery.Pipeline;
 
 /// <summary>
-/// Zero-allocation middleware context that avoids delegate allocations.
+/// Maintains the current position while traversing a middleware array.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="MiddlewareContext" /> struct. </remarks>
 [StructLayout(LayoutKind.Auto)]

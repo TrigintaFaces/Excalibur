@@ -172,12 +172,14 @@ public sealed class InMemoryLeaderElectionResourceRetentionShould
         var pending = Task.Run(() => healthUpdate
             ? candidate.UpdateHealthAsync(isHealthy: true, metadata: null, TestContext.Current.CancellationToken)
             : candidate.StartAsync(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+        Task? disposing = null;
         try
         {
             clock.WaitUntilBlocked();
-            await Task.Run(candidate.Dispose, TestContext.Current.CancellationToken)
-                .WaitAsync(Timeout, TestContext.Current.CancellationToken);
-            Candidates(state).ShouldBeEmpty();
+            disposing = candidate.DisposeAsync().AsTask();
+            candidate.IsLeader.ShouldBeFalse();
+            disposing.IsCompleted.ShouldBeFalse("the admitted clock-reading producer has not settled");
+            await Should.ThrowAsync<ObjectDisposedException>(() => candidate.StartAsync(TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -190,6 +192,8 @@ public sealed class InMemoryLeaderElectionResourceRetentionShould
             {
                 // A delayed start may reject disposal; completing without publishing is also valid.
             }
+            await (disposing ?? candidate.DisposeAsync().AsTask()).WaitAsync(Timeout, TestContext.Current.CancellationToken);
+            await candidate.NotificationsCompleted.WaitAsync(Timeout, TestContext.Current.CancellationToken);
         }
 
         Candidates(state).ShouldBeEmpty();
@@ -228,16 +232,17 @@ public sealed class InMemoryLeaderElectionResourceRetentionShould
         clock.Arm();
         try
         {
+            // The actual cleanup fault remains observable even after resource ownership is retired.
+            Exception? observed;
             if (asynchronous)
             {
-                var failure = await Should.ThrowAsync<InvalidOperationException>(async () =>
-                    await candidate.DisposeAsync());
-                failure.ShouldBeSameAs(clock.Failure);
+                observed = await Record.ExceptionAsync(() => candidate.DisposeAsync().AsTask());
             }
             else
             {
-                Should.Throw<InvalidOperationException>(candidate.Dispose).ShouldBeSameAs(clock.Failure);
+                observed = Record.Exception(candidate.Dispose);
             }
+            observed.ShouldBeSameAs(clock.Failure);
 
             Candidates(state).ShouldBeEmpty();
             candidate.IsLeader.ShouldBeFalse();
@@ -247,7 +252,8 @@ public sealed class InMemoryLeaderElectionResourceRetentionShould
         }
         finally
         {
-            await candidate.DisposeAsync();
+            var repeated = await Record.ExceptionAsync(() => candidate.DisposeAsync().AsTask());
+            repeated.ShouldBeSameAs(clock.Failure);
         }
     }
 
@@ -289,8 +295,10 @@ public sealed class InMemoryLeaderElectionResourceRetentionShould
         await candidate.StartAsync(TestContext.Current.CancellationToken);
         logger.Clear();
         await candidate.DisposeAsync();
+        await candidate.NotificationsCompleted.WaitAsync(Timeout, TestContext.Current.CancellationToken);
         logger.Entries.Count(entry => entry.EventId.Id == 180001 && entry.Level == LogLevel.Information).ShouldBe(1);
         await candidate.DisposeAsync();
+        await candidate.NotificationsCompleted.WaitAsync(Timeout, TestContext.Current.CancellationToken);
         logger.Entries.Count(entry => entry.EventId.Id == 180001 && entry.Level == LogLevel.Information).ShouldBe(1);
     }
     private static InMemoryLeaderElection Create(
@@ -298,7 +306,7 @@ public sealed class InMemoryLeaderElectionResourceRetentionShould
         string instance,
         InMemoryLeaderElectionSharedState state,
         TimeProvider? clock = null,
-        IFencingTokenProvider? fencing = null) => new(
+        IFencingTokenIssuer? fencing = null) => new(
             resource,
             Options.Create(new LeaderElectionOptions
             {

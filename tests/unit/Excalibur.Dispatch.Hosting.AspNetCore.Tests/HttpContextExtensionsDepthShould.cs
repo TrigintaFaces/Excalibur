@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Security.Claims;
@@ -155,21 +155,68 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 	}
 
 	[Fact]
-	public void CreateDispatchMessageContext_PopulateItemsWithRequestHeaders()
+	public void CreateDispatchMessageContext_PopulateItemsWithAllowlistedRequestHeaders()
 	{
-		// Arrange
+		// This arm used to assert that EVERY request header landed in Items under its raw name. That was
+		// the defect: a context item is put on the wire by every remote transport and persisted by one
+		// outbox provider, so the caller's Authorization and Cookie went with it. The contract is now
+		// opt-in by name, and a captured header carries the header. prefix.
 		var httpContext = CreateAuthenticatedContext();
+		httpContext.RequestServices = HeaderCaptureServices("X-Custom-Header", "X-Another-Header");
 		httpContext.Request.Headers["X-Custom-Header"] = "custom-value";
 		httpContext.Request.Headers["X-Another-Header"] = "another-value";
 
-		// Act
 		var messageContext = httpContext.CreateDispatchMessageContext();
 
-		// Assert
-		messageContext.Items.ShouldContainKey("X-Custom-Header");
-		messageContext.Items["X-Custom-Header"].ShouldBe("custom-value");
-		messageContext.Items.ShouldContainKey("X-Another-Header");
-		messageContext.Items["X-Another-Header"].ShouldBe("another-value");
+		messageContext.Items["header.X-Custom-Header"].ShouldBe("custom-value");
+		messageContext.Items["header.X-Another-Header"].ShouldBe("another-value");
+	}
+
+	[Fact]
+	public void CreateDispatchMessageContext_CaptureNoHeaders_WhenNothingIsAllowlisted()
+	{
+		// The safety half of the arm above, and the one that closes every downstream sink at the source:
+		// with no opt-in, a credential-bearing request produces a context indistinguishable from one
+		// built for a request that carried no headers at all.
+		var httpContext = CreateAuthenticatedContext();
+		httpContext.Request.Headers.Authorization = "Bearer a-caller-token";
+		httpContext.Request.Headers.Cookie = "session=a-caller-session";
+		httpContext.Request.Headers["X-Api-Key"] = "a-caller-api-key";
+
+		var messageContext = httpContext.CreateDispatchMessageContext();
+
+		messageContext.Items.Keys.ShouldNotContain(k => k.StartsWith("header.", StringComparison.Ordinal));
+		messageContext.Items.Keys.ShouldNotContain("Authorization");
+		messageContext.Items.Keys.ShouldNotContain("Cookie");
+		messageContext.Items.Count.ShouldBe(
+			CreateAuthenticatedContext().CreateDispatchMessageContext().Items.Count);
+	}
+
+	[Fact]
+	public void CreateDispatchMessageContext_DropAnOverLongHeaderValue_RatherThanTruncateIt()
+	{
+		// A truncated value is still a value: it reads downstream as though it were whole, and nothing
+		// there can tell that it is not.
+		var httpContext = CreateAuthenticatedContext();
+		httpContext.RequestServices = HeaderCaptureServices("X-Custom-Header");
+		httpContext.Request.Headers["X-Custom-Header"] = new string('v', 257);
+
+		var messageContext = httpContext.CreateDispatchMessageContext();
+
+		messageContext.Items.ShouldNotContainKey("header.X-Custom-Header");
+	}
+
+	private static IServiceProvider HeaderCaptureServices(params string[] allowed)
+	{
+		var services = new ServiceCollection();
+		_ = services.AddDispatchRequestHeaderCapture(options =>
+		{
+			foreach (var name in allowed)
+			{
+				_ = options.AllowedHeaders.Add(name);
+			}
+		});
+		return services.BuildServiceProvider();
 	}
 
 	[Fact]

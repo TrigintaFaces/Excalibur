@@ -27,13 +27,78 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.Postgres;
 /// </remarks>
 internal static class ShippedCompliancePostgresSchema
 {
-	private const string CreateScript = "Postgres.001_CreateComplianceSchema.sql";
+	private const string ScriptPrefix = "Schema.Compliance.Postgres.0";
 
-	/// <summary>Creates the compliance schema in its shipped, fresh-install shape.</summary>
+	/// <summary>
+	/// Provisions the compliance schema the way a consumer is told to: every shipped script, in numeric
+	/// order.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This ran ONE script — the create script — and that is not a path any consumer takes. The erasure
+	/// store's startup verifier requires <c>erasure_minted_keys</c> and <c>erasure_token_fingerprint</c>,
+	/// and only the fifth and sixth scripts create them, so a suite provisioned from the first alone was
+	/// rehearsing a configuration the README does not describe and nobody runs. Two of those scripts were
+	/// not even embedded in this project, so nothing could have noticed.
+	/// </para>
+	/// <para>
+	/// THE SET IS DERIVED FROM THE MANIFEST, NOT LISTED HERE. A list in this file is a second copy of the
+	/// package's script directory and is free to drift from it — which is the defect this method is being
+	/// corrected for, one level up. Everything embedded under <c>Schema/Compliance/Postgres/</c> runs,
+	/// ordered by its zero-padded number, so adding a script to the package and linking it in there is
+	/// sufficient and no edit here is required.
+	/// </para>
+	/// <para>
+	/// THE PACKAGE SEGMENT IN THAT PATH IS LOAD-BEARING, and it was added after this derivation shipped
+	/// over <c>Schema/Postgres/</c> — a folder five packages link into. That glob silently ran the
+	/// activity-group, grant, dead-letter and schedule create scripts as well, every one of them guarded
+	/// and therefore green, while this method's own comment claimed the set was the compliance sequence.
+	/// A wildcard is only honest when the thing it globs IS the population, so the population was given
+	/// a folder of its own.
+	/// </para>
+	/// <para>
+	/// The ordering is ordinal on the resource name, which is numeric because the names are zero-padded
+	/// to three digits. If a script is ever added without that padding the order silently changes, so the
+	/// assertion below refuses a name that does not carry it rather than sorting it wrongly.
+	/// </para>
+	/// </remarks>
 	/// <param name="connectionString">The target database.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	public static Task EnsureCreatedAsync(string connectionString, CancellationToken cancellationToken) =>
-		ExecuteAsync(connectionString, LoadShipped(CreateScript), cancellationToken);
+	public static async Task EnsureCreatedAsync(string connectionString, CancellationToken cancellationToken)
+	{
+		foreach (var script in ShippedScriptsInOrder())
+		{
+			await ExecuteAsync(connectionString, script, cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>Every embedded Postgres provisioning script, in the order a consumer applies them.</summary>
+	private static IReadOnlyList<string> ShippedScriptsInOrder()
+	{
+		var assembly = Assembly.GetExecutingAssembly();
+		var names = Array.FindAll(
+			assembly.GetManifestResourceNames(),
+			n => n.Contains(ScriptPrefix, StringComparison.Ordinal)
+				&& n.EndsWith(".sql", StringComparison.Ordinal));
+
+		if (names.Length == 0)
+		{
+			throw new InvalidOperationException(
+				"No Postgres compliance provisioning scripts are embedded in "
+				+ $"{assembly.GetName().Name}. They are linked in by the test project's EmbeddedResource "
+				+ "items; without them these suites would provision nothing and then report a schema "
+				+ "failure that looks like a product defect.");
+		}
+
+		Array.Sort(names, StringComparer.Ordinal);
+		var scripts = new List<string>(names.Length);
+		foreach (var name in names)
+		{
+			scripts.Add(ReadResource(assembly, name));
+		}
+
+		return scripts;
+	}
 
 	/// <summary>
 	/// Drops the two inventory tables and re-provisions them from the shipped create script.
@@ -158,6 +223,11 @@ internal static class ShippedCompliancePostgresSchema
 				"It is linked in by the test project's EmbeddedResource item; if that item was removed, " +
 				"these suites would silently fall back to a schema no consumer has.");
 
+		return ReadResource(assembly, resourceName);
+	}
+
+	private static string ReadResource(Assembly assembly, string resourceName)
+	{
 		using var stream = assembly.GetManifestResourceStream(resourceName)!;
 		using var reader = new StreamReader(stream);
 

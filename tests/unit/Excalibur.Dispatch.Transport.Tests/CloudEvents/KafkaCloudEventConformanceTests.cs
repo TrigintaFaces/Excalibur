@@ -139,6 +139,11 @@ public sealed class KafkaCloudEventConformanceTests : CloudEventTransportConform
 			});
 
 		var services = new ServiceCollection();
+
+		// The conformance kit exercises a transport's own UseCloudEvents entry point, which cannot
+		// choose a consumer's serialization strategy on their behalf. Registering it here is what a
+		// host does by calling AddCloudEvents; without it the transport's fail-fast guard fires.
+		services.AddSingleton(TestCloudEventSerializers.Reflection);
 		_ = services.AddLogging();
 
 		// Registered BEFORE the transport, which uses TryAddSingleton for its consumer, so this fake wins

@@ -153,8 +153,8 @@ public abstract class AggregateRoot<TAggregate, TKey> : AggregateRoot<TKey>, IAg
 /// </list>
 /// </para>
 /// <para>
-/// Derived classes should implement <see cref="ApplyEventInternal"/> using a switch expression
-/// for optimal (&lt;10ns) event application without reflection.
+/// Derived classes can implement <see cref="ApplyEventInternal"/> using explicit event-type dispatch.
+/// Execution time depends on the event handler's work.
 /// </para>
 /// </remarks>
 /// <example>

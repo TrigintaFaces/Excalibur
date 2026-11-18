@@ -6,13 +6,29 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Thrown by <see cref="IFencedOutboxStore.MarkSentAsync(string, long, CancellationToken)"/> when the presented
-/// fencing token is lower than the store's recorded high-water mark for the affected scope -- meaning the
-/// caller's leadership tenure has been superseded by a newer leader and the mutation must not be applied.
+/// Signals that a presented fencing token was lower than the store's recorded high-water mark for the
+/// affected scope -- meaning the caller's leadership tenure has been superseded by a newer leader and the
+/// mutation must not be applied.
 /// </summary>
 /// <remarks>
-/// This is a fail-closed signal: the caller MUST treat this as an abort of the protected operation, not as
-/// a transient error to retry with the same token.
+/// <para>
+/// This is a fail-closed signal: a caller that receives it MUST treat it as an abort of the protected
+/// operation, not as a transient error to retry with the same token.
+/// </para>
+/// <para>
+/// The fenced completion contract reports a refusal in its return
+/// value -- <see cref="OutboxCompletionOutcome.FenceRefused"/> -- because a void-returning mutation made
+/// "refused" and "applied" the same observation and every implementation reached for a different wrong
+/// encoding of the difference. A consumer-authored store MAY still refuse by throwing this, and the drain
+/// still handles it; a store that does so is not following the contract, but it is not silently losing
+/// messages either, which is what the return value was introduced to prevent. A learned refusal stops
+/// later admissions at the captured token or any older token in the same authority domain.
+/// </para>
+/// <para>
+/// The refused and recorded tokens on this type have no counterpart on the returned outcome. Read the
+/// store's recorded mark through <see cref="IFencedOutboxStoreDiagnostics.GetFencingHighWaterAsync"/>
+/// instead; that member exists for exactly this question and answers it without a refusal having to occur.
+/// </para>
 /// </remarks>
 public sealed class StaleOutboxFencingTokenException : OutboxFenceRefusedException
 {

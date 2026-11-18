@@ -46,7 +46,7 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventEncoder<Serv
 	private const string DispatchPrefixWithoutSeparator = "dispatch";
 	private const string TimeoutAttributeName = "timeout";
 
-	private readonly JsonEventFormatter _jsonFormatter = new();
+	private readonly CloudEventSerializer _serializer;
 	private readonly ILogger<AzureServiceBusCloudEventAdapter> _logger;
 	private readonly AzureServiceBusCloudEventOptions _serviceBusOptions;
 
@@ -54,14 +54,19 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventEncoder<Serv
 	/// Initializes a new instance of the <see cref="AzureServiceBusCloudEventAdapter" /> class.
 	/// </summary>
 	/// <param name="options"> CloudEvent serialization options. </param>
+	/// <param name="serializer"> The decided CloudEvents serializer, carrying the resolver the consumer configured. </param>
 	/// <param name="serviceBusOptions"> Azure Service Bus specific options. </param>
 	/// <param name="logger"> Logger for diagnostics. </param>
 	public AzureServiceBusCloudEventAdapter(
 		IOptions<CloudEventOptions> options,
+		CloudEventSerializer serializer,
 		IOptions<AzureServiceBusCloudEventOptions>? serviceBusOptions,
 		ILogger<AzureServiceBusCloudEventAdapter> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
+
+		_serializer = serializer;
 		ArgumentNullException.ThrowIfNull(logger);
 
 		Options = options.Value ?? throw new ArgumentNullException(nameof(options));
@@ -73,8 +78,6 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventEncoder<Serv
 	public CloudEventOptions Options { get; }
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public Task<ServiceBusMessage> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -107,15 +110,13 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventEncoder<Serv
 		return Task.FromResult(message);
 	}
 
-	[RequiresUnreferencedCode("Calls System.BinaryData.FromObjectAsJson<T>(T, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.BinaryData.FromObjectAsJson<T>(T, JsonSerializerOptions)")]
-	private static BinaryData ConvertToBinaryData(object? data) => data switch
+	private BinaryData ConvertToBinaryData(object? data) => data switch
 	{
 		null => BinaryData.FromBytes([]),
 		BinaryData binaryData => binaryData,
 		byte[] bytes => BinaryData.FromBytes(bytes),
 		string text => BinaryData.FromString(text),
-		_ => BinaryData.FromObjectAsJson(data),
+		_ => new BinaryData(_serializer.SerializePayloadToUtf8Bytes(data)),
 	};
 
 	private static bool IsRequiredCloudEventProperty(string propertyName) =>
@@ -170,11 +171,7 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventEncoder<Serv
 		applicationProperties[DispatchPrefix + attributeName] = value.ToString()!;
 	}
 
-	[RequiresUnreferencedCode(
-		"Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureServiceBusCloudEventAdapter.ConvertToBinaryData(Object)")]
-	[RequiresDynamicCode(
-		"Calls Excalibur.Dispatch.Transport.AzureServiceBus.CloudEvents.AzureServiceBusCloudEventAdapter.ConvertToBinaryData(Object)")]
-	private static ServiceBusMessage CreateBinaryMessage(CloudEvent cloudEvent)
+	private ServiceBusMessage CreateBinaryMessage(CloudEvent cloudEvent)
 	{
 		var message = new ServiceBusMessage(ConvertToBinaryData(cloudEvent.Data))
 		{
@@ -244,7 +241,7 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventEncoder<Serv
 
 	private ServiceBusMessage CreateStructuredMessage(CloudEvent cloudEvent)
 	{
-		var encoded = _jsonFormatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
+		var encoded = _serializer.Formatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
 
 		// Use ArrayPool to avoid allocation when copying to BinaryData
 		var length = encoded.Length;

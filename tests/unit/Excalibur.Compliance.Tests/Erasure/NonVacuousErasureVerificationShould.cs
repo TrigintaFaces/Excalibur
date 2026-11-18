@@ -101,6 +101,142 @@ public sealed class NonVacuousErasureVerificationShould
         result.Verified.ShouldBeTrue();
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // The verdict algebra: Verified is true ONLY when a method actually substantiated THIS execution
+    // and nothing was recorded against it.
+    //
+    //     Verified  =>  methodsUsed != None  AND  failures is empty
+    //
+    // These three arms are deliberately distinct from the two above, which exercise a certificate
+    // claiming KeysDeleted > 0 -- that path raises a CRITICAL failure, so it failed verification even
+    // under the old severity-filtered predicate. These use KeysDeleted = 0, where the only record
+    // produced is a WARNING: the state the old predicate waived.
+    //
+    // FIXTURE SCOPE, stated so a green here is not over-read: every arm runs on fakes. A fake cannot
+    // exhibit a key-management backend's real "present but unconfirmable" answer. These arms bind the
+    // VERDICT ALGEBRA, say nothing about destruction semantics, and discharge no rung of this seam's
+    // rigor floor.
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task RefuseVerificationWhenKeyDestructionWasNeverEvidencedEvenThoughAnotherMethodPassed()
+    {
+        // Arrange -- ARM A. A Completed erasure that deleted no keys, with a certificate carrying no
+        // deleted-key IDs, so the vacuous-claim check does NOT fire (KeysDeleted = 0) and the only
+        // record produced is the key-deletions WARNING. AuditLog is also enabled AND passes, so
+        // methodsUsed is non-empty -- isolating this arm to the failures-is-empty half of the invariant.
+        var requestId = Guid.NewGuid();
+        var certificateId = Guid.NewGuid();
+
+        A.CallTo(() => _erasureStore.GetStatusAsync(requestId, A<CancellationToken>._))
+            .Returns(CreateCompletedStatusWithNoKeysDeleted(requestId, certificateId));
+        SetupCertificate(certificateId, CreateCertificateClaimingNoKeys(requestId, certificateId));
+        SetupAuditTrailWithCompletionEvent(requestId);
+
+        var sut = CreateService(new ErasureOptions
+        {
+            VerificationMethods = VerificationMethod.KeyManagementSystem | VerificationMethod.AuditLog,
+        });
+
+        // Act
+        var result = await sut.VerifyErasureAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+
+        // Assert -- RED before the predicate fix: the warning was recorded in Failures and then waived,
+        // because the verdict filtered on Critical severity only.
+        result.Failures.ShouldNotBeEmpty(
+            "the empty key set records a failure saying key destruction could not be verified");
+        result.Verified.ShouldBeFalse(
+            "a verdict carrying a record that destruction was never evidenced has established nothing");
+        result.Methods.HasFlag(VerificationMethod.AuditLog).ShouldBeTrue(
+            "liveness: the audit method DID substantiate, so this arm cannot pass by refusing everything");
+    }
+
+    [Fact]
+    public async Task ReportNoMethodsWhenTheOnlyConfiguredMethodCouldNotSubstantiate()
+    {
+        // Arrange -- ARM B. As Arm A but KMS is the ONLY configured method, so nothing substantiates.
+        // This arm reddens if the predicate is ever re-widened to waive a severity again.
+        var requestId = Guid.NewGuid();
+        var certificateId = Guid.NewGuid();
+
+        A.CallTo(() => _erasureStore.GetStatusAsync(requestId, A<CancellationToken>._))
+            .Returns(CreateCompletedStatusWithNoKeysDeleted(requestId, certificateId));
+        SetupCertificate(certificateId, CreateCertificateClaimingNoKeys(requestId, certificateId));
+
+        var sut = CreateService(new ErasureOptions { VerificationMethods = VerificationMethod.KeyManagementSystem });
+
+        // Act
+        var result = await sut.VerifyErasureAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+
+        // Assert
+        result.Methods.ShouldBe(
+            VerificationMethod.None,
+            "a method that could not substantiate must not be reported as having been used");
+        result.Verified.ShouldBeFalse("verified by nothing is not verified");
+    }
+
+    [Fact]
+    public async Task RefuseVerificationWhenNoVerificationMethodIsConfiguredAtAll()
+    {
+        // Arrange -- ARM C. The structural half, and the one a severity-predicate fix alone does NOT
+        // close: VerificationMethods = None is a legal, unvalidated configuration. Every verification
+        // branch is skipped, so Failures is EMPTY and nothing substantiated. A predicate keyed only on
+        // "no failures were recorded" returns true here.
+        var requestId = Guid.NewGuid();
+        var certificateId = Guid.NewGuid();
+
+        A.CallTo(() => _erasureStore.GetStatusAsync(requestId, A<CancellationToken>._))
+            .Returns(CreateCompletedStatusWithNoKeysDeleted(requestId, certificateId));
+
+        // An UNCONFIGURED FakeItEasy IErasureStore returns a generic proxy from GetService, which the
+        // service casts to IErasureCertificateStore and throws on -- producing a Critical failure and a
+        // false RED that looks exactly like the one this arm is for. Return null explicitly: the arm is
+        // about no method running, not about a certificate lookup.
+        A.CallTo(() => _erasureStore.GetService(typeof(IErasureCertificateStore))).Returns(null);
+
+        var sut = CreateService(new ErasureOptions { VerificationMethods = VerificationMethod.None });
+
+        // Act
+        var result = await sut.VerifyErasureAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+
+        // Assert -- this arm distinguishes the fix from the invariant. It is RED both before the fix and
+        // after a failures-only predicate; it goes green only once the verdict also requires that some
+        // method actually substantiated this execution.
+        result.Failures.ShouldBeEmpty("nothing ran, so nothing was recorded against it");
+        result.Methods.ShouldBe(VerificationMethod.None);
+        result.Verified.ShouldBeFalse(
+            "no method ran, so the framework established nothing and must not report otherwise");
+    }
+
+    private void SetupCertificate(Guid certificateId, ErasureCertificate certificate)
+    {
+        var certificateStore = A.Fake<IErasureCertificateStore>();
+        A.CallTo(() => certificateStore.GetCertificateByIdAsync(certificateId, A<CancellationToken>._))
+            .Returns(certificate);
+        A.CallTo(() => _erasureStore.GetService(typeof(IErasureCertificateStore)))
+            .Returns(certificateStore);
+    }
+
+    private void SetupAuditTrailWithCompletionEvent(Guid requestId)
+    {
+        var completionEvent = new AuditEvent
+        {
+            EventId = Guid.NewGuid().ToString(),
+            EventType = AuditEventType.Compliance,
+            // The literal, because ErasureAuditActions is a PRIVATE nested class of the service under
+            // test. A test cannot reference it, so the arm pins the string the service matches on.
+            Action = "DataErasure.Completed",
+            Outcome = AuditOutcome.Success,
+            Timestamp = DateTimeOffset.UtcNow,
+            ActorId = "system",
+            ResourceId = requestId.ToString(),
+            ResourceType = "ErasureRequest",
+        };
+
+        A.CallTo(() => _auditStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
+            .Returns<IReadOnlyList<AuditEvent>>([completionEvent]);
+    }
+
     private ErasureVerificationService CreateService(ErasureOptions options) =>
         new(
             _erasureStore,
@@ -126,6 +262,24 @@ public sealed class NonVacuousErasureVerificationShould
             KeysDeleted = 1,
             CertificateId = certificateId,
         };
+
+    private static ErasureStatus CreateCompletedStatusWithNoKeysDeleted(Guid requestId, Guid certificateId)
+    {
+        var status = CreateCompletedStatus(requestId, certificateId);
+        return status with { KeysDeleted = 0 };
+    }
+
+    private static ErasureCertificate CreateCertificateClaimingNoKeys(Guid requestId, Guid certificateId)
+    {
+        var certificate = CreateCertificate(requestId, certificateId, deletedKeyIds: []);
+        return certificate with
+        {
+            Payload = certificate.Payload with
+            {
+                Summary = certificate.Payload.Summary with { KeysDeleted = 0 },
+            },
+        };
+    }
 
     private static ErasureCertificate CreateCertificateWithoutDeletedKeyIds(Guid requestId, Guid certificateId) =>
         CreateCertificate(requestId, certificateId, deletedKeyIds: []);

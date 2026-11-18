@@ -16,6 +16,10 @@
     - CI fails if any template produces a project that does not compile (structure validation)
     - CI runs on PRs that touch templates/ or src/ directories
 
+.PARAMETER TemplatePackageVersion
+    Optional exact version for the template artifact packed and installed by this run.
+    Independent of LocalFeedVersion, which selects generated-consumer dependency versions.
+
 .PARAMETER CleanUp
     Remove generated test projects after validation. Default: true.
 #>
@@ -34,7 +38,9 @@ param(
     # templates float 10.0.0-*, and NuGet picks the highest match ACROSS ALL SOURCES -- so a published
     # alpha newer than the local pack silently wins and the check measures the feed again while
     # appearing to measure the tree. Pinning the exact locally-packed version removes the ambiguity.
-    [string]$LocalFeedVersion = ''
+    [string]$LocalFeedVersion = '',
+
+    [string]$TemplatePackageVersion = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -287,6 +293,7 @@ function Test-TemplateInstallation {
     $packDirectory = Join-Path $TemplateEvidenceDir 'template-pack'
     [void][IO.Directory]::CreateDirectory($packDirectory)
     $packArgs = @('pack', (Join-Path $TemplatesDir 'Excalibur.Dispatch.Templates.csproj'), '-c', 'Release', '-o', $packDirectory, '--nologo')
+    if ($TemplatePackageVersion) { $packArgs += "-p:PackageVersion=$TemplatePackageVersion" }
     $output = dotnet @packArgs 2>&1 | Out-String
     $nativeExit = $LASTEXITCODE
     Save-TemplateNativeReceipt $packDirectory 'pack' $packArgs $nativeExit $output
@@ -301,6 +308,12 @@ function Test-TemplateInstallation {
         $reader = [IO.StreamReader]::new($specs[0].Open())
         try { [xml]$spec = $reader.ReadToEnd() } finally { $reader.Dispose() }
         if (-not $spec.SelectSingleNode("//*[local-name()='packageType' and @name='Template']")) { throw 'Packed artifact is not a Template package.' }
+        if ($TemplatePackageVersion) {
+            $packedVersion = $spec.SelectSingleNode("//*[local-name()='metadata']/*[local-name()='version']")
+            if ($null -eq $packedVersion -or $packedVersion.InnerText -cne $TemplatePackageVersion) {
+                throw "Packed template version does not match requested $TemplatePackageVersion."
+            }
+        }
         if (@($archive.Entries | Where-Object FullName -match '^(lib|ref)/.*\.dll$').Count) { throw 'Template artifact unexpectedly contains runtime assemblies.' }
         $manifests = @($archive.Entries | Where-Object FullName -like '*/.template.config/template.json')
         if ($manifests.Count -ne $Templates.Count) { throw 'Packed template manifest roster differs from declared templates.' }

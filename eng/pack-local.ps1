@@ -31,7 +31,16 @@ if ($relativeFeed -eq '.' -or $relativeFeed -eq '..' -or $relativeFeed.StartsWit
 # A lexical child can still traverse a junction or symbolic link. Refuse those before deletion.
 $ancestor = $feed
 while ($ancestor -and $ancestor -ne [IO.Path]::GetPathRoot($ancestor)) {
-    if ((Test-Path -LiteralPath $ancestor) -and ((Get-Item -LiteralPath $ancestor).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+    # -Force on Get-Item is required, not cosmetic: WITHOUT it Get-Item throws IOException "Could not
+    # find item" for a HIDDEN directory, and on Windows the per-user AppData directory is hidden by
+    # default. So this loop did not EVALUATE such an ancestor -- it crashed walking past it, and
+    # packing to any feed beneath a hidden directory failed naming a missing path instead of the real
+    # cause. Linux has no hidden attribute, so CI never reaches this; only a local pack run does.
+    #
+    # Test-Path takes NO -Force parameter and does not need one -- it already returns $true for a
+    # hidden directory. Adding it there is a runtime parameter-binding error that fails EVERY path,
+    # not just hidden ones, and it is invisible to a parser check. Measured both, the hard way.
+    if ((Test-Path -LiteralPath $ancestor) -and ((Get-Item -LiteralPath $ancestor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
         throw "The local feed traverses a linked directory: $ancestor"
     }
     $ancestor = Split-Path -Parent $ancestor

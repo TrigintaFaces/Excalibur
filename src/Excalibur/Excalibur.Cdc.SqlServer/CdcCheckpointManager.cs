@@ -59,9 +59,15 @@ internal sealed partial class CdcCheckpointManager : ICdcFetchProgress
 	/// not mutate the pinned token, so a superseded leader's write correctly loses the state-store CAS.
 	/// </summary>
 	/// <param name="fencingToken">
-	/// The pinned token, or <see langword="null"/> when fencing is not configured / the provider issues no token
-	/// (the only legitimate unfenced path).
+	/// The pinned token, or <see langword="null"/> when the deployment configured no fencing — which is
+	/// the only state a null represents, and the only legitimate unfenced path.
 	/// </param>
+	/// <remarks>
+	/// A null token therefore means fencing was deliberately not configured, never "a fence is configured
+	/// and no token could be obtained". The election contract forbids the second state: an implementation
+	/// that cannot obtain a usable token relinquishes rather than reporting a tenure. That is why the
+	/// state-store guard may admit a null unconditionally — it is an opt-out, not an unknown.
+	/// </remarks>
 	internal void SetBatchFencingToken(long? fencingToken) => _pinnedFencingToken = fencingToken;
 
 	/// <summary>
@@ -206,7 +212,10 @@ internal sealed partial class CdcCheckpointManager : ICdcFetchProgress
             await options.OnPositionReset(args, cancellationToken).ConfigureAwait(false);
         }
         cancellationToken.ThrowIfCancellationRequested();
-        _logger.LogWarning("Resetting in-memory CDC position for {CaptureInstance} after detecting a checkpoint outside the readable source range. Strategy: {Strategy}. Delivery will establish the durable checkpoint.", captureInstance, strategy);
+        if (options.EnableStructuredLogging)
+        {
+            _logger.LogWarning("Resetting in-memory CDC position for {CaptureInstance} after detecting a checkpoint outside the readable source range. Strategy: {Strategy}. Delivery will establish the durable checkpoint.", captureInstance, strategy);
+        }
         return replacement;
     }
 

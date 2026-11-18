@@ -4,10 +4,10 @@
 using System.Collections.Concurrent;
 
 using Excalibur.EventSourcing.Upcasting;
-using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.Extensions.Logging;
 
+using Excalibur.Dispatch.Versioning;
 namespace Excalibur.EventSourcing.Snapshots;
 
 /// <summary>
@@ -24,9 +24,9 @@ public sealed partial class SnapshotVersionManager
 {
 	// Copy-on-write: the value is an immutable snapshot replaced (never mutated in place) under
 	// _registrationLock, so read paths enumerate a stable list without a lock even if a registration races.
-	private readonly ConcurrentDictionary<string, IReadOnlyList<ISnapshotUpgrader>> _upgraders = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<string, IReadOnlyList<RegisteredUpgrader>> _upgraders = new(StringComparer.Ordinal);
 
-	private readonly UpgradePathResolver<ISnapshotUpgrader> _paths =
+	private readonly UpgradePathResolver<RegisteredUpgrader> _paths =
 		new(static u => u.FromVersion, static u => u.ToVersion);
 	private readonly Lock _registrationLock = new();
 	private readonly ILogger<SnapshotVersionManager> _logger;
@@ -55,15 +55,21 @@ public sealed partial class SnapshotVersionManager
 	/// <param name="upgrader">The upgrader to register.</param>
 	/// <exception cref="ArgumentNullException">Thrown when upgrader is null.</exception>
 	/// <exception cref="InvalidOperationException">Thrown when an upgrader for the same aggregate type and version range already exists.</exception>
+	/// <remarks>Type and version metadata is captured once at registration. Later changes to consumer
+	/// getters do not remap an existing registration. The original upgrader performs the transformation.</remarks>
 	public void RegisterUpgrader(ISnapshotUpgrader upgrader)
 	{
 		ArgumentNullException.ThrowIfNull(upgrader);
 
-		if (upgrader.FromVersion >= upgrader.ToVersion)
+		var type = upgrader.AggregateType;
+		var fromVersion = upgrader.FromVersion;
+		var toVersion = upgrader.ToVersion;
+
+		if (fromVersion >= toVersion)
 		{
 			throw new ArgumentException(
-				$"Invalid upgrader: FromVersion ({upgrader.FromVersion}) must be less than ToVersion " +
-				$"({upgrader.ToVersion}). Only forward upgrading is supported.",
+				$"Invalid upgrader: FromVersion ({fromVersion}) must be less than ToVersion " +
+				$"({toVersion}). Only forward upgrading is supported.",
 				nameof(upgrader));
 		}
 
@@ -72,23 +78,23 @@ public sealed partial class SnapshotVersionManager
 		// startup only, so contention is negligible.
 		lock (_registrationLock)
 		{
-			var existing = _upgraders.TryGetValue(upgrader.AggregateType, out var current) ? current : [];
+			var existing = _upgraders.TryGetValue(type, out var current) ? current : [];
 
 			var existingUpgrader = existing.FirstOrDefault(u =>
-				u.FromVersion == upgrader.FromVersion && u.ToVersion == upgrader.ToVersion);
+				u.FromVersion == fromVersion && u.ToVersion == toVersion);
 
 			if (existingUpgrader is not null)
 			{
 				throw new InvalidOperationException(
-					$"A snapshot upgrader for aggregate type '{upgrader.AggregateType}' from version {upgrader.FromVersion} to {upgrader.ToVersion} is already registered.");
+					$"A snapshot upgrader for aggregate type '{type}' from version {fromVersion} to {toVersion} is already registered.");
 			}
 
 			// Replace with a fresh immutable snapshot rather than mutating a list a reader may enumerate.
-			_upgraders[upgrader.AggregateType] = [.. existing, upgrader];
+			_upgraders[type] = [.. existing, new RegisteredUpgrader(upgrader, fromVersion, toVersion)];
 			_paths.Invalidate();
 		}
 
-		LogUpgraderRegistered(upgrader.AggregateType, upgrader.FromVersion, upgrader.ToVersion);
+		LogUpgraderRegistered(type, fromVersion, toVersion);
 	}
 
 	/// <summary>
@@ -102,8 +108,8 @@ public sealed partial class SnapshotVersionManager
 	/// <exception cref="ArgumentException">Thrown when the aggregate type is null or empty.</exception>
 	/// <exception cref="ArgumentNullException">Thrown when snapshotData is null.</exception>
 	/// <exception cref="InvalidOperationException">Thrown when no upgrade path is found.</exception>
-	[RequiresUnreferencedCode("Snapshot upgraders may reference types not preserved during trimming.")]
-	[RequiresDynamicCode("Snapshot upgraders may require dynamic code generation for serialization.")]
+	/// <remarks>The manager performs typed byte-array calls. Registered upgraders and their serializers
+	/// must use operations compatible with the application's trimming and NativeAOT configuration.</remarks>
 	public byte[] UpgradeSnapshot(string aggregateType, byte[] snapshotData, int fromVersion, int toVersion)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
@@ -131,7 +137,7 @@ public sealed partial class SnapshotVersionManager
 		foreach (var upgrader in upgradePath)
 		{
 			LogSnapshotUpgrading(aggregateType, upgrader.FromVersion, upgrader.ToVersion);
-			currentData = upgrader.Upgrade(currentData);
+			currentData = upgrader.Upgrader.Upgrade(currentData);
 		}
 
 		return currentData;
@@ -173,7 +179,7 @@ public sealed partial class SnapshotVersionManager
 	/// <returns>A collection of upgraders for the aggregate type.</returns>
 	public IEnumerable<ISnapshotUpgrader> GetUpgradersForAggregateType(string aggregateType) =>
 		_upgraders.TryGetValue(aggregateType, out var upgraders)
-			? upgraders
+			? upgraders.Select(static registration => registration.Upgrader)
 			: [];
 
 
@@ -184,4 +190,6 @@ public sealed partial class SnapshotVersionManager
 	[LoggerMessage(Diagnostics.EventSourcingEventId.SnapshotUpgrading, LogLevel.Debug,
 		"Upgrading snapshot for {AggregateType} from version {FromVersion} to {ToVersion}")]
 	private partial void LogSnapshotUpgrading(string aggregateType, int fromVersion, int toVersion);
+	private sealed record RegisteredUpgrader(ISnapshotUpgrader Upgrader, int FromVersion, int ToVersion);
+
 }

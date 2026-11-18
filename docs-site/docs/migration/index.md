@@ -287,7 +287,7 @@ Also see **[Migrating to .NET 10](net10-only.md)** if your projects are not yet 
 ## Reference
 
 - **[Version Upgrades](version-upgrades.md)** -- Versioning policy and current registration API reference.
-- **[MessageContext Guide](messagecontext-v1.md)** -- Using IMessageContext direct properties for type-safe, high-performance message context access.
+- **[MessageContext Guide](messagecontext-v1.md)** -- Using IMessageContext direct properties for type-safe message context access.
 
 ## See Also
 

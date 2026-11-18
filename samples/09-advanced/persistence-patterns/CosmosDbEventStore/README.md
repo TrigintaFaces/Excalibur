@@ -202,6 +202,8 @@ await foreach (var evt in subscription.ReadChangesAsync(cancellationToken))
 
 ### Request Units (RU/s)
 
+The earlier RU costs and provisioning values below are unverified illustrative estimates, not measured sample costs or universal production sizing. Costs depend on payloads, indexing, queries and account configuration; measure request charges and workload demand.
+
 | Operation | Typical RU Cost |
 |-----------|-----------------|
 | Point read (by ID) | 1 RU |
@@ -209,7 +211,7 @@ await foreach (var evt in subscription.ReadChangesAsync(cancellationToken))
 | Query by stream ID | 2-5 RU |
 | Cross-partition query | 50+ RU |
 
-### Throughput Recommendations
+### Earlier Illustrative Provisioning Values
 
 | Scenario | Throughput |
 |----------|------------|
@@ -219,7 +221,7 @@ await foreach (var evt in subscription.ReadChangesAsync(cancellationToken))
 
 ### Best Practices
 
-1. **Use Direct mode** in production for lower latency
+1. **Evaluate Direct mode** against deployment requirements and measure latency
 2. **Enable autoscale** for variable workloads
 3. **Set TTL** for temporary data (e.g., saga state)
 4. **Monitor RU consumption** in Azure Portal

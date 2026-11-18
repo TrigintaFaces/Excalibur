@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Collections.Concurrent;
-
+using Excalibur.Data;
 using Excalibur.Data.Sharding;
+using Excalibur.EventSourcing.Sharding;
 using Excalibur.Dispatch;
 
 using Microsoft.Azure.Cosmos;
@@ -27,36 +27,40 @@ namespace Excalibur.EventSourcing.CosmosDb.Sharding;
 /// the life of the process.
 /// </para>
 /// </remarks>
-internal sealed class CosmosDbTenantEventStoreResolver : ITenantStoreResolver<IEventStore>, IAsyncDisposable
+[NoTenantTerm(TenantConfinement.EstateWide, "Physical-shard readiness performs a bounded native namespace read for an operator; it selects at most one record identifier, discards it, and does not select event payloads or establish tenant confinement.")]
+internal sealed class CosmosDbTenantEventStoreResolver : ITenantStoreResolver<IEventStore>, ITenantShardReadinessProbe, IAsyncDisposable
 {
 	private readonly ITenantShardMap _shardMap;
+	private readonly TenantShardBindingCache _bindings = new();
+	private readonly Func<ShardInfo, ShardReadinessBinding> _bindingFactory;
 	private readonly ILoggerFactory _loggerFactory;
 	private readonly CosmosDbEventStoreOptions _defaultOptions;
 	private readonly ITenantContext _tenantContext;
-	private readonly ConcurrentDictionary<string, IEventStore> _storeCache = new(StringComparer.Ordinal);
+	private readonly Func<string, CosmosClientOptions, CosmosClient> _clientFactory;
 
-	// Everything CreateStore has ever built, not merely what won the cache slot. ConcurrentDictionary
-	// documents its factory as callable more than once for the same key under contention, so a losing
-	// racer's store and client are dropped from the cache while still holding their sockets. Recording
-	// them at construction is what makes disposal total rather than "whatever the cache happens to hold".
-	private readonly ConcurrentBag<IEventStore> _createdStores = [];
-	private readonly ConcurrentBag<IDisposable> _createdClients = [];
-	private volatile bool _disposed;
 
 	internal CosmosDbTenantEventStoreResolver(
 		ITenantShardMap shardMap,
 		ILoggerFactory loggerFactory,
 		IOptions<CosmosDbEventStoreOptions> defaultOptions,
 		ITenantContext tenantContext)
-	{
+        : this(shardMap, loggerFactory, defaultOptions, tenantContext,
+            static (connection, options) => new CosmosClient(connection, options)) { }
+
+    internal CosmosDbTenantEventStoreResolver(ITenantShardMap shardMap, ILoggerFactory loggerFactory,
+        IOptions<CosmosDbEventStoreOptions> defaultOptions, ITenantContext tenantContext,
+        Func<string, CosmosClientOptions, CosmosClient> clientFactory)
+    {
 		ArgumentNullException.ThrowIfNull(shardMap);
 		ArgumentNullException.ThrowIfNull(loggerFactory);
 		ArgumentNullException.ThrowIfNull(defaultOptions);
 		ArgumentNullException.ThrowIfNull(tenantContext);
 
+		_clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
 		_tenantContext = tenantContext;
 
 		_shardMap = shardMap;
+		_bindingFactory = CreateBinding;
 		_loggerFactory = loggerFactory;
 		_defaultOptions = defaultOptions.Value;
 	}
@@ -64,49 +68,26 @@ internal sealed class CosmosDbTenantEventStoreResolver : ITenantStoreResolver<IE
 	/// <inheritdoc />
 	public IEventStore Resolve(string tenantId)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var shardInfo = _shardMap.GetShardInfo(tenantId);
-		return _storeCache.GetOrAdd(shardInfo.ShardId, _ => CreateStore(shardInfo));
+		return GetBinding(shardInfo).Store;
 	}
 
 	/// <inheritdoc />
-	public async ValueTask DisposeAsync()
+	public ValueTask DisposeAsync() => _bindings.DisposeAsync();
+
+	/// <inheritdoc />
+	public Task ProbeShardAsync(string shardId, CancellationToken cancellationToken)
 	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_storeCache.Clear();
-
-		// Stores first: a store may use its client while shutting down, and the client must outlive that.
-		while (_createdStores.TryTake(out var store))
-		{
-			switch (store)
-			{
-				case IAsyncDisposable asyncDisposable:
-					await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-					break;
-				case IDisposable disposable:
-					disposable.Dispose();
-					break;
-				default:
-					break;
-			}
-		}
-
-		while (_createdClients.TryTake(out var client))
-		{
-			client.Dispose();
-		}
+		cancellationToken.ThrowIfCancellationRequested();
+		return GetBinding(_shardMap.GetShardById(shardId)).Probe(cancellationToken);
 	}
 
-	private IEventStore CreateStore(ShardInfo shardInfo)
+	private ShardReadinessBinding GetBinding(ShardInfo shardInfo) => _bindings.Get(shardInfo, _bindingFactory);
+
+
+	private ShardReadinessBinding CreateBinding(ShardInfo shardInfo) => ShardReadinessBinding.Construct(resources =>
 	{
-		var cosmosClient = new CosmosClient(shardInfo.ConnectionString, new CosmosClientOptions { UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase } });
-		_createdClients.Add(cosmosClient);
 
 		var options = Options.Create(new CosmosDbEventStoreOptions
 		{
@@ -116,16 +97,30 @@ internal sealed class CosmosDbTenantEventStoreResolver : ITenantStoreResolver<IE
 			CreateContainerIfNotExists = _defaultOptions.CreateContainerIfNotExists,
 		});
 
+		var validation = new CosmosDbEventStoreOptionsValidator().Validate(null, options.Value);
+		if (validation.Failed) { throw new OptionsValidationException(nameof(CosmosDbEventStoreOptions), typeof(CosmosDbEventStoreOptions), validation.Failures); }
+		var cosmosClient = resources.Own(_clientFactory(shardInfo.ConnectionString, new CosmosClientOptions
+		{
+			UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }
+		}));
+
 		// A shard may host more than one tenant, so the store still composes the ambient tenant into its
 		// key. Routing to a shard is the physical half of confinement; the key is the logical half, and a
 		// co-located pair of tenants needs both.
+		var container = cosmosClient.GetContainer(options.Value.DatabaseName, options.Value.EventsContainerName);
 		var store = new CosmosDbEventStore(
 			cosmosClient,
 			options,
 			_loggerFactory.CreateLogger<CosmosDbEventStore>(),
 			_tenantContext);
 
-		_createdStores.Add(store);
-		return store;
-	}
+
+		return resources.Complete(store, async token =>
+		{
+			using var iterator = container.GetItemQueryStreamIterator(new QueryDefinition("SELECT TOP 1 VALUE c.id FROM c"),
+				requestOptions: new QueryRequestOptions { MaxItemCount = 1 });
+			using var response = await iterator.ReadNextAsync(token).ConfigureAwait(false);
+			_ = response.EnsureSuccessStatusCode();
+		});
+	});
 }

@@ -14,35 +14,32 @@ namespace Excalibur.Dispatch.Benchmarks.Serialization;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Performance targets from ADR-068/069/070:</b>
+/// <b>There are deliberately no target figures here.</b> This class previously listed per-scenario
+/// nanosecond targets carried over from the original design notes. They had no linked source epoch, no
+/// matched runtime and no raw evidence, and one of them described a reader lock the pipeline no longer
+/// takes. Unverified numbers in a doc comment read as a budget and silently become folklore, so the
+/// budget lives where it can actually fail a build -- the recorded means and allocations in
+/// <c>benchmarks/baselines/performance-baselines.json</c>, compared by the performance gate.
 /// </para>
-/// <list type="table">
-/// <listheader>
-///   <term>Scenario</term>
-///   <description>Target</description>
-/// </listheader>
-/// <item><term>Single-hop upcast</term><description>~15ns</description></item>
-/// <item><term>Multi-hop upcast (V1→V4)</term><description>~45ns (3 hops)</description></item>
-/// <item><term>Cached path lookup</term><description>~5ns</description></item>
-/// <item><term>Non-versioned passthrough</term><description>~0ns</description></item>
-/// <item><term>Legacy comparison (DynamicInvoke)</term><description>~300ns</description></item>
-/// </list>
 /// <para>
-/// <b>Key improvement:</b> ~20x faster than legacy DynamicInvoke approach through
-/// direct delegate invocation and cached BFS path finding.
+/// What this class measures is the shape of the work: a passthrough that does nothing, a cached-path
+/// lookup, and one, two and three hop traversals. Run it and read what it prints; do not quote a figure
+/// from a comment.
 /// </para>
 /// </remarks>
+// Run from this project's directory so BenchmarkDotNet resolves the intended project.
+// Copied project files elsewhere in the repository are not a reason to change the job.
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
 public class UpcastingPipelineBenchmarks : IDisposable
 {
 	private UpcastingPipeline _pipeline = null!;
+	private bool _disposed;
 	private BenchmarkUserCreatedEventV1 _v1Event = null!;
 	private BenchmarkUserCreatedEventV2 _v2Event = null!;
 	private BenchmarkUserCreatedEventV3 _v3Event = null!;
 	private BenchmarkNonVersionedMessage _nonVersionedMessage = null!;
 	private BenchmarkOrderPlacedEventV1 _orderV1Event = null!;
-	private bool _disposed;
 
 	// For legacy comparison
 	private Delegate _legacyUpcastDelegate = null!;
@@ -153,40 +150,40 @@ public class UpcastingPipelineBenchmarks : IDisposable
 	#region Core Upcasting Benchmarks
 
 	/// <summary>
-	/// Benchmark: Single-hop upcast (V1 → V2).
-	/// Target: ~15ns with zero allocations in cached path.
+	/// Benchmark: Single-hop upcast (V1 â†’ V2).
+	/// Despite its historical name, this method traverses V1 through the registered latest version V4 (three hops).
 	/// </summary>
-	[Benchmark(Baseline = true, Description = "Single-hop upcast (V1→V2)")]
+	[Benchmark(Baseline = true, Description = "Single-hop upcast (V1->V2)")]
 	public IDispatchMessage SingleHopUpcast()
 	{
 		return _pipeline.Upcast(_v1Event);
 	}
 
 	/// <summary>
-	/// Benchmark: Two-hop upcast (V2 → V3 → V4).
-	/// Target: ~30ns (2 hops × 15ns).
+	/// Benchmark: Two-hop upcast (V2 â†’ V3 â†’ V4).
+	/// Measures two resolved hops over a cached path.
 	/// </summary>
-	[Benchmark(Description = "Two-hop upcast (V2→V4)")]
+	[Benchmark(Description = "Two-hop upcast (V2->V4)")]
 	public IDispatchMessage TwoHopUpcast()
 	{
 		return _pipeline.Upcast(_v2Event);
 	}
 
 	/// <summary>
-	/// Benchmark: Multi-hop upcast (V1 → V2 → V3 → V4).
-	/// Target: ~45ns (3 hops × 15ns).
+	/// Benchmark: Multi-hop upcast (V1 â†’ V2 â†’ V3 â†’ V4).
+	/// Measures three resolved hops over a cached path.
 	/// </summary>
-	[Benchmark(Description = "Multi-hop upcast (V1→V4)")]
+	[Benchmark(Description = "Multi-hop upcast (V1->V4)")]
 	public IDispatchMessage MultiHopUpcastV1ToV4()
 	{
 		return _pipeline.Upcast(_v1Event);
 	}
 
 	/// <summary>
-	/// Benchmark: Single-hop upcast (V3 → V4).
+	/// Benchmark: Single-hop upcast (V3 â†’ V4).
 	/// Validates consistent per-hop performance.
 	/// </summary>
-	[Benchmark(Description = "Single-hop upcast (V3→V4)")]
+	[Benchmark(Description = "Single-hop upcast (V3->V4)")]
 	public IDispatchMessage SingleHopUpcastV3ToV4()
 	{
 		return _pipeline.Upcast(_v3Event);
@@ -198,7 +195,7 @@ public class UpcastingPipelineBenchmarks : IDisposable
 
 	/// <summary>
 	/// Benchmark: Cached path lookup via CanUpcast.
-	/// Target: ~5ns (ConcurrentDictionary lookup).
+	/// Measures a cached-path lookup with no traversal.
 	/// </summary>
 	[Benchmark(Description = "Cached path lookup (CanUpcast)")]
 	public bool CachedPathLookup()
@@ -208,7 +205,7 @@ public class UpcastingPipelineBenchmarks : IDisposable
 
 	/// <summary>
 	/// Benchmark: GetLatestVersion lookup.
-	/// Target: ~5ns (Dictionary lookup with reader lock).
+	/// Measures the latest-version lookup. Takes no lock: one volatile read plus a frozen lookup.
 	/// </summary>
 	[Benchmark(Description = "GetLatestVersion lookup")]
 	public int GetLatestVersionLookup()
@@ -222,7 +219,7 @@ public class UpcastingPipelineBenchmarks : IDisposable
 
 	/// <summary>
 	/// Benchmark: Non-versioned message passthrough.
-	/// Target: ~0ns (type check only, no processing).
+	/// Measures the non-versioned passthrough, which is a type check and an immediate return.
 	/// </summary>
 	[Benchmark(Description = "Non-versioned passthrough")]
 	public IDispatchMessage NonVersionedPassthrough()
@@ -232,7 +229,7 @@ public class UpcastingPipelineBenchmarks : IDisposable
 
 	/// <summary>
 	/// Benchmark: Already-latest version passthrough.
-	/// Target: ~5ns (version comparison, no upcasting).
+	/// Measures the already-at-latest passthrough, which resolves no path.
 	/// </summary>
 	[Benchmark(Description = "Already-latest passthrough")]
 	public IDispatchMessage AlreadyLatestPassthrough()
@@ -255,8 +252,8 @@ public class UpcastingPipelineBenchmarks : IDisposable
 
 	/// <summary>
 	/// Benchmark: Legacy DynamicInvoke approach.
-	/// Expected: ~300ns (reflection overhead).
-	/// This demonstrates the 20x improvement achieved by direct delegate invocation.
+	/// Reference point: the same transformation through reflection rather than a typed delegate.
+	/// Compare only the work performed by these two fixture methods; no fixed speedup is asserted.
 	/// </summary>
 	[Benchmark(Description = "Legacy DynamicInvoke (comparison)")]
 	public object? LegacyDynamicInvoke()
@@ -267,7 +264,7 @@ public class UpcastingPipelineBenchmarks : IDisposable
 
 	/// <summary>
 	/// Benchmark: Direct delegate invocation (what we use internally).
-	/// Expected: ~15ns (direct call, no reflection).
+	/// Reference point: a direct delegate call, the floor this traversal is built on.
 	/// </summary>
 	[Benchmark(Description = "Direct delegate (internal approach)")]
 	public BenchmarkUserCreatedEventV2 DirectDelegateInvocation()
@@ -284,7 +281,7 @@ public class UpcastingPipelineBenchmarks : IDisposable
 	/// Benchmark: Single-hop upcast for different message type (OrderPlacedEvent).
 	/// Validates performance is consistent across message types.
 	/// </summary>
-	[Benchmark(Description = "Different message type (Order V1→V2)")]
+	[Benchmark(Description = "Different message type (Order V1->V2)")]
 	public IDispatchMessage DifferentMessageTypeUpcast()
 	{
 		return _pipeline.Upcast(_orderV1Event);

@@ -70,10 +70,16 @@ internal sealed partial class AwsSqsSendClient
 			{
 				throw new OperationCanceledException("SQS send canceled.", error, token);
 			}
-			catch (AmazonServiceException error) when (owned)
+			catch (AmazonServiceException error)
 			{
-				var permanent = NormalizePermanent(error);
-				if (permanent is not null) { throw permanent; }
+				// Preserve positively established vendor semantics on this exact SDK fault so
+				// classification still works after an owned send's flow scope has ended.
+				if (IsKnownTransient(error)) { KnownTransientFailureEvidence.Record(error); }
+				if (owned)
+				{
+					var permanent = NormalizePermanent(error);
+					if (permanent is not null) { throw permanent; }
+				}
 				throw;
 			}
 		}, cancellationToken).ConfigureAwait(false);

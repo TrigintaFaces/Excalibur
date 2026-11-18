@@ -1,23 +1,23 @@
-# AOT Compatibility Matrix
+# Historical AOT Configuration and Annotation Inventory
 
 **Source:** Generated via S807 Phase A3 (`bd-ic1urd`) on commit `6d70559e9+` · **Sprint:** 807
 **Author:** BackendDeveloper / FORGE
-**Scope:** All shipping packages in `src/`
+**Historical scope:** Shipping packages in `src/` at the Sprint 807 source epoch above.
 
-This document catalogs per-package AOT publishability status for the Excalibur framework. The matrix is derived from each package's `<IsAotCompatible>` `.csproj` setting, combined with audit of `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]` annotations.
+This document preserves the Sprint 807 inventory of `<IsAotCompatible>` settings and `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]` annotations. Its counts describe that historical source epoch. These settings and annotations do not establish package-wide native publishability or execution. Validate the configured application, providers, dependencies and payload metadata by publishing and executing its native binary.
 
 ## Summary
 
 | Status | Count | Description |
 |---|---:|---|
-| ✅ AOT-compatible | 143 | `<IsAotCompatible>true</IsAotCompatible>` — reflection usage (if any) is protected by `[Requires*]` annotations with source-gen / `DynamicallyAccessedMembers` preservation |
-| ❌ AOT-incompatible | 27 | `<IsAotCompatible>false</IsAotCompatible>` — hard reflection dependency from a third-party SDK or runtime feature |
+| Declared AOT-compatible | 143 | `<IsAotCompatible>true</IsAotCompatible>` — reflection usage (if any) is protected by `[Requires*]` annotations with source-gen / `DynamicallyAccessedMembers` preservation |
+| Opted out / not applicable | 27 | `<IsAotCompatible>false</IsAotCompatible>` — hard reflection dependency from a third-party SDK or runtime feature |
 
-**Total:** 170 shipping packages audited.
+**Historical total:** 170 shipping packages inventoried; this is not a current package census.
 
-## AOT-incompatible packages (27)
+## Historical opt-outs and non-runtime tools (27)
 
-These packages explicitly opt out of AOT compilation via `<IsAotCompatible>false</IsAotCompatible>` with a justification comment. Root causes categorized:
+At the recorded epoch, these packages explicitly opted out of AOT compilation via `<IsAotCompatible>false</IsAotCompatible>` with a justification comment. Root causes categorized:
 
 ### Third-party SDK reflection dependencies (21)
 
@@ -66,13 +66,13 @@ These packages explicitly opt out of AOT compilation via `<IsAotCompatible>false
 | `Excalibur.Dispatch.SourceGenerators` | Source generator — runs at build time (netstandard2.0) |
 | `Excalibur.Dispatch.SourceGenerators.Analyzers` | Source-generator analyzer — not applicable |
 
-## AOT-compatible packages (143)
+## Historically declared AOT-compatible packages (143)
 
-All other shipping packages are AOT-compatible. For packages that use reflection internally (visible via `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]` annotation counts), the reflection is guarded at the API boundary — AOT consumers get compile-time warnings if they call those paths, and can opt into source-gen alternatives where provided.
+The other 143 packages in that inventory declared AOT compatibility. Annotations identify paths requiring dynamic code or unreferenced-code analysis; source-generated alternatives may be available. Avoiding an annotated path alone does not verify every dependency or consumer payload.
 
-### Top AOT-compatible packages by annotation count
+### Historical annotation counts in selected packages
 
-Packages with the most `[Requires*]` annotations (each annotation guards a specific reflection-using code path; consumers not taking the reflection path are fully AOT-safe):
+Packages with the most `[Requires*]` annotations in the recorded audit (annotation counts are not native execution results):
 
 | Package | `[Requires*]` count |
 |---|---:|
@@ -125,7 +125,7 @@ Consumers writing JSON-serialization hot paths should prefer `JsonSerializerCont
 
 ## Windows AOT publish prerequisites
 
-AOT publish on Windows (`dotnet publish -c Release -r win-x64 --self-contained /p:PublishAot=true`) invokes the native linker `link.exe` as a final step after IL-to-native compilation. That linker and its accompanying Windows SDK libraries are **not** installed by the .NET SDK; they ship with the Microsoft Visual Studio Build Tools family. A developer machine or CI image that has only the .NET SDK installed will fail AOT publish at the link step with an error of the form:
+AOT publish on Windows (`dotnet publish -c Release -r win-x64 --self-contained -p:PublishAot=true`) invokes the native linker `link.exe` as a final step after IL-to-native compilation. That linker and its accompanying Windows SDK libraries are **not** installed by the .NET SDK; they ship with the Microsoft Visual Studio Build Tools family. A developer machine or CI image that has only the .NET SDK installed will fail AOT publish at the link step with an error of the form:
 
 ```
 error : Platform linker not found. To fix this problem, install Microsoft Visual Studio 2022 with the "Desktop development with C++" workload.

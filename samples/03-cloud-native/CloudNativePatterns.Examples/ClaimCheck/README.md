@@ -144,6 +144,8 @@ View metrics in the console output or configure OpenTelemetry exporters for prod
 
 ### Performance Tuning
 
+These are unverified configuration examples, not demonstrated high-throughput or low-memory settings. Measure completed operations, retained memory and failure behavior before choosing values.
+
 1. **For High Throughput**
    ```csharp
    options.Storage.Operations.MaxConcurrency = Environment.ProcessorCount;

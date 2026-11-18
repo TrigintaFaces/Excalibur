@@ -111,7 +111,7 @@ Configure one or more thresholds on `AutoSnapshotOptions`. When **any** threshol
 | `VersionThreshold` | `long?` | Snapshot when the aggregate version reaches this value |
 | `CustomPolicy` | `Func<SnapshotDecisionContext, bool>?` | Custom decision logic for advanced scenarios |
 
-All thresholds are `null` (disabled) by default. When all are `null`, auto-snapshots have zero overhead.
+All thresholds are `null` (disabled) by default. When all are `null`, automatic snapshot thresholds are disabled; this does not establish zero execution overhead.
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>

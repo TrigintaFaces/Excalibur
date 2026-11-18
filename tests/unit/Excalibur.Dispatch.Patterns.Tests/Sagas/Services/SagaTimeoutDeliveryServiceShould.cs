@@ -40,6 +40,11 @@ public sealed class SagaTimeoutDeliveryServiceShould
 	private readonly IServiceProvider _fakeServiceProvider = A.Fake<IServiceProvider>();
 	private readonly ISagaTypeRegistry _fakeTypeRegistry = A.Fake<ISagaTypeRegistry>();
 
+	public SagaTimeoutDeliveryServiceShould()
+	{
+		A.CallTo(() => _fakeServiceProvider.GetService(A<Type>._)).Returns(null);
+	}
+
 	#region Constructor Validation Tests
 
 	/// <summary>

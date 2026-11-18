@@ -1,6 +1,6 @@
 --------------------- MODULE EventStoreGlobalPosition ---------------------
 (***************************************************************************)
-(* SCOPE -- read this before citing any result from this model.            *)
+(* SCOPE: read this before citing any result from this model.              *)
 (*                                                                          *)
 (* STATUS: the shipped configuration is CLEAN, and that result is NOT yet   *)
 (* sufficient to claim R4 for the event-sourcing seam. See LIMITS below.    *)

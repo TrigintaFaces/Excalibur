@@ -263,9 +263,10 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 	/// Determines the message kind for metrics categorization.
 	/// </summary>
 	/// <remarks>
-	/// The scan runs on every call and is deliberately not cached. It reads a string that already exists, so a
-	/// dictionary keyed on the type name costs more than the scan it would skip — measured at 5.35 ns cached against
-	/// 2.33 ns scanning. A cache pays here only if the uncached path allocates, and this one does not.
+	/// The scan runs on every call and reads an existing string. Earlier observations recorded 5.35 ns with
+	/// a dictionary cache versus 2.33 ns scanning. These historical figures have no workload/runtime attribution
+	/// here and do not establish a current performance comparison. Reassess with representative inputs before
+	/// introducing a cache.
 	/// </remarks>
 	private static string DetermineMessageKind(string messageTypeName)
 	{

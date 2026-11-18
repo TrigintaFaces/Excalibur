@@ -85,6 +85,7 @@
       "tests\\unit\\Excalibur.Operations.Dashboard.Tests\\Excalibur.Operations.Dashboard.Tests.csproj",
       "tests\\unit\\Excalibur.Outbox.Oracle.Tests\\Excalibur.Outbox.Oracle.Tests.csproj",
       "tests\\unit\\Excalibur.Outbox.Tests\\Excalibur.Outbox.Tests.csproj",
+      "tests\\unit\\Excalibur.ECommerceSample.Tests\\Excalibur.ECommerceSample.Tests.csproj",
       "tests\\unit\\Excalibur.Postgres.Tests\\Excalibur.Postgres.Tests.csproj",
       "tests\\unit\\Excalibur.Saga.Tests\\Excalibur.Saga.Tests.csproj",
       "tests\\unit\\Excalibur.Security.Tests\\Excalibur.Security.Tests.csproj",

@@ -77,11 +77,16 @@ public static class PoisonMessageServiceCollectionExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPoisonMessageDetector, ExceptionTypePoisonDetector>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPoisonMessageDetector, TimespanPoisonDetector>());
 
-		// Register composite detector as the primary detector
-		services.TryAddSingleton<IPoisonMessageDetector, CompositePoisonDetector>();
+		// Keep the aggregate outside its own detector enumeration. The default middleware uses
+		// this concrete aggregate, so a detector registered later cannot displace the aggregate.
+		services.TryAddSingleton<CompositePoisonDetector>();
 
-		// Register middleware concrete type for pipeline resolution
-		services.TryAddSingleton<PoisonMessageMiddleware>();
+		// Preserve consumer middleware registrations and the public single-detector constructor.
+		services.TryAddSingleton(static provider => new PoisonMessageMiddleware(
+			provider.GetRequiredService<CompositePoisonDetector>(),
+			provider.GetRequiredService<IPoisonMessageHandler>(),
+			provider.GetRequiredService<IOptions<PoisonMessageOptions>>(),
+			provider.GetRequiredService<ILogger<PoisonMessageMiddleware>>()));
 
 		// Decided BEFORE the default is added, and the order is load-bearing. The framework's own default
 		// is registered by a FACTORY (see below), and a factory descriptor exposes no implementation type —

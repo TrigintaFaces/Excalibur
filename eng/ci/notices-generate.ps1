@@ -240,6 +240,55 @@ if ($all.ContainsKey('Confluent.Kafka')) {
   $lines += "    https://github.com/confluentinc/librdkafka/blob/v$kafkaVersion/LICENSES.txt"
 }
 
+
+# Source-adaptation notices for VENDORED upstream code.
+#
+# A dependency row in the table above needs no licence text: the consumer's restore fetches that
+# package and receives its terms from the package itself. That is why the Apache-2.0 rows above
+# carry no bundled licence text and never needed one. Vendored source is a DIFFERENT obligation --
+# Apache-2.0 section 4 wants the licence terms to accompany the derivative work, and the modified
+# files to carry notices of change -- and no dependency row can express it, because nothing in the
+# declared dependency set changes when source is copied in.
+#
+# GUARDED ON THE ADAPTED SOURCE FILE, NOT ON THE PACKAGE REFERENCE, and the difference is
+# load-bearing. The obligation is created by the copied code. If the PackageReference were ever
+# dropped while the adaptation stayed, a package-keyed guard would silently delete this notice and
+# nothing would go red. The librdkafka block above is correctly keyed on its package, because
+# nothing is vendored there -- that obligation arrives entirely through restore.
+$adaptations = @(
+  [pscustomobject]@{
+    Heading = 'CloudEvents C# SDK v2.8.0'
+    Source  = 'src/Dispatch/Excalibur.Dispatch/CloudEvents/MetadataCloudEventFormatter.cs'
+    Notice  = 'eng/notices/cloudevents-sdk-v2.8.0.md'
+  }
+)
+foreach ($a in $adaptations) {
+  # Resolve against $RepoRoot like every other path in this script. A cwd-relative Test-Path makes the
+  # whole section vanish at exit 0 when the script runs from anywhere but the repository root, which is
+  # a silent omission of a licence obligation -- the one outcome this block exists to prevent.
+  $sourcePath = Join-Path $RepoRoot $a.Source
+  $noticePath = Join-Path $RepoRoot $a.Notice
+  if (-not (Test-Path $sourcePath)) {
+    # Say so. A quiet skip is indistinguishable from the section never having been configured.
+    Write-Host ("Adapted source " + $a.Source + " is absent; omitting its notice section. Correct if the adaptation was deleted; otherwise a licence notice is being dropped.")
+    continue
+  }
+  if (-not (Test-Path $noticePath)) {
+    Write-Error ("Adapted upstream source is present at " + $a.Source + " but its notice " + $a.Notice + " is missing. Vendored code must ship the terms it was licensed under; restore the notice rather than dropping the section.")
+    exit 1
+  }
+  $lines += ""
+  $lines += ("## License notice for " + $a.Heading)
+  $lines += ""
+  # Split on a CR-optional newline so a CRLF checkout cannot make this output differ by CR alone,
+  # then drop trailing blanks -- the join below supplies the single terminating newline.
+  $body = @((Get-Content -Raw -Path $noticePath) -split "\r?\n")
+  while ($body.Count -gt 0 -and [string]::IsNullOrWhiteSpace($body[-1])) {
+    $body = $body[0..($body.Count - 2)]
+  }
+  $lines += $body
+}
+
 # Use explicit UTF-8 without BOM for stable cross-platform diffs in CI.
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path (Get-Location) $Output), (($lines -join "`n") + "`n"), $utf8NoBom)

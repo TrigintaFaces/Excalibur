@@ -68,7 +68,6 @@ public sealed class ChannelOptionsShould
 
 		// Assert
 		options.Capacity.ShouldBe(100);
-		options.FullMode.ShouldBe(BoundedChannelFullMode.Wait);
 		options.AllowSynchronousContinuations.ShouldBeFalse();
 		options.ConcurrentConsumers.ShouldBe(1);
 		options.SingleReader.ShouldBeFalse();
@@ -86,7 +85,6 @@ public sealed class ChannelOptionsShould
 		var options = new ChannelMessagePumpOptions
 		{
 			Capacity = 200,
-			FullMode = BoundedChannelFullMode.DropNewest,
 			AllowSynchronousContinuations = true,
 			ConcurrentConsumers = 4,
 			SingleReader = true,
@@ -99,7 +97,6 @@ public sealed class ChannelOptionsShould
 
 		// Assert
 		options.Capacity.ShouldBe(200);
-		options.FullMode.ShouldBe(BoundedChannelFullMode.DropNewest);
 		options.AllowSynchronousContinuations.ShouldBeTrue();
 		options.ConcurrentConsumers.ShouldBe(4);
 		options.SingleReader.ShouldBeTrue();

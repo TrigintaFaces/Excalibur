@@ -1,4 +1,6 @@
 #nullable enable
+Excalibur.Data.DataProcessing.BulkDataProcessor<TRecord>
+Excalibur.Data.DataProcessing.BulkDataProcessor<TRecord>.BulkDataProcessor(Microsoft.Extensions.Hosting.IHostApplicationLifetime! appLifetime, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DataProcessing.DataProcessingOptions!>! configuration, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger! logger) -> void
 Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>
 Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>.CursorFetchResult(System.Collections.Generic.IReadOnlyList<TRecord>! Records, string? NextCursor) -> void
 Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>.NextCursor.get -> string?
@@ -137,6 +139,7 @@ const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultSc
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultTableName = "DataTaskRequests" -> string!
 const Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.DefaultMessage = "IDataProcessor implementation found but a record type could not be ascertained." -> string!
 const Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.DefaultStatusCode = 500 -> int
+override sealed Excalibur.Data.DataProcessing.BulkDataProcessor<TRecord>.DeferInlineProjectionWait.get -> bool
 static Excalibur.Data.DataProcessing.DataProcessingBuilderExtensions.AddProcessorsFromAssembly(this Excalibur.Data.DataProcessing.IDataProcessingBuilder! builder, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!
 static Excalibur.Data.DataProcessing.DataProcessingBuilderExtensions.AddRecordHandlersFromAssembly(this Excalibur.Data.DataProcessing.IDataProcessingBuilder! builder, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!
 static Microsoft.Extensions.DependencyInjection.DataProcessingExcaliburBuilderExtensions.AddDataProcessing(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Data.DataProcessing.IDataProcessingBuilder!>! configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
@@ -152,5 +155,6 @@ static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionE
 static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.EnableDataProcessingBackgroundService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionPath) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.EnableDataProcessingBackgroundService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Data.DataProcessing.DataProcessorDefaults.ProcessingStallTimeout -> System.TimeSpan
+virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.DeferInlineProjectionWait.get -> bool
 virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.RunAsync(long completedCount, string? processedCursor, Excalibur.Data.DataProcessing.UpdateCompletedCount! updateCompletedCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!

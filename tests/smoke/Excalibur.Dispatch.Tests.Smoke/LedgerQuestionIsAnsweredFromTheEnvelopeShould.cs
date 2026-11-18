@@ -225,6 +225,12 @@ public sealed class LedgerQuestionIsAnsweredFromTheEnvelopeShould
 		_ = services.AddSingleton<ITenantContext>(new FixedTenantContext(tenantId));
 		_ = services.AddSingleton<IKeyDestructionLedger>(ledger);
 
+		// BOTH ledgers, from one instance, which is how every store this framework ships registers them.
+		// They are separate interfaces answering separate questions -- which handles EXIST, and whether a
+		// given handle+generation was destroyed -- and crypto-shredding refuses a composition missing
+		// either, because an erasure that cannot enumerate signs a certificate over keys it never saw.
+		_ = services.AddSingleton<IKeyMintLedger>(ledger);
+
 		_ = services.Configure<DataSubjectHashingOptions>(o => o.Pepper = Pepper);
 
 		_ = services.AddEncryption(encryption => encryption
@@ -279,11 +285,21 @@ public sealed class LedgerQuestionIsAnsweredFromTheEnvelopeShould
 	/// question the framework constructed against the envelope a consumer can read. Always false, because
 	/// these arms are about which pair is asked, not about what the answer should be.
 	/// </summary>
-	private sealed class RecordingLedger : IKeyDestructionLedger
+	private sealed class RecordingLedger : IKeyDestructionLedger, IKeyMintLedger
 	{
 		private readonly List<(string KeyHandle, string? KeyGeneration)> _questions = [];
 
+		// Ordinal on every term, and keyed by (owner, subject, handle) rather than by handle alone -- the
+		// same shape the shipped stores use, because the enumeration is addressed by owner and subject and
+		// a folding comparison would let one tenant's handles be enumerated for another.
+		private readonly Dictionary<string, bool> _mintRows = new(StringComparer.Ordinal);
+
 		public IReadOnlyList<(string KeyHandle, string? KeyGeneration)> Questions => _questions;
+
+		// HONEST, not convenient. Nothing here survives a restart, and the startup gate refuses a
+		// non-durable ledger only when an erasure store is ALSO registered -- which this composition does
+		// not do. Claiming durability to quieten a warning would be the dishonesty these arms exist to catch.
+		public bool IsDurable => false;
 
 		public ValueTask<bool> IsGenerationDestroyedAsync(
 			string keyHandle,
@@ -298,6 +314,69 @@ public sealed class LedgerQuestionIsAnsweredFromTheEnvelopeShould
 			string keyHandle,
 			string keyGeneration,
 			CancellationToken cancellationToken) => Task.CompletedTask;
+
+		public Task RecordMintIntentAsync(
+			string keyHandle,
+			TenantId tenantId,
+			string dataSubjectIdHash,
+			CancellationToken cancellationToken)
+		{
+			_mintRows[RowKey(tenantId, dataSubjectIdHash, keyHandle)] = false;
+			return Task.CompletedTask;
+		}
+
+		public Task MarkMintedAsync(string keyHandle, CancellationToken cancellationToken)
+		{
+			// REFUSES an unknown handle, as the shipped stores do. The intent row is written before the key
+			// exists, always, so its absence means that step was skipped -- and a double that inserted a row
+			// here would hide exactly the omission the interface is built to make impossible.
+			var suffix = " " + keyHandle;
+			var row = default(string);
+
+			foreach (var candidate in _mintRows.Keys)
+			{
+				if (candidate.EndsWith(suffix, StringComparison.Ordinal))
+				{
+					row = candidate;
+					break;
+				}
+			}
+
+			if (row is null)
+			{
+				throw new InvalidOperationException(
+					$"No mint-ledger row exists for key handle '{keyHandle}', so its key creation cannot be "
+					+ "confirmed. The row is written before the key is created, always.");
+			}
+
+			_mintRows[row] = true;
+			return Task.CompletedTask;
+		}
+
+		public Task<MintLedgerSnapshot> ListHandlesAsync(
+			TenantId tenantId,
+			string dataSubjectIdHash,
+			CancellationToken cancellationToken)
+		{
+			var prefix = RowKey(tenantId, dataSubjectIdHash, string.Empty);
+			var minted = new List<string>();
+			var pending = new List<string>();
+
+			foreach (var (key, isMinted) in _mintRows)
+			{
+				if (!key.StartsWith(prefix, StringComparison.Ordinal))
+				{
+					continue;
+				}
+
+				(isMinted ? minted : pending).Add(key[prefix.Length..]);
+			}
+
+			return Task.FromResult(new MintLedgerSnapshot(minted, pending));
+		}
+
+		private static string RowKey(TenantId tenantId, string dataSubjectIdHash, string keyHandle) =>
+			string.Concat(tenantId.ToString(), " ", dataSubjectIdHash, " ", keyHandle);
 	}
 
 	private sealed class FixedTenantContext(string tenantId) : ITenantContext

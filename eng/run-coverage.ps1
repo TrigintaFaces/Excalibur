@@ -3,12 +3,15 @@
 
 param(
     [int]$Threshold = 95,
+    [string]$MinimumExecutedTests = '1',
     [string]$Component = "",
     [switch]$SkipBuild,
     [switch]$GenerateHtml
 )
 
 $ErrorActionPreference = "Stop"
+if ($MinimumExecutedTests -cnotmatch '\A[1-9][0-9]*\z' -or $MinimumExecutedTests.Length -gt 10 -or [long]$MinimumExecutedTests -gt 2147483647) { throw 'Invalid coverage minimum.' }
+$CoveragePrefix = "coverage-" + [guid]::NewGuid().ToString('N')
 
 Write-Host "=== Excalibur Coverage Runner ===" -ForegroundColor Cyan
 
@@ -51,10 +54,18 @@ $TestCommand = "dotnet test `"$SolutionRoot/Excalibur.sln`" " +
                "--settings `"$RunSettingsPath`" " +
                "--results-directory `"$ArtifactsDir`" " +
                "--blame-hang-timeout $HangTimeout " +
-               "-c Release --no-build -v q $Filter"
+               "--logger `"trx;LogFilePrefix=$CoveragePrefix`" -c Release --no-build -v q $Filter"
 
 Invoke-Expression $TestCommand
 $TestExitCode = $LASTEXITCODE
+if ($Component -and $TestExitCode -eq 0) {
+    $executed = 0
+    foreach ($file in Get-ChildItem -LiteralPath $ArtifactsDir -Recurse -File -Filter "$CoveragePrefix*.trx") {
+        [xml]$trx = Get-Content -LiteralPath $file.FullName -Raw
+        $executed += @($trx.SelectNodes("//*[local-name()='UnitTestResult' and @outcome='Passed']")).Count
+    }
+    if ($executed -lt [int]$MinimumExecutedTests) { Write-Error "Coverage filter executed=$executed below minimum=$MinimumExecutedTests." -ErrorAction Continue; $TestExitCode = 3 }
+}
 
 # Find coverage files
 Write-Host "`nCollecting coverage results..." -ForegroundColor Yellow

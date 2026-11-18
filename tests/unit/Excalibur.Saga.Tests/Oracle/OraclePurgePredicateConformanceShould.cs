@@ -25,7 +25,7 @@ public sealed class OraclePurgePredicateConformanceShould
         request.Command.CommandText.ShouldContain("AND TenantId = :TenantId");
         using var connection = new OracleConnection();
         using var command = connection.CreateCommand();
-        const string expectedSql = "DELETE FROM APP.SAGAS WHERE CompletedAt IS NOT NULL AND CompletedAt < :Threshold AND TenantId = :TenantId";
+        const string expectedSql = "DELETE FROM APP.SAGAS WHERE CompletedAt IS NOT NULL AND CompletedAt < :Threshold AND TimerRecoveryPendingBatch IS NULL AND TenantId = :TenantId";
         request.Command.CommandText.ShouldBe(expectedSql);
         command.CommandText = expectedSql;
         new MaterializeParameters((SqlMapper.IDynamicParameters)request.Command.Parameters!).AddParameters(command);
@@ -42,7 +42,7 @@ public sealed class OraclePurgePredicateConformanceShould
         request.Command.CommandText.ShouldNotContain(":TenantId");
         using var connection = new OracleConnection();
         using var command = connection.CreateCommand();
-        const string expectedSql = "DELETE FROM APP.SAGAS WHERE CompletedAt IS NOT NULL AND CompletedAt < :Threshold";
+        const string expectedSql = "DELETE FROM APP.SAGAS WHERE CompletedAt IS NOT NULL AND CompletedAt < :Threshold AND TimerRecoveryPendingBatch IS NULL";
         request.Command.CommandText.ShouldBe(expectedSql);
         command.CommandText = expectedSql;
         new MaterializeParameters((SqlMapper.IDynamicParameters)request.Command.Parameters!).AddParameters(command);

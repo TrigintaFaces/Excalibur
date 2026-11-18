@@ -18,32 +18,58 @@ namespace Excalibur.Cdc.SqlServer;
 /// each table with its logical <see cref="CdcTableConfig.TableName"/> and, when the SQL Server
 /// capture instance differs (e.g. the default <c>{schema}_{table}</c>), its
 /// <see cref="CdcTableConfig.CaptureInstance"/>.
+/// <para>
+/// These mutable options support configuration binding. A processor captures its own execution
+/// settings during construction; later option changes apply to newly constructed processors.
+/// Keep the input configuration stable while constructing a processor.
+/// </para>
 /// </remarks>
 public sealed class DatabaseOptions : IDatabaseOptions
 {
-	private readonly Collection<CdcTableConfig> _tables = [];
-	private readonly int _queueSize = CdcDefaultQueueSize;
-	private readonly int _producerBatchSize = CdcDefaultProducerBatchSize;
-	private readonly int _consumerBatchSize = CdcDefaultConsumerBatchSize;
-	private (string[] Instances, IReadOnlyDictionary<string, string> Map)? _derived;
+	private Collection<CdcTableConfig> _tables = [];
+	private int _queueSize = CdcDefaultQueueSize;
+	private int _producerBatchSize = CdcDefaultProducerBatchSize;
+	private int _consumerBatchSize = CdcDefaultConsumerBatchSize;
 
-	/// <inheritdoc />
-	[Required]
-	public required string DatabaseName { get; init; }
-
-	/// <inheritdoc />
-	[Required]
-	public required string DatabaseConnectionIdentifier { get; init; }
-
-	/// <inheritdoc />
-	[Required]
-	public required string StateConnectionIdentifier { get; init; }
-
-	/// <inheritdoc />
-	public bool StopOnMissingTableHandler { get; init; } = CdcDefaultStopOnMissingTableHandler;
+	/// <summary>Initializes database configuration with the standard processing defaults.</summary>
+	public DatabaseOptions()
+	{
+	}
 
 	/// <summary>
-	/// Gets the tables tracked for CDC in this database.
+	/// Initializes database configuration with its three required identifiers.
+	/// </summary>
+	/// <param name="databaseName">The name of the database being processed.</param>
+	/// <param name="databaseConnectionIdentifier">The source database connection identifier.</param>
+	/// <param name="stateConnectionIdentifier">The CDC state database connection identifier.</param>
+	/// <remarks>
+	/// The parameterless constructor and public setters support generated configuration binding.
+	/// The containing job options retain their startup validation.
+	/// </remarks>
+	public DatabaseOptions(string databaseName, string databaseConnectionIdentifier, string stateConnectionIdentifier)
+	{
+		DatabaseName = databaseName;
+		DatabaseConnectionIdentifier = databaseConnectionIdentifier;
+		StateConnectionIdentifier = stateConnectionIdentifier;
+	}
+
+	/// <inheritdoc />
+	[Required]
+	public string DatabaseName { get; set; } = string.Empty;
+
+	/// <inheritdoc />
+	[Required]
+	public string DatabaseConnectionIdentifier { get; set; } = string.Empty;
+
+	/// <inheritdoc />
+	[Required]
+	public string StateConnectionIdentifier { get; set; } = string.Empty;
+
+	/// <inheritdoc />
+	public bool StopOnMissingTableHandler { get; set; } = CdcDefaultStopOnMissingTableHandler;
+
+	/// <summary>
+	/// Gets or sets the tables tracked for CDC in this database.
 	/// </summary>
 	/// <value>
 	/// The tracked tables. Each entry supplies a logical <see cref="CdcTableConfig.TableName"/> and an
@@ -53,7 +79,7 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	public Collection<CdcTableConfig> Tables
 	{
 		get => _tables;
-		init
+		set
 		{
 			ArgumentNullException.ThrowIfNull(value);
 			_tables = value;
@@ -68,7 +94,7 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	public int QueueSize
 	{
 		get => _queueSize;
-		init
+		set
 		{
 			ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0, nameof(QueueSize));
 			_queueSize = value;
@@ -79,7 +105,7 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	public int ProducerBatchSize
 	{
 		get => _producerBatchSize;
-		init
+		set
 		{
 			ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0, nameof(ProducerBatchSize));
 			_producerBatchSize = value;
@@ -90,7 +116,7 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	public int ConsumerBatchSize
 	{
 		get => _consumerBatchSize;
-		init
+		set
 		{
 			ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0, nameof(ConsumerBatchSize));
 			_consumerBatchSize = value;
@@ -98,12 +124,12 @@ public sealed class DatabaseOptions : IDatabaseOptions
 	}
 
 	/// <inheritdoc />
-	public CdcRecoveryOptions? RecoveryOptions { get; init; }
+	public CdcRecoveryOptions? RecoveryOptions { get; set; }
 
 	/// <inheritdoc />
 	/// <remarks>Derived from <see cref="Tables"/>.</remarks>
 	public IReadOnlyDictionary<string, string> CaptureInstanceToTableNameMap => Derived().Map;
 
 	private (string[] Instances, IReadOnlyDictionary<string, string> Map) Derived() =>
-		_derived ??= CdcCaptureInstanceDeriver.Derive(_tables);
+		CdcCaptureInstanceDeriver.Derive(_tables);
 }

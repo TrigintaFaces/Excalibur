@@ -61,15 +61,8 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		// The configuration-binding source generator does not intercept this call in this project,
-		// so the reflection-based ConfigurationBinder.Get<T> is reached and the trim analyzer is
-		// correct to flag it. Binding happens once at startup from a fixed section; the options type
-		// is referenced directly here so the trimmer keeps it. Suppressed rather than hidden: the
-		// member named below is the BCL one actually reached, not a wrapper of ours.
-		#pragma warning disable IL2026, IL3050 // ConfigurationBinder.Get<T> - see note above
 		var jobConfig = configuration.GetSection(JobConfigSectionName).Get<DataProcessingJobOptions>()
 			?? throw new InvalidOperationException($"Job configuration not found at {JobConfigSectionName}.");
-		#pragma warning restore IL2026, IL3050
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
 		// A Disabled job is never registered with the scheduler, so no trigger ever fires.
@@ -101,15 +94,8 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		// The configuration-binding source generator does not intercept this call in this project,
-		// so the reflection-based ConfigurationBinder.Get<T> is reached and the trim analyzer is
-		// correct to flag it. Binding happens once at startup from a fixed section; the options type
-		// is referenced directly here so the trimmer keeps it. Suppressed rather than hidden: the
-		// member named below is the BCL one actually reached, not a wrapper of ours.
-		#pragma warning disable IL2026, IL3050 // ConfigurationBinder.Get<T> - see note above
 		var jobConfig = configuration.GetSection(JobConfigSectionName).Get<DataProcessingJobOptions>()
 			?? throw new InvalidOperationException($"Job configuration not found at {JobConfigSectionName}.");
-		#pragma warning restore IL2026, IL3050
 
 		_ = healthChecks.Add(new HealthCheckRegistration(
 			$"{jobConfig.JobName}HealthCheck",

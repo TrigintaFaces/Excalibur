@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Examples.ECommerceSample.Infrastructure;
 /// <summary>
 /// In-memory order repository for sample application.
 /// </summary>
-public sealed class InMemoryOrderRepository(ILogger<InMemoryOrderRepository> logger)
+public sealed partial class InMemoryOrderRepository(ILogger<InMemoryOrderRepository> logger)
 {
 	private static readonly Action<ILogger, string, Exception?> LogOrderSaved =
 		LoggerMessage.Define<string>(
@@ -32,13 +32,14 @@ public sealed class InMemoryOrderRepository(ILogger<InMemoryOrderRepository> log
 
 	public Task<OrderRecord?> GetOrderAsync(string orderId)
 	{
+		var submission = SubmissionOrders().FirstOrDefault(order => order.OrderId == orderId);
 		_ = _orders.TryGetValue(orderId, out var order);
-		return Task.FromResult(order);
+		return Task.FromResult(submission ?? order);
 	}
 
 	public Task<IEnumerable<OrderRecord>> GetOrdersByCustomerAsync(string customerId)
 	{
-		var customerOrders = _orders.Values
+		var customerOrders = AllOrders()
 			.Where(o => o.CustomerId == customerId)
 			.OrderByDescending(o => o.OrderDate)
 			.AsEnumerable();
@@ -46,16 +47,19 @@ public sealed class InMemoryOrderRepository(ILogger<InMemoryOrderRepository> log
 		return Task.FromResult(customerOrders);
 	}
 
-	public Task<IEnumerable<OrderRecord>> GetAllOrdersAsync() => Task.FromResult(_orders.Values.AsEnumerable());
+	public Task<IEnumerable<OrderRecord>> GetAllOrdersAsync() => Task.FromResult(AllOrders());
 
-	public int GetTotalOrderCount() => _orders.Count;
+	public int GetTotalOrderCount() => AllOrders().Count();
+
+	private IEnumerable<OrderRecord> AllOrders() => _orders.Values.Concat(SubmissionOrders())
+		.GroupBy(static order => order.OrderId, StringComparer.Ordinal).Select(static group => group.Last()).ToArray();
 }
 
 /// <summary>
 /// Stands in for the mail provider. There is no queue here on purpose: the outbox owns everything a message
 /// needs before it is delivered, so this type only performs the send and records what went out.
 /// </summary>
-public sealed class InMemoryEmailService(ILogger<InMemoryEmailService> logger)
+public sealed class InMemoryEmailService(ILogger<InMemoryEmailService> logger) : IEmailSender
 {
 	private static readonly Action<ILogger, string, string, string, Exception?> LogEmailSent =
 		LoggerMessage.Define<string, string, string>(

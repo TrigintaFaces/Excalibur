@@ -161,9 +161,9 @@ The pattern separates three distinct responsibilities:
 2. **Routing** (`ApplyEventInternal`) - Dispatches to correct handler
 3. **State mutation** (`Apply`) - Updates aggregate state
 
-### Optimal Performance
+### Explicit Type Dispatch
 
-Pattern matching compiles to efficient IL:
+The switch expresses the supported event types and handler calls directly:
 
 ```csharp
 // This switch statement
@@ -174,8 +174,12 @@ switch (@event)
     default: throw ...;
 }
 
-// Compiles to type checks and jumps (no reflection)
+// This dispatch code does not use reflection.
 ```
+
+This structure is not a measured performance ranking. Generated code and runtime optimizations
+depend on the compiler and deployment; measure the complete event-application workload before
+claiming latency or allocation improvements.
 
 ## Comparing to Other Patterns
 

@@ -138,6 +138,10 @@ projects:
     classification: Sample
     in_solution: true
 
+  - path: samples/04-reliability/PrimarySqlAtomicSaga/PrimarySqlAtomicSaga.csproj
+    classification: Sample
+    in_solution: true
+
   - path: samples/04-reliability/SagaOrchestration/SagaOrchestration.csproj
     classification: Sample
     in_solution: true
@@ -286,6 +290,10 @@ projects:
     classification: Sample
     in_solution: true
 
+  - path: samples/09-advanced/persistence-patterns/BulkDataProcessing/BulkDataProcessing.csproj
+    classification: Sample
+    in_solution: true
+
   - path: samples/09-advanced/persistence-patterns/CloudStorageSnapshots/CloudStorageSnapshots.csproj
     classification: Sample
     in_solution: true
@@ -397,6 +405,11 @@ projects:
   - path: samples/09-advanced/querying/StreamingHandlers/StreamingHandlers.csproj
     classification: Sample
     in_solution: true
+
+  - path: samples/10-aot/BulkDataProcessing/BulkDataProcessing.csproj
+    classification: Sample
+    in_solution: true
+    framework_owner: Excalibur
 
   - path: samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj
     classification: Sample
@@ -1733,6 +1746,20 @@ projects:
     framework_owner: Excalibur
     notes: "Executable SQL Server-to-Elasticsearch Inline probe; strict native publish and isolated runtime scenarios are required for certification"
 
+  - path: tests/harnesses/ElasticsearchOutboxAotProbe/ElasticsearchOutboxAotProbe.csproj
+    classification: Test
+    in_solution: true
+    category: NativeAOT
+    framework_owner: Excalibur
+    notes: "Executable Elasticsearch outbox probe; solution membership is not Native publish or real-provider runtime certification"
+
+  - path: tests/harnesses/CacheInvalidationAotProbe/CacheInvalidationAotProbe.csproj
+    classification: Test
+    in_solution: true
+    category: NativeAOT
+    framework_owner: Dispatch
+    notes: "Executable NativeAOT cache invalidation probe; not independently xUnit discoverable"
+
   - path: tests/integration/Excalibur.Dispatch.Integration.Tests/Excalibur.Dispatch.Integration.Tests.csproj
     classification: Test
     in_solution: true
@@ -2162,6 +2189,12 @@ projects:
     framework_owner: Excalibur
 
   - path: tests/unit/Excalibur.Domain.Tests/Excalibur.Domain.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.ECommerceSample.Tests/Excalibur.ECommerceSample.Tests.csproj
     classification: Test
     in_solution: true
     category: Unit

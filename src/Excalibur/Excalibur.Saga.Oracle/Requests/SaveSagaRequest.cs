@@ -56,7 +56,17 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		// The INSERT branch stays guarded to :ExpectedVersion = 0 so a natural new saga (Version 0) inserts, while a
 		// MISSING row with a non-zero expected (a deleted/stale saga) is NOT resurrected at a high version.
 		// Oracle MERGE requires a FROM DUAL driver row and places conditional predicates in a trailing WHERE clause.
-		var expectedVersion = sagaState.Version;
+		if (sagaState.TimerRecoveryIncarnationId == Guid.Empty)
+        {
+            if (sagaState.Version < 1) { throw new InvalidOperationException("A new saga must have a nonempty timer recovery incarnation."); }
+            // The conditional write below, not this observation, decides whether legacy initialization is still current.
+            sagaState.TimerRecoveryIncarnationId = Guid.NewGuid();
+        }
+        var recoveryTracked = sagaState.PendingTimerRecovery is not null || sagaState.LastTimerRecoveryBatchId != Guid.Empty;
+        var recoveryIncarnation = sagaState.TimerRecoveryIncarnationId.ToString("N");
+        var recoveryBatch = sagaState.PendingTimerRecovery?.BatchId.ToString("N");
+        var recoveryDigest = sagaState.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null;
+        var expectedVersion = sagaState.Version;
 		var newVersion = sagaState.Version + 1;
 
 		// The tenant term is UNCONDITIONAL in the match. It used to vanish on the unscoped path, which let an
@@ -76,25 +86,47 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		// unconditional in the match, so the isolation property the term exists for is untouched -- an
 		// unscoped save still cannot match a scoped tenant's row.
 		var partition = KeyedTenantPartition.FromScope(scope);
+        if (sagaState.PendingTimerRecovery is { } owned
+            && (owned.Scope.SagaId != sagaState.SagaId || owned.Scope.StateType != typeof(TSagaState).Name
+                || !string.Equals(owned.Scope.TenantId, partition.TenantId, StringComparison.Ordinal)
+                || owned.IncarnationId != sagaState.TimerRecoveryIncarnationId || owned.Sequence != sagaState.TimerRecoverySequence))
+        { throw new InvalidOperationException("Timer journal differs from the state store's exact authority."); }
+
 		const string onTenant = " AND target.TenantId = :TenantId";
 		var sql = $"""
 			MERGE INTO {qualifiedTableName} target
 			USING (SELECT :SagaId AS SagaId FROM DUAL) source
 			ON (target.SagaId = source.SagaId{onTenant})
 			WHEN MATCHED THEN UPDATE SET
-				StateJson = :StateJson,
-				IsCompleted = :IsCompleted,
-				CompletedAt = :CompletedAt,
-				Version = :NewVersion,
-				UpdatedUtc = SYS_EXTRACT_UTC(SYSTIMESTAMP)
+			TimerRecoveryIncarnation = COALESCE(target.TimerRecoveryIncarnation, :RecoveryIncarnation),
+			TimerRecoveryTracked = CASE WHEN target.TimerRecoveryTracked = 1 OR :RecoveryTracked = 1 THEN 1 ELSE 0 END,
+			TimerRecoveryPendingBatch = :RecoveryBatch, TimerRecoveryPendingDigest = :RecoveryDigest,
+			StateJson = :StateJson,
+			IsCompleted = :IsCompleted,
+			CompletedAt = :CompletedAt,
+			Version = :NewVersion,
+			UpdatedUtc = SYS_EXTRACT_UTC(SYSTIMESTAMP)
 			WHERE target.Version = :ExpectedVersion
+			AND (target.TimerRecoveryIncarnation IS NULL OR target.TimerRecoveryIncarnation = :RecoveryIncarnation)
+			AND (target.TimerRecoveryPendingBatch IS NULL OR (target.TimerRecoveryPendingBatch = :RecoveryBatch AND target.TimerRecoveryPendingDigest = :RecoveryDigest)
+			OR (:RecoveryBatch IS NULL AND target.TimerRecoveryPendingBatch = :RecoveryLastAck))
 			WHEN NOT MATCHED THEN INSERT
-				(SagaId, SagaType, StateJson, IsCompleted, CompletedAt, TenantId, Version)
-				VALUES (:SagaId, :SagaType, :StateJson, :IsCompleted, :CompletedAt, :TenantId, :NewVersion)
+			(SagaId, SagaType, StateJson, IsCompleted, CompletedAt, TenantId, Version, TimerRecoveryIncarnation, TimerRecoveryTracked, TimerRecoveryPendingBatch, TimerRecoveryPendingDigest)
+			VALUES (:SagaId, :SagaType, :StateJson, :IsCompleted, :CompletedAt, :TenantId, :NewVersion, :RecoveryIncarnation, :RecoveryTracked, :RecoveryBatch, :RecoveryDigest)
 			WHERE :ExpectedVersion = 0
 			""";
 
 		var stateJson = serializer.Serialize(sagaState);
+        if (recoveryTracked)
+        {
+            var restored = serializer.Deserialize<TSagaState>(stateJson);
+            if (restored is null || restored.TimerRecoveryIncarnationId != sagaState.TimerRecoveryIncarnationId
+                || restored.TimerRecoverySequence != sagaState.TimerRecoverySequence
+                || restored.LastTimerRecoveryBatchId != sagaState.LastTimerRecoveryBatchId
+                || (restored.PendingTimerRecovery is { } restoredJournal ? Convert.ToHexString(restoredJournal.GetAuthorityDigest()) : null) != recoveryDigest)
+            { throw new InvalidOperationException("The selected saga serializer does not preserve ordinary timer recovery authority."); }
+        }
+
 
 		var dp = new DynamicParameters();
 		// ODP.NET has no native Guid bind type; a raw Guid throws. Bind the 16 canonical bytes as RAW(16).
@@ -123,6 +155,12 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		dp.Add("TenantId", partition.TenantId);
 		dp.Add("ExpectedVersion", expectedVersion);
 		dp.Add("NewVersion", newVersion);
+
+		dp.Add("RecoveryIncarnation", recoveryIncarnation);
+        dp.Add("RecoveryTracked", recoveryTracked ? 1 : 0);
+        dp.Add("RecoveryBatch", recoveryBatch);
+        dp.Add("RecoveryDigest", recoveryDigest);
+        dp.Add("RecoveryLastAck", sagaState.LastTimerRecoveryBatchId.ToString("N"));
 
 		Command = new CommandDefinition(sql, new OracleDynamicParameters(dp), cancellationToken: cancellationToken);
 		ResolveAsync = conn => conn.ExecuteAsync(Command);

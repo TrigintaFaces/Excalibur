@@ -20,7 +20,7 @@ public sealed class SqlServerLeaderElectionFactory : ILeaderElectionFactory
 	private readonly ILoggerFactory _loggerFactory;
 	private readonly IOptions<LeaderElectionOptions> _options;
 	private readonly IMessageFailureClassifier? _failureClassifier;
-	private readonly IFencingTokenProvider? _fencingTokenProvider;
+	private readonly IFencingTokenIssuer? _fencingTokenProvider;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerLeaderElectionFactory"/> class.
@@ -37,7 +37,7 @@ public sealed class SqlServerLeaderElectionFactory : ILeaderElectionFactory
 	/// Defaults to <see langword="null"/> (grace-only behavior).
 	/// </param>
 	/// <param name="fencingTokenProvider">
-	/// An optional <see cref="IFencingTokenProvider"/> propagated to every election this
+	/// An optional <see cref="IFencingTokenIssuer"/> propagated to every election this
 	/// factory creates, enabling fail-closed fencing-token issuance on leadership acquisition. Defaults to
 	/// <see langword="null"/> (no fencing).
 	/// </param>
@@ -46,7 +46,7 @@ public sealed class SqlServerLeaderElectionFactory : ILeaderElectionFactory
 		ILoggerFactory loggerFactory,
 		IOptions<LeaderElectionOptions> options,
 		IMessageFailureClassifier? failureClassifier = null,
-		IFencingTokenProvider? fencingTokenProvider = null)
+		IFencingTokenIssuer? fencingTokenProvider = null)
 	{
 		_connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
 		_loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));

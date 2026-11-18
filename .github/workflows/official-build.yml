@@ -719,7 +719,9 @@ jobs:
       - name: Attest build provenance for the canonical package set
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
-          subject-path: packages/*.nupkg
+          subject-path: |
+            packages/*.nupkg
+            sbom/bom.json
 
       # Binds the SBOM to the packages cryptographically, so "this SBOM describes these packages" is
       # verifiable rather than inferred from two artifacts sitting side by side. Without it a

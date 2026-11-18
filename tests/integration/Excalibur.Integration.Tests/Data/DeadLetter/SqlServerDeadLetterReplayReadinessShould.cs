@@ -40,8 +40,19 @@ public sealed class SqlServerDeadLetterReplayReadinessShould(SqlServerContainerF
 		(await Queue().GetEntryAsync(id, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
 	}
 
+	/// <remarks>
+	/// The entry is unchanged at the end, and the reason is NOT that the flag was never written. The replay
+	/// claims the entry before the effect, so the claim lands first and the payload is only then found to be
+	/// null; the handler is never reached, the fault propagates, and the claim is RELEASED, which is what
+	/// restores the row. So this arm also exercises the release path, and it would redden if the release
+	/// broke — for a reason its assertions alone do not name. Do not relax it on that reading.
+	/// <para>
+	/// Renamed from <c>RejectJsonNullBeforeCallingTheHandlerOrMarkingReplay</c>, whose name certified the
+	/// old ordering: marking no longer happens after the rejection, it happens before it.
+	/// </para>
+	/// </remarks>
 	[Fact]
-	public async Task RejectJsonNullBeforeCallingTheHandlerOrMarkingReplay()
+	public async Task RejectJsonNullWithoutCallingTheHandlerAndLeaveTheEntryUnchanged()
 	{
 		var id = await EnqueueAsync().ConfigureAwait(false);
 		await ReplacePayloadAsync(id, "null").ConfigureAwait(false);
@@ -99,19 +110,24 @@ public sealed class SqlServerDeadLetterReplayReadinessShould(SqlServerContainerF
 		await AssertUnchangedAsync(id, before).ConfigureAwait(false);
 	}
 
+	/// <remarks>
+	/// This arm no longer asserts WHEN the replayed flag is written. The replay claims the entry before
+	/// the effect, so the flag is already set while the callback runs, and the ordering is asserted
+	/// positively by the claim suite's own arms rather than negatively here.
+	/// </remarks>
 	[Fact]
-	public async Task MarkCompletionOnlyAfterTheCallbackAndRestoreTheStoredTenant()
+	public async Task RestoreTheStoredTenantAndPreserveThePayloadDuringTheCallback()
 	{
 		var id = await EnqueueAsync().ConfigureAwait(false);
 		var before = await ReadRowAsync(id).ConfigureAwait(false);
 		var calls = 0;
-		async Task Replay(object value)
+		Task Replay(object value)
 		{
 			calls++;
 			TenantContextHolder.Current.ShouldBe(StoredTenant);
 			var payload = value.ShouldBeOfType<JsonElement>();
 			payload.GetProperty("orderId").GetString().ShouldBe("order-readiness");
-			await AssertUnchangedAsync(id, before).ConfigureAwait(false);
+			return Task.CompletedTask;
 		}
 
 		using (TenantContextHolder.BeginScope("operator-tenant"))

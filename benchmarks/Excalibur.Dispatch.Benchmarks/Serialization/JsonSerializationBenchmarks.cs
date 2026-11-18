@@ -64,7 +64,7 @@ public class JsonSerializationBenchmarks
 	}
 
 	/// <summary>
-	/// Benchmark: Serialize small message (&lt; 1KB) using IBufferWriter (zero-alloc path).
+	/// Benchmark: Serialize small message (&lt; 1KB) using IBufferWriter (allocations are measured).
 	/// </summary>
 	[Benchmark(Baseline = true)]
 	public int SerializeSmallMessage()
@@ -84,7 +84,7 @@ public class JsonSerializationBenchmarks
 	}
 
 	/// <summary>
-	/// Benchmark: Serialize medium message (1-10KB) using IBufferWriter (zero-alloc path).
+	/// Benchmark: Serialize medium message (1-10KB) using IBufferWriter (allocations are measured).
 	/// </summary>
 	[Benchmark]
 	public int SerializeMediumMessage()
@@ -104,7 +104,7 @@ public class JsonSerializationBenchmarks
 	}
 
 	/// <summary>
-	/// Benchmark: Serialize large message (&gt; 10KB) using IBufferWriter (zero-alloc path).
+	/// Benchmark: Serialize large message (&gt; 10KB) using IBufferWriter (allocations are measured).
 	/// </summary>
 	[Benchmark]
 	public int SerializeLargeMessage()

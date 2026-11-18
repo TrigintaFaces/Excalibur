@@ -3,6 +3,9 @@
 
 using System.Collections.Concurrent;
 using System.Reflection;
+using Microsoft.Extensions.Time.Testing;
+
+using Excalibur.LeaderElection.Tests.Helpers;
 
 namespace Excalibur.LeaderElection.Tests.InMemory;
 
@@ -68,7 +71,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 	[Fact]
 	public void Constructor_UsesDefaultInstanceId_WhenNotExplicitlySet()
 	{
-		// Arrange — LeaderElectionOptions.InstanceId defaults to "{MachineName}-{Guid}" format
+		// Arrange — the shared resolver uses a supplied environment identity or a complete random GUID.
 		var resourceName = $"test-resource-{Guid.NewGuid():N}";
 		var options = Options.Create(new LeaderElectionOptions());
 
@@ -77,9 +80,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 
 		// Assert
 		election.CandidateId.ShouldNotBeNullOrWhiteSpace();
-		election.CandidateId.Length.ShouldBeLessThanOrEqualTo(24);
-		var machinePrefix = Environment.MachineName[..Math.Min(Environment.MachineName.Length, election.CandidateId.Length)];
-		election.CandidateId.StartsWith(machinePrefix, StringComparison.OrdinalIgnoreCase).ShouldBeTrue();
+		LeaderIdentityAssertions.AssertDefault(election.CandidateId);
 	}
 
 	[Fact]
@@ -120,7 +121,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		};
 
 		// Act
-		await _election.StartAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: false);
+        await _election.StartAsync(CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		eventRaised.ShouldBeTrue();
@@ -142,7 +145,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		};
 
 		// Act
-		await _election.StartAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: false);
+        await _election.StartAsync(CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		eventRaised.ShouldBeTrue();
@@ -159,12 +164,16 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.BecameLeader += (_, _) => becameLeaderCount++;
 
 		// Act
-		await _election.StartAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: false);
+        await _election.StartAsync(CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 		await _election.StartAsync(CancellationToken.None);
 
 		// Assert
-		becameLeaderCount.ShouldBe(1);
-		_election.IsLeader.ShouldBeTrue();
+        _election.IsLeader.ShouldBeTrue();
+        await _election.DisposeAsync();
+        await _election.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+        becameLeaderCount.ShouldBe(1);
 	}
 
 	[Fact]
@@ -208,7 +217,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		};
 
 		// Act
-		await _election.StopAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: true);
+        await _election.StopAsync(CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		eventRaised.ShouldBeTrue();
@@ -225,7 +236,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LeaderChanged += (_, args) => eventArgs = args;
 
 		// Act
-		await _election.StopAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: true);
+        await _election.StopAsync(CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		_ = eventArgs.ShouldNotBeNull();
@@ -266,7 +279,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		follower.LeaderChanged += (_, _) => leaderChangedRaised = true;
 
 		// Act
-		await follower.StopAsync(CancellationToken.None);
+        await follower.StopAsync(CancellationToken.None);
+        await follower.DisposeAsync();
+        await follower.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		lostLeadershipRaised.ShouldBeFalse();
@@ -316,7 +331,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LostLeadership += (_, _) => lostLeadershipRaised = true;
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: true);
+        await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		_election.IsLeader.ShouldBeFalse();
@@ -334,7 +351,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LeaderChanged += (_, args) => eventArgs = args;
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: true);
+        await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		_ = eventArgs.ShouldNotBeNull();
@@ -669,8 +688,10 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		election2.IsLeader.ShouldBeFalse();
 
 		// Act - stop first leader; second should pick up via timer renewal
-		await election1.StopAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(election2, relinquished: false);
+        await election1.StopAsync(CancellationToken.None);
 		InvokeRenewLeaseCallback(election2);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		election1.IsLeader.ShouldBeFalse();
@@ -811,7 +832,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LeaderChanged += (_, args) => eventArgs = args;
 
 		// Act
-		await _election.StartAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: false);
+        await _election.StartAsync(CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		_ = eventArgs.ShouldNotBeNull();
@@ -859,7 +882,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LeaderChanged += (_, args) => eventArgs = args;
 
 		// Act
-		await _election.StopAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: true);
+        await _election.StopAsync(CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		_ = eventArgs.ShouldNotBeNull();
@@ -876,7 +901,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LostLeadership += (_, args) => eventArgs = args;
 
 		// Act
-		await _election.StopAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: true);
+        await _election.StopAsync(CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		_ = eventArgs.ShouldNotBeNull();
@@ -893,7 +920,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LostLeadership += (_, args) => eventArgs = args;
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: true);
+        await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		_ = eventArgs.ShouldNotBeNull();
@@ -911,7 +940,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LeaderChanged += (_, args) => eventArgs = args;
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(_election, relinquished: true);
+        await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		_ = eventArgs.ShouldNotBeNull();
@@ -976,8 +1007,10 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		follower.BecameLeader += (_, _) => becameLeaderRaised = true;
 
 		// Act - stop the leader so that the follower's renewal callback can acquire leadership
+        using var callbackBarrier = new InMemoryCallbackBarrier(follower, relinquished: false);
 		await leader.StopAsync(CancellationToken.None);
 		InvokeRenewLeaseCallback(follower);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert - follower should have acquired leadership via the renewal callback
 		follower.IsLeader.ShouldBeTrue();
@@ -1066,7 +1099,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		election.LeaderChanged += (_, args) => leaderChangedArgs = args;
 
 		// Act
-		election.Dispose();
+		using var callbackBarrier = new InMemoryCallbackBarrier(election, relinquished: true);
+        election.Dispose();
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Assert
 		election.IsLeader.ShouldBeFalse();
@@ -1224,9 +1259,11 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 			RenewInterval = TimeSpan.FromMilliseconds(50),
 		});
 
-		using var leader = new InMemoryLeaderElection(resourceName, options1, logger: null);
-		using var follower1 = new InMemoryLeaderElection(resourceName, options2, logger: null);
-		using var follower2 = new InMemoryLeaderElection(resourceName, options3, logger: null);
+		var clock = new FakeTimeProvider();
+		var shared = new InMemoryLeaderElectionSharedState();
+		await using var leader = new InMemoryLeaderElection(resourceName, options1, logger: null, sharedState: shared, timeProvider: clock);
+		await using var follower1 = new InMemoryLeaderElection(resourceName, options2, logger: null, sharedState: shared, timeProvider: clock);
+		await using var follower2 = new InMemoryLeaderElection(resourceName, options3, logger: null, sharedState: shared, timeProvider: clock);
 
 		await leader.StartAsync(CancellationToken.None);
 		await follower1.StartAsync(CancellationToken.None);
@@ -1236,17 +1273,32 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		follower1.IsLeader.ShouldBeFalse();
 		follower2.IsLeader.ShouldBeFalse();
 
+		// Initial Start attempts had no subscribers; these signals belong only to the controlled tick.
+		var attempt1 = new TaskCompletionSource<LeaderElectionAcquisitionFailedEventArgs?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var attempt2 = new TaskCompletionSource<LeaderElectionAcquisitionFailedEventArgs?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		follower1.BecameLeader += (_, _) => attempt1.TrySetResult(null);
+		follower1.AcquisitionFailed += (_, args) => attempt1.TrySetResult(args);
+		follower2.BecameLeader += (_, _) => attempt2.TrySetResult(null);
+		follower2.AcquisitionFailed += (_, args) => attempt2.TrySetResult(args);
+
 		// Act - leader steps down
 		await leader.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 		leader.IsLeader.ShouldBeFalse();
 
-		InvokeRenewLeaseCallback(follower1);
-		InvokeRenewLeaseCallback(follower2);
-
-		// Assert - exactly one follower should have acquired leadership
-		var isFollower1Leader = follower1.IsLeader;
-		var isFollower2Leader = follower2.IsLeader;
-		(isFollower1Leader || isFollower2Leader).ShouldBeTrue("At least one follower should become leader");
+		// Callback return only queues acquisition work; await both public outcomes instead of reading early.
+		clock.Advance(TimeSpan.FromMilliseconds(50));
+		var outcomes = await Task.WhenAll(attempt1.Task, attempt2.Task)
+		    .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+		outcomes.Count(outcome => outcome is null).ShouldBe(1, "exactly one controlled acquisition must succeed");
+		var failure = outcomes.Single(outcome => outcome is not null)!;
+		failure.Exception.ShouldBeNull();
+		failure.Reason.ShouldBe("lost the acquisition race");
+		(follower1.IsLeader ^ follower2.IsLeader).ShouldBeTrue("exactly one follower must own leadership");
+		leader.IsLeader.ShouldBeFalse();
+		var successor = follower1.IsLeader ? follower1.CandidateId : follower2.CandidateId;
+		leader.CurrentLeaderId.ShouldBe(successor);
+		follower1.CurrentLeaderId.ShouldBe(successor);
+		follower2.CurrentLeaderId.ShouldBe(successor);
 	}
 
 	[Fact]
@@ -1493,7 +1545,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		using var leader = new InMemoryLeaderElection(resourceName, leaderOptions, logger: null);
 		using var follower = new InMemoryLeaderElection(resourceName, followerOptions, logger: null);
 
-		await leader.StartAsync(CancellationToken.None);
+		using var callbackBarrier = new InMemoryCallbackBarrier(leader, relinquished: false);
+        await leader.StartAsync(CancellationToken.None);
+        await callbackBarrier.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 		leader.IsLeader.ShouldBeTrue();
 
 		var becameLeaderRaised = false;

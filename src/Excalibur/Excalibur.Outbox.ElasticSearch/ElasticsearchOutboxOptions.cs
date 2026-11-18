@@ -67,7 +67,7 @@ public sealed class ElasticsearchOutboxOptions
 	public int LeaseTimeoutSeconds { get; set; } = 300;
 
 	/// <summary>
-	/// Gets or sets the failure-backoff floor F, in seconds: after <see cref="ElasticsearchOutboxStore.MarkFailedAsync"/>
+	/// Gets or sets the failure-backoff floor F, in seconds: after <see cref="ElasticsearchOutboxStore.MarkFailedAsync(string, string, int, System.Threading.CancellationToken)"/>
 	/// records a plain failure, the message becomes re-claimable only once F has elapsed from the failure
 	/// instant (its <c>NextAttemptAt</c> gate). This bounds the retry cadence of the plain path so it cannot
 	/// hot-loop the drain against a persistently failing destination, while the message stays eventually

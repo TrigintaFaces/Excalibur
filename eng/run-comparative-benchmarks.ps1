@@ -201,9 +201,10 @@ if (-not (Test-Path $projectPath)) {
     throw "Benchmark project path not found: $projectPath"
 }
 
-if (-not (Test-Path $artifactsFullPath)) {
-    New-Item -ItemType Directory -Force -Path $artifactsFullPath | Out-Null
+if ((Test-Path $artifactsFullPath) -and @(Get-ChildItem -LiteralPath $artifactsFullPath -Force).Count) {
+    throw "Artifacts directory must be new or empty; preserve previous results and choose a fresh -ArtifactsPath: $artifactsFullPath"
 }
+New-Item -ItemType Directory -Force -Path $artifactsFullPath | Out-Null
 
 $runtimeProfilesFullPath = if ([System.IO.Path]::IsPathRooted($RuntimeProfilesPath)) {
     $RuntimeProfilesPath
@@ -215,9 +216,10 @@ $runtimeProfileVariables = Get-RuntimeProfileVariables -ProfileName $RuntimeProf
 $runtimeProfileOriginalEnv = @{}
 foreach ($envVar in $runtimeProfileVariables.Keys) {
     $runtimeProfileOriginalEnv[$envVar] = [Environment]::GetEnvironmentVariable($envVar)
-    [Environment]::SetEnvironmentVariable($envVar, "$($runtimeProfileVariables[$envVar])")
 }
 
+# NServiceBus selectors belonged to historical reports and match no current compiled workload.
+# Preserve those reports as history; validate every current selector below.
 $filters = if ($CiSmoke) {
     @(
         "*MediatRComparisonBenchmarks.Dispatch_SingleCommand*",
@@ -227,8 +229,7 @@ $filters = if ($CiSmoke) {
         "*WolverineComparisonBenchmarks.Dispatch_SingleCommand*",
         "*MassTransitComparisonBenchmarks.Dispatch_SingleCommand*",
         "*PipelineComparisonBenchmarks.Dispatch_WithPipelineBehaviors*",
-        "*RoutingFirstParityBenchmarks.Dispatch_SingleCommand*",
-        "*NServiceBusComparisonBenchmarks.Dispatch_SingleCommand*"
+        "*RoutingFirstParityBenchmarks.Dispatch_PreRoutedLocalCommand*"
     )
 }
 else {
@@ -240,12 +241,11 @@ else {
         "*WolverineComparisonBenchmarks*",
         "*MassTransitComparisonBenchmarks*",
         "*PipelineComparisonBenchmarks*",
-        "*RoutingFirstParityBenchmarks*",
-        "*NServiceBusComparisonBenchmarks*"
+        "*RoutingFirstParityBenchmarks*"
     )
 }
 
-$exporters = @("csv", "markdown", "html", "json")
+$exporters = @("csv", "markdown", "html", "json", "fulljson")
 
 $arguments = @(
     "run",
@@ -297,12 +297,36 @@ $originalEnv = @{}
 if (-not $VerboseFrameworkLogs) {
     foreach ($envVar in $quietLogEnvVars) {
         $originalEnv[$envVar] = [Environment]::GetEnvironmentVariable($envVar)
-        [Environment]::SetEnvironmentVariable($envVar, "Warning")
     }
 }
 
-Push-Location $repoRoot
+# Select the project-local solution for BenchmarkDotNet's generated build.
+$locationPushed = $false
 try {
+    foreach ($envVar in $runtimeProfileVariables.Keys) {
+        [Environment]::SetEnvironmentVariable($envVar, "$($runtimeProfileVariables[$envVar])")
+    }
+    if (-not $VerboseFrameworkLogs) {
+        foreach ($envVar in $quietLogEnvVars) { [Environment]::SetEnvironmentVariable($envVar, "Warning") }
+    }
+    Push-Location $projectPath
+    $locationPushed = $true
+    $discoveryArguments = @("run", "--project", $projectPath, "--configuration", $Configuration)
+    if ($NoBuild) { $discoveryArguments += "--no-build" }
+    if ($NoRestore) { $discoveryArguments += "--no-restore" }
+    $discoveryArguments += @("--", "--list", "flat")
+    $discoveredOutput = @(& dotnet @discoveryArguments 2> (Join-Path $artifactsFullPath "benchmark-discovery.stderr.log"))
+    $discoveryExitCode = $LASTEXITCODE
+    $discoveredOutput | Set-Content -LiteralPath (Join-Path $artifactsFullPath "benchmark-discovery.log")
+    if ($discoveryExitCode -ne 0) { throw "Benchmark discovery failed with exit code $discoveryExitCode" }
+    $discoveredCases = @($discoveredOutput | ForEach-Object { $_.Trim() } | Where-Object {
+        $_ -cmatch '^Excalibur\.Dispatch\.Benchmarks\.(?:[A-Za-z_]\w*\.)+[A-Za-z_]\w*$'
+    })
+    foreach ($filter in $filters) {
+        if (-not @($discoveredCases | Where-Object { $_ -clike $filter }).Count) {
+            throw "Benchmark selector matched no compiled cases: $filter"
+        }
+    }
     & dotnet @arguments
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
@@ -310,16 +334,22 @@ try {
     }
 }
 finally {
-    Pop-Location
+    if ($locationPushed) { Pop-Location }
 
     if (-not $VerboseFrameworkLogs) {
         foreach ($envVar in $quietLogEnvVars) {
-            [Environment]::SetEnvironmentVariable($envVar, $originalEnv[$envVar])
+            if ($null -eq $originalEnv[$envVar]) {
+                Remove-Item -LiteralPath "Env:$envVar" -ErrorAction SilentlyContinue
+            }
+            else { [Environment]::SetEnvironmentVariable($envVar, $originalEnv[$envVar]) }
         }
     }
 
     foreach ($envVar in $runtimeProfileVariables.Keys) {
-        [Environment]::SetEnvironmentVariable($envVar, $runtimeProfileOriginalEnv[$envVar])
+        if ($null -eq $runtimeProfileOriginalEnv[$envVar]) {
+            Remove-Item -LiteralPath "Env:$envVar" -ErrorAction SilentlyContinue
+        }
+        else { [Environment]::SetEnvironmentVariable($envVar, $runtimeProfileOriginalEnv[$envVar]) }
     }
 }
 
@@ -331,8 +361,7 @@ $expectedReports = @(
     "Excalibur.Dispatch.Benchmarks.Comparative.WolverineComparisonBenchmarks-report-github.md",
     "Excalibur.Dispatch.Benchmarks.Comparative.MassTransitComparisonBenchmarks-report-github.md",
     "Excalibur.Dispatch.Benchmarks.Comparative.PipelineComparisonBenchmarks-report-github.md",
-    "Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report-github.md",
-    "Excalibur.Dispatch.Benchmarks.Comparative.NServiceBusComparisonBenchmarks-report-github.md"
+    "Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report-github.md"
 )
 
 $missingReports = @()
@@ -351,8 +380,37 @@ if ($missingReports.Count -gt 0) {
     exit 2
 }
 
+# Report existence alone can admit NA/failed/no-op results. Validate original raw samples.
+$rawReports = @(Get-ChildItem -LiteralPath $resultsPath -Filter "*-report-full.json")
+if ($rawReports.Count -eq 0) { throw "No full JSON measurement reports were produced" }
+$measuredMethods = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+foreach ($file in $rawReports) {
+    $raw = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
+    if (@($raw.Benchmarks).Count -eq 0) { throw "Empty benchmark report: $($file.FullName)" }
+    foreach ($case in $raw.Benchmarks) {
+        if (-not $case.Statistics -or $case.Statistics.N -le 0 -or
+            -not [double]::IsFinite([double]$case.Statistics.Mean) -or $case.Statistics.Mean -le 0) {
+            throw "Missing or invalid measurement: $($case.FullName)"
+        }
+        $actual = @($case.Measurements | Where-Object { $_.IterationMode -ceq 'Workload' -and $_.IterationStage -ceq 'Actual' })
+        $result = @($case.Measurements | Where-Object { $_.IterationMode -ceq 'Workload' -and $_.IterationStage -ceq 'Result' })
+        if ($actual.Count -eq 0 -or $result.Count -ne $case.Statistics.N) { throw "Incomplete raw measurements: $($case.FullName)" }
+        foreach ($sample in $result) {
+            if ($sample.Operations -le 0 -or -not [double]::IsFinite([double]$sample.Nanoseconds) -or $sample.Nanoseconds -le 0) {
+                throw "Nonpositive or invalid raw measurement: $($case.FullName)"
+            }
+        }
+        $null = $measuredMethods.Add(($case.FullName -split '\(', 2)[0])
+    }
+}
+foreach ($method in $discoveredCases) {
+    if (@($filters | Where-Object { $method -clike $_ }).Count -and -not $measuredMethods.Contains($method)) {
+        throw "Selected benchmark method has no measured result: $method"
+    }
+}
+
 Write-Host ""
-Write-Host "Comparative benchmark run completed successfully." -ForegroundColor Green
+Write-Host "Selected benchmark methods produced nonempty measured reports. Inspect jobs, parameters and warnings before performance claims." -ForegroundColor Green
 Write-Host "Result artifacts:" -ForegroundColor Green
 Write-Host "  - $resultsPath" -ForegroundColor Green
 foreach ($report in $expectedReports) {

@@ -24,4 +24,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\integration\Excalibur.Integration.Tests\Data\Inbox\CommerceCommitFrameParser.cs" Link="SqlServer\CommerceCommitFrameParser.cs" />
+  </ItemGroup>
 </Project>

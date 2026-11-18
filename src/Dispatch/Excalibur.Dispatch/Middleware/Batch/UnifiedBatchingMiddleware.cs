@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Middleware.Batch;
 /// This middleware combines the functionality of BatchingMiddleware and BulkProcessingMiddleware into a single, optimized implementation
 /// that provides:
 /// <list type="bullet">
-/// <item> Zero-allocation micro-batching for high-throughput scenarios </item>
+/// <item> Micro-batching with configurable buffer and batch limits </item>
 /// <item> Configurable batching strategies (time-based, size-based, or hybrid) </item>
 /// <item> Bulk operation optimization with intelligent grouping </item>
 /// <item> Backpressure-aware processing with bounded queues </item>

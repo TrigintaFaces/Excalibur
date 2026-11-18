@@ -1,11 +1,11 @@
 ---
 sidebar_position: 3
 title: Kafka Transport
-description: Apache Kafka transport for high-throughput event streaming
+description: Apache Kafka transport for partitioned event streaming
 ---
 
 # Kafka Transport
-Apache Kafka transport for high-throughput event streaming with configurable ordering and delivery guarantees.
+Apache Kafka transport for partitioned event streaming with configurable ordering and delivery guarantees.
 
 ## Before You Start
 
@@ -237,6 +237,11 @@ backed by a source-generated serializer.
 :::
 
 ```csharp
+// Choose how CloudEvent payloads are serialized. This is required once, and the transport
+// registration below reports it at startup if you leave it out.
+//   - with a source-generated context: reflection-free, and safe to trim or publish ahead-of-time
+//   - AddCloudEvents() with no argument: the reflective path, annotated so your build warns you
+services.AddDispatch(dispatch => dispatch.AddCloudEvents(MyPayloadContext.Default));
 services.AddCloudEventsForKafka(options =>
 {
     options.PartitioningStrategy = KafkaPartitioningStrategy.CorrelationId;
@@ -317,7 +322,7 @@ See **[Kafka Schema Registry](./kafka-schema-registry.md)** for the full referen
 - [ ] Enable idempotent producer for exactly-once workflows
 - [ ] Configure `TransactionalId` when `EnableTransactions` is true
 - [ ] Set a default topic and partitioning strategy
-- [ ] Enable compression for throughput/size balance
+- [ ] Evaluate compression using actual payload size, CPU cost and completed throughput
 - [ ] Configure Schema Registry with `UseConfluentSchemaRegistry()` for Confluent interop
 - [ ] Set appropriate `CompatibilityMode` for schema evolution
 - [ ] Disable `AutoRegisterSchemas` in production (explicit schema management)

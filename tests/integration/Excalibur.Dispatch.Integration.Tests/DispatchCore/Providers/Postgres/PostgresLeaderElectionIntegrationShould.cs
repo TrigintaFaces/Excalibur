@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Data;
+using System.Reflection;
+
 using Dapper;
 
 using Excalibur.LeaderElection.Postgres;
@@ -8,6 +11,7 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
 
 using Npgsql;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 
@@ -115,42 +119,68 @@ public sealed class PostgresLeaderElectionIntegrationShould : IntegrationTestBas
 	public async Task Leader_election_loses_leadership_when_connection_breaks_past_grace_period()
 	{
 		var sharedLockKey = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+		var clock = new BrokenSessionClock();
 		await using var leader = CreateLeaderElection(
 			lockKey: sharedLockKey,
 			renewInterval: TimeSpan.FromMilliseconds(100),
-			gracePeriod: TimeSpan.FromMilliseconds(100));
+			gracePeriod: TimeSpan.FromMilliseconds(100), timeProvider: clock);
 		var leaderAcquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		var leadershipLost = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var stoppedFromLoss = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
 		leader.BecameLeader += (_, _) => leaderAcquired.TrySetResult();
-		leader.LostLeadership += (_, _) => leadershipLost.TrySetResult();
-
+		leader.LostLeadership += (_, _) => stoppedFromLoss.TrySetResult(leader.StopAsync(CancellationToken.None));
 		await leader.StartAsync(TestCancellationToken);
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-				leaderAcquired.Task,
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
-				cancellationToken: TestCancellationToken)
-			;
+		await leaderAcquired.Task.WaitAsync(TimeSpan.FromSeconds(10), TestCancellationToken);
+		leader.IsLeader.ShouldBeTrue();
+		leader.CurrentLeadership.ShouldNotBeNull();
+		await clock.RenewalArmed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestCancellationToken);
 
-		var connectionField = typeof(PostgresLeaderElection).GetField(
-			"_connection",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-		connectionField.SetValue(leader, null);
+		// Read the owned backend solely to inject the physical fault. Do not null an election
+		// field: that would neither close the actual session nor exercise today's public protocol.
+		var field = typeof(PostgresLeaderElection).GetField("_slot", BindingFlags.NonPublic | BindingFlags.Instance);
+		field.ShouldNotBeNull();
+		var slot = field.GetValue(leader).ShouldNotBeNull();
+		var run = ReadOwnedProperty(slot, "Run");
+		var kernel = ReadOwnedProperty(run, "Kernel");
+		var tenure = ReadOwnedProperty(kernel, "Current");
+		var attempt = ReadOwnedProperty(tenure, "OwnershipProof");
+		var connection = ReadOwnedProperty(attempt, "Connection").ShouldBeOfType<NpgsqlConnection>();
+		connection.State.ShouldBe(ConnectionState.Open);
+		await connection.CloseAsync();
+		connection.State.ShouldBe(ConnectionState.Closed, "the actual owned backend must be broken/closed, not merely forgotten by a field");
 
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-				leadershipLost.Task,
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
-				cancellationToken: TestCancellationToken)
-			;
-
+		// Definitive backend loss may demote before grace expires. Admit the real next probe
+		// at100ms, strictly BEFORE the200ms local deadline: expiry alone cannot pass this arm.
+		clock.Advance(TimeSpan.FromMilliseconds(100));
+		await (await stoppedFromLoss.Task.WaitAsync(TimeSpan.FromSeconds(10), TestCancellationToken))
+			.WaitAsync(TimeSpan.FromSeconds(10), TestCancellationToken);
 		leader.IsLeader.ShouldBeFalse();
+		leader.CurrentLeadership.ShouldBeNull();
 		await leader.StopAsync(TestCancellationToken);
+	}
+
+	private static object ReadOwnedProperty(object value, string name)
+	{
+		var property = value.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+		property.ShouldNotBeNull();
+		return property.GetValue(value).ShouldNotBeNull();
+	}
+
+	private sealed class BrokenSessionClock : FakeTimeProvider
+	{
+		internal TaskCompletionSource RenewalArmed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+		{
+			var timer = base.CreateTimer(callback, state, dueTime, period);
+			if (dueTime == TimeSpan.FromMilliseconds(100)) { RenewalArmed.TrySetResult(); }
+			return timer;
+		}
 	}
 
 	private PostgresLeaderElection CreateLeaderElection(
 		long? lockKey = null,
 		TimeSpan? leaseDuration = null,
 		TimeSpan? renewInterval = null,
-		TimeSpan? gracePeriod = null)
+		TimeSpan? gracePeriod = null, TimeProvider? timeProvider = null)
 	{
 		var pgOptions = new PostgresLeaderElectionOptions
 		{
@@ -169,7 +199,7 @@ public sealed class PostgresLeaderElectionIntegrationShould : IntegrationTestBas
 		return new PostgresLeaderElection(
 			Microsoft.Extensions.Options.Options.Create(pgOptions),
 			Microsoft.Extensions.Options.Options.Create(electionOptions),
-			EnabledTestLogger.Create<PostgresLeaderElection>());
+			EnabledTestLogger.Create<PostgresLeaderElection>(), timeProvider: timeProvider);
 	}
 
 }

@@ -47,6 +47,11 @@ internal sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, Ma
 	/// predicate is applied: the drain is cross-tenant infrastructure and must always be able to mark the row
 	/// it claimed, regardless of any ambient tenant context. Tenant isolation lives on the write/stage path
 	/// (<c>TenantId</c> stamping) and on tenant-facing queries.
+	/// <para>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </para>
 	/// </remarks>
 	public MarkMessageSentRequest(
 		string tableName,
@@ -154,6 +159,12 @@ internal sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, Ma
 		// the mutating transaction. The rowcount alone cannot tell a fencing refusal from a not-found,
 		// which is the defect this shape removes.
 		ResolveAsync = async connection =>
-			await connection.QuerySingleAsync<MarkSentMutationResult>(Command).ConfigureAwait(false);
+			await StaticDbCommand.SingleAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "SentAt", StaticDbCommand.Input<DateTimeOffset>(Parameters, "SentAt"), DbType.DateTimeOffset);
+				StaticDbCommand.AddParameter(command, "FencingToken", StaticDbCommand.Input<long?>(Parameters, "FencingToken"), DbType.Int64);
+				StaticDbCommand.AddParameter(command, "FenceScope", StaticDbCommand.Input<string>(Parameters, "FenceScope"), DbType.String);
+			}, static reader => new MarkSentMutationResult { HighWaterToken = reader.IsDBNull(0) ? null : StaticDbValue.Int64(reader, 0), UpdatedCount = StaticDbValue.Int32(reader, 1), RowExists = StaticDbValue.Boolean(reader, 2) }).ConfigureAwait(false);
 	}
 }

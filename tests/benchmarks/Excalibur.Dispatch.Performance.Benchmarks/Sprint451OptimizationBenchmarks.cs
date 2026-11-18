@@ -187,15 +187,15 @@ public class Sprint451OptimizationBenchmarks
 	}
 
 	/// <summary>
-	/// Measures cache lookup performance under concurrent access.
+	/// Measures serial cache lookup with a clock-selected type; it does not create concurrent workers.
 	/// </summary>
 	[Benchmark]
 	[BenchmarkCategory("ResultFactory")]
 	public IMessageResult CachedFactory_ConcurrentLookup()
 	{
-		// Simulate concurrent cache access pattern
+		// Preserve the serial clock-selected mixture, including signed TickCount wrap.
 		var types = new[] { typeof(string), typeof(int), typeof(BenchmarkPayload), typeof(Guid) };
-		var type = types[Environment.TickCount % types.Length];
+		var type = types[BenchmarkInputIndex.FromTickCount(Environment.TickCount, types.Length)];
 		var factory = CachedFactories.GetOrAdd(type, CreateFactory);
 
 		if (type == typeof(string))

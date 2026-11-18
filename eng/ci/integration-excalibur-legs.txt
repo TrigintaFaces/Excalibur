@@ -48,6 +48,32 @@
 # A CI runner is slower per test, so treat these as a SHAPE, not a budget. What stays true as tests
 # are added is the spread between legs and which leg is worst; the absolute minutes do not.
 #
+# RE-MEASURED 2026-11-07, same way (each leg in isolation, -m:1, Release, --no-build, the filter
+# from get-integration-test-filter.ps1 -Leg), adjudicated on executed-vs-total from each TRX rather
+# than the console result line. Every leg COMPLETE, 3992 arms, 0 failed, 0 skipped, 0 not-executed.
+# The percentage is of the 30-minute TestSessionTimeout, which is the number this table exists for.
+#
+#     leg             2026-09-24          2026-11-07               % of cap
+#     rest            1860 / 15m39s       1896 tests / 17m19s        58%
+#     eventsourcing    129 /  8m06s        346 tests / 16m51s        56%
+#     outbox           545 / 11m35s        582 tests / 12m29s        42%
+#     inbox            569 / 12m02s        567 tests / 10m38s        35%
+#     eventstore       324 /  5m38s        407 tests /  7m18s        24%
+#     leaderelection   178 /  4m06s        194 tests /  4m05s        14%
+#
+# The prediction two lines up half HELD. The spread is still about 4x. But 'rest' is only nominally
+# still the worst: the column above is test-session duration, and by WALL CLOCK the top two are
+# 1050s (rest) against 1052s (eventsourcing) -- a two-second gap, which is a tie and not a ranking.
+# eventsourcing went from fourth-worst to joint-first, 8m06s to 16m51s, on 129 to 346 tests. So
+# 'which leg is worst' survived only as an artefact of which of the two clocks you read, and
+# re-reading the top row alone would have missed the leg that actually moved.
+#
+# WHAT THIS DOES NOT ESTABLISH. The margin on a CI RUNNER. These figures are a developer machine
+# that was concurrently hosting unrelated long-lived containers, and the line above says a runner is
+# slower per test. At 58% of cap, the worst leg survives a runner 1.7x slower than this box and not
+# a runner 1.8x slower, and nothing here measures which it is. The margin is real but it is not
+# large, and the next leg to watch is eventsourcing, not rest.
+#
 # RE-BALANCE FROM A SERIAL RUN'S TRX, NEVER A PARALLEL ONE. Durations recorded while several tests
 # ran at once are inflated by their own contention, and unevenly -- the parallel numbers ranked
 # these legs in a different order than the serial ones did. Measure the way the legs actually

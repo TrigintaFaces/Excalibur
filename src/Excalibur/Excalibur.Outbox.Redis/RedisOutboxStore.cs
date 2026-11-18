@@ -8,7 +8,6 @@ using System.Text.Json;
 
 using Excalibur.Data.Redis.Diagnostics;
 using Excalibur.Dispatch;
-using Excalibur.Dispatch.Metadata;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -44,7 +43,7 @@ namespace Excalibur.Outbox.Redis;
 /// <c>LeasedAt</c>/<c>LeasedBy</c> claim.
 /// </para>
 /// </remarks>
-public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IAsyncDisposable, ITenantPartitionedStore
+public sealed partial class RedisOutboxStore : IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore, IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IAsyncDisposable, ITenantPartitionedStore, IOutboxPayloadTransformStore
 {
 	// Lua script for atomic MarkSent - checks status before updating
 	// Returns plain strings (not {err=...}) to avoid RedisServerException
@@ -129,7 +128,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	                                                 end
 
 	                                                 local owner = redis.call('HGET', key, 'LeasedBy')
-	                                                 if owner and owner ~= '' and owner ~= processorId then
+	                                                 if owner and owner ~= '' and owner ~= processorId and string.sub(owner, 1, string.len(processorId) + 1) ~= processorId .. ':' then
 	                                                     return {ok = 'NOT_OWNER'}
 	                                                 end
 	                                                 local currentCount = tonumber(redis.call('HGET', key, 'RetryCount')) or 0
@@ -191,7 +190,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	                                           -- R2 dispatcher-ownership guard IN the atomic write: only the current lease owner (or an
 	                                           -- already-released row) may mark-fail, so a stale processor cannot overwrite a peer's re-claim.
 	                                           local currentLease = redis.call('HGET', key, 'LeasedBy')
-	                                           if currentLease and currentLease ~= false and currentLease ~= '' and currentLease ~= leasedBy then
+	                                           if currentLease and currentLease ~= false and currentLease ~= '' and currentLease ~= leasedBy and string.sub(currentLease, 1, string.len(leasedBy) + 1) ~= leasedBy .. ':' then
 	                                           	return {ok = 'NOT_OWNER'}
 	                                           end
 
@@ -268,7 +267,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 	                                                       -- R2 ownership guard IN the atomic write (parity with MarkFailed).
 	                                                       local currentLease = redis.call('HGET', key, 'LeasedBy')
-	                                                       if currentLease and currentLease ~= false and currentLease ~= '' and currentLease ~= leasedBy then
+	                                                       if currentLease and currentLease ~= false and currentLease ~= '' and currentLease ~= leasedBy and string.sub(currentLease, 1, string.len(leasedBy) + 1) ~= leasedBy .. ':' then
 	                                                       	return {ok = 'NOT_OWNER'}
 	                                                       end
 
@@ -377,7 +376,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 			if redis.call('EXISTS', mkey) == 1 then
 				redis.call('ZADD', leasedIdx, leaseExpiry, id)
 				redis.call('HSET', mkey, 'LeasedAt', now, 'LeasedBy', leasedBy)
-				claimed[#claimed + 1] = id
+				claimed[#claimed + 1] = {id, redis.call("HGETALL", mkey)}
 			end
 		end
 
@@ -421,6 +420,8 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		_resolvedProcessorId = string.IsNullOrWhiteSpace(_options.ProcessorId)
 			? $"{Environment.MachineName}:{Guid.NewGuid():N}"
 			: _options.ProcessorId;
+		// Base64 has no colon, so configured prefixes A and A:peer remain distinct owners.
+		_resolvedProcessorId = Convert.ToBase64String(Encoding.UTF8.GetBytes(_resolvedProcessorId));
 		_logger = logger;
 		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
@@ -449,6 +450,8 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		_resolvedProcessorId = string.IsNullOrWhiteSpace(_options.ProcessorId)
 			? $"{Environment.MachineName}:{Guid.NewGuid():N}"
 			: _options.ProcessorId;
+		// Base64 has no colon, so configured prefixes A and A:peer remain distinct owners.
+		_resolvedProcessorId = Convert.ToBase64String(Encoding.UTF8.GetBytes(_resolvedProcessorId));
 		_logger = logger;
 		_timeProvider = timeProvider ?? TimeProvider.System;
 		_database = connection.GetDatabase(_options.DatabaseId);
@@ -459,6 +462,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(message.Id);
 
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
@@ -527,37 +531,65 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		Justification = "Outbox payloads use runtime serialization for message types.")]
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
+	public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, null, cancellationToken);
+
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	ValueTask IOutboxPayloadTransformStore.EnqueueWithPayloadTransformAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transformPayload,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(transformPayload);
+		return EnqueueCoreAsync(message, context, transformPayload, cancellationToken);
+	}
+
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private async ValueTask EnqueueCoreAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>>? transformPayload,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
 		ObjectDisposedException.ThrowIf(_disposed, this);
+		if (transformPayload is not null)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+		}
 
 		var messageType = message.GetType().FullName ?? message.GetType().Name;
+		// Canonical serialization returns fresh provider-owned bytes. The callback borrows them
+		// read-only until completion; there is no configurable/reused codec buffer on this provider.
 		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType(), EventSerializationDefaults.Canonical);
-
-		// honor a consumer-set routing destination (TransactionalOutboxWriter.SetDestination →
-		// context) rather than persisting the message type name as the destination — parity with the
-		// SQL/Postgres outbox stores. Falls back to the namespace-qualified type name (FullName, not
-		// the bare Name) when no destination was set: two message types with the same short name in
-		// different namespaces must not collapse to one destination. Reuses messageType above -- same value.
-		var destination = context.ExtractMetadata().GetDestination() ?? messageType;
+		// This provider uses only routing metadata, never context.MessageId or extracted framing.
+		// Preserve its own fresh envelope identity without validating unused metadata fields.
+		var destination = context.GetDestination() ?? messageType;
 		var outbound = OutboundMessage.FromContext(messageType, payload, destination, context);
 
-		await StageMessageAsync(outbound, cancellationToken).ConfigureAwait(false);
+		if (transformPayload is not null)
+		{
+			var transformed = await transformPayload(payload, outbound.TenantId, cancellationToken).ConfigureAwait(false)
+				?? throw new InvalidOperationException("The outbox payload transform returned a null payload.");
+			cancellationToken.ThrowIfCancellationRequested();
+			// RedisValue retains byte-array backing memory. Own the result before Stage constructs
+			// hash/script arguments, so post-handoff caller mutations cannot change persisted bytes.
+			outbound.Payload = transformed.ToArray();
+		}
 
+		await StageMessageAsync(outbound, cancellationToken).ConfigureAwait(false);
 		LogMessageEnqueued(outbound.Id, messageType);
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 		GetUnsentMessagesCoreAsync(batchSize, cancellationToken);
 
 
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesCoreAsync(
 		int batchSize, CancellationToken cancellationToken)
 	{
@@ -574,61 +606,20 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		// No instant is passed in. Every time this claim compares — the scheduled gate, the lease expiry —
 		// is read from the Redis server inside the script, so the decision is made against one clock rather
 		// than against whatever this host happens to believe (see ClaimMessagesLuaScript).
+		var claimIdentity = GetProcessorId() + ":" + Guid.NewGuid().ToString("N");
 		var claimResult = await _database!.ScriptEvaluateAsync(
 			ClaimMessagesLuaScript,
 			[GetStagedIndexKey(), GetLeasedIndexKey(), GetScheduledIndexKey()],
-			[batchSize, _options.LeaseTimeoutSeconds * 1000L, GetProcessorId(), GetMessageKeyPrefix()]).ConfigureAwait(false);
+			[batchSize, _options.LeaseTimeoutSeconds * 1000L, claimIdentity, GetMessageKeyPrefix()]).ConfigureAwait(false);
 
 		if (claimResult.IsNull)
 		{
 			return [];
 		}
 
-		var claimedIds = (RedisValue[])claimResult!;
-		return await GetMessagesByIdsAsync(claimedIds, cancellationToken).ConfigureAwait(false);
+		return RedisOutboxMessageCodec.DecodeClaimSnapshots(claimResult, batchSize, claimIdentity, cancellationToken);
 	}
 
-	/// <summary>
-	/// Batch-loads the message hashes for a set of ids in a single pipelined round-trip. The per-id
-	/// <c>HASHGETALL</c> commands are issued concurrently so StackExchange.Redis multiplexes them onto
-	/// the connection (IBatch semantics) instead of paying one network RTT per id.
-	/// </summary>
-	private async Task<List<OutboundMessage>> GetMessagesByIdsAsync(
-		IReadOnlyList<RedisValue> ids,
-		CancellationToken cancellationToken)
-	{
-		if (ids.Count == 0)
-		{
-			return [];
-		}
-
-		var tasks = new Task<HashEntry[]>[ids.Count];
-		for (var i = 0; i < ids.Count; i++)
-		{
-			tasks[i] = _database!.HashGetAllAsync(GetMessageKey(ids[i]!));
-		}
-
-		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
-
-		var messages = new List<OutboundMessage>(ids.Count);
-		for (var i = 0; i < results.Length; i++)
-		{
-			if (cancellationToken.IsCancellationRequested)
-			{
-				break;
-			}
-
-			var entries = results[i];
-			if (entries.Length == 0)
-			{
-				continue;
-			}
-
-			messages.Add(DeserializeFromHashEntries(ids[i]!, entries));
-		}
-
-		return messages;
-	}
 
 	/// <inheritdoc/>
 	public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken) =>
@@ -1050,7 +1041,9 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 			new("CreatedAt", message.CreatedAt.ToUnixTimeMilliseconds()),
 			new("Status", (int)message.Status),
 			new("Priority", message.Priority),
-			new("RetryCount", message.RetryCount)
+			new("RetryCount", message.RetryCount),
+			// Keep the full signed Int64 decimal spelling; never round through a Lua number/double.
+			new("SequenceNumber", message.SequenceNumber.ToString(CultureInfo.InvariantCulture))
 		};
 
 		if (!string.IsNullOrEmpty(message.CorrelationId))
@@ -1117,95 +1110,6 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		return [.. entries];
 	}
 
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "Outbox headers are deserialized to dynamic payloads.")]
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "Outbox headers are deserialized to dynamic payloads.")]
-	private static OutboundMessage DeserializeFromHashEntries(string messageId, HashEntry[] entries)
-	{
-		var dict = entries.ToDictionary(
-			e => e.Name.ToString(),
-			e => e.Value,
-			StringComparer.Ordinal);
-
-		// Restore Headers from the JSON-serialized hash entry written in SerializeToHashEntries
-		// (init-only on OutboundMessage → must be set in the object initializer below).
-		var headers = dict.TryGetValue("Headers", out var headersValue) && !headersValue.IsNullOrEmpty
-			? JsonSerializer.Deserialize<Dictionary<string, object>>((string)headersValue!, EventSerializationDefaults.Canonical) ?? new Dictionary<string, object>(StringComparer.Ordinal)
-			: new Dictionary<string, object>(StringComparer.Ordinal);
-
-		var message = new OutboundMessage
-		{
-			Id = messageId,
-			MessageType = dict.GetValueOrDefault("MessageType", string.Empty)!,
-			Payload = (byte[])dict.GetValueOrDefault("Payload", RedisValue.EmptyString)!,
-			Destination = dict.GetValueOrDefault("Destination", string.Empty)!,
-			CreatedAt = DateTimeOffset.FromUnixTimeMilliseconds((long)dict.GetValueOrDefault("CreatedAt", 0)),
-			Status = (OutboxStatus)(int)dict.GetValueOrDefault("Status", 0),
-			Priority = (int)dict.GetValueOrDefault("Priority", 0),
-			RetryCount = (int)dict.GetValueOrDefault("RetryCount", 0),
-			IsMultiTransport = (int)dict.GetValueOrDefault("IsMultiTransport", 0) == 1,
-			Headers = headers,
-		};
-
-		if (dict.TryGetValue("CorrelationId", out var correlationId) && !correlationId.IsNullOrEmpty)
-		{
-			message.CorrelationId = correlationId!;
-		}
-
-		if (dict.TryGetValue("CausationId", out var causationId) && !causationId.IsNullOrEmpty)
-		{
-			message.CausationId = causationId!;
-		}
-
-		// Read-tolerant: a row written before this fix (or one whose field rolled off) carries no
-		// TenantId entry at all. FromStoredValue folds a missing field the same way it folds a stored
-		// null/empty/sentinel — onto Untenanted — so an old-format row reads back identically to one
-		// written under the new format, and TenantId is never null after this store reloads it.
-		message.TenantId = KeyedTenantPartition.FromStoredValue(
-			dict.TryGetValue("TenantId", out var tenantId) ? (string?)tenantId : null).TenantId;
-
-		if (dict.TryGetValue("PartitionKey", out var partitionKey) && !partitionKey.IsNullOrEmpty)
-		{
-			message.PartitionKey = partitionKey!;
-		}
-
-		if (dict.TryGetValue("GroupKey", out var groupKey) && !groupKey.IsNullOrEmpty)
-		{
-			message.GroupKey = groupKey!;
-		}
-
-		if (dict.TryGetValue("TargetTransports", out var targetTransports) && !targetTransports.IsNullOrEmpty)
-		{
-			message.TargetTransports = targetTransports!;
-		}
-
-		if (dict.TryGetValue("LastError", out var lastError) && !lastError.IsNullOrEmpty)
-		{
-			message.LastError = lastError!;
-		}
-
-		if (dict.TryGetValue("ScheduledAt", out var scheduledAt) && scheduledAt != 0)
-		{
-			message.ScheduledAt = DateTimeOffset.FromUnixTimeMilliseconds((long)scheduledAt);
-		}
-
-		if (dict.TryGetValue("SentAt", out var sentAt) && sentAt != 0)
-		{
-			message.SentAt = DateTimeOffset.FromUnixTimeMilliseconds((long)sentAt);
-		}
-
-		if (dict.TryGetValue("LastAttemptAt", out var lastAttemptAt) && lastAttemptAt != 0)
-		{
-			message.LastAttemptAt = DateTimeOffset.FromUnixTimeMilliseconds((long)lastAttemptAt);
-		}
-
-		return message;
-	}
 
 	private string GetMessageKey(string messageId) => $"{_options.KeyPrefix}:msg:{messageId}";
 
@@ -1258,7 +1162,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 			return null;
 		}
 
-		return DeserializeFromHashEntries(messageId, entries);
+		return RedisOutboxMessageCodec.DeserializeFromHashEntries(messageId, entries);
 	}
 
 	[LoggerMessage(DataRedisEventId.OutboxMessageStaged, LogLevel.Debug,

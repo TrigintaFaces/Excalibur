@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Collections.Concurrent;
-
 using Amazon.DynamoDBStreams;
 using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
 
+using Excalibur.Data;
 using Excalibur.Data.Sharding;
+using Excalibur.EventSourcing.Sharding;
 using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
@@ -29,36 +30,44 @@ namespace Excalibur.EventSourcing.DynamoDb.Sharding;
 /// one Streams client per shard open for the life of the process.
 /// </para>
 /// </remarks>
-internal sealed class DynamoDbTenantEventStoreResolver : ITenantStoreResolver<IEventStore>, IAsyncDisposable
+[NoTenantTerm(TenantConfinement.EstateWide, "Physical-shard readiness performs a bounded native namespace read for an operator; it selects at most one record identifier, discards it, and does not select event payloads or establish tenant confinement.")]
+internal sealed class DynamoDbTenantEventStoreResolver : ITenantStoreResolver<IEventStore>, ITenantShardReadinessProbe, IAsyncDisposable
 {
 	private readonly ITenantShardMap _shardMap;
+	private readonly TenantShardBindingCache _bindings = new();
+	private readonly Func<ShardInfo, ShardReadinessBinding> _bindingFactory;
 	private readonly ILoggerFactory _loggerFactory;
 	private readonly DynamoDbEventStoreOptions _defaultOptions;
 	private readonly ITenantContext _tenantContext;
-	private readonly ConcurrentDictionary<string, IEventStore> _storeCache = new(StringComparer.Ordinal);
+	private readonly Func<AmazonDynamoDBConfig, IAmazonDynamoDB> _clientFactory;
+	private readonly Func<AmazonDynamoDBStreamsConfig, IAmazonDynamoDBStreams> _streamsFactory;
 
-	// Everything CreateStore has ever built, not merely what won the cache slot. ConcurrentDictionary
-	// documents its factory as callable more than once for the same key under contention, so a losing
-	// racer's store and clients are dropped from the cache while still holding their sockets. Recording
-	// them at construction is what makes disposal total rather than "whatever the cache happens to hold".
-	private readonly ConcurrentBag<IEventStore> _createdStores = [];
-	private readonly ConcurrentBag<IDisposable> _createdClients = [];
-	private volatile bool _disposed;
 
 	internal DynamoDbTenantEventStoreResolver(
 		ITenantShardMap shardMap,
 		ILoggerFactory loggerFactory,
 		IOptions<DynamoDbEventStoreOptions> defaultOptions,
 		ITenantContext tenantContext)
-	{
+        : this(shardMap, loggerFactory, defaultOptions, tenantContext,
+            static config => new AmazonDynamoDBClient(config),
+            static config => new AmazonDynamoDBStreamsClient(config)) { }
+
+    internal DynamoDbTenantEventStoreResolver(ITenantShardMap shardMap, ILoggerFactory loggerFactory,
+        IOptions<DynamoDbEventStoreOptions> defaultOptions, ITenantContext tenantContext,
+        Func<AmazonDynamoDBConfig, IAmazonDynamoDB> clientFactory,
+        Func<AmazonDynamoDBStreamsConfig, IAmazonDynamoDBStreams> streamsFactory)
+    {
 		ArgumentNullException.ThrowIfNull(shardMap);
 		ArgumentNullException.ThrowIfNull(loggerFactory);
 		ArgumentNullException.ThrowIfNull(defaultOptions);
 		ArgumentNullException.ThrowIfNull(tenantContext);
 
+		_clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
+		_streamsFactory = streamsFactory ?? throw new ArgumentNullException(nameof(streamsFactory));
 		_tenantContext = tenantContext;
 
 		_shardMap = shardMap;
+		_bindingFactory = CreateBinding;
 		_loggerFactory = loggerFactory;
 		_defaultOptions = defaultOptions.Value;
 	}
@@ -66,55 +75,40 @@ internal sealed class DynamoDbTenantEventStoreResolver : ITenantStoreResolver<IE
 	/// <inheritdoc />
 	public IEventStore Resolve(string tenantId)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var shardInfo = _shardMap.GetShardInfo(tenantId);
-		return _storeCache.GetOrAdd(shardInfo.ShardId, _ => CreateStore(shardInfo));
+		return GetBinding(shardInfo).Store;
 	}
 
 	/// <inheritdoc />
-	public async ValueTask DisposeAsync()
+	public ValueTask DisposeAsync() => _bindings.DisposeAsync();
+
+	/// <inheritdoc />
+	public Task ProbeShardAsync(string shardId, CancellationToken cancellationToken)
 	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_storeCache.Clear();
-
-		// Stores first: a store may use its client while shutting down, and the client must outlive that.
-		while (_createdStores.TryTake(out var store))
-		{
-			switch (store)
-			{
-				case IAsyncDisposable asyncDisposable:
-					await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-					break;
-				case IDisposable disposable:
-					disposable.Dispose();
-					break;
-				default:
-					break;
-			}
-		}
-
-		while (_createdClients.TryTake(out var client))
-		{
-			client.Dispose();
-		}
+		cancellationToken.ThrowIfCancellationRequested();
+		return GetBinding(_shardMap.GetShardById(shardId)).Probe(cancellationToken);
 	}
 
-	private IEventStore CreateStore(ShardInfo shardInfo)
+	private ShardReadinessBinding GetBinding(ShardInfo shardInfo) => _bindings.Get(shardInfo, _bindingFactory);
+
+
+	private ShardReadinessBinding CreateBinding(ShardInfo shardInfo) => ShardReadinessBinding.Construct(resources =>
 	{
+		var tablePrefix = shardInfo.RequireCoordinate(shardInfo.IndexPrefix, nameof(ShardInfo.IndexPrefix));
+		var options = Options.Create(new DynamoDbEventStoreOptions
+		{
+			EventsTableName = $"{tablePrefix}{_defaultOptions.EventsTableName}",
+		});
+
+		var validation = new DynamoDbEventStoreOptionsValidator().Validate(null, options.Value);
+		if (validation.Failed) { throw new OptionsValidationException(nameof(DynamoDbEventStoreOptions), typeof(DynamoDbEventStoreOptions), validation.Failures); }
 		var config = new AmazonDynamoDBConfig();
 		if (shardInfo.Region is not null)
 		{
 			config.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(shardInfo.Region);
 		}
 
-		var client = new AmazonDynamoDBClient(config);
-		_createdClients.Add(client);
 
 		var streamsConfig = new AmazonDynamoDBStreamsConfig();
 		if (shardInfo.Region is not null)
@@ -122,14 +116,9 @@ internal sealed class DynamoDbTenantEventStoreResolver : ITenantStoreResolver<IE
 			streamsConfig.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(shardInfo.Region);
 		}
 
-		var streamsClient = new AmazonDynamoDBStreamsClient(streamsConfig);
-		_createdClients.Add(streamsClient);
+		var client = resources.Own(_clientFactory(config));
+		var streamsClient = resources.Own(_streamsFactory(streamsConfig));
 
-		var tablePrefix = shardInfo.RequireCoordinate(shardInfo.IndexPrefix, nameof(ShardInfo.IndexPrefix));
-		var options = Options.Create(new DynamoDbEventStoreOptions
-		{
-			EventsTableName = $"{tablePrefix}{_defaultOptions.EventsTableName}",
-		});
 
 		// A shard may host more than one tenant, so the store still composes the ambient tenant into its
 		// partition key. Routing to a shard is the physical half of confinement; the key is the logical
@@ -141,7 +130,18 @@ internal sealed class DynamoDbTenantEventStoreResolver : ITenantStoreResolver<IE
 			_loggerFactory.CreateLogger<DynamoDbEventStore>(),
 			_tenantContext);
 
-		_createdStores.Add(store);
-		return store;
-	}
+		var eventsTable = options.Value.EventsTableName;
+		var partitionAttribute = options.Value.PartitionKeyAttribute;
+		return resources.Complete(store, async token =>
+		{
+			// A physical key probe uses Query permission, not the broader Scan permission. It does not invent an ambient tenant.
+			_ = await client.QueryAsync(new QueryRequest
+			{
+				TableName = eventsTable, Limit = 1, ConsistentRead = true,
+				KeyConditionExpression = "#pk = :probe", ProjectionExpression = "#pk",
+				ExpressionAttributeNames = new Dictionary<string, string> { ["#pk"] = partitionAttribute },
+				ExpressionAttributeValues = new Dictionary<string, AttributeValue> { [":probe"] = new() { S = "__excalibur_readiness__" } }
+			}, token).ConfigureAwait(false);
+		});
+	});
 }

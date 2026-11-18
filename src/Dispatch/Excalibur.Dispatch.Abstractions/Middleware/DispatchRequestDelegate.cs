@@ -14,7 +14,8 @@ namespace Excalibur.Dispatch;
 /// <param name="cancellationToken"> A token to monitor for cancellation requests. </param>
 /// <returns>
 /// A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, containing the message processing result.
-/// Using ValueTask enables zero-allocation dispatch on synchronous completion paths.
+/// ValueTask can avoid allocating a Task for a synchronously completed result;
+/// other dispatch work can still allocate.
 /// </returns>
 public delegate ValueTask<IMessageResult> DispatchRequestDelegate(
 	IDispatchMessage message,

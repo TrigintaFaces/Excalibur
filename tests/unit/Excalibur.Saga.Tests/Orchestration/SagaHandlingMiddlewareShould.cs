@@ -26,6 +26,7 @@ public sealed class SagaHandlingMiddlewareShould
 	{
 		// SagaCoordinator is sealed, so we create a real one with faked dependencies
 		var serviceProvider = A.Fake<IServiceProvider>();
+		A.CallTo(() => serviceProvider.GetService(A<Type>._)).Returns(null);
 		var sagaStore = A.Fake<ISagaStore>();
 		var coordinatorLogger = NullLogger<SagaCoordinator>.Instance;
 		_coordinator = new SagaCoordinator(serviceProvider, sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), coordinatorLogger);

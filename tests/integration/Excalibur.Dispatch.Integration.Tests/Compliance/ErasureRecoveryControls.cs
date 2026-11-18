@@ -28,7 +28,15 @@ internal static class ErasureRecoveryControls
         services.Configure<TenantContextOptions>(options => options.RequireTenant = true);
         services.AddEncryption(builder => builder.UseInMemoryKeyManagement("test").SetAsPrimary("test"));
         services.AddCryptoShredding();
-        services.AddSingleton((IKeyDestructionLedger)createStore());
+
+        // BOTH LEDGERS FROM ONE STORE OBJECT. For these PROVIDER stores the shared state is the database,
+        // not the object -- this control deliberately re-creates the store to force fresh connections, and
+        // two objects over one schema see the same rows. What matters is that the write path and the
+        // erasure agree on the SCHEMA, which they do. Registering only the destruction ledger left the mint
+        // ledger unresolvable, so the start-up guard refused the whole composition.
+        var ledgerStore = createStore();
+        services.AddSingleton((IKeyDestructionLedger)ledgerStore);
+        services.AddSingleton((IKeyMintLedger)ledgerStore);
         await using var provider = services.BuildServiceProvider();
         _ = provider.GetServices<IEncryptionProvider>().ToList();
         var started = new List<IHostedService>();
@@ -63,7 +71,11 @@ internal static class ErasureRecoveryControls
             var retentions = A.Fake<IErasureRetentionRegistry>();
             ErasureService CreateService(IErasureStore store, IKeyManagementAdmin admin) => new(store, admin,
                 options, NullLogger<ErasureService>.Instance, hasher, legalHolds, null, null,
-                new NoAnnotatedDomain(), retentions);
+                // FROM ledgerStore, NEVER FROM `store`. The non-deferred arm passes a FakeItEasy proxy as
+                // `store` to inject a failure, and that proxy implements IErasureStore only -- casting it
+                // would throw before the arm reaches what it is about. ledgerStore is always the real
+                // store, and it addresses the same schema, which is what the ledger needs.
+                new NoAnnotatedDomain(), retentions, (IKeyMintLedger)ledgerStore);
             var request = new ErasureRequest
             {
                 DataSubjectId = subject, TenantId = owner, IdType = DataSubjectIdType.UserId,
@@ -110,8 +122,7 @@ internal static class ErasureRecoveryControls
             else
             {
                 (await keys.GetKeyAsync(envelope.KeyId, ct)).ShouldBeNull();
-                (await recoveredStore.UpdateStatusAsync(request.RequestId, ErasureRequestStatus.Scheduled,
-                    "Explicit scheduler/operator retry", ct)).ShouldBeTrue();
+                (await recoveredStore.UpdateStatusAsync(request.RequestId, ErasureRequestStatus.Scheduled, expectedStatus: null, "Explicit scheduler/operator retry", claimIdentity: null, ct)).ShouldBe(ErasureWriteOutcome.Applied);
                 var retried = await CreateService(recoveredStore, realAdmin).ExecuteAsync(request.RequestId, ct);
                 retried.Success.ShouldBeTrue(retried.ErrorMessage);
             }

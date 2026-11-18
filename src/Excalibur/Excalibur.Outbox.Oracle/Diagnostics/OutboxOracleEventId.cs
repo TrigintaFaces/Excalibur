@@ -51,6 +51,15 @@ internal static class OutboxOracleEventId
 	/// <summary>Get statistics basic.</summary>
 	public const int OutboxGetStatisticsBasic = 101912;
 
+	/// <summary>Owned worker connection or callback scope cleanup failed.</summary>
+	public const int OutboxWorkerLeaseCleanup = 101914;
+
+	/// <summary>Owned worker transaction cleanup failed.</summary>
+	public const int OutboxWorkerTransactionCleanup = 101915;
+
+	/// <summary>Private staging construction cleanup failed.</summary>
+	public const int OutboxStagingSetupCleanup = 101916;
+
 	// ========================================
 	// 102000-102099: Dead Letter Store
 	// ========================================

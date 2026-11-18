@@ -7,6 +7,11 @@ using Excalibur.Data.SqlServer.Scheduling;
 using Excalibur.Dispatch.Delivery;
 using Microsoft.Extensions.Options;
 
+if (Environment.GetEnvironmentVariable("EXCALIBUR_SCHEDULE_TEST_MODE") is "hosted-produce" or "hosted-resume" or "hosted-resume-failure")
+{
+    return await Excalibur.Dispatch.Tests.Harnesses.SqlSchedule.HostedRecoveryProbe.RunAsync();
+}
+
 var stage = "settings";
 try
 {

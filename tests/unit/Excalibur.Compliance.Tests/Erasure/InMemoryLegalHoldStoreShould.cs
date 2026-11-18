@@ -82,7 +82,7 @@ public sealed class InMemoryLegalHoldStoreShould
         await _sut.SaveHoldAsync(CreateHold(dataSubjectIdHash: hash), CancellationToken.None);
         await _sut.SaveHoldAsync(CreateHold(dataSubjectIdHash: "other-hash"), CancellationToken.None);
 
-        var holds = await _sut.GetActiveHoldsForDataSubjectAsync(hash, null, CancellationToken.None);
+        var holds = await _sut.GetActiveHoldsForDataSubjectAsync(hash, null, DateTimeOffset.UtcNow, CancellationToken.None);
 
         holds.Count.ShouldBe(1);
     }
@@ -93,7 +93,7 @@ public sealed class InMemoryLegalHoldStoreShould
         var hold = CreateHold() with { TenantId = "tenant-1" };
         await _sut.SaveHoldAsync(hold, CancellationToken.None);
 
-        var holds = await _sut.GetActiveHoldsForTenantAsync("tenant-1", CancellationToken.None);
+        var holds = await _sut.GetActiveHoldsForTenantAsync("tenant-1", DateTimeOffset.UtcNow, CancellationToken.None);
 
         holds.Count.ShouldBe(1);
     }
@@ -104,7 +104,7 @@ public sealed class InMemoryLegalHoldStoreShould
         await _sut.SaveHoldAsync(CreateHold(), CancellationToken.None);
         await _sut.SaveHoldAsync(CreateHold(isActive: false), CancellationToken.None);
 
-        var holds = await _sut.ListActiveHoldsAsync(null, CancellationToken.None);
+        var holds = await _sut.ListActiveHoldsAsync(null, DateTimeOffset.UtcNow, CancellationToken.None);
 
         holds.Count.ShouldBe(1);
     }

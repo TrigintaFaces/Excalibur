@@ -1,66 +1,34 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
-
-
+using System.Security.Cryptography;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Diagnostics;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 using StackExchange.Redis;
 
 namespace Excalibur.LeaderElection.Redis;
 
-/// <summary>
-/// Redis implementation of <see cref="ILeaderElection"/> using SET NX with TTL.
-/// </summary>
-/// <remarks>
-/// Uses Redis SET NX (set if not exists) with expiration for distributed leader election.
-/// The lease is automatically renewed while the candidate holds leadership.
-/// </remarks>
+/// <summary>Redis election with tenure-unique ownership and a monotonic local deadline.</summary>
+/// <remarks>Uses tenure-specific ownership proofs and joins owned operations before remote cleanup.</remarks>
 public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposable
 {
-	private readonly TimeProvider _timeProvider;
-	private readonly IConnectionMultiplexer _redis;
-	private readonly string _lockKey;
-	private readonly LeaderElectionOptions _options;
-	private readonly ILogger<RedisLeaderElection> _logger;
-	// optional split-brain-safety refinement (parity with SqlServerLeaderElection). When
-	// supplied, a renewal fault classified as definitively Permanent relinquishes leadership IMMEDIATELY
-	// (accelerate-only); transient, poison, unclassified, or absent-classifier faults all retain the full
-	// grace-period wait. Classification can only SHORTEN time-to-relinquish, never extend it — the grace
-	// period stays the hard upper bound, so no split-brain window is ever added.
-	private readonly IMessageFailureClassifier? _failureClassifier;
-	// optional fencing-token provider. When supplied, a monotonic fencing token is issued
-	// (atomically, store-side) at each leadership acquisition so a stale leader's token falls below the
-	// high-water mark and its protected operations are rejected by FencingTokenMiddleware. Null when the
-	// consumer did not enable fencing (no token issued — fully backward compatible, opt-in).
-	private readonly IFencingTokenProvider? _fencingTokenProvider;
-
-	// bounded retry budget for minting the fencing token on acquisition before relinquishing
-	// (fail-closed). Small + fixed: the renewal loop supplies the outer retry cadence (RenewInterval),
-	// this just rides out a transient store blip without instantly surrendering a freshly-acquired lease.
-	private const int FencingTokenMintMaxAttempts = 3;
-
-	private readonly Lock _lock = new();
-
-	private CancellationTokenSource? _renewalCts;
-	private Task? _renewalTask;
-	private bool _isStarted;
-	private volatile bool _disposed;
-	private volatile bool _isLeader;
-	private string? _currentLeaderId;
-	// Stored as a monotonic TimeProvider timestamp accessed via Interlocked: the renewal task
-	// reads/writes this lock-free while BecomeLeader writes it under _lock, so a multi-field DateTimeOffset
-	// would tear. Elapsed-time computations must use TimeProvider.GetElapsedTime, never a wall-clock delta.
-	private long _lastSuccessfulRenewalTicks;
-	// the fencing token minted for the current leadership tenure (0 when no provider is
-	// configured) and the instant that tenure began, read together under _lock via CurrentLeadership.
-	private long _currentFencingToken;
-	private DateTimeOffset _leadershipAcquiredAt;
+    private static readonly System.Buffers.SearchValues<char> OwnerHexCharacters = System.Buffers.SearchValues.Create("0123456789ABCDEF");
+    private readonly Lock _runGate = new();
+    private readonly LeaderElectionNotifications _notifications;
+    private readonly IConnectionMultiplexer _redis;
+    private readonly string _lockKey;
+    private readonly LeaderElectionOptions _options;
+    private readonly ILogger<RedisLeaderElection> _logger;
+    private readonly TimeProvider _timeProvider;
+    private readonly IMessageFailureClassifier? _failureClassifier;
+    private readonly IFencingTokenIssuer? _fencingTokenProvider;
+    private const int FencingTokenMintMaxAttempts = 3;
+    private StartSlot? _slot;
+    private volatile bool _disposed;
+    private Task? _disposal;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="RedisLeaderElection"/> class.
@@ -78,545 +46,415 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 	/// Optional time provider used for event timestamps. Defaults to <see cref="TimeProvider.System"/>.
 	/// Inject a controllable provider to make emitted timestamps deterministic in tests.
 	/// </param>
-	public RedisLeaderElection(
-		IConnectionMultiplexer redis,
-		string lockKey,
-		IOptions<LeaderElectionOptions> options,
-		ILogger<RedisLeaderElection> logger,
-		RedisLeaderElectionContext? context = null,
-		TimeProvider? timeProvider = null)
-	{
-		_redis = redis ?? throw new ArgumentNullException(nameof(redis));
-		_lockKey = lockKey ?? throw new ArgumentNullException(nameof(lockKey));
-		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_timeProvider = timeProvider ?? TimeProvider.System;
-		_failureClassifier = context?.FailureClassifier;
-		_fencingTokenProvider = context?.FencingTokenProvider;
-
-		CandidateId = _options.InstanceId ?? (Environment.MachineName + "-" + Guid.NewGuid().ToString("N")[..8]);
-	}
-
-	/// <inheritdoc/>
-	public string CandidateId { get; }
-
-	/// <inheritdoc/>
-	public bool IsLeader => _isLeader;
-
-	/// <inheritdoc/>
-	public Leadership? CurrentLeadership
-	{
-		get
-		{
-			lock (_lock)
-			{
-				return _isLeader ? new Leadership(_currentFencingToken == 0 ? null : _currentFencingToken, _leadershipAcquiredAt) : null;
-			}
-		}
-	}
-
-	/// <inheritdoc/>
-	public string? CurrentLeaderId
-	{
-		get
-		{
-			lock (_lock)
-			{
-				return _currentLeaderId;
-			}
-		}
-	}
-
-	/// <inheritdoc/>
-	public event EventHandler<LeaderElectionEventArgs>? BecameLeader;
-
-	/// <inheritdoc/>
-	public event EventHandler<LeaderElectionEventArgs>? LostLeadership;
-
-	/// <inheritdoc/>
-	public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
-
-	/// <inheritdoc/>
-	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
-
-	/// <inheritdoc/>
-	public async Task StartAsync(CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		lock (_lock)
-		{
-			if (_isStarted)
-			{
-				return;
-			}
-
-			_isStarted = true;
-		}
-
-		LogStarting(CandidateId, _lockKey);
-
-		// Start the renewal loop BEFORE the initial acquire so leadership can never be held without a
-		// live renewer. RunRenewalLoopAsync waits one RenewInterval before its first action, so it cannot
-		// race the eager initial acquire (which StartAsync still awaits — preserving synchronous
-		// IsLeader-on-return). This makes "leadership declared with no active renewer" structurally
-		// inexpressible: the renewer task provably pre-exists any BecomeLeader().
-		_renewalCts = new CancellationTokenSource();
-		_renewalTask = RunRenewalLoopAsync(_renewalCts.Token);
-
-		try
-		{
-			await TryAcquireLockAsync(cancellationToken).ConfigureAwait(false);
-		}
-		catch
-		{
-			// A cancelled initial acquire must not leak the renewer we just started. Tear it down and
-			// reset start state so the caller can retry, then surface the original exception.
-			await StopRenewerAsync().ConfigureAwait(false);
-
-			lock (_lock)
-			{
-				_isStarted = false;
-			}
-
-			throw;
-		}
-	}
-
-	/// <inheritdoc/>
-	public async Task StopAsync(CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		await StopCoreAsync().ConfigureAwait(false);
-	}
-
-	/// <summary>
-	/// Disposes the leader election resources asynchronously.
-	/// </summary>
-	public async ValueTask DisposeAsync()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		await StopCoreAsync().ConfigureAwait(false);
-	}
-
-	/// <summary>
-	/// Cancels, awaits, and disposes the renewal loop and its cancellation source, leaving both fields
-	/// null. Idempotent and safe when no renewer is running. Shared by the normal stop path and the
-	/// cancelled-start cleanup so a failed <see cref="StartAsync"/> never leaks a background renewer.
-	/// </summary>
-	private async Task StopRenewerAsync()
-	{
-		if (_renewalCts != null)
-		{
-			await _renewalCts.CancelAsync().ConfigureAwait(false);
-			if (_renewalTask != null)
-			{
-				try
-				{
-					await _renewalTask.ConfigureAwait(false);
-				}
-				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-				{
-					// Expected
-				}
-			}
-
-			_renewalCts.Dispose();
-			_renewalCts = null;
-			_renewalTask = null;
-		}
-	}
-
-	private async Task StopCoreAsync()
-	{
-		bool wasLeader;
-
-		lock (_lock)
-		{
-			if (!_isStarted)
-			{
-				return;
-			}
-
-			_isStarted = false;
-			wasLeader = _isLeader;
-		}
-
-		LogStopping(CandidateId);
-
-		await StopRenewerAsync().ConfigureAwait(false);
-
-		// Release lock if we hold it
-		if (wasLeader)
-		{
-			await ReleaseLockAsync().ConfigureAwait(false);
-
-			string? previousLeader;
-
-			lock (_lock)
-			{
-				_isLeader = false;
-				previousLeader = _currentLeaderId;
-				_currentLeaderId = null;
-			}
-
-			// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
-			// snapshot taken under the lock keeps the event args consistent (no torn read).
-			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockKey, timestamp: _timeProvider.GetUtcNow()));
-			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockKey, timestamp: _timeProvider.GetUtcNow()));
-		}
-	}
-
-	private async Task TryAcquireLockAsync(CancellationToken cancellationToken)
-	{
-		cancellationToken.ThrowIfCancellationRequested();
-
-		try
-		{
-			var db = _redis.GetDatabase();
-
-			// SET key value NX PX milliseconds
-			var acquired = await db.StringSetAsync(
-				_lockKey,
-				CandidateId,
-				_options.LeaseDuration,
-				When.NotExists).ConfigureAwait(false);
-
-			if (acquired)
-			{
-				// (fail-CLOSED fencing): when a fencing-token provider is configured the fence
-				// MUST be advanced BEFORE leadership is declared. SET NX returning acquired=true is itself the
-				// genuine-acquisition signal (this candidate transitioned from not-holding to holding the key),
-				// so exactly one token is minted per acquisition (Decision 1).
-				if (_fencingTokenProvider is not null)
-				{
-					long token;
-					try
-					{
-						token = await MintFencingTokenWithRetryAsync(cancellationToken).ConfigureAwait(false);
-					}
-					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-					{
-						throw;
-					}
-					catch (Exception ex)
-					{
-						// Bounded mint retries exhausted: RELINQUISH rather than lead with an un-advanced fence
-						// (the split-brain hazard left open as fail-OPEN). Release the lock we just
-						// acquired and do NOT declare leadership; the next renewal iteration re-attempts
-						// acquire+mint. This is the structural fail-closed coupling — the leadership grant below
-						// is unreachable unless the mint above succeeded.
-						LogFencingTokenIssueError(ex, CandidateId, _lockKey);
-						await ReleaseLockAsync().ConfigureAwait(false);
-						RaiseAcquisitionFailed(_lockKey, "fencing token mint failed", ex);
-						return;
-					}
-
-					// Fence advanced — only NOW declare leadership. BecomeLeader fires BecameLeader/
-					// LeaderChanged, so those events are observed strictly AFTER the fence advanced.
-					if (BecomeLeader(token))
-					{
-						LogFencingTokenIssued(CandidateId, token, _lockKey);
-					}
-				}
-				else
-				{
-					// No fencing configured (opt-in): there is no fence to advance, so declare leadership
-					// directly — fully backward compatible with the no-fencing guarantee the consumer accepted.
-					_ = BecomeLeader(fencingToken: 0);
-				}
-			}
-			else
-			{
-				// Check who the current leader is
-				var currentLeader = await db.StringGetAsync(_lockKey).ConfigureAwait(false);
-				lock (_lock)
-				{
-					_currentLeaderId = currentLeader.HasValue ? currentLeader.ToString() : null;
-				}
-
-				LogLockAcquisitionFailed(CandidateId, _currentLeaderId);
-				RaiseAcquisitionFailed(_lockKey, "lost the acquisition race", exception: null);
-			}
-		}
-		catch (Exception ex)
-		{
-			LogLockAcquisitionError(ex, CandidateId);
-			RaiseAcquisitionFailed(_lockKey, "error during acquisition", ex);
-		}
-	}
-
-	/// <summary>
-	/// Raises <see cref="AcquisitionFailed"/>, guarding the invocation so a throwing subscriber
-	/// can never break the acquisition/renewal loop.
-	/// </summary>
-	private void RaiseAcquisitionFailed(string resource, string reason, Exception? exception)
-	{
-		try
-		{
-			AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, resource, reason, _timeProvider.GetUtcNow(), exception));
-		}
-		catch (Exception)
-		{
-			// A throwing subscriber must never break the acquire loop.
-		}
-	}
-
-	private async Task ReleaseLockAsync()
-	{
-		try
-		{
-			var db = _redis.GetDatabase();
-
-			// Only delete if we own the lock (Lua script for atomicity)
-			const string script = @"
-				if redis.call('get', KEYS[1]) == ARGV[1] then
-					return redis.call('del', KEYS[1])
-				else
-					return 0
-				end";
-
-			_ = await db.ScriptEvaluateAsync(
-				script,
-				[_lockKey],
-				[CandidateId]).ConfigureAwait(false);
-
-			LogLockReleased(CandidateId);
-		}
-		catch (Exception ex)
-		{
-			LogLockReleaseError(ex, CandidateId);
-		}
-	}
-
-	private async Task RunRenewalLoopAsync(CancellationToken cancellationToken)
-	{
-		while (!cancellationToken.IsCancellationRequested)
-		{
-			try
-			{
-				await Task.Delay(_options.RenewInterval, cancellationToken).ConfigureAwait(false);
-
-				if (!_isLeader)
-				{
-					// Try to acquire lock
-					await TryAcquireLockAsync(cancellationToken).ConfigureAwait(false);
-				}
-				else
-				{
-					// Renew lease (3-state: )
-					var verify = await RenewLeaseAsync(cancellationToken).ConfigureAwait(false);
-					if (verify == LeaderVerifyResult.StillLeader)
-					{
-						Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
-					}
-					else
-					{
-						// a DEFINITIVELY-lost renew (owner-token Lua returned 0 — another holder owns the
-						// key) relinquishes immediately via the accelerate-only ShouldRelinquish seam; an
-						// Indeterminate renew (connection/transport fault) passes definitivelyLost=false so it stays
-						// grace-gated — no false-relinquish on a transient blip. Grace stays the hard upper bound.
-						var elapsed = _timeProvider.GetElapsedTime(Interlocked.Read(ref _lastSuccessfulRenewalTicks));
-						if (ShouldRelinquish(kind: null, definitivelyLost: verify == LeaderVerifyResult.DefinitivelyLost, elapsed, _options.GracePeriod))
-						{
-							LoseLeadership();
-						}
-					}
-				}
-			}
-			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-			{
-				break;
-			}
-			catch (Exception ex)
-			{
-				LogRenewalError(ex, CandidateId);
-
-				if (_isLeader)
-				{
-					// a definitively-Permanent fault (e.g. auth/config) cannot recover by waiting, so it
-					// relinquishes UNCONDITIONALLY this iteration (immediate, no elapsed dependence). Transient/
-					// poison/unclassified faults — and the absent-classifier default — relinquish only once the full
-					// grace period has elapsed (split-brain-safe / false-relinquish avoidance). Classification can
-					// only ADD the immediate-relinquish trigger, never relax the grace bound, so a stale leader can
-					// never hold past GracePeriod regardless of fault.
-					var elapsed = _timeProvider.GetElapsedTime(Interlocked.Read(ref _lastSuccessfulRenewalTicks));
-					// An exception is ambiguous about lock ownership (we couldn't probe), so definitivelyLost=false:
-					// only the classifier's Permanent verdict accelerates here; everything else stays grace-gated.
-					if (ShouldRelinquish(_failureClassifier?.Classify(ex), definitivelyLost: false, elapsed, _options.GracePeriod))
-					{
-						LoseLeadership();
-					}
-				}
-			}
-		}
-	}
-
-	private async Task<LeaderVerifyResult> RenewLeaseAsync(CancellationToken cancellationToken)
-	{
-		cancellationToken.ThrowIfCancellationRequested();
-
-		try
-		{
-			var db = _redis.GetDatabase();
-
-			// Only extend TTL if we own the lock (Lua script for atomicity)
-			const string script = @"
-				if redis.call('get', KEYS[1]) == ARGV[1] then
-					return redis.call('pexpire', KEYS[1], ARGV[2])
-				else
-					return 0
-				end";
-
-			var result = await db.ScriptEvaluateAsync(
-				script,
-				[_lockKey],
-				[CandidateId, (long)_options.LeaseDuration.TotalMilliseconds]).ConfigureAwait(false);
-
-			// the owner-token Lua returns 1 when we still own the lock (renewed), or 0 when the stored
-			// value no longer matches our token — an affirmative, DEFINITIVE loss (another holder took it). A
-			// thrown connection/transport error is ambiguous and handled below as Indeterminate.
-			return (long)result == 1 ? LeaderVerifyResult.StillLeader : LeaderVerifyResult.DefinitivelyLost;
-		}
-		catch (Exception ex)
-		{
-			// Connection/transport fault — we could not establish ownership either way; grace-gated.
-			LogRenewalWarning(ex, CandidateId);
-			return LeaderVerifyResult.Indeterminate;
-		}
-	}
-
-	/// <summary>
-	/// Transitions this candidate to leadership if it is not already the leader.
-	/// </summary>
-	/// <returns>
-	/// <see langword="true"/> if a leadership transition occurred (this call became leader);
-	/// <see langword="false"/> if this candidate was already the leader (re-entrancy guard).
-	/// </returns>
-	private bool BecomeLeader(long fencingToken)
-	{
-		string? previousLeader;
-
-		lock (_lock)
-		{
-			if (_isLeader)
-			{
-				return false;
-			}
-
-			previousLeader = _currentLeaderId;
-			_isLeader = true;
-			_currentLeaderId = CandidateId;
-			_currentFencingToken = fencingToken;
-			_leadershipAcquiredAt = _timeProvider.GetUtcNow();
-			Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
-		}
-
-		LogBecameLeader(CandidateId, _lockKey);
-
-		BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockKey, timestamp: _timeProvider.GetUtcNow()));
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, CandidateId, _lockKey, timestamp: _timeProvider.GetUtcNow()));
-
-		return true;
-	}
-
-	/// <summary>
-	/// Mints a monotonic fencing token for the protected resource, retrying a bounded number of times
-	/// (<see cref="FencingTokenMintMaxAttempts"/>) before failing (fail-closed). The caller mints
-	/// BEFORE declaring leadership and relinquishes if this throws, so the fence is always advanced before
-	/// fenced leadership is granted.
-	/// </summary>
-	/// <remarks>
-	/// The store-atomic mint (Redis <c>INCR</c>) advances the resource's cluster-wide high-water mark so a
-	/// previous leader's now-lower token is rejected by <c>FencingTokenMiddleware</c>. A bounded retry rides
-	/// out a transient store blip without instantly surrendering leadership, but once exhausted the method
-	/// throws so the caller can relinquish: fencing is a split-brain safety control, so we never proceed as
-	/// leader with an un-advanced fence (Microsoft "cross-cutting fails open" does NOT apply to a safety
-	/// boundary). The renewal loop re-attempts acquire+mint on its next iteration.
-	/// </remarks>
-	/// <param name="cancellationToken">A token to observe while minting.</param>
-	/// <returns>The newly minted, strictly-monotonic fencing token.</returns>
-	/// <exception cref="InvalidOperationException">The mint failed on every bounded attempt.</exception>
-	private Task<long> MintFencingTokenWithRetryAsync(CancellationToken cancellationToken) =>
-		FencingTokenMinting.MintWithRetryAsync(
-			_fencingTokenProvider!, _lockKey, cancellationToken, FencingTokenMintMaxAttempts);
-
-	/// <summary>
-	/// Decides whether leadership must be relinquished for a renewal-loop fault. A definitively
-	/// <see cref="MessageFailureKind.Permanent"/> fault relinquishes <em>unconditionally</em> (immediate,
-	/// independent of <paramref name="elapsed"/>); every other classification — transient, poison, or an
-	/// absent/null classifier — relinquishes only once <paramref name="elapsed"/> exceeds the full
-	/// <paramref name="gracePeriod"/>.
-	/// </summary>
-	/// <remarks>
-	/// The Permanent <em>and</em> definitive-loss cases are additional <em>OR</em> triggers over the grace
-	/// check, so each can only cause an <em>earlier</em> relinquish, never relax the grace bound — a stale
-	/// leader can never hold past <paramref name="gracePeriod"/> regardless of the fault. Mirrors
-	/// <c>SqlServerLeaderElection</c> (no fork); a pure static so the accelerate-only invariant is bound
-	/// structurally. Using an unconditional boolean (not an <c>elapsed &gt; Zero</c> comparison) keeps immediate
-	/// relinquish correct under a non-monotonic clock.
-	/// </remarks>
-	/// <param name="kind">The classification of the renewal fault, or <see langword="null"/> when no classifier is configured.</param>
-	/// <param name="definitivelyLost">
-	/// <see langword="true"/> when the renewal verify <em>definitively</em> established that this candidate no
-	/// longer holds the lock (the owner-token Lua returned 0 — another holder owns the key). An
-	/// ambiguous/indeterminate verify (connection/transport fault) passes <see langword="false"/> so it stays
-	/// grace-gated and never false-relinquishes.
-	/// </param>
-	/// <param name="elapsed">Time since the last successful renewal.</param>
-	/// <param name="gracePeriod">The configured grace period (the hard upper bound).</param>
-	/// <returns><see langword="true"/> if leadership should be relinquished this iteration.</returns>
-	internal static bool ShouldRelinquish(MessageFailureKind? kind, bool definitivelyLost, TimeSpan elapsed, TimeSpan gracePeriod)
-		=> kind == MessageFailureKind.Permanent || definitivelyLost || elapsed > gracePeriod;
-
-	/// <summary>
-	/// The three-state outcome of a renewal-time lock-ownership verify. Distinguishes a
-	/// <em>definitive</em> loss (the owner-token Lua affirmatively reported another holder owns the key) from an
-	/// <em>indeterminate</em> result (a connection/transport fault) so that only the former accelerates
-	/// relinquish; the latter stays grace-gated to avoid a false-relinquish on a transient blip.
-	/// </summary>
-	private enum LeaderVerifyResult
-	{
-		/// <summary>The renew confirmed this candidate still holds the lock (Lua returned 1, lease extended).</summary>
-		StillLeader,
-
-		/// <summary>The renew affirmatively established this candidate no longer holds the lock (Lua returned 0).</summary>
-		DefinitivelyLost,
-
-		/// <summary>Ownership could not be established (connection/transport fault) — grace-gated.</summary>
-		Indeterminate,
-	}
-
-	private void LoseLeadership()
-	{
-		string? previousLeader;
-
-		lock (_lock)
-		{
-			if (!_isLeader)
-			{
-				return;
-			}
-
-			_isLeader = false;
-			previousLeader = _currentLeaderId;
-			_currentLeaderId = null;
-		}
-
-		LogLostLeadership(CandidateId, _lockKey);
-
-		// Raise consumer event handlers OUTSIDE the lock to avoid reentrancy/deadlock; the
-		// snapshot taken under the lock keeps the event args consistent (no torn read).
-		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _lockKey, timestamp: _timeProvider.GetUtcNow()));
-		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockKey, timestamp: _timeProvider.GetUtcNow()));
-	}
-
-	// LoggerMessage delegates
+    public RedisLeaderElection(IConnectionMultiplexer redis, string lockKey, IOptions<LeaderElectionOptions> options,
+        ILogger<RedisLeaderElection> logger, RedisLeaderElectionContext? context = null, TimeProvider? timeProvider = null)
+    {
+        _redis = redis ?? throw new ArgumentNullException(nameof(redis));
+        _lockKey = lockKey ?? throw new ArgumentNullException(nameof(lockKey));
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _failureClassifier = context?.FailureClassifier;
+        _fencingTokenProvider = context?.FencingTokenProvider;
+        var validation = new LeaderElectionOptionsValidator().Validate(null, _options);
+        if (validation.Failed) { throw new OptionsValidationException(nameof(LeaderElectionOptions), typeof(LeaderElectionOptions), validation.Failures); }
+        CandidateId = LeaderCandidateIdentity.Resolve(_options.InstanceId);
+        _notifications = new LeaderElectionNotifications(error => LogRenewalWarning(error, CandidateId));
+    }
+
+    /// <inheritdoc/>
+    public string CandidateId { get; }
+    /// <inheritdoc/>
+    public Task NotificationsCompleted => _notifications.NotificationsCompleted;
+    /// <inheritdoc/>
+    public bool IsLeader => CurrentRun()?.Kernel.Current is not null;
+    /// <inheritdoc/>
+    public Leadership? CurrentLeadership
+    {
+        get
+        {
+            var held = CurrentRun()?.Kernel.Current;
+            return held is null ? null : new Leadership(held.FencingToken, held.AcquiredAt);
+        }
+    }
+    /// <inheritdoc/>
+    public string? CurrentLeaderId
+    {
+        get
+        {
+            var run = CurrentRun();
+            if (run is null) { return null; }
+            var status = run.Kernel.ReadStatus();
+            return status.Tenure is not null ? CandidateId : status.ObservedHolder;
+        }
+    }
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionEventArgs>? BecameLeader;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionEventArgs>? LostLeadership;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
+    /// <inheritdoc/>
+    public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
+
+    /// <inheritdoc/>
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        _notifications.ThrowIfReentrant();
+        StartSlot slot;
+        lock (_runGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_slot is { Shutdown: { } shutdown } && !shutdown.IsCompletedSuccessfully)
+            {
+                throw new InvalidOperationException("The previous run has not reached successful client quiescence.");
+            }
+            if (_slot is { Shutdown: null } existing) { slot = existing; }
+            else
+            {
+                // A pending start owns only one cancellation/lifecycle slot. It allocates NO
+                // kernel, timer, run or dispatcher until all previous callbacks have drained.
+                var previousNotifications = _slot?.Run?.Kernel.NotificationDrainTask ?? _slot?.PreviousNotifications ?? Task.CompletedTask;
+                slot = new StartSlot(previousNotifications);
+                _slot = slot;
+                _notifications.EnqueueDiagnostic(LogStarting, CandidateId, _lockKey);
+                slot.Worker = LeaderElectionExecution.RunAsync(() => AdmitRunAsync(slot));
+            }
+        }
+        try { await slot.Initial.Task.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _ = BeginStop(slot); // retained; a canceled waiter does not abandon a pending launch.
+            throw;
+        }
+    }
+
+    private async Task AdmitRunAsync(StartSlot slot)
+    {
+        try
+        {
+            await slot.PreviousNotifications.WaitAsync(slot.Stop.Token).ConfigureAwait(false);
+            Run run;
+            lock (_runGate)
+            {
+                if (slot.StopRequested || _disposed || !ReferenceEquals(_slot, slot))
+                {
+                    throw new OperationCanceledException(slot.Stop.Token);
+                }
+                run = new Run(this, slot);
+                slot.Run = run;
+                run.Actor = LeaderElectionExecution.RunAsync(() => RunActorAsync(run));
+            }
+            await run.Initial.Task.ConfigureAwait(false);
+            slot.Initial.TrySetResult();
+        }
+        catch (OperationCanceledException) when (slot.StopRequested)
+        {
+            slot.Initial.TrySetCanceled(slot.Stop.Token);
+        }
+        catch (Exception failure)
+        {
+            slot.Initial.TrySetException(failure);
+            throw;
+        }
+    }
+
+    /// <inheritdoc/>
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        StartSlot? slot;
+        lock (_runGate) { ObjectDisposedException.ThrowIf(_disposed, this); slot = _slot; }
+        return slot is null ? Task.CompletedTask : BeginStop(slot).WaitAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public ValueTask DisposeAsync()
+    {
+        lock (_runGate)
+        {
+            _disposed = true;
+            // Permanent disposal seals the same admitted start slot before its async stop worker runs.
+            if (_slot is { } slot) { slot.StopRequested = true; }
+            return new ValueTask(_disposal ??= LeaderElectionExecution.RunAsync(DisposeResourcesAsync));
+        }
+    }
+
+    private async Task DisposeResourcesAsync()
+    {
+        try
+        {
+            StartSlot? slot;
+            lock (_runGate) { slot = _slot; }
+            if (slot is not null) { await BeginStop(slot).ConfigureAwait(false); }
+        }
+        finally { _notifications.Seal(); }
+    }
+
+    private Run? CurrentRun() { lock (_runGate) { return _slot?.Run; } }
+
+    private Task BeginStop(StartSlot slot)
+    {
+        lock (_runGate)
+        {
+            if (slot.Shutdown is not null) { return slot.Shutdown; }
+            slot.StopRequested = true;
+            _notifications.EnqueueDiagnostic(LogStopping, CandidateId);
+            // No new run can be installed after this seal: admission checks under this gate.
+            // The common kernel never invokes external user code inline under its gate.
+            slot.Run?.Kernel.RequestStop();
+            return slot.Shutdown = LeaderElectionExecution.RunAsync(() => StopSlotAsync(slot));
+        }
+    }
+
+    private static async Task StopSlotAsync(StartSlot slot)
+    {
+        var failures = new List<Exception>();
+        try { await slot.Stop.CancelAsync().ConfigureAwait(false); }
+        catch (Exception error) { failures.Add(error); }
+        try { await slot.Worker.ConfigureAwait(false); }
+        catch (Exception error) { failures.Add(error); }
+        if (slot.Run is { } run)
+        {
+            try { await run.Actor.ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            try { await run.Kernel.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            if (run.ActorFailure is not null) { failures.Add(run.ActorFailure); }
+        }
+        slot.Stop.Dispose();
+        var distinct = failures.Distinct<Exception>(ReferenceEqualityComparer.Instance).ToArray();
+        if (distinct.Length == 1) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(distinct[0]).Throw(); }
+        if (distinct.Length > 1) { throw new AggregateException("Redis run shutdown failed.", distinct); }
+    }
+
+    private async Task RunActorAsync(Run run)
+    {
+        try
+        {
+            await run.Kernel.WaitForNotificationDrainAsync(run.Stop.Token).ConfigureAwait(false);
+            while (!run.StopRequested && !run.Stop.IsCancellationRequested)
+            {
+                var attempt = new Attempt("excalibur:v1:" + Convert.ToHexString(RandomNumberGenerator.GetBytes(32)) + ":" + CandidateId);
+                long generation;
+                try { generation = run.Kernel.BeginAcquisition(attempt, attempt.Acquire); }
+                catch (InvalidOperationException) when (run.StopRequested) { break; }
+                var start = _timeProvider.GetTimestamp();
+                attempt.Acquire.TryLaunch(async () =>
+                {
+                    attempt.Acquired = await _redis.GetDatabase().StringSetAsync(_lockKey, attempt.Owner,
+                        _options.LeaseDuration, When.NotExists).ConfigureAwait(false);
+                    if (!attempt.Acquired)
+                    {
+                        var holder = await _redis.GetDatabase().StringGetAsync(_lockKey).ConfigureAwait(false);
+                        attempt.OtherLeader = holder.HasValue ? DecodeDisplayIdentity(holder.ToString()) : null;
+                    }
+                    if (attempt.Acquired && _fencingTokenProvider is not null)
+                    {
+                        attempt.Fence = await FencingTokenMinting.MintWithRetryAsync(_fencingTokenProvider,
+                            _lockKey, run.Stop.Token, FencingTokenMintMaxAttempts).ConfigureAwait(false);
+                    }
+                });
+                try
+                {
+                    await attempt.Acquire.Completion.ConfigureAwait(false);
+                    if (attempt.Acquired && !run.Stop.IsCancellationRequested)
+                    {
+                        run.Kernel.Publish(generation, start, attempt.Owner, attempt.Fence, _timeProvider.GetUtcNow());
+                    }
+                    else
+                    {
+                        _notifications.EnqueueDiagnostic(LogLockAcquisitionFailed, CandidateId, attempt.OtherLeader);
+                        run.Kernel.ReportObservation(generation, true, attempt.OtherLeader, "lost the acquisition race", null, _timeProvider.GetUtcNow());
+                        run.Kernel.Retire(generation, "acquisition race lost");
+                    }
+                }
+                catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { run.Kernel.Retire(generation, "stopped"); }
+                catch (Exception error)
+                {
+                    run.Kernel.Retire(generation, "acquisition failed", error);
+                    run.Kernel.ReportObservation(generation, false, null,
+                        attempt.Acquired ? "fencing token mint failed" : "error during acquisition", error, _timeProvider.GetUtcNow());
+                    if (attempt.Acquired) { _notifications.EnqueueDiagnostic(LogFencingTokenIssueError, error, CandidateId, _lockKey); }
+                    else { _notifications.EnqueueDiagnostic(LogLockAcquisitionError, error, CandidateId); }
+                }
+                finally { run.Initial.TrySetResult(); }
+
+                var renewalDelay = _options.RenewInterval;
+                var cadenceStart = start;
+                while (!run.Stop.IsCancellationRequested && run.Kernel.Current is not null)
+                {
+                    await LeaderElectionDelay.WaitFromAsync(cadenceStart, renewalDelay, _timeProvider, run.Stop.Token).ConfigureAwait(false);
+                    var operation = new OwnedOperationLatch();
+                    if (!run.Kernel.TryRegisterOperation(generation, operation)) { break; }
+                    var renewalStart = _timeProvider.GetTimestamp();
+                    cadenceStart = renewalStart;
+                    var renewed = false;
+                    operation.TryLaunch(async () =>
+                    {
+                        const string script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end";
+                        var result = await _redis.GetDatabase().ScriptEvaluateAsync(script, [_lockKey],
+                            [attempt.Owner, (long)_options.LeaseDuration.TotalMilliseconds]).ConfigureAwait(false);
+                        renewed = (long)result == 1;
+                    });
+                    try
+                    {
+                        await operation.Completion.ConfigureAwait(false);
+                        if (renewed)
+                        {
+                            run.Kernel.Confirm(generation, renewalStart);
+                            renewalDelay = _options.RenewInterval;
+                        }
+                        else { run.Kernel.Retire(generation, "Redis owner proof no longer matches"); }
+                    }
+                    catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { break; }
+                    catch (Exception error)
+                    {
+                        _notifications.EnqueueDiagnostic(LogRenewalError, error, CandidateId);
+                        if (_failureClassifier?.Classify(error) == MessageFailureKind.Permanent)
+                        {
+                            run.Kernel.Retire(generation, "permanent renewal failure", error);
+                        }
+                        // Retry inside the grace portion rather than spending another full R before
+                        // the next attempt. A transient at default R=G=5 otherwise cannot recover by B=10.
+                        renewalDelay = _options.RetryInterval;
+                        // Ambiguous/unrelated cancellation does not advance the deadline or stop the actor.
+                    }
+                }
+                run.Kernel.Retire(generation, run.Stop.IsCancellationRequested ? "stopped" : "tenure ended");
+                await run.Kernel.RetirementTask.ConfigureAwait(false);
+                run.Kernel.CompleteRetirement(generation);
+                await run.Kernel.WaitForNotificationDrainAsync(run.Stop.Token).ConfigureAwait(false);
+                await LeaderElectionDelay.WaitFromAsync(cadenceStart, _options.RetryInterval, _timeProvider, run.Stop.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            run.ActorFailure = error;
+            run.Initial.TrySetException(error);
+            _ = BeginStop(run.Slot); // another task owns the join; the actor never joins itself.
+        }
+        finally { run.Initial.TrySetResult(); }
+    }
+
+    private async Task RetireAsync(Run run, RenewalTenureDeadline.Retirement retirement)
+    {
+        var attempt = (Attempt)retirement.AcquisitionOwner;
+        try
+        {
+            if (retirement.OperationCompletion is not null)
+            {
+                try { await retirement.OperationCompletion.ConfigureAwait(false); }
+                catch (OperationCanceledException) when (run.Stop.IsCancellationRequested) { }
+                catch (Exception error) { _notifications.EnqueueDiagnostic(LogRenewalError, error, CandidateId); }
+            }
+        }
+        finally
+        {
+            await ReleaseAcquisitionAsync(attempt).ConfigureAwait(false);
+        }
+    }
+
+    private async Task ReleaseAcquisitionAsync(Attempt attempt)
+    {
+        // Even a failed/unknown SET might have reached Redis. Exact old nonce cleanup is safe;
+        // using public CandidateId here could delete a later tenure with the same display ID.
+        const string script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+        try
+        {
+            var released = await _redis.GetDatabase().ScriptEvaluateAsync(script, [_lockKey], [attempt.Owner]).ConfigureAwait(false);
+            if ((int)released == 1) { _notifications.EnqueueDiagnostic(LogLockReleased, CandidateId); }
+        }
+        catch (Exception error)
+        {
+            _notifications.EnqueueDiagnostic(LogLockReleaseError, error, CandidateId);
+            throw;
+        }
+    }
+
+    private void Notify(RenewalTenureDeadline.Transition transition)
+    {
+        var args = new LeaderElectionEventArgs(CandidateId, _lockKey, timestamp: transition.Timestamp);
+        InvokeEach(transition.Acquired ? BecameLeader : LostLeadership, args);
+        InvokeEach(LeaderChanged, new LeaderChangedEventArgs(transition.Acquired ? transition.PreviousHolder : CandidateId,
+            transition.Acquired ? CandidateId : null, _lockKey,
+            fencingToken: transition.Acquired ? transition.FencingToken : null, timestamp: transition.Timestamp));
+        // Preserve both event families before queuing bounded best-effort diagnostics.
+        if (transition.Acquired)
+        {
+            _notifications.EnqueueDiagnostic(LogBecameLeader, CandidateId, _lockKey);
+            if (transition.FencingToken is { } fence) { _notifications.EnqueueDiagnostic(LogFencingTokenIssued, CandidateId, fence, _lockKey); }
+        }
+        else { _notifications.EnqueueDiagnostic(LogLostLeadership, CandidateId, _lockKey); }
+    }
+
+    private void InvokeEach<T>(EventHandler<T>? subscribers, T args) where T : EventArgs
+    {
+        _notifications.InvokeEach(subscribers, this, args);
+    }
+
+    private void NotifyObservation(RenewalTenureDeadline.Observation observation)
+    {
+        if (observation.HasHolder && !string.Equals(observation.PreviousHolder, observation.Holder, StringComparison.Ordinal))
+        {
+            InvokeEach(LeaderChanged, new LeaderChangedEventArgs(observation.PreviousHolder, observation.Holder,
+                _lockKey, timestamp: observation.Timestamp));
+        }
+        if (observation.FailureReason is not null)
+        {
+            InvokeEach(AcquisitionFailed, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _lockKey,
+                observation.FailureReason, observation.Timestamp, observation.Cause));
+        }
+    }
+
+    private static string DecodeDisplayIdentity(string value)
+    {
+        const string prefix = "excalibur:v1:";
+        if (value.StartsWith(prefix, StringComparison.Ordinal) && value.Length > prefix.Length + 64 &&
+            value[prefix.Length + 64] == ':' && value.AsSpan(prefix.Length, 64).IndexOfAnyExcept(OwnerHexCharacters) < 0)
+        {
+            return value[(prefix.Length + 65)..];
+        }
+        return value; // legacy/unknown values are display-only; they never match this tenure's nonce.
+    }
+
+    private sealed class Attempt(string owner)
+    {
+        internal string Owner { get; } = owner;
+        internal OwnedOperationLatch Acquire { get; } = new();
+        internal bool Acquired { get; set; }
+        internal string? OtherLeader { get; set; }
+        internal long? Fence { get; set; }
+    }
+
+    private sealed class StartSlot(Task previousNotifications)
+    {
+        internal Task PreviousNotifications { get; } = previousNotifications;
+        internal CancellationTokenSource Stop { get; } = new();
+        internal TaskCompletionSource Initial { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal Task Worker { get; set; } = Task.CompletedTask;
+        internal Run? Run { get; set; }
+        internal Task? Shutdown { get; set; }
+        internal volatile bool StopRequested;
+    }
+
+    private sealed class Run
+    {
+        internal Run(RedisLeaderElection owner, StartSlot slot)
+        {
+            Slot = slot;
+            Kernel = new RenewalTenureDeadline(owner._timeProvider, owner._options.RenewInterval + owner._options.GracePeriod,
+                retirement => owner.RetireAsync(this, retirement), owner.Notify,
+                observe: owner.NotifyObservation, notifications: owner._notifications);
+        }
+        internal StartSlot Slot { get; }
+        internal CancellationTokenSource Stop => Slot.Stop;
+        internal bool StopRequested => Slot.StopRequested;
+        internal TaskCompletionSource Initial { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal RenewalTenureDeadline Kernel { get; }
+        internal Task Actor { get; set; } = Task.CompletedTask;
+        internal Exception? ActorFailure { get; set; }
+    }
 	[LoggerMessage(LeaderElectionEventId.RedisStarting, LogLevel.Information,
 		"Starting leader election for candidate {CandidateId} on key {Key}")]
 	partial void LogStarting(string candidateId, string key);

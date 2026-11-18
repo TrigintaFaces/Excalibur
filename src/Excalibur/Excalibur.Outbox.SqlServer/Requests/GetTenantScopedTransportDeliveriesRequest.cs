@@ -20,6 +20,12 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// asserts as an explicit constructor argument -- never read from ambient context, because this store reads
 /// no ambient tenant. A caller scoped to one tenant that supplies another tenant's <c>MessageId</c> matches
 /// zero rows here rather than receiving that message's delivery records.
+/// <para>
+/// This framework-owned request uses its fixed constructor-defined primitive input schema. Replacing a
+/// known parameter value through <c>Parameters</c> is observed at execution; parameter DbType,
+/// direction, size, templates and output callbacks are not an extensibility contract of this request.
+/// Custom <c>IDataRequest</c> implementations retain their own execution behavior.
+/// </para>
 /// </remarks>
 public sealed class GetTenantScopedTransportDeliveriesRequest : DataRequestBase<IDbConnection, IEnumerable<OutboundMessageTransport>>
 {
@@ -68,7 +74,25 @@ public sealed class GetTenantScopedTransportDeliveriesRequest : DataRequestBase<
 
 		ResolveAsync = async connection =>
 		{
-			var rows = await connection.QueryAsync<TransportDeliveryRow>(Command).ConfigureAwait(false);
+			var rows = await StaticDbCommand.QueryAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "TenantId", StaticDbCommand.Input<string>(Parameters, "TenantId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "UntenantedSentinel", StaticDbCommand.Input<string>(Parameters, "UntenantedSentinel"), DbType.String);
+			}, static reader => new TransportDeliveryRow
+			{
+				Id = StaticDbValue.String(reader, 0),
+				MessageId = StaticDbValue.String(reader, 1) ?? string.Empty,
+				TransportName = StaticDbValue.String(reader, 2) ?? string.Empty,
+				Destination = StaticDbValue.String(reader, 3),
+				Status = StaticDbValue.Int32(reader, 4),
+				CreatedAt = StaticDbValue.DateTimeOffset(reader, 5) ?? default,
+				AttemptedAt = StaticDbValue.DateTimeOffset(reader, 6),
+				SentAt = StaticDbValue.DateTimeOffset(reader, 7),
+				RetryCount = StaticDbValue.Int32(reader, 8),
+				LastError = StaticDbValue.String(reader, 9),
+				TransportMetadata = StaticDbValue.String(reader, 10),
+			}).ConfigureAwait(false);
 			return rows.Select(MapRowToTransport);
 		};
 	}

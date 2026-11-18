@@ -38,8 +38,6 @@ public interface ICloudEventEncoder<TOutbound>
 	/// <param name="mode"> The serialization mode to apply. </param>
 	/// <param name="cancellationToken"> Cancellation token for the async operation. </param>
 	/// <returns> The serialized transport message. </returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	Task<TOutbound> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,

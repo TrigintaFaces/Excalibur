@@ -28,6 +28,7 @@ public static class Batching
 		TimeSpan timeout,
 		CancellationToken cancellationToken)
 	{
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(parallelDegree);
 		var successful = new List<T>();
 		var failed = new List<(T Item, Exception Exception)>();
 
@@ -54,8 +55,8 @@ public static class Batching
 				TaskScheduler.Default).Unwrap();
 		}
 
-		await producerTask.ConfigureAwait(false);
-		await Task.WhenAll(consumerTasks).ConfigureAwait(false);
+		// Keep ownership of every consumer even when enumeration or its channel writer faults.
+		await Task.WhenAll(producerTask, Task.WhenAll(consumerTasks)).ConfigureAwait(false);
 
 		return (successful, failed);
 	}

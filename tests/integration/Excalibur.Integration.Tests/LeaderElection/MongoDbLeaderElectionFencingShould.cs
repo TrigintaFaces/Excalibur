@@ -17,7 +17,7 @@ namespace Excalibur.Integration.Tests.LeaderElection;
 
 /// <summary>
 /// Author≠impl split-brain regression lock for 5fswhd (MongoDB leader-election fencing hardening, MS-05).
-/// The MongoDB-backed <see cref="IFencingTokenProvider"/> mints a <b>strictly-monotonic</b> token from an
+/// The MongoDB-backed <see cref="IFencingTokenIssuer"/> mints a <b>strictly-monotonic</b> token from an
 /// atomic server-side <c>$inc</c> counter — the first leader receives <c>1</c> and every acquisition is
 /// strictly greater — so two candidates can never obtain the same fence, and a superseded leader's stale
 /// token is rejected once the fence advances. Same contract as the committed Postgres / Redis / SqlServer
@@ -48,7 +48,7 @@ public sealed class MongoDbLeaderElectionFencingShould : IClassFixture<MongoDbCo
 
 	public MongoDbLeaderElectionFencingShould(MongoDbContainerFixture fixture) => _fixture = fixture;
 
-	private IFencingTokenProvider CreateProvider(string databaseName, out ServiceProvider serviceProvider)
+	private IFencingTokenIssuer CreateProvider(string databaseName, out ServiceProvider serviceProvider)
 	{
 		var services = new ServiceCollection();
 		_ = services.AddSingleton<IMongoClient>(new MongoClient(_fixture.ConnectionString));
@@ -60,7 +60,7 @@ public sealed class MongoDbLeaderElectionFencingShould : IClassFixture<MongoDbCo
 		});
 		_ = services.AddMongoDbFencingTokenProvider();
 		serviceProvider = services.BuildServiceProvider();
-		return serviceProvider.GetRequiredService<IFencingTokenProvider>();
+		return serviceProvider.GetRequiredService<IFencingTokenIssuer>();
 	}
 
 	private static string UniqueDb() => "fence_" + Guid.NewGuid().ToString("N");

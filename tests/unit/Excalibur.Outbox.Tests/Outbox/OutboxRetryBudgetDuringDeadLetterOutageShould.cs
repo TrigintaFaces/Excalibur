@@ -26,25 +26,19 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
     {
         var state = new Control { Permanent = !poison };
         await using var provider = Build(state);
-        var row = await StageAsync(provider.GetRequiredService<IOutboxStore>(), "failed");
-        if (poison)
-        {
-            row.Payload = "not-json"u8.ToArray();
-        }
+        var row = await StageAsync(provider.GetRequiredService<IOutboxStore>(), "failed", poison);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         await using (var first = Create(provider, state, degree, true))
         {
             first.Init("terminal-first");
             await first.DispatchPendingMessagesAsync(deadline.Token);
         }
-        row.RetryCount.ShouldBe(poison ? 0 : 1);
-        row.LastError.ShouldNotBeNull();
-        row.Status.ShouldBe(OutboxStatus.Failed);
-        // A repaired body makes a second decode/dispatch observable; disposition evidence must take precedence.
-        if (poison)
-        {
-            row.Payload = JsonSerializer.SerializeToUtf8Bytes(new BudgetEvent("healthy"));
-        }
+        PersistedInMemoryOutboxState.Read(provider, row.Id).RetryCount.ShouldBe(poison ? 0 : 1);
+        PersistedInMemoryOutboxState.Read(provider, row.Id).LastError.ShouldNotBeNull();
+        PersistedInMemoryOutboxState.Read(provider, row.Id).Status.ShouldBe(OutboxStatus.Failed);
+        // Repair only the next detached delivery input through the actual claim API; the store's
+        // retained disposition and retry history stay untouched. A second decode would dispatch healthy.
+        state.RepairClaimBody = poison;
         state.QueueAvailable = true;
         await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must actually elapse before the successor's attempt is due
         await using (var successor = Create(provider, state, degree, true))
@@ -54,7 +48,8 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
         }
         state.FailedCalls.ShouldBe(poison ? 0 : 1);
         state.HealthyCalls.ShouldBe(0);
-        row.Status.ShouldBe(OutboxStatus.DeadLettered);
+        state.RepairedClaims.ShouldBe(poison ? 1 : 0, "the healthy successor input must actually reach the processor");
+        PersistedInMemoryOutboxState.Read(provider, row.Id).Status.ShouldBe(OutboxStatus.DeadLettered);
         var retained = state.Retained.Single();
         retained.Attempts.ShouldBe(poison ? "0" : "1");
         retained.Reason.ShouldBe(poison ? DeadLetterReason.DeserializationFailed : DeadLetterReason.UnhandledException);
@@ -73,8 +68,8 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await processor.DispatchPendingMessagesAsync(deadline.Token);
         state.Retained.Single().Attempts.ShouldBe("1");
-        row.Status.ShouldBe(OutboxStatus.DeadLettered);
-        row.RetryCount.ShouldBe(1);
+        PersistedInMemoryOutboxState.Read(provider, row.Id).Status.ShouldBe(OutboxStatus.DeadLettered);
+        PersistedInMemoryOutboxState.Read(provider, row.Id).RetryCount.ShouldBe(1);
         state.FailedCalls.ShouldBe(1);
     }
 
@@ -92,7 +87,7 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
             await using var processor = Create(provider, state, degree, true);
             processor.Init("ambiguous-terminal-" + drain);
             await processor.DispatchPendingMessagesAsync(deadline.Token);
-            row.Status.ShouldBe(OutboxStatus.DeadLettered);
+            PersistedInMemoryOutboxState.Read(provider, row.Id).Status.ShouldBe(OutboxStatus.DeadLettered);
         }
         state.FailedCalls.ShouldBe(1);
         state.QueueCalls.ShouldBe(1);
@@ -124,11 +119,11 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
         }
 
         state.FailedCalls.ShouldBe(2, "queue recovery attempts must not resend an exhausted delivery");
-        failed.RetryCount.ShouldBe(2, "the actual final failure must be recorded before queue transfer can fail");
-        failed.Status.ShouldBe(OutboxStatus.Failed);
-        failed.Payload.ShouldBe(JsonSerializer.SerializeToUtf8Bytes(new BudgetEvent("failed")));
-        failed.TenantId.ShouldBe("budget-tenant");
-        healthy.Status.ShouldBe(OutboxStatus.Sent, "one unavailable dead-letter transfer must not strand an independent healthy row");
+        PersistedInMemoryOutboxState.Read(provider, failed.Id).RetryCount.ShouldBe(2, "the actual final failure must be recorded before queue transfer can fail");
+        PersistedInMemoryOutboxState.Read(provider, failed.Id).Status.ShouldBe(OutboxStatus.Failed);
+        PersistedInMemoryOutboxState.Read(provider, failed.Id).Payload.ShouldBe(JsonSerializer.SerializeToUtf8Bytes(new BudgetEvent("failed")));
+        PersistedInMemoryOutboxState.Read(provider, failed.Id).TenantId.ShouldBe("budget-tenant");
+        PersistedInMemoryOutboxState.Read(provider, healthy.Id).Status.ShouldBe(OutboxStatus.Sent, "one unavailable dead-letter transfer must not strand an independent healthy row");
         state.HealthyCalls.ShouldBe(1);
         state.QueueCalls.ShouldBeGreaterThanOrEqualTo(2, "successor drains must still attempt recovery transfer");
         state.Retained.ShouldBeEmpty();
@@ -141,9 +136,9 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
             await recovered.DispatchPendingMessagesAsync(deadline.Token);
         }
         state.FailedCalls.ShouldBe(2);
-        failed.Status.ShouldBe(OutboxStatus.DeadLettered);
+        PersistedInMemoryOutboxState.Read(provider, failed.Id).Status.ShouldBe(OutboxStatus.DeadLettered);
         var retained = state.Retained.Single();
-        retained.Payload.ShouldBe(failed.Payload);
+        retained.Payload.ShouldBe(PersistedInMemoryOutboxState.Read(provider, failed.Id).Payload);
         retained.Tenant.ShouldBe("budget-tenant");
         retained.Attempts.ShouldBe("2");
         retained.Reason.ShouldBe(DeadLetterReason.MaxRetriesExceeded);
@@ -162,9 +157,9 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
         processor.Init("cancelled-budget");
         await Should.ThrowAsync<OperationCanceledException>(() => processor.DispatchPendingMessagesAsync(caller.Token));
         state.FailedCalls.ShouldBe(1);
-        row.RetryCount.ShouldBe(0);
+        PersistedInMemoryOutboxState.Read(provider, row.Id).RetryCount.ShouldBe(0);
         state.QueueCalls.ShouldBe(0);
-        row.Status.ShouldNotBe(OutboxStatus.DeadLettered);
+        PersistedInMemoryOutboxState.Read(provider, row.Id).Status.ShouldNotBe(OutboxStatus.DeadLettered);
     }
 
     [Theory]
@@ -191,9 +186,9 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
             }
         }
         state.FailedCalls.ShouldBe(0);
-        row.RetryCount.ShouldBe(0);
+        PersistedInMemoryOutboxState.Read(provider, row.Id).RetryCount.ShouldBe(0);
         state.QueueCalls.ShouldBe(0);
-        row.Status.ShouldBe(OutboxStatus.Failed);
+        PersistedInMemoryOutboxState.Read(provider, row.Id).Status.ShouldBe(OutboxStatus.Failed);
     }
 
     private static ServiceProvider Build(Control state)
@@ -227,13 +222,14 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
             options.LeaseTimeoutSeconds = 1;
             options.FailureBackoffFloorSeconds = 1;
         });
+        services.AddSingleton<IOutboxStore>(provider => new ClaimBodyRepairStore(provider.GetRequiredService<InMemoryOutboxStore>(), state));
         return services.BuildServiceProvider();
     }
 
-    private static async Task<OutboundMessage> StageAsync(IOutboxStore store, string value)
+    private static async Task<OutboundMessage> StageAsync(IOutboxStore store, string value, bool poison = false)
     {
         var row = new OutboundMessage(typeof(BudgetEvent).AssemblyQualifiedName!,
-            JsonSerializer.SerializeToUtf8Bytes(new BudgetEvent(value)), "local") { TenantId = "budget-tenant" };
+            poison ? "not-json"u8.ToArray() : JsonSerializer.SerializeToUtf8Bytes(new BudgetEvent(value)), "local") { TenantId = "budget-tenant" };
         await store.StageMessageAsync(row, CancellationToken.None);
         return row;
     }
@@ -251,7 +247,7 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
                 Interlocked.Increment(ref state.QueueCalls);
                 if (state.CommitBeforeThrow)
                 {
-                    var terminal = (IDeadLetterableOutboxStore)provider.GetRequiredService<IOutboxStore>();
+                    var terminal = provider.GetRequiredService<IOutboxStore>().GetRequiredService<IDeadLetterableOutboxStore>();
                     await terminal.MarkDeadLetteredAsync(message.MessageId, "CONTROLLED-COMMITTED-THEN-THREW", message.Attempts, token);
                     throw new IOException("CONTROLLED-AMBIGUOUS-TRANSFER");
                 }
@@ -278,6 +274,24 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
             deadLetterQueue: queue, backoffCalculator: backoff);
     }
 
+    // Decorates real claims, never the store's private row. Capability forwarding remains real.
+    private sealed class ClaimBodyRepairStore(IOutboxStore inner, Control state) : OutboxStoreDecorator(inner)
+    {
+        public override async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
+        {
+            var claimed = (await base.GetUnsentMessagesAsync(batchSize, cancellationToken)).ToArray();
+            if (state.RepairClaimBody)
+            {
+                foreach (var row in claimed)
+                {
+                    row.Payload = JsonSerializer.SerializeToUtf8Bytes(new BudgetEvent("healthy"));
+                    Interlocked.Increment(ref state.RepairedClaims);
+                }
+            }
+            return claimed;
+        }
+    }
+
     private sealed record BudgetEvent(string Value) : IIntegrationEvent;
     private sealed record Retained(byte[] Payload, string? Tenant, string Attempts, DeadLetterReason Reason);
     private sealed class Control
@@ -285,6 +299,8 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
         internal int FailedCalls;
         internal int HealthyCalls;
         internal int QueueCalls;
+        internal int RepairedClaims;
+        internal bool RepairClaimBody;
         internal bool QueueAvailable;
         internal bool Permanent;
         internal bool CommitBeforeThrow;

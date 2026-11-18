@@ -1,6 +1,6 @@
 # Serialization Samples
 
-High-performance serialization alternatives for throughput and cross-language interoperability.
+Serialization alternatives with different contract, interoperability and deployment requirements. Compare performance using the actual payload and API configuration.
 
 ## Choosing a Serializer
 
@@ -10,15 +10,15 @@ not current rankings or guarantees. Compare the actual workload before choosing.
 
 | Serializer | Best For | Speed | Size | Cross-Language | Native AOT |
 |------------|----------|-------|------|----------------|------------|
-| **[Protobuf](Protobuf/)** | Cross-language systems, schema contracts | 2-3x JSON | ~60% smaller | Yes (all languages) | Yes |
-| **[MessagePack](MessagePackSample/)** | High throughput, .NET + other languages | 3-5x JSON | ~55% smaller | Yes (many languages) | Yes |
-| **[MemoryPack](MemoryPackSample/)** | .NET binary communication | 10-100x JSON | ~65% smaller | No (.NET only) | Yes |
+| **[Protobuf](Protobuf/)** | Cross-language systems, schema contracts | 2-3x JSON | ~60% smaller | Yes (all languages) | Verify configuration and published application |
+| **[MessagePack](MessagePackSample/)** | High throughput, .NET + other languages | 3-5x JSON | ~55% smaller | Yes (many languages) | Verify configuration and published application |
+| **[MemoryPack](MemoryPackSample/)** | .NET binary communication | 10-100x JSON | ~65% smaller | No (.NET only) | Verify configuration and published application |
 
 ## Samples Overview
 
 | Sample | What It Demonstrates | Local Dev Ready |
 |--------|---------------------|-----------------|
-| [Protobuf](Protobuf/) | protobuf-net attributes, schema evolution, cross-language | Yes |
+| [Protobuf](Protobuf/) | Google.Protobuf IMessage implementation, tagged fields and cross-language contracts | Yes |
 | [MessagePack](MessagePackSample/) | LZ4 compression, union types, polymorphism | Yes |
 | [MemoryPack](MemoryPackSample/) | Span input, immutable types, source generation | Yes |
 
@@ -40,7 +40,7 @@ cd samples/08-serialization/MessagePackSample
 dotnet run
 ```
 
-Good balance of performance and cross-language support.
+An option for MessagePack interoperability; measure encoding cost, payload size and configured compression.
 
 ### MemoryPack (.NET Binary Serialization)
 
@@ -74,11 +74,11 @@ different framework benchmark payloads/APIs. It does not validate this table's r
 |----------|-------------|
 | Default / development | JSON (human-readable) |
 | Cross-language (Python, Go, Java) | **Protobuf** |
-| High throughput + some cross-language | **MessagePack** |
+| Throughput-sensitive cross-language workloads | Compare MessagePack and alternatives using the actual workload |
 | .NET binary communication | Compare MemoryPack with alternatives using the actual workload |
 | Schema contracts / versioning | **Protobuf** |
-| Bandwidth-constrained | MessagePack+LZ4 or MemoryPack |
-| NativeAOT deployment | MemoryPack (zero reflection) |
+| Bandwidth-constrained | Compare actual encoded sizes with the selected compression and payload |
+| NativeAOT deployment | MemoryPack source-generated serialization; verify the complete NativeAOT deployment |
 
 ## Serialization Patterns Comparison
 
@@ -86,7 +86,7 @@ different framework benchmark payloads/APIs. It does not validate this table's r
 
 | Serializer | Attribute | Key/Tag System |
 |------------|-----------|----------------|
-| Protobuf | `[ProtoContract]`, `[ProtoMember(n)]` | Tag numbers (immutable) |
+| Protobuf | Google.Protobuf `IMessage<T>` contract, typically generated from `.proto` | Preserve field numbers and reserve removed fields |
 | MessagePack | `[MessagePackObject]`, `[Key(n)]` | Key indices (immutable) |
 | MemoryPack | `[MemoryPackable]` (partial class) | Property order or `[MemoryPackOrder]` |
 
@@ -110,15 +110,7 @@ different framework benchmark payloads/APIs. It does not validate this table's r
 
 ### Protobuf: Tag-Based Serialization
 
-```csharp
-[ProtoContract]
-public class OrderPlacedEvent
-{
-    [ProtoMember(1)] public string OrderId { get; set; }
-    [ProtoMember(2)] public decimal Amount { get; set; }
-    // Tag 3 reserved for removed field
-}
-```
+The [Protobuf sample](Protobuf/) uses a manual `Google.Protobuf.IMessage<T>` implementation for illustration; see [OrderEvents.cs](Protobuf/Messages/OrderEvents.cs). Application schemas commonly generate these message types from `.proto` files. The framework wrapper expects Google.Protobuf messages; protobuf-net's `[ProtoContract]` and `[ProtoMember]` attributes do not provide that interface.
 
 ### MessagePack: Union Types for Polymorphism
 
@@ -144,13 +136,13 @@ public partial class OrderPlacedEvent
 ### Dispatch Integration
 
 ```csharp
-// Protobuf (one call does everything)
+// Choose Protobuf; message contracts must implement Google.Protobuf.IMessage
 builder.Services.AddProtobufSerializer();
 
-// MessagePack (one call does everything)
+// Alternatively choose MessagePack; configure the required contracts/resolvers
 builder.Services.AddMessagePackSerializer();
 
-// MemoryPack (one call does everything)
+// Alternatively choose MemoryPack; supply generated formatters for payload types
 builder.Services.AddMemoryPackSerializer();
 ```
 
@@ -158,27 +150,26 @@ builder.Services.AddMemoryPackSerializer();
 
 | Sample | Requirements |
 |--------|-------------|
-| Protobuf | .NET 9.0 SDK |
-| MessagePack | .NET 9.0 SDK |
-| MemoryPack | .NET 9.0 SDK |
+| Protobuf | Repository-pinned SDK; project targets net10.0 |
+| MessagePack | Repository-pinned SDK; project targets net10.0 |
+| MemoryPack | Repository-pinned SDK; project targets net10.0 |
 
 ## Related Packages
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Dispatch.Serialization.Protobuf` | Protocol Buffers (protobuf-net) |
+| `Excalibur.Dispatch.Serialization.Protobuf` | Protocol Buffers (Google.Protobuf) |
 | `Excalibur.Dispatch.Serialization.MessagePack` | MessagePack-CSharp with LZ4 |
 | `Excalibur.Dispatch.Serialization.MemoryPack` | Cysharp MemoryPack |
 
 ## Related Samples
 
 - [RabbitMQ](../02-messaging-transports/RabbitMQ/) - Transport with serialization
-- [Kafka](../02-messaging-transports/Kafka/) - High-throughput transport
+- [Kafka](../02-messaging-transports/Kafka/) - Partitioned event-log transport
 
 ## Learn More
 
 - [Protocol Buffers](https://protobuf.dev/)
-- [protobuf-net](https://protobuf-net.github.io/protobuf-net/)
 - [MessagePack-CSharp](https://github.com/MessagePack-CSharp/MessagePack-CSharp)
 - [MemoryPack](https://github.com/Cysharp/MemoryPack)
 

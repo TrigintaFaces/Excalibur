@@ -106,12 +106,16 @@ public sealed class InMemoryDeadLetterStoreConformanceTests : DeadLetterStoreCon
 		MarkAsReplayedAsync_ShouldSetIsReplayedTrue();
 
 	[Fact]
-	public Task MarkAsReplayedAsync_NonExistent_ShouldBeIdempotent_Test() =>
-		MarkAsReplayedAsync_NonExistent_ShouldBeIdempotent();
+	public Task MarkAsReplayedAsync_NonExistent_ShouldReportMessageNotFound_Test() =>
+		MarkAsReplayedAsync_NonExistent_ShouldReportMessageNotFound();
 
 	[Fact]
-	public Task MarkAsReplayedAsync_AlreadyReplayed_ShouldBeIdempotent_Test() =>
-		MarkAsReplayedAsync_AlreadyReplayed_ShouldBeIdempotent();
+	public Task MarkAsReplayedAsync_AlreadyReplayed_ShouldBeRefused_Test() =>
+		MarkAsReplayedAsync_AlreadyReplayed_ShouldBeRefused();
+
+	[Fact]
+	public Task ReleaseReplayClaimAsync_WithoutAClaim_ShouldBeANoOp_Test() =>
+		ReleaseReplayClaimAsync_WithoutAClaim_ShouldBeANoOp();
 
 	#endregion Replay Tests
 

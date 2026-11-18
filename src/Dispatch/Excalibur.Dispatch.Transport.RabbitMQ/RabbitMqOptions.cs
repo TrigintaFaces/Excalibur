@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+
 using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
@@ -16,7 +17,6 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// </para>
 /// <para>
 /// Properties are organized into sub-option groups for clarity:
-/// <see cref="Connection"/> for connection settings,
 /// <see cref="Queue"/> for queue declaration settings,
 /// <see cref="DeadLetter"/> for dead letter exchange settings,
 /// and <see cref="Consumption"/> for consumer behavior settings.
@@ -35,11 +35,6 @@ public sealed class RabbitMqOptions
 	/// </summary>
 	/// <value>The routing key for publishing.</value>
 	public string RoutingKey { get; set; } = string.Empty;
-	/// <summary>
-	/// Gets or sets the connection options.
-	/// </summary>
-	/// <value>The connection configuration options.</value>
-	public RabbitMqConnectionOptions Connection { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets the queue declaration options.
@@ -58,19 +53,6 @@ public sealed class RabbitMqOptions
 	/// </summary>
 	/// <value>The consumption configuration options.</value>
 	public RabbitMqConsumptionOptions Consumption { get; set; } = new();
-}
-
-/// <summary>
-/// Connection-related options for RabbitMQ.
-/// </summary>
-public sealed class RabbitMqConnectionOptions
-{
-	/// <summary>
-	/// Gets or sets the RabbitMQ connection string.
-	/// </summary>
-	/// <value>The RabbitMQ connection string.</value>
-	[Required]
-	public string ConnectionString { get; set; } = string.Empty;
 }
 
 /// <summary>

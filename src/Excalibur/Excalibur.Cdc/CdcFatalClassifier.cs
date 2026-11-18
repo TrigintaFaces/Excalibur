@@ -6,9 +6,8 @@ using Excalibur.Dispatch;
 namespace Excalibur.Cdc;
 
 /// <summary>
-/// Decides whether an exception raised during CDC processing is <em>fatal</em> (non-retryable — the
-/// processor must stop and surface it loudly, never an infinite silent reconnect loop) or
-/// <em>transient</em> (recover on a later attempt — keep the existing backoff-reconnect).
+/// Decides whether a CDC processing fault requires the loop to stop for review or permits
+/// recovery by the existing backoff-reconnect policy. Stopped faults never advance the checkpoint.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -17,10 +16,8 @@ namespace Excalibur.Cdc;
 /// the CDC retry-vs-terminate decision stays consistent with the rest of the pipeline.
 /// </para>
 /// <para>
-/// When no classifier is supplied, a conservative, fail-safe fallback is used: only a small set of
-/// <em>definitively</em> non-retryable BCL/framework exceptions are treated as fatal; everything else
-/// (including unrecognised faults) is treated as transient so it receives a bounded backoff-reconnect
-/// rather than being terminated — a genuinely transient fault must never be mistaken for fatal.
+/// When no classifier is supplied, a conservative fallback reconnects recognized transient BCL faults. Unrecognized faults stop for review without
+/// advancing the checkpoint. Stopping an unknown fault is not a classification as permanent or poison.
 /// </para>
 /// <para>
 /// This is part of the supported CDC extensibility surface: a consumer implementing a custom
@@ -38,8 +35,9 @@ public static class CdcFatalClassifier
 	/// The shared failure classifier, or <see langword="null"/> to use the conservative built-in fallback.
 	/// </param>
 	/// <returns>
-	/// <see langword="true"/> if the failure is permanent/poison (fatal); <see langword="false"/> if it
-	/// is transient and the loop should keep reconnecting with backoff.
+	/// <see langword="true"/> if the loop must stop (permanent, poison or unknown);
+	/// <see langword="false"/> for recognized transient/uncertain failures or cooperative cancellation.
+	/// A stopped unknown fault retains its checkpoint; it is not a permanent rejection.
 	/// </returns>
 	public static bool IsFatal(Exception exception, IMessageFailureClassifier? classifier)
 	{
@@ -47,15 +45,14 @@ public static class CdcFatalClassifier
 
 		if (classifier is not null)
 		{
-			return classifier.Classify(exception) is MessageFailureKind.Permanent or MessageFailureKind.Poison;
+			return classifier.Classify(exception) is not (MessageFailureKind.Transient or MessageFailureKind.Uncertain);
 		}
 
 		return IsDefinitivelyFatal(Unwrap(exception));
 	}
 
-	// Fail-safe fallback (no classifier): only definitively non-retryable BCL/framework exceptions are
-	// fatal. The Dispatch-specific permanent/poison types (serialization, validation, configuration, …)
-	// are covered when a classifier is present. Anything unrecognised stays transient.
+	// Fail-safe fallback (no classifier): known transient BCL exceptions remain recoverable;
+	// unrecognized faults stop for review without advancing the checkpoint.
 	private static bool IsDefinitivelyFatal(Exception exception) => exception switch
 	{
 		// Cancellation is cooperative, not a fault — never fatal (callers handle the token separately).
@@ -69,11 +66,15 @@ public static class CdcFatalClassifier
 		NotImplementedException => true,
 		// A bad argument/contract (incl. ArgumentNull/ArgumentOutOfRange) cannot be fixed by retrying.
 		ArgumentException => true,
-		_ => false,
+		TimeoutException => false,
+		System.IO.IOException => false,
+		System.Net.Sockets.SocketException => false,
+		System.Net.Http.HttpRequestException => false,
+		_ => true,
 	};
 
 	// Unwrap a single-inner AggregateException chain to classify the real cause, matching
-	// DefaultMessageFailureClassifier's behavior; a genuinely multi-fault aggregate stays transient.
+	// DefaultMessageFailureClassifier's behavior; a genuinely multi-fault aggregate remains unknown and stops.
 	private static Exception Unwrap(Exception exception)
 	{
 		var current = exception;

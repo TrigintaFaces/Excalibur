@@ -21,19 +21,20 @@ Dispatch includes Roslyn source generators that enable ahead-of-time (AOT) compi
 
 ### What Are Source Generators?
 
-Source generators are Roslyn compiler extensions that analyze your code during compilation and generate additional C# source files. Unlike runtime reflection, all code generation happens at compile time, making your application:
+Source generators analyze code during compilation and emit additional C# source. They provide
+generated alternatives for supported shapes; application compatibility and performance still require verification:
 
-- **AOT-compatible** - Works with Native AOT (`PublishAot=true`)
-- **Trimming-safe** - No types unexpectedly removed by IL Linker
-- **Faster at startup** - No reflection-based discovery
+- **NativeAOT paths** - Publish and execute the configured application
+- **Trimming metadata** - Verify required members survive the selected paths
+- **Startup candidates** - Measure generated discovery and activation against the workload
 - **Debuggable** - Generated code is visible and can be inspected
 
 ### Why Dispatch Uses Source Generators
 
 | Benefit | Description |
 |---------|-------------|
-| **Zero-reflection dispatch** | Handler resolution at compile time, not runtime |
-| **Faster handler activation** | Pre-compiled property setters, no `Expression.Compile()` |
+| **Generated dispatch paths** | Supported registrations and invokers are emitted at compile time |
+| **Generated handler activation** | Typed property setters avoid runtime expression compilation on supported paths; measure total activation |
 | **Call-site forwarding** | Supported calls preserve the selected dispatcher overload |
 | **AOT deployment** | Native executables without JIT compilation |
 
@@ -161,7 +162,7 @@ internal static class TypedDispatchExtensions_MyAssembly
 **Benefits:**
 - No explicit `<TMessage, TResponse>` type arguments needed at call sites
 - Full compile-time type safety for response types
-- Zero overhead — `[AggressiveInlining]` forwarders to existing dispatch methods
+- Thin forwarding methods; actual inlining and overhead depend on the compiled call path
 
 ---
 
@@ -180,8 +181,11 @@ that every runtime pair has a registration.
 
 ### MessageTypeSourceGenerator
 
-Discovers the message types in the compilation and emits a module initializer that keeps them, and their
-constructors, properties and fields, from being removed by the trimmer.
+Discovers eligible message types and emits a module initializer with a static initialization path.
+The generated static constructor iterates the preserved type array and calls `PreserveType`, which
+accesses constructors, properties and fields. This is runtime initialization, not an empty compile-time
+operation. Verify the required members in the published application; `typeof` references alone do
+not establish preservation of every member.
 
 **Generated Output:**
 
@@ -191,15 +195,30 @@ namespace Excalibur.Dispatch.Generated;
 
 internal static class GeneratedMessageTypeRegistrations
 {
-    // One entry per discovered message type. Referencing the types statically is what
-    // survives trimming; nothing here is called at runtime.
+    // Simplified excerpt; inspect emitted annotations and preservation code in the generated file.
     private static readonly Type[] PreservedMessageTypes = [
         typeof(MyApp.Orders.GetOrderQuery),
         typeof(MyApp.Orders.PlaceOrderCommand),
     ];
 
+    static GeneratedMessageTypeRegistrations()
+    {
+        foreach (var type in PreservedMessageTypes)
+        {
+            PreserveType(type);
+        }
+    }
+
+    private static void PreserveType(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type type)
+    {
+        _ = type.GetConstructors();
+        _ = type.GetProperties();
+        _ = type.GetFields();
+    }
+
     [ModuleInitializer]
-    public static void Initialize() { }
+    public static void Initialize() { } // Static initialization runs before this method.
 }
 ```
 
@@ -346,7 +365,8 @@ public record GetAllProductsQuery : IDispatchAction<ProductDto[]>;
 
 ### JsonSerializationSourceGenerator
 
-Generates compile-time metadata for all discovered `IDispatchMessage` types, enabling AOT-safe serialization.
+Generates a type inventory for eligible discovered `IDispatchMessage` types. Supply their JSON
+serialization contracts in an application `JsonSerializerContext`; the inventory is not those contracts.
 
 **Discovers:**
 - All concrete (non-abstract, non-generic, public) types implementing `IDispatchMessage`
@@ -383,7 +403,8 @@ internal static class DiscoveredMessageTypeMetadata
 }
 ```
 
-This metadata is consumed by the framework's `CoreMessageJsonContext` and `CompositeAotJsonSerializer` for AOT-safe JSON serialization without runtime type discovery.
+Use the inventory to identify application types needing explicit `[JsonSerializable]` declarations.
+Configure the serializer to use the resulting application `JsonSerializerContext`.
 
 **Type Filtering:** Abstract types, open generic types, and non-public/nested types are automatically excluded.
 
@@ -425,7 +446,8 @@ public static partial class ResultFactoryRegistry
 }
 ```
 
-Under `#if AOT_ENABLED`, `FinalDispatchHandler.CreateTypedResult()` calls `ResultFactoryRegistry.GetFactory()` instead of using reflection. The existing `ResultFactoryCache` remains as the JIT fallback.
+`FinalDispatchHandler.CreateTypedResult()` branches on `RuntimeFeature.IsDynamicCodeSupported`.
+Inspect the configured generated factory and fallback paths when verifying the published application.
 
 **Generated code uses `IMessageResult<T>` interface matching** — return value extraction uses pattern matching on the `Excalibur.Dispatch.IMessageResult<T>` interface, accessing `ReturnValue` directly.
 
@@ -534,7 +556,8 @@ Generated files appear in `obj/GeneratedFiles/Excalibur.Dispatch.SourceGenerator
 
 ## Integration Testing with CSharpGeneratorDriver
 
-All source generators are verified through CSharpGeneratorDriver integration tests that compile real C# source code through the Roslyn pipeline and assert on the generated output.
+The scoped integration tests below use `CSharpGeneratorDriver` to compile source and inspect
+generated output. They do not establish coverage of every generator or application shape.
 
 ### Test Pattern
 
@@ -575,12 +598,12 @@ Tests use **semantic assertions** (verify generated files exist, output contains
 
 ### Coverage
 
-| Generator | Integration Tests | Focus |
-|-----------|------------------|-------|
-| HandlerRegistrySourceGenerator | 8 | ResolveHandlerType, CreateHandler, AddDiscoveredHandlers, multiple handlers |
-| JsonSerializationSourceGenerator | 8 | MessageTypeMetadata, type filtering, abstract/generic exclusion |
-| MessageResultExtractorGenerator | 7 | ResultFactoryRegistry, factory methods, ExtractReturnValue |
-| ServiceRegistrationSourceGenerator | 7 | AutoRegister, AllInterfaces, SRG002 diagnostic |
+| Generator | Example test focus |
+|-----------|--------------------|
+| HandlerRegistrySourceGenerator | ResolveHandlerType, CreateHandler, AddDiscoveredHandlers, multiple handlers |
+| JsonSerializationSourceGenerator | MessageTypeMetadata, type filtering, abstract/generic exclusion |
+| MessageResultExtractorGenerator | ResultFactoryRegistry, factory methods, ExtractReturnValue |
+| ServiceRegistrationSourceGenerator | AutoRegister, AllInterfaces, SRG002 diagnostic |
 
 See `tests/unit/Excalibur.Dispatch.SourceGenerators.Tests/Generators/Integration/CSharpGeneratorDriverIntegrationShould.cs` for the full test suite.
 
@@ -612,7 +635,7 @@ See `tests/unit/Excalibur.Dispatch.SourceGenerators.Tests/Generators/Integration
 **Symptoms:** `IL2026` or `IL2104` warnings with Native AOT
 
 **Solutions:**
-1. All Dispatch generators include `[UnconditionalSuppressMessage]` for known-safe patterns
+1. Review each diagnostic and any internal suppression; a suppression does not prove application compatibility
 2. For custom code, add `[DynamicallyAccessedMembers]` to reflection-heavy methods
 3. Test with `PublishAot=true` during development
 
@@ -632,7 +655,7 @@ See `tests/unit/Excalibur.Dispatch.SourceGenerators.Tests/Generators/Integration
 
 ### 1. Keep Messages in Separate Assemblies
 
-For optimal generator performance, keep message types in dedicated assemblies:
+Dedicated message assemblies are one organization option; measure build and runtime effects:
 
 ```
 MyApp.Messages/          # Message types
@@ -652,7 +675,8 @@ During development, enable `EmitCompilerGeneratedFiles` and inspect the output t
 
 ### 4. Combine with Auto-Freeze
 
-Source generators work best with [Auto-Freeze](../performance/auto-freeze.md) - the generated registrations are frozen into `FrozenDictionary` at startup for optimal runtime performance.
+Generated registrations can participate in selected [auto-freeze](../performance/auto-freeze.md)
+paths. Complete intended registration before freezing, verify the resulting status, and measure the workload.
 
 ---
 

@@ -67,6 +67,13 @@ public sealed class SagaTimeoutMethodsShould
 
 		// Assert
 		timeoutId.ShouldNotBeNullOrWhiteSpace();
+		_timeoutStore.GetPendingCount().ShouldBe(0, "the row must not exist before the state that names it");
+
+		// A timer effect is buffered until the saga's state is durably committed, so these arms apply the
+		// buffer explicitly where the coordinator would. Asserting the store BEFORE this line is the
+		// pre-save timing that strands a saga on every optimistic-concurrency conflict.
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
+
 		_timeoutStore.GetPendingCount().ShouldBe(1);
 
 		// Verify timeout was scheduled with correct properties
@@ -98,6 +105,11 @@ public sealed class SagaTimeoutMethodsShould
 		// Assert
 		timeoutId.ShouldNotBeNullOrWhiteSpace();
 
+		// A timer effect is buffered until the saga's state is durably committed, so these arms apply the
+		// buffer explicitly where the coordinator would. Asserting the store BEFORE this line is the
+		// pre-save timing that strands a saga on every optimistic-concurrency conflict.
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
+
 		var dueTimeouts = await _timeoutStore.GetDueTimeoutsAsync(
 			DateTime.UtcNow.AddMinutes(10),
 			CancellationToken.None);
@@ -119,12 +131,18 @@ public sealed class SagaTimeoutMethodsShould
 			TimeSpan.FromMinutes(5),
 			CancellationToken.None);
 
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
 		_timeoutStore.GetPendingCount().ShouldBe(1);
 
 		// Act
 		await saga.TestCancelTimeoutAsync(timeoutId, CancellationToken.None);
 
-		// Assert
+		// Assert -- a cancellation is DESTRUCTIVE, so it waits for the commit too: the row is still there
+		// until the apply, which is what keeps a refused commit from stranding the saga.
+		_timeoutStore.GetPendingCount().ShouldBe(1);
+
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
+
 		_timeoutStore.GetPendingCount().ShouldBe(0);
 	}
 
@@ -142,14 +160,20 @@ public sealed class SagaTimeoutMethodsShould
 		_ = await saga.TestRequestTimeoutAsync<ShippingTimeout>(TimeSpan.FromMinutes(10), CancellationToken.None);
 		_ = await saga.TestRequestTimeoutAsync<PaymentTimeout>(TimeSpan.FromMinutes(15), CancellationToken.None);
 
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
 		_timeoutStore.GetPendingCount().ShouldBe(3);
 
 		// Act
 		await saga.TestMarkCompletedAsync(CancellationToken.None);
 
-		// Assert
-		_timeoutStore.GetPendingCount().ShouldBe(0);
+		// Assert -- completion retires EVERY pending row, so it is the most destructive of the three and
+		// waits for the commit that records the completion.
+		_timeoutStore.GetPendingCount().ShouldBe(3);
 		saga.IsCompleted.ShouldBeTrue();
+
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
+
+		_timeoutStore.GetPendingCount().ShouldBe(0);
 	}
 
 	/// <summary>
@@ -171,11 +195,13 @@ public sealed class SagaTimeoutMethodsShould
 		timeout2.ShouldNotBe(timeout3);
 		timeout1.ShouldNotBe(timeout3);
 
-		// Assert - All timeouts are pending
+		// Assert - All timeouts are pending once the buffered intents are applied
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
 		_timeoutStore.GetPendingCount().ShouldBe(3);
 
 		// Act - Cancel one timeout
 		await saga.TestCancelTimeoutAsync(timeout2, CancellationToken.None);
+		await saga.FlushPendingTimerIntentsAsync(CancellationToken.None);
 
 		// Assert - Only cancelled timeout removed
 		_timeoutStore.GetPendingCount().ShouldBe(2);
@@ -193,9 +219,11 @@ public sealed class SagaTimeoutMethodsShould
 
 		// TimeoutStore is NOT set (null)
 
-		// Act & Assert - Should throw InvalidOperationException
+		// Act & Assert - Should throw InvalidOperationException. Invoked through a delegate because the
+		// refusal is raised synchronously at the call rather than surfaced on a returned task: there is
+		// no asynchronous work left to do once the store is known to be missing.
 		var exception = await Should.ThrowAsync<InvalidOperationException>(
-			saga.TestRequestTimeoutAsync<PaymentTimeout>(
+			() => saga.TestRequestTimeoutAsync<PaymentTimeout>(
 				TimeSpan.FromMinutes(5),
 				CancellationToken.None));
 

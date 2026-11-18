@@ -1,6 +1,23 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Runtime.ExceptionServices;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using System.Collections.Concurrent;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Excalibur.Compliance;
+using Excalibur.Compliance.Configuration;
+using Excalibur.Compliance.Encryption;
+using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.Outbox;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
 using Tests.Shared.Infrastructure;
 using System.Diagnostics.CodeAnalysis;
 using Tests.Shared.Fixtures;
@@ -31,6 +48,8 @@ namespace Excalibur.Integration.Tests.EventSourcing.SqlServer;
 [SuppressMessage("Design", "CA1506", Justification = "Integration test requires multiple dependencies for proper setup")]
 public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 {
+	private static readonly string[] EnqueueTelemetryOperations = ["stage", "enqueue"];
+
 	private MsSqlContainer? _container;
 	private string? _connectionString;
 	private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
@@ -88,6 +107,43 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	/// <summary>
 	/// Verifies that a message can be staged in the outbox.
 	/// </summary>
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task PreserveNullOrOffsetScheduleThroughRealSqlServer(bool scheduled)
+	{
+		_requiredContainer.Require();
+		var store = CreateOutboxStore();
+		var message = CreateTestMessage();
+		DateTimeOffset? timestamp = scheduled
+			? DateTimeOffset.UtcNow.AddHours(1).ToOffset(TimeSpan.FromMinutes(330))
+			: null;
+		message.ScheduledAt = timestamp;
+		await store.StageMessageAsync(message, CancellationToken.None);
+		await using var connection = new SqlConnection(_connectionString);
+		await connection.OpenAsync(CancellationToken.None);
+		await using var command = new SqlCommand("SELECT ScheduledAt FROM dbo.OutboxMessages WHERE Id = @Id", connection);
+		_ = command.Parameters.Add(new SqlParameter("@Id", System.Data.SqlDbType.NVarChar, 255) { Value = message.Id });
+		var actual = await command.ExecuteScalarAsync(CancellationToken.None);
+		if (timestamp is { } expected)
+		{
+			actual.ShouldBeOfType<DateTimeOffset>().ShouldBe(expected);
+			var reloaded = (await store.GetAllTenantsScheduledMessagesAsync(expected.AddMinutes(1), 10, CancellationToken.None)).Single();
+			reloaded.Id.ShouldBe(message.Id);
+			reloaded.ScheduledAt.ShouldBe(expected);
+			reloaded.Payload.ShouldBe(message.Payload);
+			(await store.GetUnsentMessagesAsync(10, CancellationToken.None)).ShouldBeEmpty();
+		}
+		else
+		{
+			actual.ShouldBeOfType<DBNull>();
+			var reloaded = (await store.GetUnsentMessagesAsync(10, CancellationToken.None)).Single();
+			reloaded.Id.ShouldBe(message.Id);
+			reloaded.ScheduledAt.ShouldBeNull();
+			reloaded.Payload.ShouldBe(message.Payload);
+		}
+	}
+
 	[Fact]
 	public async Task StageMessageSuccessfully()
 	{
@@ -430,6 +486,631 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 			new Dictionary<string, object>(StringComparer.Ordinal));
 	}
 
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PreserveConfiguredRuntimeCodecFrameThroughOrdinaryEnqueue(bool emptyFrame)
+    {
+        _requiredContainer.Require();
+        var expected = emptyFrame ? Array.Empty<byte>() : new byte[] { 0xE7, 0, 0xFF, 0x10, 0x80 };
+        var codec = new EnqueueFrameCodec(expected);
+        using var registration = CreateEnqueueControlStore(codec);
+        var store = registration.GetRequiredService<SqlServerOutboxStore>();
+        var input = new EnqueueContractMessage("sql-private-value", EnqueueContractState.Ready, null);
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var context = EnqueueControlContext(input, services);
+        await store.EnqueueAsync(input, context, CancellationToken.None).ConfigureAwait(false);
+        codec.Calls.ShouldBe(1);
+        codec.SeenValue.ShouldBeSameAs(input);
+        codec.SeenType.ShouldBe(typeof(EnqueueContractMessage));
+        var row = (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).Single();
+        row.Payload.ShouldBe(expected, "the configured codec's exact frame, including empty output, is the SQL payload contract");
+        AssertEnqueueControlIdentity(row, context);
+    }
+
+    [Fact]
+    public async Task PreserveActualCanonicalFallbackOptionsThroughOrdinaryEnqueue()
+    {
+        _requiredContainer.Require();
+        using var registration = CreateEnqueueControlStore(null);
+        var store = registration.GetRequiredService<SqlServerOutboxStore>();
+        var input = new EnqueueContractMessage("sql-private-value", EnqueueContractState.Ready, null);
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var context = EnqueueControlContext(input, services);
+        await store.EnqueueAsync(input, context, CancellationToken.None).ConfigureAwait(false);
+        var row = (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).Single();
+        row.Payload.ShouldBe(JsonSerializer.SerializeToUtf8Bytes(input, input.GetType(), EventSerializationDefaults.Canonical));
+        using var document = JsonDocument.Parse(row.Payload);
+        document.RootElement.GetProperty("secret").GetString().ShouldBe("sql-private-value");
+        document.RootElement.GetProperty("state").GetString().ShouldBe("Ready");
+        document.RootElement.TryGetProperty("optional", out _).ShouldBeFalse();
+        AssertEnqueueControlIdentity(row, context);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EncryptTheOwningSqlCodecFrameThroughPublicEnqueueWithoutPlaintextAcceptance(bool emptyFrame)
+    {
+        _requiredContainer.Require();
+        var expected = emptyFrame ? Array.Empty<byte>() : new byte[] { 0xE7, 0, 0xFF, 0x10, 0x80 };
+        var codec = new EnqueueFrameCodec(expected);
+        using var registration = CreateEnqueueControlStore(codec);
+        var raw = registration.GetRequiredService<SqlServerOutboxStore>();
+        await RunEnqueueEncryptionHostAsync(raw, async host =>
+        {
+            var store = host.Services.GetRequiredKeyedService<IOutboxStore>("sql-enqueue-control");
+            store.ShouldNotBeSameAs(raw);
+            host.Services.GetRequiredService<IKeyManagementProvider>().ShouldBeOfType<InMemoryKeyManagementProvider>();
+            host.Services.GetRequiredService<IEncryptionProviderRegistry>().GetPrimary().ShouldBeOfType<AesGcmEncryptionProvider>();
+            var input = new EnqueueContractMessage("sql-private-value", EnqueueContractState.Ready, null);
+            var context = EnqueueControlContext(input, host.Services);
+            (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).ShouldBeEmpty();
+            try
+            {
+                await store.EnqueueAsync(input, context, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Current missing capability must be a semantic RED with an independent durable no-write proof.
+                (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).ShouldBeEmpty();
+                throw;
+            }
+
+            codec.Calls.ShouldBe(1);
+            codec.SeenValue.ShouldBeSameAs(input);
+            codec.SeenType.ShouldBe(typeof(EnqueueContractMessage));
+            var stored = (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).Single();
+            EncryptedData.IsFieldEncrypted(stored.Payload).ShouldBeTrue();
+            AssertEnqueueControlIdentity(stored, context);
+            var ciphertext = stored.Payload.ToArray();
+            var completed = ((IOutboxStore)raw).GetService(typeof(IClaimScopedOutboxStore)).ShouldBeAssignableTo<IClaimScopedOutboxStore>();
+            var claim = (await raw.GetUnsentMessagesAsync(10, CancellationToken.None)).Single(message => string.Equals(message.Id, stored.Id, StringComparison.Ordinal));
+            (await completed.MarkFailedAsync(claim.Id, "read-control", 1, claim.DispatcherId!, CancellationToken.None))
+                .ShouldBe(OutboxCompletionOutcome.Applied);
+            var admin = store.GetService(typeof(IOutboxStoreAdmin)).ShouldBeAssignableTo<IOutboxStoreAdmin>();
+            var read = (await admin.GetAllTenantsFailedMessagesAsync(5, null, 10, CancellationToken.None))
+                .Single(message => string.Equals(message.Id, stored.Id, StringComparison.Ordinal));
+            read.Payload.ShouldBe(expected, "decrypt exactly to the owning SQL codec's original non-JSON/empty frame");
+            (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).Single().Payload.ShouldBe(ciphertext);
+            input.Secret.ShouldBe("sql-private-value");
+        }).ConfigureAwait(false);
+    }
+
+
+    [Fact]
+    public async Task FreezeTheOwningSqlEnvelopeAndBorrowedCodecFrameBeforeAwaitingTransform()
+    {
+        _requiredContainer.Require();
+        var wire = new byte[] { 0xE7, 0, 0xFF, 0x10 };
+        var result = new byte[] { 0xA1, 0xB2, 0xC3 };
+        var expectedResult = result.ToArray();
+        var codec = new EnqueueFrameCodec(wire);
+        using var registration = CreateEnqueueControlStore(codec);
+        var raw = registration.GetRequiredService<SqlServerOutboxStore>();
+        var facet = ((IOutboxStore)raw).GetService(typeof(IOutboxPayloadTransformStore)).ShouldBeAssignableTo<IOutboxPayloadTransformStore>()
+            .ShouldNotBeNull("the real SQL provider must expose its required payload transform capability");
+        var input = new EnqueueContractMessage("sql-private-value", EnqueueContractState.Ready, null);
+        var context = EnqueueControlContext(input, registration);
+        context.SetDestination("sql-before-destination");
+        var originalCorrelation = context.CorrelationId!;
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        async ValueTask<byte[]> Transform(ReadOnlyMemory<byte> bytes, string? tenant, CancellationToken token)
+        {
+            Interlocked.Increment(ref calls);
+            bytes.ToArray().ShouldBe(wire);
+            tenant.ShouldBe("sql-control-tenant");
+            token.ShouldBe(cancellation.Token);
+            entered.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+            bytes.ToArray().ShouldBe(wire, "a serializer may retain its returned buffer; the callback borrow must remain stable");
+            return result;
+        }
+
+        var operation = facet.EnqueueWithPayloadTransformAsync(input, context, Transform, cancellation.Token).AsTask();
+        await ReleaseAndJoinSqlTransformAsync(operation, release, async () =>
+        {
+            await Task.WhenAny(entered.Task, operation).WaitAsync(TimeSpan.FromSeconds(10), cancellation.Token).ConfigureAwait(false);
+            if (operation.IsCompleted && !entered.Task.IsCompleted) { await operation.ConfigureAwait(false); }
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellation.Token).ConfigureAwait(false);
+            (await ReadEnqueueControlRowsAsync(originalCorrelation)).ShouldBeEmpty();
+            context.SetDestination("changed-after-prepare");
+            context.CorrelationId = "changed-after-prepare";
+            context.CausationId = "changed-after-prepare";
+            context.GetOrCreateIdentityFeature().TenantId = "changed-after-prepare";
+            codec.LastOutput.ShouldNotBeNull()[0] = 0;
+        }).ConfigureAwait(false);
+        calls.ShouldBe(1);
+        codec.Calls.ShouldBe(1);
+        result[0] = 0;
+        var stored = (await ReadEnqueueControlRowsAsync(originalCorrelation)).Single();
+        stored.Payload.ShouldBe(expectedResult);
+        stored.CorrelationId.ShouldBe(originalCorrelation);
+        stored.CausationId.ShouldBe("sql-control-cause");
+        stored.TenantId.ShouldBe("sql-control-tenant");
+        stored.Destination.ShouldBe("sql-before-destination");
+        (await ReadEnqueueControlRowsAsync("changed-after-prepare")).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("fault")]
+    [InlineData("null")]
+    [InlineData("cancel-throw")]
+    [InlineData("cancel-return")]
+    public async Task RefuseSqlTransformFailureBeforeAnyAcceptingWrite(string outcome)
+    {
+        _requiredContainer.Require();
+        var codec = new EnqueueFrameCodec(new byte[] { 0xE7, 0, 0xFF });
+        using var registration = CreateEnqueueControlStore(codec);
+        var raw = registration.GetRequiredService<SqlServerOutboxStore>();
+        var facet = ((IOutboxStore)raw).GetService(typeof(IOutboxPayloadTransformStore)).ShouldBeAssignableTo<IOutboxPayloadTransformStore>()
+            .ShouldNotBeNull("the real SQL provider must expose its required payload transform capability");
+        var input = new EnqueueContractMessage("sql-private-value", EnqueueContractState.Ready, null);
+        var context = EnqueueControlContext(input, registration);
+        using var cancellation = new CancellationTokenSource();
+        var expected = new IOException("SQL transform original fault");
+        var calls = 0;
+        ValueTask<byte[]> Transform(ReadOnlyMemory<byte> bytes, string? tenant, CancellationToken token)
+        {
+            calls++;
+            bytes.ToArray().ShouldBe(new byte[] { 0xE7, 0, 0xFF });
+            tenant.ShouldBe("sql-control-tenant");
+            token.ShouldBe(cancellation.Token);
+            if (string.Equals(outcome, "fault", StringComparison.Ordinal)) { return ValueTask.FromException<byte[]>(expected); }
+            if (string.Equals(outcome, "null", StringComparison.Ordinal)) { return ValueTask.FromResult<byte[]>(null!); }
+            cancellation.Cancel();
+            return string.Equals(outcome, "cancel-throw", StringComparison.Ordinal)
+                ? ValueTask.FromCanceled<byte[]>(token)
+                : ValueTask.FromResult(new byte[] { 0xA1 });
+        }
+
+        var failure = await Should.ThrowAsync<Exception>(() => facet.EnqueueWithPayloadTransformAsync(input, context, Transform, cancellation.Token).AsTask());
+        if (string.Equals(outcome, "fault", StringComparison.Ordinal)) { failure.ShouldBeSameAs(expected); }
+        else if (string.Equals(outcome, "null", StringComparison.Ordinal)) { failure.ShouldBeOfType<InvalidOperationException>().Message.ShouldContain("null"); }
+        else { failure.ShouldBeAssignableTo<OperationCanceledException>().CancellationToken.ShouldBe(cancellation.Token); }
+        calls.ShouldBe(1);
+        codec.Calls.ShouldBe(1);
+        (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task RefusePreCanceledSqlTransformBeforeSerializingOrInvokingCallback()
+    {
+        _requiredContainer.Require();
+        var codec = new EnqueueFrameCodec(new byte[] { 0xE7 });
+        using var registration = CreateEnqueueControlStore(codec);
+        var raw = registration.GetRequiredService<SqlServerOutboxStore>();
+        var facet = ((IOutboxStore)raw).GetService(typeof(IOutboxPayloadTransformStore)).ShouldBeAssignableTo<IOutboxPayloadTransformStore>()
+            .ShouldNotBeNull("the real SQL provider must expose its required payload transform capability");
+        var input = new EnqueueContractMessage("sql-private-value", EnqueueContractState.Ready, null);
+        var context = EnqueueControlContext(input, registration);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var calls = 0;
+        ValueTask<byte[]> Transform(ReadOnlyMemory<byte> bytes, string? tenant, CancellationToken token)
+        {
+            calls++;
+            return ValueTask.FromResult(bytes.ToArray());
+        }
+
+        var failure = await Should.ThrowAsync<OperationCanceledException>(() => facet.EnqueueWithPayloadTransformAsync(input, context, Transform, cancellation.Token).AsTask());
+        failure.CancellationToken.ShouldBe(cancellation.Token);
+        calls.ShouldBe(0);
+        codec.Calls.ShouldBe(0);
+        (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task PreserveCallerOwnedSqlTransactionWhileTransformUsesItsExistingIndependentAcceptance()
+    {
+        _requiredContainer.Require();
+        using var registration = CreateEnqueueControlStore(new EnqueueFrameCodec(new byte[] { 0xE7, 0x11 }));
+        var raw = registration.GetRequiredService<SqlServerOutboxStore>();
+        var facet = ((IOutboxStore)raw).GetService(typeof(IOutboxPayloadTransformStore)).ShouldBeAssignableTo<IOutboxPayloadTransformStore>()
+            .ShouldNotBeNull("the real SQL provider must expose its required payload transform capability");
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync().ConfigureAwait(false);
+        var sentinelCorrelation = Guid.NewGuid().ToString("N");
+        var sentinel = new OutboundMessage("external-control", new byte[] { 0x55 }, "external-destination")
+        {
+            CorrelationId = sentinelCorrelation,
+            TenantId = "sql-control-tenant"
+        };
+        await raw.StageMessageAsync(sentinel, transaction, CancellationToken.None).ConfigureAwait(false);
+        var input = new EnqueueContractMessage("sql-private-value", EnqueueContractState.Ready, null);
+        var context = EnqueueControlContext(input, registration);
+        await facet.EnqueueWithPayloadTransformAsync(input, context,
+            (bytes, _, _) => ValueTask.FromResult(bytes.ToArray()), CancellationToken.None).ConfigureAwait(false);
+        transaction.Connection.ShouldBeSameAs(connection, "the convenience operation must not commit or replace the caller-owned transaction");
+        await using var command = new SqlCommand("SELECT COUNT(*) FROM dbo.OutboxMessages WHERE Id = @Id", connection, transaction);
+        _ = command.Parameters.Add(new SqlParameter("@Id", System.Data.SqlDbType.NVarChar, 255) { Value = sentinel.Id });
+        (await command.ExecuteScalarAsync().ConfigureAwait(false)).ShouldBe(1);
+        await transaction.RollbackAsync().ConfigureAwait(false);
+        (await ReadEnqueueControlRowsAsync(sentinelCorrelation)).ShouldBeEmpty();
+        (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).Single().Payload.ShouldBe(new byte[] { 0xE7, 0x11 });
+    }
+
+    private static async Task ReleaseAndJoinSqlTransformAsync(Task operation, TaskCompletionSource release, Func<Task> assertion)
+    {
+        Exception? primary = null;
+        Exception? operationFailure = null;
+        try { await assertion().ConfigureAwait(false); }
+        catch (Exception error) { primary = error; }
+        finally
+        {
+            release.TrySetResult();
+            try { await operation.WaitAsync(TimeSpan.FromSeconds(35)).ConfigureAwait(false); }
+            catch (Exception error) { operationFailure = error; }
+        }
+
+        if (primary is not null)
+        {
+            if (operationFailure is not null) { primary.Data["SecondaryOwnedOperationFailure"] = operationFailure; }
+            ExceptionDispatchInfo.Capture(primary).Throw();
+        }
+        if (operationFailure is not null) { ExceptionDispatchInfo.Capture(operationFailure).Throw(); }
+    }
+
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PreservePublicSqlBuilderTelemetryWhenEncryptionWrapsTheMeasuredProvider(bool rejectSqlWrite)
+    {
+        _requiredContainer.Require();
+        if (rejectSqlWrite)
+        {
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync().ConfigureAwait(false);
+            await using var command = new SqlCommand(
+                "ALTER TABLE dbo.OutboxMessages ADD CONSTRAINT CK_EnqueueTransformControl CHECK (TenantId <> N'sql-control-tenant')", connection);
+            _ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
+
+        var codec = new EnqueueFrameCodec(new byte[] { 0xE7, 0, 0xFF });
+        await RunEnqueueEncryptionHostAsync(null, async host =>
+        {
+            var raw = host.Services.GetRequiredService<SqlServerOutboxStore>();
+            var store = host.Services.GetRequiredKeyedService<IOutboxStore>("default");
+            store.ShouldBeSameAs(host.Services.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
+            store.ShouldNotBeSameAs(raw);
+            store.GetService(typeof(IOutboxPayloadTransformStore)).ShouldBeNull("public encryption must not leak the raw writer facet");
+            using var activity = new Activity("real-sql-enqueue-telemetry-control").Start();
+            using var measurements = new SqlEnqueueMeasurements(activity);
+            var input = new EnqueueContractMessage("sql-private-value", EnqueueContractState.Ready, null);
+            var context = EnqueueControlContext(input, host.Services);
+            if (rejectSqlWrite)
+            {
+                var failure = await Should.ThrowAsync<Excalibur.Data.OperationFailedException>(() => store.EnqueueAsync(input, context, CancellationToken.None).AsTask());
+                var sqlFailure = failure.InnerException.ShouldBeOfType<SqlException>().ShouldNotBeNull();
+                sqlFailure.Number.ShouldBe(547);
+                sqlFailure.Message.ShouldContain("CK_EnqueueTransformControl");
+                (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).ShouldBeEmpty();
+            }
+            else
+            {
+                await store.EnqueueAsync(input, context, CancellationToken.None).ConfigureAwait(false);
+                EncryptedData.IsFieldEncrypted((await ReadEnqueueControlRowsAsync(context.CorrelationId!)).Single().Payload).ShouldBeTrue();
+            }
+
+            codec.Calls.ShouldBe(1);
+            var samples = measurements.Samples.ToArray();
+            foreach (var operation in EnqueueTelemetryOperations)
+            {
+                var provider = samples.Single(sample => string.Equals(sample.Meter, "Excalibur.Dispatch.WriteStores", StringComparison.Ordinal)
+                    && string.Equals(sample.Name, "dispatch.write_store.operations_total", StringComparison.Ordinal)
+                    && string.Equals(sample.Operation, operation, StringComparison.Ordinal));
+                provider.Value.ShouldBe(1);
+                provider.Result.ShouldBe(rejectSqlWrite ? "failure" : "success");
+            }
+
+            var wrapper = samples.Where(sample => string.Equals(sample.Meter, "Excalibur.Outbox.Store", StringComparison.Ordinal)).ToArray();
+            if (rejectSqlWrite) { wrapper.ShouldBeEmpty("the observation wrapper records only successful enqueue"); }
+            else
+            {
+                wrapper.Length.ShouldBe(3);
+                wrapper.ShouldAllBe(sample => string.Equals(sample.Operation, "enqueue", StringComparison.Ordinal));
+                wrapper.Single(sample => string.Equals(sample.Name, "excalibur.outbox.store.operations", StringComparison.Ordinal)).Value.ShouldBe(1);
+                wrapper.Single(sample => string.Equals(sample.Name, "excalibur.outbox.store.messages", StringComparison.Ordinal)).Value.ShouldBe(1);
+                wrapper.Single(sample => string.Equals(sample.Name, "excalibur.outbox.store.operation_duration", StringComparison.Ordinal)).Value.ShouldBeGreaterThanOrEqualTo(0);
+            }
+        }, services =>
+        {
+            services.AddSingleton<IPayloadSerializer>(codec);
+            services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox.UseSqlServer(
+                new OutboxMetadataSerialization(options => new SqlEnqueueControlJsonContext(options)),
+                sql => sql.ConnectionString(_connectionString!).SchemaName("dbo").TableName("OutboxMessages").TransportsTableName("OutboxTransports"))));
+        }).ConfigureAwait(false);
+    }
+
+    private sealed record SqlEnqueueMeasurement(string Meter, string Name, double Value, string? Operation, string? Result);
+
+    private sealed class SqlEnqueueMeasurements : IDisposable
+    {
+        private readonly MeterListener _listener = new();
+        internal ConcurrentQueue<SqlEnqueueMeasurement> Samples { get; } = new();
+        internal SqlEnqueueMeasurements(Activity activity)
+        {
+            _listener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (string.Equals(instrument.Meter.Name, "Excalibur.Outbox.Store", StringComparison.Ordinal)
+                    || string.Equals(instrument.Meter.Name, "Excalibur.Dispatch.WriteStores", StringComparison.Ordinal))
+                {
+                    listener.EnableMeasurementEvents(instrument);
+                }
+            };
+            _listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) => Record(activity, instrument, value, tags));
+            _listener.SetMeasurementEventCallback<double>((instrument, value, tags, _) => Record(activity, instrument, value, tags));
+            _listener.Start();
+        }
+
+        private void Record(Activity activity, Instrument instrument, double value, ReadOnlySpan<KeyValuePair<string, object?>> tags)
+        {
+            if (!ReferenceEquals(Activity.Current, activity)) { return; }
+            string? operation = null;
+            string? result = null;
+            foreach (var tag in tags)
+            {
+                if (string.Equals(tag.Key, "operation", StringComparison.Ordinal)) { operation = tag.Value as string; }
+                if (string.Equals(tag.Key, "result", StringComparison.Ordinal)) { result = tag.Value as string; }
+            }
+            Samples.Enqueue(new SqlEnqueueMeasurement(instrument.Meter.Name, instrument.Name, value, operation, result));
+        }
+
+        public void Dispose() => _listener.Dispose();
+    }
+
+
+    [Fact]
+    public async Task CopyReturnedSqlTransformBytesBeforeThePersistenceConnectionFactoryRuns()
+    {
+        _requiredContainer.Require();
+        var returned = new byte[] { 0xA1, 0xB2, 0xC3 };
+        var expected = returned.ToArray();
+        var codec = new EnqueueFrameCodec(new byte[] { 0xE7, 0x11 });
+        var armed = false;
+        var factoryCalls = 0;
+        var mutations = 0;
+        SqlConnection Connect()
+        {
+            factoryCalls++;
+            if (armed)
+            {
+                returned[0] = 0;
+                mutations++;
+            }
+
+            return new SqlConnection(_connectionString);
+        }
+
+        using var registration = CreateEnqueueControlStoreWithFactory(codec, Connect);
+        var raw = registration.GetRequiredService<SqlServerOutboxStore>();
+        var facet = ((IOutboxStore)raw).GetService(typeof(IOutboxPayloadTransformStore)).ShouldBeAssignableTo<IOutboxPayloadTransformStore>()
+            .ShouldNotBeNull("the real SQL provider must expose its required payload transform capability");
+        var input = new EnqueueContractMessage("sql-private-value", EnqueueContractState.Ready, null);
+        var context = EnqueueControlContext(input, registration);
+        var calls = 0;
+        ValueTask<byte[]> Transform(ReadOnlyMemory<byte> bytes, string? tenant, CancellationToken token)
+        {
+            calls++;
+            bytes.ToArray().ShouldBe(new byte[] { 0xE7, 0x11 });
+            tenant.ShouldBe("sql-control-tenant");
+            token.ShouldBe(CancellationToken.None);
+            factoryCalls.ShouldBe(0);
+            armed = true;
+            return ValueTask.FromResult(returned);
+        }
+
+        await facet.EnqueueWithPayloadTransformAsync(input, context, Transform, CancellationToken.None).ConfigureAwait(false);
+        calls.ShouldBe(1);
+        codec.Calls.ShouldBe(1);
+        factoryCalls.ShouldBe(1);
+        mutations.ShouldBe(1, "the public persistence factory must actually exercise the post-handoff mutation");
+        returned[0].ShouldBe((byte)0);
+        // This query creates its own connection, outside the instrumented store factory.
+        (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).Single().Payload.ShouldBe(expected,
+            "clone before entering persistence; copying only after driver marshalling would be too late");
+        factoryCalls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RefuseNullSqlTransformBeforeSerializingOrAcceptingAnyRow()
+    {
+        _requiredContainer.Require();
+        var codec = new EnqueueFrameCodec(new byte[] { 0xE7 });
+        using var registration = CreateEnqueueControlStore(codec);
+        var raw = registration.GetRequiredService<SqlServerOutboxStore>();
+        var facet = ((IOutboxStore)raw).GetService(typeof(IOutboxPayloadTransformStore)).ShouldBeAssignableTo<IOutboxPayloadTransformStore>()
+            .ShouldNotBeNull("the real SQL provider must expose its required payload transform capability");
+        var input = new EnqueueContractMessage("sql-private-value", EnqueueContractState.Ready, null);
+        var context = EnqueueControlContext(input, registration);
+        var failure = await Should.ThrowAsync<ArgumentNullException>(() =>
+            facet.EnqueueWithPayloadTransformAsync(input, context, null!, CancellationToken.None).AsTask());
+        failure.ParamName.ShouldBe("transformPayload");
+        codec.Calls.ShouldBe(0);
+        (await ReadEnqueueControlRowsAsync(context.CorrelationId!)).ShouldBeEmpty();
+    }
+
+    private ServiceProvider CreateEnqueueControlStoreWithFactory(IPayloadSerializer codec, Func<SqlConnection> connectionFactory)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(codec);
+        services.AddSqlServerOutboxStore(
+            _ => connectionFactory,
+            new OutboxMetadataSerialization(options => new SqlEnqueueControlJsonContext(options)),
+            options =>
+            {
+                options.ConnectionString = _connectionString!;
+                options.Tables.SchemaName = "dbo";
+                options.Tables.OutboxTableName = "OutboxMessages";
+                options.Tables.TransportsTableName = "OutboxTransports";
+                options.Processing.CommandTimeoutSeconds = 30;
+            });
+        return services.BuildServiceProvider();
+    }
+
+    private ServiceProvider CreateEnqueueControlStore(IPayloadSerializer? codec)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        if (codec is not null)
+        {
+            services.AddSingleton(codec);
+        }
+
+        services.AddSqlServerOutboxStore(
+            new OutboxMetadataSerialization(options => new SqlEnqueueControlJsonContext(options)),
+            options =>
+            {
+                options.ConnectionString = _connectionString!;
+                options.Tables.SchemaName = "dbo";
+                options.Tables.OutboxTableName = "OutboxMessages";
+                options.Tables.TransportsTableName = "OutboxTransports";
+                options.Processing.CommandTimeoutSeconds = 30;
+            });
+        return services.BuildServiceProvider();
+    }
+
+    private static MessageContext EnqueueControlContext(IDispatchMessage message, IServiceProvider services)
+    {
+        var context = new MessageContext(message, services)
+        {
+            MessageId = "caller-context-id",
+            CorrelationId = Guid.NewGuid().ToString("N"),
+            CausationId = "sql-control-cause"
+        };
+        context.GetOrCreateIdentityFeature().TenantId = "sql-control-tenant";
+        return context;
+    }
+
+    private static void AssertEnqueueControlIdentity(EnqueueControlRow row, MessageContext context)
+    {
+        row.Id.ShouldNotBeNullOrWhiteSpace();
+        row.Id.ShouldNotBe(context.MessageId, "SQL convenience enqueue mints a new owning envelope ID");
+        row.MessageType.ShouldBe(typeof(EnqueueContractMessage).FullName);
+        row.Destination.ShouldBe(typeof(EnqueueContractMessage).FullName);
+        row.CorrelationId.ShouldBe(context.CorrelationId);
+        row.CausationId.ShouldBe("sql-control-cause");
+        row.TenantId.ShouldBe("sql-control-tenant");
+    }
+
+    private async Task<List<EnqueueControlRow>> ReadEnqueueControlRowsAsync(string correlationId)
+    {
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT Id, Payload, MessageType, Destination, CorrelationId, CausationId, TenantId FROM dbo.OutboxMessages WHERE CorrelationId = @CorrelationId", connection);
+        _ = command.Parameters.Add(new SqlParameter("@CorrelationId", System.Data.SqlDbType.NVarChar, 255) { Value = correlationId });
+        await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+        var rows = new List<EnqueueControlRow>();
+        while (await reader.ReadAsync().ConfigureAwait(false))
+        {
+            rows.Add(new EnqueueControlRow(reader.GetString(0), reader.GetFieldValue<byte[]>(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6)));
+        }
+
+        return rows;
+    }
+
+    private static async Task RunEnqueueEncryptionHostAsync(SqlServerOutboxStore? raw, Func<IHost, Task> assertion, Action<IServiceCollection>? registerStore = null)
+    {
+        var builder = Host.CreateApplicationBuilder();
+        builder.Logging.ClearProviders();
+        builder.Services.AddDevEncryption();
+        builder.Services.Configure<EncryptionOptions>(options => options.Mode = EncryptionMode.EncryptAndDecrypt);
+        if (registerStore is null)
+        {
+            ArgumentNullException.ThrowIfNull(raw);
+            builder.Services.AddKeyedSingleton<IOutboxStore>("sql-enqueue-control", raw);
+        }
+        else
+        {
+            registerStore(builder.Services);
+        }
+        builder.Services.AddOutboxEncryption();
+        var host = builder.Build();
+        Exception? primary = null;
+        var cleanupErrors = new List<Exception>();
+        try
+        {
+            using var operation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await host.StartAsync(operation.Token).ConfigureAwait(false);
+            await assertion(host).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            primary = error;
+        }
+        finally
+        {
+            try
+            {
+                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await host.StopAsync(cleanup.Token).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            }
+            catch (Exception error)
+            {
+                cleanupErrors.Add(error);
+            }
+
+            try
+            {
+                host.Dispose();
+            }
+            catch (Exception error)
+            {
+                cleanupErrors.Add(error);
+            }
+        }
+
+        foreach (var error in cleanupErrors)
+        {
+            if (primary is null)
+            {
+                primary = error;
+                continue;
+            }
+
+            primary.Data["SecondaryHostCleanup" + primary.Data.Count] = error;
+        }
+
+        if (primary is not null)
+        {
+            ExceptionDispatchInfo.Capture(primary).Throw();
+        }
+    }
+
+    private sealed class EnqueueFrameCodec(byte[] frame) : IPayloadSerializer
+    {
+        public int Calls { get; private set; }
+        public object? SeenValue { get; private set; }
+        public Type? SeenType { get; private set; }
+        public byte[]? LastOutput { get; private set; }
+        public byte[] SerializeObject(object value, Type type)
+        {
+            Calls++;
+            SeenValue = value;
+            SeenType = type;
+            LastOutput = frame.ToArray();
+            return LastOutput;
+        }
+
+        public byte GetCurrentSerializerId() => throw new InvalidOperationException("SQL enqueue must not query fixture codec metadata.");
+        public string GetCurrentSerializerName() => throw new InvalidOperationException("SQL enqueue must not query fixture codec metadata.");
+        public byte[] Serialize<T>(T value) => throw new InvalidOperationException("SQL must use its runtime codec route.");
+        public T Deserialize<T>(byte[] data) => throw new InvalidOperationException("This control never decodes through the provider codec.");
+        public object DeserializeObject(byte[] data, Type type) => throw new InvalidOperationException("This control never decodes through the provider codec.");
+    }
+
+    private enum EnqueueContractState { Ready }
+    private sealed record EnqueueContractMessage(string Secret, EnqueueContractState State, string? Optional) : IDispatchMessage;
+    private sealed record EnqueueControlRow(string Id, byte[] Payload, string MessageType, string Destination, string CorrelationId, string CausationId, string TenantId);
+
 	private SqlServerOutboxStore CreateOutboxStore()
 	{
 		var logger = NullLogger<SqlServerOutboxStore>.Instance;
@@ -553,4 +1234,10 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		}
 		Console.WriteLine("OutboxTransports table created successfully");
 	}
+}
+
+[JsonSerializable(typeof(Dictionary<string, object>))]
+[JsonSerializable(typeof(string))]
+internal partial class SqlEnqueueControlJsonContext : JsonSerializerContext
+{
 }

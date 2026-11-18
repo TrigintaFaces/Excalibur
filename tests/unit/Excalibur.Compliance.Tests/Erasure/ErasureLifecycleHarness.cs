@@ -23,6 +23,29 @@ internal sealed class ErasureLifecycleHarness
 {
 	private readonly ILegalHoldService _legalHolds = A.Fake<ILegalHoldService>();
 
+	/// <summary>
+	/// A single-tenant host's ambient context: it resolves the deployment's own default identity.
+	/// </summary>
+	/// <remarks>
+	/// <b>This replaced the reserved UNTENANTED context, and the swap is the point rather than a tidy-up.</b>
+	/// The fixture's requests name the resolved default identity, and the handle this harness derives is
+	/// built from that same identity — but the context it used to supply resolved the *untenanted* sentinel,
+	/// which is a different term. So the harness modelled a host where the write path and the erasure would
+	/// have derived two different key handles, and it passed only because the store took the owner off the
+	/// request instead of from the host. That is precisely the defect these arms now guard against: an
+	/// erasure that destroys a handle nothing was ever written under reports a completed erasure having
+	/// destroyed nothing. A real single-tenant host resolves one identity for both paths, which is what this
+	/// context models, so every arm below now exercises agreement rather than depending on divergence.
+	/// </remarks>
+	private sealed class ResolvedDefaultTenantContext : ITenantContext
+	{
+		public static readonly ResolvedDefaultTenantContext Instance = new();
+
+		public string? TenantId => TenantDefaults.DefaultTenantId;
+
+		public bool HasTenant => true;
+	}
+
 	public ErasureLifecycleHarness(
 		IKeyManagementAdmin keyAdmin,
 		IKeyManagementProvider keyProvider,
@@ -35,8 +58,8 @@ internal sealed class ErasureLifecycleHarness
 	{
 		Store = new InMemoryErasureStore(
 			TestDataSubjectHasher.Instance,
-			tenantContext ?? UntenantedContext.Instance,
-			Options.Create(new TenantContextOptions { RequireTenant = requireTenant }));
+			tenantContext ?? ResolvedDefaultTenantContext.Instance,
+			Options.Create(new TenantContextOptions { RequireTenant = requireTenant }), TimeProvider.System);
 
 		A.CallTo(() => _legalHolds.CheckHoldsAsync(
 				A<string>._, A<DataSubjectIdType>._, A<string?>._, A<CancellationToken>._))
@@ -58,7 +81,7 @@ internal sealed class ErasureLifecycleHarness
 			null,
 			null,
 			TestAnnotationSource.None,
-			TestRetentions.None,
+			TestRetentions.None, TestMintLedger.None,
 			contributors);
 
 		Verifier = withVerifier
@@ -78,6 +101,16 @@ internal sealed class ErasureLifecycleHarness
 			NullLogger<ErasureCompletionProcessor>.Instance);
 	}
 
+	/// <summary>
+	/// The legal-hold authority the service asks, exposed so an arm can change its answer MID-LIFECYCLE.
+	/// </summary>
+	/// <remarks>
+	/// A hold being placed and later released is a sequence, not a configuration, so an arm that binds the
+	/// deferral and the resume end to end has to be able to answer differently on the second ask. Without
+	/// this the harness can model a permanent hold or no hold, and neither is the case under test.
+	/// </remarks>
+	public ILegalHoldService LegalHolds => _legalHolds;
+
 	public InMemoryErasureStore Store { get; }
 
 	public ErasureService Service { get; }
@@ -90,21 +123,36 @@ internal sealed class ErasureLifecycleHarness
 	/// <returns>The request id and the key id of the subject's crypto-shred key.</returns>
 	public async Task<(Guid RequestId, string SubjectKeyId, ErasureExecutionResult Result)> SubmitAndExecuteAsync(string subjectId)
 	{
+		// THE REQUEST NAMES NO TENANT, DELIBERATELY. It used to hardcode the resolved default identity,
+		// which is wrong in every scope that is not that identity: under multi-tenancy these arms open a
+		// scope for "tenant-t" and then filed a request claiming the default term instead. That passed only
+		// because the store took the owner from the ambient scope and silently discarded the one on the
+		// request -- so the fixture carried a contradiction that nothing could report. Leaving it unset lets
+		// the host's resolved term be authoritative, which is what the write path encrypts under, and makes
+		// this harness correct in both deployment modes rather than only the one it was written in.
 		var request = new ErasureRequest
 		{
 			DataSubjectId = subjectId,
-            TenantId = TenantDefaults.DefaultTenantId,
 			IdType = DataSubjectIdType.UserId,
 			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
 			RequestedBy = "test",
 		};
 
 		_ = await Service.RequestErasureAsync(request, CancellationToken.None);
+
+		// Read the owner the store ACTUALLY RECORDED, before executing, rather than recomputing it from a
+		// constant. A constant is a second derivation of the same fact, and when the two disagree the
+		// fixture asserts against a handle the product never used -- which is the defect class these arms
+		// exist to catch, reproduced inside the test harness.
+		var recorded = await Store.GetStatusAsync(request.RequestId, CancellationToken.None)
+			?? throw new InvalidOperationException(
+				"The erasure request was accepted but is not readable in this scope, so the harness cannot "
+				+ "know which owner the store recorded.");
+
 		var result = await Service.ExecuteAsync(request.RequestId, CancellationToken.None);
-		// Derive the handle from the explicit owner saved on this fixture's request. The resolved default
-		// identity is distinct from the reserved untenanted identity; neither is inferred from ciphertext.
+
 		var handle = SubjectKeyHandle.ForSubjectHash(
-			new TenantId(TenantDefaults.DefaultTenantId),
+			new TenantId(recorded.TenantId!),
 			TestDataSubjectHasher.Instance.HashDataSubjectId(subjectId),
 			TestDataSubjectHasher.Instance);
 

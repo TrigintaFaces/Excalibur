@@ -4,6 +4,7 @@
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Exporters;
 using BenchmarkDotNet.Exporters.Json;
+using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 
 using Excalibur.Dispatch.Performance.Benchmarks;
@@ -24,6 +25,9 @@ using Excalibur.Dispatch.Performance.Benchmarks;
 /// </para>
 /// </remarks>
 var config = DefaultConfig.Instance
+	.AddJob(Job.Default.DontEnforcePowerPlan()
+		.WithArguments([new MsBuildArgument("-m:1"), new MsBuildArgument("/p:BuildExamplesAndTests=true")])
+		.AsMutator())
 	.AddExporter(JsonExporter.Full)
 	.AddExporter(MarkdownExporter.GitHub)
 	.WithArtifactsPath("artifacts/benchmarks");

@@ -14,6 +14,7 @@
       "tests\\unit\\Excalibur.Inbox.Oracle.Tests\\Excalibur.Inbox.Oracle.Tests.csproj",
       "tests\\unit\\Excalibur.Outbox.Oracle.Tests\\Excalibur.Outbox.Oracle.Tests.csproj",
       "tests\\unit\\Excalibur.Outbox.Tests\\Excalibur.Outbox.Tests.csproj",
+      "tests\\unit\\Excalibur.ECommerceSample.Tests\\Excalibur.ECommerceSample.Tests.csproj",
       "tests\\unit\\Excalibur.Saga.Tests\\Excalibur.Saga.Tests.csproj",
       "tests\\unit\\Excalibur.Testing.Conformance.Tests\\Excalibur.Testing.Conformance.Tests.csproj",
       "tests\\unit\\Excalibur.Workflows.Abstractions.Tests\\Excalibur.Workflows.Abstractions.Tests.csproj",

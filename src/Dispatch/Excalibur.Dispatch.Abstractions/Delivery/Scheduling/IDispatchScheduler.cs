@@ -127,4 +127,33 @@ public interface IDispatchScheduler
 	Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(TimeSpan interval,
 		TMessage message, CancellationToken cancellationToken)
 		where TMessage : class;
+
+    /// <summary>Schedules cron work using the configured default zone and an explicit transition profile.</summary>
+    /// <typeparam name="TMessage">The message type.</typeparam>
+    /// <param name="cronExpression">The cron expression.</param>
+    /// <param name="profile">The explicitly selected supported transition declaration.</param>
+    /// <param name="message">The message to persist.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The scheduling operation.</returns>
+    /// <remarks>The resolved installed zone and primitive profile pair are persisted; no implicit transition-zone default is chosen.</remarks>
+    Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
+        string cronExpression, CronRecurrenceProfile profile, TMessage message, CancellationToken cancellationToken)
+        where TMessage : class;
+
+    /// <summary>Schedules cron work using an installed named zone and explicit transition profile.</summary>
+    /// <typeparam name="TMessage">The message type.</typeparam>
+    /// <param name="cronExpression">The cron expression.</param>
+    /// <param name="timeZone">An installed timezone that can be resolved from its identifier after restart.</param>
+    /// <param name="profile">The explicitly selected supported transition declaration.</param>
+    /// <param name="message">The message to persist.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The scheduling operation.</returns>
+    /// <remarks>
+    /// Custom timezone identifiers cannot roundtrip through the persisted row and are rejected.
+    /// Existing overloads without a profile remain valid only for installed transition-free zones.
+    /// Adding this member is an intentional source break for custom scheduler implementations.
+    /// </remarks>
+    Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
+        string cronExpression, TimeZoneInfo timeZone, CronRecurrenceProfile profile,
+        TMessage message, CancellationToken cancellationToken) where TMessage : class;
 }

@@ -82,7 +82,17 @@ public sealed class SqlServerErasureStoreConformanceTests : ErasureStoreConforma
 	public SqlServerErasureStoreConformanceTests(SqlServerFixture fixture) => _fixture = fixture;
 
 	/// <inheritdoc />
-	protected override IErasureStore CreateStore()
+	protected override IErasureStore CreateStore() => CreateStore(requireTenant: false);
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// The same store, with tenancy REQUIRED. One arm needs it: an ambient-tenant term copied from a
+	/// neighbouring statement is guarded by that flag, so under optional tenancy the term compiles to
+	/// nothing and an arm cannot tell the defect from the fix.
+	/// </remarks>
+	protected override IErasureStore? CreateTenantRequiringStore() => CreateStore(requireTenant: true);
+
+	private IErasureStore CreateStore(bool requireTenant)
 	{
 		var options = new SqlServerErasureStoreOptions
 		{
@@ -109,8 +119,9 @@ public sealed class SqlServerErasureStoreConformanceTests : ErasureStoreConforma
 			Microsoft.Extensions.Options.Options.Create(options),
 			ConformanceDataSubjectHasher.Instance,
 			EnabledTestLogger.Create<SqlServerErasureStore>(),
-			UntenantedContext.Instance,
-			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions()));
+			TenantContextHolder.AmbientContext,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(
+				new Excalibur.Dispatch.TenantContextOptions { RequireTenant = requireTenant }));
 	}
 
 	#region Save
@@ -140,24 +151,56 @@ public sealed class SqlServerErasureStoreConformanceTests : ErasureStoreConforma
 	public Task UpdateStatusAsync_ShouldUpdateStatus_Test() => UpdateStatusAsync_ShouldUpdateStatus();
 
 	[Fact]
-	public Task UpdateStatusAsync_ToInProgress_ShouldSetExecutedAt_Test() =>
-		UpdateStatusAsync_ToInProgress_ShouldSetExecutedAt();
+	public Task ClaimForExecutionAsync_ShouldSetExecutedAt_Test() =>
+		ClaimForExecutionAsync_ShouldSetExecutedAt();
 
 	[Fact]
 	public Task UpdateStatusAsync_NonExistent_ShouldReturnFalse_Test() =>
 		UpdateStatusAsync_NonExistent_ShouldReturnFalse();
 
 	[Fact]
-	public Task UpdateStatusAsync_SecondClaimOfTheSameRequest_ShouldBeRefused_Test() =>
-		UpdateStatusAsync_SecondClaimOfTheSameRequest_ShouldBeRefused();
+	public Task RecordCompletionAsync_PresentingASupersededClaim_ShouldBeRefused_Test() =>
+		RecordCompletionAsync_PresentingASupersededClaim_ShouldBeRefused();
+
+	[Fact]
+	public Task RecordCompletionAsync_FromALapsedButUnsupersededHolder_ShouldSucceed_Test() =>
+		RecordCompletionAsync_FromALapsedButUnsupersededHolder_ShouldSucceed();
+
+	[Fact]
+	public Task UpdateStatusAsync_ALegalHoldUnderALiveClaim_ShouldBeAdmitted_Test() =>
+		UpdateStatusAsync_ALegalHoldUnderALiveClaim_ShouldBeAdmitted();
+
+	[Fact]
+	public Task ClaimForExecutionAsync_SecondClaimOfTheSameRequest_ShouldBeRefused_Test() =>
+		ClaimForExecutionAsync_SecondClaimOfTheSameRequest_ShouldBeRefused();
 
 	[Fact]
 	public Task UpdateStatusAsync_TerminalTransitionAfterClaim_ShouldSucceed_Test() =>
 		UpdateStatusAsync_TerminalTransitionAfterClaim_ShouldSucceed();
 
 	[Fact]
+	public Task UpdateStatusAsync_ResetToScheduledOfAClaimedRequest_ShouldBeRefused_Test() =>
+		UpdateStatusAsync_ResetToScheduledOfAClaimedRequest_ShouldBeRefused();
+
+	[Fact]
+	public Task UpdateStatusAsync_ResetToScheduledOfAFailedRequest_ShouldSucceed_Test() =>
+		UpdateStatusAsync_ResetToScheduledOfAFailedRequest_ShouldSucceed();
+
+	[Fact]
+	public Task UpdateStatusAsync_ResetToAwaitingKeyDestructionOfACancelledRequest_ShouldBeRefused_Test() =>
+		UpdateStatusAsync_ResetToAwaitingKeyDestructionOfACancelledRequest_ShouldBeRefused();
+
+	[Fact]
+	public Task UpdateStatusAsync_AwaitingKeyDestructionFromTheClaimedWindow_ShouldSucceed_Test() =>
+		UpdateStatusAsync_AwaitingKeyDestructionFromTheClaimedWindow_ShouldSucceed();
+
+	[Fact]
 	public Task AwaitingKeyDestruction_ShouldBeListable_NotRescheduled_AndNotCancellable_Test() =>
 		AwaitingKeyDestruction_ShouldBeListable_NotRescheduled_AndNotCancellable();
+
+	[Fact]
+	public Task BackgroundDiscovery_AcrossOwners_ShouldReturnEveryRowOfItsOwnStatusUnscoped_Test() =>
+		BackgroundDiscovery_AcrossOwners_ShouldReturnEveryRowOfItsOwnStatusUnscoped();
 
 	#endregion Status
 
@@ -238,6 +281,24 @@ public sealed class SqlServerErasureStoreConformanceTests : ErasureStoreConforma
 	public Task ListRequestsAsync_WithStatusFilter_ShouldFilterByStatus_Test() =>
 		ListRequestsAsync_WithStatusFilter_ShouldFilterByStatus();
 
+	/// <inheritdoc />
+	/// <remarks>
+	/// The store under test resolves its owner from the ambient tenant context this suite supplies, so a
+	/// scope over that context is all the cross-owner arms need -- no second store and no second host.
+	/// Outside any scope the ambient context resolves the untenanted partition, which is the term every
+	/// other arm here already ran under, so supplying this changes nothing for them.
+	/// </remarks>
+	protected override IDisposable? BeginOwnerScope(string tenantId) =>
+		TenantContextHolder.BeginScope(tenantId);
+
+	[Fact]
+	public Task ListRequestsAsync_AcrossOwners_ShouldNotReturnAnotherOwnersRequest_Test() =>
+		ListRequestsAsync_AcrossOwners_ShouldNotReturnAnotherOwnersRequest();
+
+	[Fact]
+	public Task ListRequestsAsync_TenantFilterIsOrdinal_ShouldNotFoldCaseOrPadding_Test() =>
+		ListRequestsAsync_TenantFilterIsOrdinal_ShouldNotFoldCaseOrPadding();
+
 	[Fact]
 	public Task ListRequestsAsync_WithTenantFilter_ShouldFilterByTenant_Test() =>
 		ListRequestsAsync_WithTenantFilter_ShouldFilterByTenant();
@@ -287,4 +348,40 @@ public sealed class SqlServerErasureStoreConformanceTests : ErasureStoreConforma
 		CleanupExpiredCertificatesAsync_ShouldKeepValid();
 
 	#endregion Certificates
+
+	#region Mint Ledger Tests
+
+	[Fact]
+	public Task MintLedger_ShouldEnumerateEveryHandleRecordedForTheSubject_Test() =>
+		MintLedger_ShouldEnumerateEveryHandleRecordedForTheSubject();
+
+	[Fact]
+	public Task MintLedger_ShouldNotEnumerateAnotherOwnersHandle_Test() =>
+		MintLedger_ShouldNotEnumerateAnotherOwnersHandle();
+
+	[Fact]
+	public Task MintLedger_ShouldMatchTheOwnerOrdinally_Test() =>
+		MintLedger_ShouldMatchTheOwnerOrdinally();
+
+	[Fact]
+	public Task MintLedger_RecordingTheSameHandleTwice_ShouldBeANoOp_Test() =>
+		MintLedger_RecordingTheSameHandleTwice_ShouldBeANoOp();
+
+	[Fact]
+	public Task MintLedger_RerecordingAHandleUnderAnotherOwner_ShouldBeRefused_Test() =>
+		MintLedger_RerecordingAHandleUnderAnotherOwner_ShouldBeRefused();
+
+	[Fact]
+	public Task MintLedger_UnknownSubject_ShouldEnumerateEmpty_Test() =>
+		MintLedger_UnknownSubject_ShouldEnumerateEmpty();
+
+	[Fact]
+	public Task MintLedger_AnUnconfirmedHandle_ShouldBeReportedAsPending_Test() =>
+		MintLedger_AnUnconfirmedHandle_ShouldBeReportedAsPending();
+
+	[Fact]
+	public Task MintLedger_ConfirmingAMint_ShouldBeIdempotentAndRefuseAnAbsentRow_Test() =>
+		MintLedger_ConfirmingAMint_ShouldBeIdempotentAndRefuseAnAbsentRow();
+
+	#endregion Mint Ledger Tests
 }

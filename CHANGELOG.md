@@ -2,11 +2,14 @@
 
 All notable changes to Excalibur and Excalibur.Dispatch are documented in this file.
 
+Performance numbers and interpretations in release sections belong to their recorded workloads and epochs. Allocation floors, timing differences and zero-overhead language record historical observations or interpretations, not current guarantees or newly verified causal findings.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > **How to read this file.** `10.0.0` has not been released. Each `[10.0.0-alpha.*]` section records what
-> shipped in that pre-release; `[Unreleased]` collects what has landed since the newest of them and is
+> shipped in that pre-release, except sections explicitly marked **Draft**, which are not publication evidence.
+> `[Unreleased]` collects additional source changes and is
 > empty immediately after one is cut. Releases earlier than `10.0.0-alpha.8` are not documented
 > individually — if you are on one of those, move to the newest and read every section from yours
 > forward; that is the upgrade path we support.
@@ -16,6 +19,272 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > not a sequence.
 
 ## [Unreleased]
+
+### Changed (breaking) — channel full-mode configuration
+
+- Removed the ineffective `ChannelMessagePumpOptions.FullMode` property (getter and setter). Remove assignments to that property; where you create a bounded channel, select its actual `BoundedChannelOptions.FullMode` instead. The supplied-channel pump continues to use that channel directly. The separate public generic `MessagePump<T>` remains unbounded; this change does not add a bounded-buffer policy to it.
+
+### Breaking: recurring scheduling uses the active scheduler contracts
+
+- Removed the unwired `RecurringCronJob` model and its 50 public API entries. Its retry/statistics/window setters never controlled a shipped scheduler. Use `IDispatchScheduler.ScheduleRecurringAsync` with actual message metadata and the supported timezone/cron profile; existing recurring scheduling is retained.
+- Durable occurrence admissions, failure/quarantine inspection and token-conditional recovery remain on the selected schedule store. `SchedulerOptions.MaxAdmissionAttemptsPerOccurrence` defaults to 5 and counts admissions, not three failed-handler retries or per-job statistics. There is no automatic alias from the removed model's `MaxRetryAttempts`. Keep application catalog labels and display statistics in application data. See [scheduler migration and recovery](docs-site/docs/core-concepts/configuration-advanced.md#recurring-job-model-migration).
+
+
+### Changed (breaking) — one generated application JSON codec
+
+- Added `SystemTextJsonSerializer.CreateWithMetadata(JsonSerializerOptions)` for a frozen owned JSON policy with an explicit consumer resolver and generated framework metadata fallbacks. `Create(JsonSerializerContext)` remains the advanced context-owned route; neither installs a reflection fallback, and custom resolver/converter compatibility remains the application's responsibility.
+- Removed the parallel `AotJsonSerializer` and `CompositeAotJsonSerializer` engines and `AddAotJsonSerialization`, `AddCloudEventsAotSerialization`, `AddCompositeAotSerialization`, and `AddCoreAotSerialization` helpers (30 public API entries). Use the existing codec's buffer/span/runtime operations and `SerializeToBytes` convenience. This is an intentional pre-RC API migration, not a compatibility alias layer.
+- Configure the actual registry/current serializer through `WithSerialization(...Register(...).UseCurrent(...))` or `AddPluggableSerializer(..., setAsCurrent: true)`. These feed `IPayloadSerializer` with its existing ID-byte framing; they do not imply a direct `ISerializer` DI registration. Duplicate serializer IDs remain an actionable refusal, not last-wins policy replacement.
+- Error handling now follows the existing codec's `SerializationException` contract, including original inner failures where present. Standard CloudEvents envelope/payload encoding remains `AddCloudEvents(resolver)` and its formatter; generic CLR SDK-object JSON and root metadata availability are not a standard-wire or full-graph guarantee. See the [generated JSON migration and NativeAOT guide](docs-site/docs/advanced/native-aot.md#one-explicit-application-json-policy).
+
+### Changed (breaking) — RabbitMQ connection options
+
+- Removed `RabbitMqOptions.Connection` and the unused `RabbitMqConnectionOptions` type, including its constructor and `ConnectionString` accessors. Configure the actual connection through the RabbitMQ transport builder with `ConnectionString(...)`, or its host/port/credentials methods. `RabbitMqOptions` remains available for exchange, queue, dead-letter and consumption settings.
+- Structural URI and host/port validation now checks the connection input used by the factory at registration and again at internal factory creation. Invalid structure and explicit default URI credentials can fail earlier. Existing TLS and host-parts credential checks remain on the used internal factory path; caller-supplied channel/factory paths do not eagerly validate or dial unused internal defaults.
+- See the [RabbitMQ package connection guide](src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/README.md#connection-options) and [transport configuration guide](docs-site/docs/transports/rabbitmq.md#broker-options) for migration.
+
+### Changed (breaking) — unambiguous saga correlation identities
+
+- Saga correlation hashes versioned UTF-8 byte-length frames, so literal separators cannot move the type/key boundary. Valid literal Unicode, case and embedded whitespace retain their meaning; malformed UTF-16 now throws `ArgumentException` instead of aliasing encoder replacement characters.
+- Declarative `CorrelateBy` scopes keys by namespace/nested/generic type structure and assembly simple name, excluding assembly versions. Publishers can derive the same identity with `SagaCorrelation.ToSagaId<TSaga>(key)`. The explicit string-scope overload remains distinct. **Derived IDs change:** upgrade publishers/coordinators together; drain or explicitly re-key retained in-flight state rather than relying on an ambiguous legacy fallback.
+- A conflicting authoritative unkeyed custom correlation-registry instance/type/factory now fails at registration instead of storing orphan declarations. Keyed registries and custom registries used without declarative `CorrelateBy` remain supported.
+
+
+### Changed (breaking) — leader-election lifetime and ownership
+
+- **Required interface member:** custom `ILeaderElection` implementations must provide the stable `Task NotificationsCompleted` getter. `StopAsync` leaves this terminal task pending; restarting requires successful resource cleanup and the required prior ownership-notification drain. Failed cleanup refuses restart. Permanent `DisposeAsync` seals admission and joins actual owned SDK/resource work; subscriber delivery has a separate completion task and fault channel. Await both outcomes outside the election's own callbacks before tearing down borrowed logging or instrumentation. Successful terminal completion means admitted synchronous handlers have settled; a fatal dispatch failure can prevent queued delivery. Handler failures are observable through the terminal fault channel. The task does not join `async void` continuations or consumer-started tasks. SQL Server/PostgreSQL health wrappers pass through the inner terminal task; the telemetry decorator exposes its own terminal task covering its forwarding/instrumentation lifetime.
+- In-memory leadership uses a private acquisition reference; health cleanup compares the last owned publication reference. A stopped or failed attempt cannot release a newer same-display candidate's ownership or remove its health publication; failed reservations that were never published are cleaned up.
+- Kubernetes ownership proofs capture the Lease UID, private acquisition nonce and resource-version CAS identity. Local authority expires independently at the monotonic `RenewInterval + GracePeriod` proof deadline, even while an SDK operation is still pending; a late response cannot revive a retired acquisition. Resource cleanup continues to join actual SDK completion and can remain pending beyond local demotion. Native takeover timestamps and Lease transition counters retain their own limitations; this does not establish arbitrary clock-skew safety or a global fence across Lease deletion/recreation. The Kubernetes package remains `IsAotCompatible=false` because of its vendor client.
+- SQL Server and PostgreSQL health wrappers snapshot configuration and serialize first-use health-table initialization. That DDL and successful cache publication run outside the caller's ambient transaction, so rolling back business work does not leave a cached table that vanished. Ordinary health DML retains caller transaction participation; its commit is not guaranteed after an outer rollback. Disposal joins admitted health work and retains genuine cleanup failures.
+
+### Fixed — configuration binding, CloudEvents and startup safety
+
+- Jobs configuration uses generated binding at both public scheduling/health paths and CDC options registration. Nested database identifiers and tracked tables are validated with configuration paths; options reload preserves prior instances. The native sample includes `--jobs-binding-smoke` for these configuration paths.
+- SQL Server CDC queries, checkpoint storage and built-in data-task requests use static ADO.NET execution while retaining request command metadata, parameterization, cancellation and ownership rules. `GetNextValidLsnAsync` now honors the configured repository timeout. The native sample's `--native-sql-paths-smoke` verifies real CDC capture/resume, checkpoint fencing and data-task failure/recovery against a guarded disposable SQL database. The sample publish has no unbaselined trim/AOT diagnostics; existing third-party baselines remain and this is not a blanket framework NativeAOT certification.
+- SQL Server CDC database options support parameterless configuration binding, public setters and a three-identifier convenience constructor. Processors capture execution settings once, so later configuration changes apply to new processors. **API change:** the previous `init` accessors become setters; rebuild consumers against the new package. Capture mappings retain configured lookup behavior without rebuilding dictionaries per row.
+- MQTT's named sender now uses the CloudEvents encoder for binary and structured messages. Routing, QoS, correlation and retained-message settings survive; Boolean/integer extension values use canonical formatting, trace context is emitted once, and case-distinct application properties remain distinct.
+- PostgreSQL and SQL Server erasure startup verify the fingerprint table's enabled UPDATE/DELETE guard. SQL Server guard replacement is transactional. Initialization and fingerprint claims survive caller transaction rollback while ordinary business writes retain their transaction participation. The separate legal-hold/data-inventory fingerprint coverage gap remains open.
+- Unkeyed Saga correlation registrations remain separate from a preceding keyed registry, preserving subsequent declarations.
+- Leader-election telemetry detaches event handlers even when inner disposal fails. Generated candidate identities retain the complete GUID instead of losing randomness when the machine-name prefix is long; configured and environment identities retain precedence.
+- Leader-election validation rejects zero or negative lease, renewal, retry and grace durations, and reports extreme timing sums as validation failures instead of overflowing. Configuration headroom remains distinct from provider-specific runtime ownership proofs, native lease expiry and fencing guarantees; the Kubernetes runtime now has an independent monotonic local proof deadline.
+- The local release-gate runner inventories complete workflow steps by default. Explicit reviewed execution preserves prerequisites, source/artifact hashes, receipts, shell semantics and owned-child cleanup. An inventory or partial selection does not certify hosted CI.
+- Native publish validation uses a separate project-local restore lock context, preserving the normal RID-neutral dependency locks and subsequent locked CI restores without changing package versions.
+
+### Fixed — a dead-letter replay now claims the entry before running the handler, so two redrives cannot both deliver
+
+The SQL Server dead-letter provider marked an entry replayed **after** invoking the replay handler, with a
+statement that matched the entry id alone and whose row count was discarded, and the read that fetched the
+entry applied no replayed-or-not predicate. So the flag recorded that a replay had happened rather than
+reserving the right to perform one, and three consequences followed, none of which required a fault:
+
+- Two concurrent replays of the same entry both read it, both ran the handler, and **both delivered** — the
+  message was executed twice and the second write simply rewrote a flag that was already set, so nothing
+  recorded that it had happened.
+- Because the read carried no predicate, an entry that had already been replayed could be replayed again.
+  The batch surface takes its filter from the caller, so a batch replay whose filter did not exclude
+  already-replayed entries **re-delivered every entry that had ever been replayed**.
+- A crash between the handler and the write left the entry replayable for ever.
+
+The entry is now claimed first, by a conditional update whose row count is the decision, and winning that
+claim is what authorises the handler to run. Of several concurrent callers exactly one replays.
+
+A handler that throws still propagates, and **the claim is released**, so a replay that fails because
+something downstream was briefly unavailable does not consume the entry — it stays selectable as pending
+and can be replayed again.
+
+**Known gap, stated plainly rather than described as a safe trade.** If the process stops between claiming
+an entry and delivering it, or if releasing the claim after a failed handler does not itself succeed, the
+entry is left marked replayed without having been delivered — and **that state cannot be told apart from a
+replay that succeeded**, because the entry carries the same flag and the same timestamp either way. What
+makes this the better behaviour is not that it is visible, because it is not; it is that it is **bounded**.
+Previously a crash left the entry permanently actionable, so every subsequent batch replay re-delivered it
+— one duplicate per sweep, indefinitely. Now at most one replay is lost and the state settles. A replay
+that reports an error should be confirmed against your own handler's effects rather than against the
+entry's state. Making the state itself self-describing needs a third value the column cannot currently
+hold, and that is a separate change.
+
+**What changes for you.** `ReplayAsync` and the estate-wide replay keep their signatures, so nothing stops
+compiling. What widened is the meaning of `false`: it previously documented "no such entry", and it now
+also covers "already replayed" and "another caller claimed it first" — read it as **not replayed by this
+call** rather than as not found. If you drive batch replays, a filter that excludes already-replayed
+entries is no longer the only thing standing between you and re-delivery, but it is still the right filter
+to pass. Handlers must remain idempotent: that obligation is unchanged.
+
+### Fixed — a dead-letter entry reports the attempt count it was given instead of always reporting one
+
+The SQL Server dead-letter provider wrote an original-attempt count of `1` into every entry it stored,
+while the outbox and inbox processors were passing the real count to it. The column was willing to hold the
+truth and the insert overrode it with a constant.
+
+The count is part of the public entry, is shown by the operations dashboard, and is a filter axis. So the
+effect was not one misreported field: a query for entries with **at least two** attempts matched nothing on
+any deployment, and a query for at least one matched everything. Both answers were well formed and read as
+measurements, with no error and nothing to distinguish an empty result from "there are none" — so an
+operator triaging which messages had failed repeatedly was given a confident wrong answer produced by our
+own bookkeeping.
+
+An entry now records the count its caller observed. When no usable count is supplied the entry records
+zero, which is the column's own default and reads as *not stated*, rather than one, which asserts that an
+attempt happened. One ambiguity remains and is worth knowing: because the column cannot hold "unknown",
+zero does not distinguish a count that was never supplied from a message dead-lettered before its first
+charged attempt, which the first-encounter decode path legitimately produces.
+
+**What changes for you.** Attempt-count filters start selecting. If you built a view, alert or report on
+the previous behaviour — most likely by filtering for at least one attempt and getting everything, or by
+treating the displayed count as uninformative — it now reflects reality, and entries written before this
+change keep the value they were stored with.
+
+### Security (breaking) — an erasure's key owner comes from the host, and a request naming a different tenant is refused
+
+The three erasure stores persisted an owner term taken from the incoming request, and nothing compared it
+to the tenant the write path had encrypted under. A request naming any other tenant was accepted and became
+the owner the destruction derived its key handle from, so the erasure destroyed a handle that was never
+minted: the key provider reported nothing to delete, that was treated as an idempotent no-op, no error was
+recorded, and the request reached `Completed` with a signed certificate over personal data that still
+decrypts. Nothing threw and nothing was logged. On a single-tenant host the request's tenant did not even
+have to be hostile — it only had to differ from the identity the deployment resolves.
+
+The owner is now resolved from the host. Under multi-tenancy that is the resolved ambient scope; otherwise
+it is the ambient tenant context's own resolved identity, which is the term the field encryptor uses. A
+request that leaves its tenant unset accepts the resolved owner, and **a request naming a different tenant
+is rejected with a validation error** rather than silently corrected — substituting the right term without
+a word would discard what the caller asked for and tell them nothing. Resolution lives in one place shared
+by all three stores instead of being computed inline in each.
+
+**What changes for you.** Filing an erasure request whose `TenantId` differs from the tenant your host
+resolves now throws instead of completing. If you file requests with an explicit tenant on a single-tenant
+host, leave it unset or set it to the resolved identity. Multi-tenant hosts that establish tenant scope and
+file each erasure for the tenant whose data it erases are unaffected, and any request that previously
+carried a tenant matching the ambient one keeps working unchanged.
+
+### Changed (breaking) — the erasure conformance kit required the defect above, so a correct store failed it
+
+`ErasureStoreConformanceTestKit.ListRequestsAsync_WithTenantFilter_ShouldFilterByTenant` seeded its two
+tenants by setting `TenantId` on the requests and then asserted the listing discriminated between them. It
+passed only if the store took the key owner from the request — the behaviour that lets an erasure certify
+completion having destroyed nothing. **So a store implementing `IErasureStore` correctly failed our own
+published kit, and a store that passed it had the silent no-op.** Nobody was misled about an API; the
+requirement itself was wrong, which is worse, because it was copied into every implementation certified
+against it.
+
+That arm now reads back the owner the store itself recorded and asserts the two halves that make the
+argument load-bearing: naming the recorded owner still returns the row, and naming any other tenant returns
+nothing. Two further arms cover what one row cannot:
+
+- `ListRequestsAsync_AcrossOwners_ShouldNotReturnAnotherOwnersRequest` files two requests under two
+  resolved owners, the first a strict prefix of the second, and is the only arm that fails against a filter
+  applied as a prefix or "starts with" match rather than as equality.
+- `ListRequestsAsync_TenantFilterIsOrdinal_ShouldNotFoldCaseOrPadding` is the only arm that fails against a
+  comparison that folds case or trims padding — including one folded by a **database collation** rather
+  than by code, which is the form that appears only on the deployment configured that way. If your store
+  delegates the comparison to a database, pin a binary or otherwise deterministic collation on the column
+  holding the owner.
+
+Both need the suite to resolve a named tenant, which it declares by overriding the new
+`BeginOwnerScope(string tenantId)`. The default returns `null`, and the arms then report an unverified arm
+through the kit's skip ledger rather than passing silently — an arm that did not run and an arm that ran
+clean must not be the same result. If your store resolves its tenant from ambient context, the override is
+one line.
+
+**What changes for you.** If you derive the kit and wired `ConformanceSuite_ShouldWireEveryArm`, your suite
+now fails naming two unwired arms; add a member per arm and, where you can, the scope override:
+
+```csharp
+protected override IDisposable? BeginOwnerScope(string tenantId) =>
+    TenantContextHolder.BeginScope(tenantId);
+
+[Fact]
+public Task ListRequestsAsync_AcrossOwners_ShouldNotReturnAnotherOwnersRequest_Test() =>
+    ListRequestsAsync_AcrossOwners_ShouldNotReturnAnotherOwnersRequest();
+
+[Fact]
+public Task ListRequestsAsync_TenantFilterIsOrdinal_ShouldNotFoldCaseOrPadding_Test() =>
+    ListRequestsAsync_TenantFilterIsOrdinal_ShouldNotFoldCaseOrPadding();
+```
+
+If you did not wire that guard, nothing fails and the new arms simply never run — which is the case to
+worry about rather than the lucky one. Wire it.
+
+### Changed — `IErasureQueryStore.ListRequestsAsync` states its contract instead of naming its parameters
+
+The `tenantId` parameter was documented as "Optional tenant filter", which is a noun rather than a
+contract: it did not say which of the two tenant facts on `ErasureStatus` it matches, whether the
+comparison folds case, what an empty or whitespace argument means, or whether the page window is taken over
+the filtered set. Each of those is something a consumer implementation could get wrong while contradicting
+nothing we had written. The member now states requires, effects, the narrowing invariant, and the
+exceptions — in particular that the argument matches the recorded **owner** (`TenantId`) and never
+`TenantPartition`, and that the comparison is ordinal with no folding, trimming or prefix matching.
+
+## [10.0.0-alpha.22] - Draft (2026-11-05)
+
+> This section is a draft release record, not proof of publication. The NuGet.org indexes observed on 2026-11-17 UTC for
+> `Excalibur.Dispatch` and `Excalibur.Compliance` list versions through `10.0.0-alpha.21`; `alpha.22`
+> was not listed. Confirm the actual cut version and admitted package bytes before presenting this
+> section as a published release. The date above preserves the original draft record.
+
+### Fixed — concurrency in cache tag tracking and JSON writer pooling
+
+- `DistributedCacheTagTracker` publishes one in-flight fetch per tag, so concurrent callers for the same
+  tag share a single backend read instead of each starting their own. A faulted or cancelled fetch is
+  evicted rather than memoized, so a transient backend failure no longer pins a failed task for the
+  refresh interval. Memoization is bounded by `TagTrackerCapacity`: at capacity a new tag resolves
+  against the backend on each call rather than growing the map. A `TimeProvider` reporting a
+  non-positive `TimestampFrequency` is rejected at construction instead of producing meaningless
+  elapsed times.
+- `InMemoryCacheTagTracker` performs its capacity check and its stamp creation as one atomic step, so
+  concurrent first use of the same tag can no longer produce two different stamps, and the tracked set
+  can no longer exceed `TagTrackerCapacity`.
+- `Utf8JsonWriterPool` serializes rent, return and disposal, so disposal can no longer race a rent and
+  leave a writer owned by a disposed pool. Renting after disposal throws `ObjectDisposedException`, and
+  a writer is disposed rather than leaked if rental bookkeeping throws.
+
+### Changed — the upcasting pipeline observes "latest" once per call
+
+- `IUpcastingPipeline.Upcast` reads the registered upcasters a single time and resolves both the target
+  version and the chain against that one observation. A registration completing on another thread during
+  the call does not retroactively raise that call's target, so the returned message can be at a version
+  that is no longer the latest by the time you inspect it. Call again for the newest version, or use
+  `UpcastTo` when you need a specific target.
+- Type and version metadata is captured once, when an upcaster is registered; a later getter change does
+  not remap that registration. Resolution caches belong to immutable registration snapshots, so an
+  in-flight search cannot publish a result for a newer graph, and each memo is bounded by graph size
+  rather than by a byte limit.
+- Disposal rejects new operations that need registry access while already-admitted traversals finish.
+  Cached `CanUpcast` queries now reject access after disposal exactly as uncached queries do; the
+  previous cache-dependent behavior is not preserved. Consumer-owned upcasters are not disposed.
+
+### Added — deferred inline-projection wait for bulk processing
+
+- `BulkDataProcessor<TRecord>` is public, and `DataProcessor<TRecord>.DeferInlineProjectionWait` lets a
+  processor defer the inline-projection wait across a batch instead of waiting per record.
+
+### Changed — operations dashboard assets
+
+- The shipped operations dashboard SPA assets are rebuilt on Svelte 5.57.3.
+
+### Fixed — documentation and samples that claimed more than was established
+
+- `CacheOptions` now documents what its bounds actually bound: `TagTrackerCapacity` limits tracked entry
+  count, not tag-string bytes or backend operations already in flight, and the stamp refresh interval is
+  an on-demand refresh rather than a cross-instance visibility deadline.
+- `ICacheInvalidationService` states that completion does not guarantee immediate visibility on other
+  instances and that invalidation of multiple tags is not atomic.
+- Performance figures across the documentation that had no recorded workload, runtime or raw evidence are
+  no longer presented as current numbers. The affected pages state what is established and how, and mark
+  the rest as unverified historical claims.
+- The NativeAOT probes and the AOT bulk-processing sample no longer report a native result they cannot
+  establish. `RuntimeFeature.IsDynamicCodeSupported` is a feature switch that `PublishAot` writes into
+  `runtimeconfig.json`, so it reads identically under a managed `dotnet run`; the guards now assert only
+  that dynamic code is disabled, and native behavior is established by running the published native
+  executable. Documented publish commands use `-p:` rather than `/p:`, which a POSIX shell rewrites into
+  a second project argument.
+
+### Fixed — locked-mode restore
+
+- The dependency lock files no longer carry `win-x64` runtime sections that a whole-solution locked-mode
+  restore rejected.
+
+## [10.0.0-alpha.21] - 2026-10-31
 
 ### Fixed — asynchronous validation and service scopes
 
@@ -230,7 +499,7 @@ caller is unauthorized. Nothing could reject it, because the inconsistency was i
 any code path. Remove `IsAuthorized` from any object initializer; the value you were setting is now
 computed from the grants you set beside it.
 
-### Added — an allocation-free segmented-key composer
+### Added — segmented-key composition into a caller-supplied buffer
 
 - `SegmentedKey.TryCompose(Span<char>, out int, string, string, string)` composes a segmented key into a
   caller-supplied buffer, producing the same characters as `Compose` without allocating a string. It
@@ -238,9 +507,9 @@ computed from the grants you set beside it.
   common case has an ordinary fallback. Intended for composing a key only to probe a dictionary — pair it
   with `Dictionary<string, T>.GetAlternateLookup<ReadOnlySpan<char>>()`.
 
-### Performance — authorization checks allocate zero bytes
+### Performance — scoped authorization allocation observations
 
-Three allocations per authorization check are removed. Measured with
+The release recorded the following allocation changes for the selected authorization paths. These are scoped diagnostic observations, not allocation guarantees for every authorization path. Measured with
 `GC.GetAllocatedBytesForCurrentThread` over 1,000 calls, per call:
 
 | path | before | after |
@@ -257,7 +526,7 @@ that already decides which index each grant belongs in.
 
 The 24 bytes of the old `PolicyResult` were sometimes removed by the runtime and sometimes not: the result
 does not escape, so escape analysis can stack-allocate it, but only after the method reaches tier-1. As a
-struct there is no allocation to eliminate, so zero no longer depends on when the optimiser arrives.
+struct the result itself does not require that heap allocation. This does not establish a zero-allocation guarantee for the complete authorization operation.
 
 ### Changed (breaking) — a data task's timeout now bounds SILENCE, not duration
 
@@ -304,10 +573,9 @@ foreground wait is skipped, and the save reports the new `ProjectionFreshness.De
 cannot be mistaken for a confirmed one. The caller then drives `IProjectionProcessor.ProcessPendingAsync`
 once for the batch.
 
-This matters because an inline projection advances event by event, so any per-page cost on the projection
-store becomes a per-event cost — a store configured to make each page searchable before its checkpoint
-advances performs one index refresh per event, and on a bulk path that refresh becomes the throughput
-limit for the whole job. The post-commit warning now names that cost and this escape hatch.
+Waiting for search visibility during projection processing can add per-save work and limit batch
+throughput; the effect depends on paging, refresh configuration and the complete workload. The
+post-commit warning names that work and this escape hatch.
 
 Do not wrap a request handler in the scope: code inside it that reads a projection will not observe its
 own write.
@@ -489,6 +757,25 @@ stamping one, and a blank envelope tenant is refused — so crypto-shredded data
 `10.0.0-alpha.14` or earlier stops decrypting until its envelopes are re-stamped with their owning tenant.
 That is a loud refusal, not data loss: the ciphertext and the key are untouched. See
 [Decryption requires the caller's tenant](https://docs.excalibur-dispatch.dev/docs/migration/decryption-requires-the-callers-tenant).
+
+### Fixed — a single-tenant erasure derived the wrong owner, so it destroyed nothing and completed
+
+The erasure stores recorded a request's owning tenant by collapsing an unset request tenant onto the
+reserved untenanted value, while the write path derived its key handle from the resolved ambient identity.
+On a single-tenant host those are two different owners, so the erasure derived a handle nothing had ever
+been written under, destroyed nothing, and reached `Completed` with a signed certificate. The reserved
+value is a legal owner identity, so no argument check rejected it and nothing was logged. All three
+erasure stores in the box — in-memory, PostgreSQL and SQL Server — recorded the owner the same way, so it
+was not provider-specific.
+
+The stores now fall back to the ambient tenant for an unset request tenant, which is the identity the
+write path used, so both paths derive one handle. **Affected `10.0.0-alpha.14` and `10.0.0-alpha.15`.**
+Nothing was destroyed on those versions, so this is recoverable: re-file any erasure that completed on a
+single-tenant host and treat the certificate it issued as void. See
+[Resolved issues](https://docs.excalibur-dispatch.dev/docs/resolved-issues).
+
+*This repair shipped in this release and was not recorded here at the time — it rode in on the
+decryption change above, whose title describes only the read path.*
 
 ### Changed (breaking) — the inbox/outbox dead-letter decision is now explicit, with no default
 
@@ -1359,6 +1646,10 @@ changes behaviour silently; this line is pre-RC, so they are frequent and are th
 Anything needing action from you is also collected under **Before you upgrade** on the
 [What's New](https://docs.excalibur-dispatch.dev/docs/whats-new) page.
 
+### Licensing
+
+**Licensing.** As of 10.0.0-alpha.12 the licence set is Excalibur License 1.1 OR AGPL-3.0-or-later OR SSPL-1.0. Apache-2.0 was part of the set up to and including 10.0.0-alpha.11 and is not offered in alpha.12 or any later version. Each package declares its licence as a bundled file, so the `LICENSE` inside the version you installed is the authoritative statement of terms for that version.
+
 ### Known Issues
 
 Defects classified as affecting this pre-release, and the action each one requires of you, are on the
@@ -1735,7 +2026,7 @@ unchanged, only relocated to the release that actually carried them. Breaking ch
 
 - **The transport binding registry the container serves is now the one the builder configures.** A framework type-registration meant the container activated a second, empty registry, so bindings registered through the builder were invisible to anything resolving it — and an unmatched binding silently selects the default pipeline profile rather than failing. A registry you supply yourself is still left untouched.
 
-- **BREAKING: Elasticsearch field encryption now registers through the compliance package's key-management surface; its own parallel cloud-vault registrations are removed.** The Elasticsearch package carried a second key-custody stack alongside the compliance one -- two encryptors with the same name, and separately two cloud-vault providers against the same vendor, built twice without coordination. The weaker one (the Elasticsearch encryptor, which fetched raw key material and did the crypto itself) is removed; raw key bytes no longer cross into the data package at all. `AddAzureKeyVault`/`AddAwsKms`/`AddGoogleCloudKms`/`AddHashiCorpVault` against `IElasticsearchKeyProvider` are gone -- register field-encryption key management through the compliance package's `AddAzureKeyVaultKeyManagement`/`AddAwsKmsKeyManagement`/`AddVaultKeyManagement` instead.
+- **BREAKING: Elasticsearch field encryption now registers through the compliance package's key-management surface; its own parallel cloud-vault registrations are removed.** The Elasticsearch package carried a second key-custody stack alongside the compliance one -- two encryptors with the same name, and separately two cloud-vault providers against the same vendor, built twice without coordination. The weaker one (the Elasticsearch encryptor, which fetched raw key material and did the crypto itself) is removed; raw key bytes no longer cross into the data package at all. `AddAzureKeyVault`/`AddAwsKms`/`AddGoogleCloudKms`/`AddHashiCorpVault` against `IElasticsearchKeyProvider` are gone -- register field-encryption key management through the compliance package's `AddAzureKeyVaultKeyManagement`/`AddAwsKmsKeyManagement`/`AddVaultKeyManagement` instead. **`AddLocalKeyProvider` goes with them, and it is the one most likely to be in a working configuration** -- it was the no-dependency option, so it is what a developer reaches for first and what local setups used. There is no local or development-mode replacement, deliberately: the surviving `AddKeyManagement(IConfiguration)` on the same class routes key custody to a configured provider, and a key provider that holds raw material in-process is the arrangement this change exists to remove rather than relocate.
 
   Connection-credential storage stays separate: the compliance key-management contract returns metadata and never raw material, by design, so it structurally cannot serve a store whose whole job is handing back a password. The old `AddAzureKeyVault` conflated both capabilities under one method, so removing it would have left vault-backed credential storage with no registration at all. A narrower `AddAzureKeyVaultCredentialStorage` replaces it for that use.
 
@@ -2132,11 +2423,18 @@ unchanged, only relocated to the release that actually carried them. Breaking ch
 
 - **BREAKING — the outbox un-reserve path is removed from the Oracle and Postgres stores:** `OracleOutboxStore.UnReserveOutboxMessagesAsync`, `PostgresOutboxStore.UnReserveOutboxMessagesAsync`, the `ResetOutboxMessageReservation` request type in both packages, and `RecordUnreserveMessages` on both stores' metrics. It matched on dispatcher id alone with no fencing token, so a process that had lost its lease could clear a reservation a live dispatcher was still holding, and the message became claimable while the first sender was mid-send. **A reservation's lifetime is owned by its own expiry** — nothing needs to release one early, and nothing in the framework called this.
 
-- **BREAKING — `AuditRetentionOptions.BatchSize` and `AuditRetentionPolicy.BatchSize` are removed.** The value was logged and returned to callers, so a host could read it back and believe it was in force, but it reached nothing that deletes. **Both audit stores already carry their own batch-size setting; use that one.**
+- **BREAKING — `AuditRetentionOptions.BatchSize` and `AuditRetentionPolicy.BatchSize` are removed.** The value was logged and returned to callers, so a host could read it back and believe it was in force, but it reached nothing that deletes. **Both audit stores already carry their own batch-size setting; use that one** -- but note the Postgres path MOVED in this same release, so this sentence alone will not compile for it: it is now `PostgresAuditOptions.Retention.CleanupBatchSize`, not `PostgresAuditOptions.RetentionCleanupBatchSize`. SQL Server already carried the nested shape and is unchanged at `SqlServerAuditOptions.Retention.CleanupBatchSize`.
 
 - **BREAKING — the exception error-code accessors are now string-typed, and `MessagingException.HandlerNotFound(Type)` is removed.** `ExceptionExtensions.GetErrorCode` returns `string?` rather than `int?`, and `GetErrorCodeOrDefault(int)` becomes `GetErrorCodeOrDefault(string)`. The old accessors filtered on the property's CLR type, which made the framework's own accessor blind to `DispatchException`; an `int`-typed code on a consumer exception now renders as text instead of being skipped. `HandlerNotFound` was a strictly weaker duplicate of the dispatcher's own resource-formatted throw for the same condition — **the dispatcher still throws it.**
 
 - **BREAKING — `AddTenantScopedProjectionStore` takes the store type as a type argument:** `AddTenantScopedProjectionStore<TService, TStore, TCapabilityFamily>(services, Func<IServiceProvider, TStore>)` replaces `AddTenantScopedProjectionStore<TService, TCapabilityFamily>(services, Func<IServiceProvider, ITenantContext, TService>)`. The old shape took the tenancy mechanism as a parameter, so a store that ignores tenancy could be registered while emitting a truthful-looking marker. **Name the store type; the registration checks it rather than taking the caller's word for it.**
+
+- **BREAKING -- the Postgres audit retention settings move onto a nested options object:** `PostgresAuditOptions.RetentionPeriod` and `PostgresAuditOptions.RetentionCleanupBatchSize` are removed. Set `PostgresAuditOptions.Retention.RetentionPeriod` and `PostgresAuditOptions.Retention.CleanupBatchSize` instead. This gives Postgres the shape SQL Server already had, so the two providers are configured the same way rather than one flat and one nested. Both values keep their meaning; only where you assign them changes.
+
+- **BREAKING -- the Firestore CDC state store's own delete is removed:** `FirestoreCdcStateStore.DeletePositionAsync` and `IFirestoreCdcStateStore.DeletePositionAsync`. Call `ICdcStateStore.DeletePositionAsync` instead, which **returns `bool` where the removed pair returned `Task`** -- and that difference is the whole reason they went. A delete that returns nothing cannot tell "one position removed" from "no such position, nothing happened", so a caller clearing a processor's position was told it had succeeded whether or not anything was there. Read the returned value: `false` means there was nothing to delete, which is the case the old signature could not report.
+
+- **BREAKING -- `IHandlerRegistry.Register(Type, Type, bool)` is replaced by `Register(Type, Type, bool expectsResponse, Type? responseType = null)`.** The response type was previously recovered from the handler by reflection at registration time; it is now passed in. The new parameter is optional, so an existing call site still compiles -- but supply it. Reflection over handler types is what stops trimming and Native AOT publication from resolving the response type, and passing it is what keeps the registration analysable. Implementors of the interface must add the parameter.
+
 
 ### Security
 
@@ -4150,10 +4448,14 @@ The 3.0.0 alpha series represents a complete ground-up redesign of the Excalibur
 - SourceLink, deterministic builds, symbol packages
 - Per-package README.md for NuGet.org display
 - Multi-license stack: Excalibur 1.0 / AGPL-3.0 / SSPL-1.0 / Apache-2.0
+  (Historical, for the version described above. The licence set CHANGED in 10.0.0-alpha.12 — Apache-2.0 is no longer offered. See the Licensing entry under [10.0.0-alpha.12].)
 - 8 `dotnet new` templates: dispatch-api, dispatch-minimal-api, dispatch-worker, dispatch-serverless, excalibur-ddd, excalibur-cqrs, excalibur-saga, excalibur-outbox
 - 68 sample projects across 13 categories
 
-[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.20...HEAD
+[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.22...HEAD
+[10.0.0-alpha.22]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.21...v10.0.0-alpha.22
+[10.0.0-alpha.21]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.20...v10.0.0-alpha.21
+[10.0.0-alpha.20]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.19...v10.0.0-alpha.20
 [10.0.0-alpha.19]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.18...v10.0.0-alpha.19
 [10.0.0-alpha.18]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.17...v10.0.0-alpha.18
 [10.0.0-alpha.17]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.16...v10.0.0-alpha.17

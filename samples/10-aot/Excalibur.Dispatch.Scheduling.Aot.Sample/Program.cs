@@ -5,12 +5,14 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Buffers;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Options.Scheduling;
 using Excalibur.Dispatch.Scheduling.Aot.Sample;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -89,8 +91,12 @@ internal static class SchedulingSampleHost
 		var builder = Host.CreateApplicationBuilder(args);
 		builder.Services.AddSingleton<VerificationState>();
 		builder.Services.AddSingleton<IHandlerActivator, AotHandlerActivator>();
-		builder.Services.AddAotJsonSerialization(SchedulingJsonContext.Default);
 		builder.Services.AddAotEventSerializer(SchedulingJsonContext.Default);
+		// Scheduler payloads use message JSON, independently of the event serializer above.
+		// The DI factory owns this pooled serializer and wins before AddDispatch's TryAdd default.
+		builder.Services.AddSingleton(static services => new DispatchJsonSerializer(
+			jsonContext: SchedulingJsonContext.Default,
+			bufferManager: services.GetService<IPooledBufferService>()));
 		builder.Services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
 		builder.Services.AddTimeAwareScheduling(options => options.PollInterval = TimeSpan.FromMilliseconds(50));
 		builder.Services.Configure<SchedulerOptions>(options => options.PollInterval = TimeSpan.FromMilliseconds(50));

@@ -8,13 +8,360 @@ description: Defects previously disclosed for the Excalibur 10.0.0 pre-release t
 
 These were disclosed on [Known issues](known-issues.md) and have since been fixed. They are kept here rather than deleted, because a deleted entry is indistinguishable from one nobody ever wrote down.
 
-**Read the version, not the heading.** An entry here is fixed in the release it names. If you are on an earlier version the defect is still present for you, and the entry describes what you are running.
+**Read the version and publication status, not just the heading.** Entries under “Fixed in a published release” name a released remedy. “Fixed in source — release pending” means a source correction exists, not that a package containing it is available. If you are on an affected earlier version, the defect is still present for you.
+
+**A few entries state a BOUND rather than a single version** — "no later than `10.0.0-alpha.14`" — and they say so where they do. That means we established the fix was in the source tree before that version was published but could not narrow it to one release. Upgrading to the version named is sufficient; the fix may have arrived a release or two earlier. We would rather tell you a bound than guess a version, because a guessed version that is too early tells you that you are exposed when you are not, and one that is too late sends you on an upgrade you did not need.
+
+**How we dated these.** Except where an entry says otherwise, a version here means the fix was committed before that version was published — it is not a reading of the shipped assembly. The two entries that were measured against published bytes say so explicitly.
 
 **Confirmation means the code is present in the package you can install.** Where we confirmed a fix against a published package, we read the discriminating type or member out of that package's own assembly rather than out of our repository. That is not a statement that it was executed there. Verify against the package you actually restored before treating any entry as closing a risk for you.
 
 ---
 
+## Fixed in source — release pending
+
+The planned version is not proof of publication. At the NuGet.org index observed on 2026-11-17 UTC, `Excalibur.Compliance`
+lists versions through `10.0.0-alpha.21`; `10.0.0-alpha.22` was not listed. This is a package-index
+observation, not a claim about every feed or GitHub release channel. Existing-version remedies below
+remain attributed to their historical releases.
+
+### An erasure verification could report `Verified = true` while carrying a finding that said key destruction was never evidenced
+
+**Fixed in source; intended for `10.0.0-alpha.22`. Publication is not verified. Affected: `10.0.0-alpha.4` through `10.0.0-alpha.21` — see which of the two paths applies to you.**
+
+:::danger If you branch on `VerificationResult.Verified`, verify the corrected package before relying on it
+This is about the single boolean on the result of `IErasureVerificationService.VerifyErasureAsync`. On
+the affected versions it could read `true` for an erasure where the framework established nothing. **The
+report produced by `GenerateReportAsync` was honest throughout** — it listed the key-deletion step as
+failed and printed the reason — so if you read the step list rather than the summary boolean, you were
+never misled. When a release containing the correction is available, re-run the verification on that version and compare.
+:::
+
+**What went wrong.** The verdict asked whether any recorded finding was of `Critical` severity. That
+predicate was correct for the findings that existed when it was written, and it did not change when a
+lower-severity finding was added. Two states it could not express:
+
+1. **An erasure with no key deletions on record.** Verification records a finding — in its own words,
+   that key destruction "could not be verified", and that this is "an absence of evidence that deletion
+   happened" — at `Warning` severity. The verdict waived anything below `Critical`, so the result read
+   `Verified = true` while carrying that finding. Reachable from `10.0.0-alpha.12`, which is when the
+   finding was introduced, and at the **shipped default** configuration: key-management verification is
+   enabled by default and needs no opt-in.
+2. **A deployment that configured no verification method at all.** Every verification branch is then
+   skipped, so there are no findings to waive and the result read `Verified = true` with `Methods = None`
+   — verified by nothing. Reachable for as long as the verdict has existed, so from `10.0.0-alpha.4`.
+
+**What `Verified` means now, and it is worth reading even if you were not affected.** `true` asserts that
+some configured method actually substantiated *that* execution **and** that nothing was recorded against
+it. `false` means **not established, for any reason** — it is not a report that the erasure failed. An
+erasure discharged entirely by record deletion, with no key destruction to confirm, legitimately reports
+`false`, and always did at the certificate level.
+
+**Were you affected?** You were affected if **both** hold:
+
+1. you were on `10.0.0-alpha.21` or earlier; **and**
+2. your code reads `VerificationResult.Verified` and treats `true` as evidence — in a compliance report,
+   an audit export, a conditional that closes a request, or anything handed to an assessor.
+
+You were **not** affected if you read `GenerateReportAsync`'s step list, which named the failed step on
+every affected version, or if your erasures confirmed key destruction — those verified `true` before this
+change and still do.
+
+**No erasure certificate is affected, and this is worth stating precisely because it is the thing you
+would reasonably fear.** The certificate's own `Verification` block is produced by a different path that
+derives its verdict and its method set from a single value, so a certificate reading verified-with-no-
+methods was never expressible. The verdict corrected here does not reach a certificate, and no signature
+covers it. **Your issued certificates are unaffected and do not need reissuing on account of this.**
+
+**What to do.** When the corrected package is available, upgrade and confirm the version you installed contains this fix. Re-run any verification whose `Verified = true` you have
+relied on as evidence; where it now reports `false`, the framework had established nothing on the earlier
+version either — the value was wrong, not the erasure. Nothing migrates and no data is involved. If you
+recorded `Verified = true` in evidence you have already given an assessor, check whether that erasure
+confirmed key destruction before you act: if it did, your statement stands.
+
+**Scope of what we verified.** The fix and its three regression arms were measured in this repository
+against the corrected code; we did not decompile the published assemblies to confirm the behaviour of any
+affected version. The affected ranges above are derived from when each path became reachable in source,
+dated against publication timestamps.
+
+---
+
 ## Fixed in a published release
+
+### Older outbox certification tests could leave later leaders unable to claim messages
+
+**Affected certification packages: `Excalibur.Testing.Conformance` `10.0.0-alpha.9`,
+`10.0.0-alpha.10` and `10.0.0-alpha.11`. The correction is present in the source release ancestry
+no later than `10.0.0-alpha.12`; this is not an execution of those published assemblies.**
+
+The older outbox conformance kit generated fencing tokens from epoch milliseconds. If a fencing-enabled
+certification arm presented such a token to a shared or persistent outbox scope, its durable high-water
+could advance far beyond the counter-based tokens used by that deployment's normal leaders. Later claims
+could then return no messages even while pending messages remained. Installing the package alone does
+not establish that any arm ran or that your store was affected. We do not claim that every store exposed
+fencing in those releases, or that every published arm was observed writing such a token.
+
+The corrected kit derives its test tokens from the store's recorded high-water, restores that mark when
+each fencing arm ends, and refuses to mint when the store cannot expose the required diagnostics.
+Upgrading prevents this old certification behavior; **upgrading alone does not repair a high-water that
+an earlier run already advanced**. Use isolated, disposable infrastructure for certification rather than
+a live application's outbox.
+
+**Check before changing anything.** Establish whether one of the three versions actually ran fencing
+arms against this scope, then inspect the recorded high-water using the diagnostics or store operations
+appropriate to that installed version. For the **built-in counter-based token providers in those
+releases**, an epoch-millisecond-sized high-water that greatly exceeds the application's observed normal
+tokens is a clue to this defect. Magnitude alone is not authorization to lower it. If you supply a
+**custom token provider**, compare the high-water with values and ordering that *your provider* actually
+uses: a healthy clock-derived provider can legitimately produce large values and would be misdiagnosed
+by the built-in-counter check.
+
+:::danger Never reset a healthy fence
+Lowering or deleting a legitimate high-water can admit a superseded leader and remove the protection
+fencing provides. Confirm the cause, coordinate the affected writers and preserve the recorded value
+before any controlled recovery. Do not guess a replacement mark or automatically reset based on size.
+:::
+
+**Recovery depends on the installed version and selected store:**
+
+- **`alpha.9` and `alpha.10`:** there is no in-framework fencing high-water recovery API. Upgrade to a
+  version whose selected store exposes the required diagnostics, then use its supported recovery, or
+  perform a deliberately coordinated out-of-band store recovery. An upgrade by itself leaves the mark.
+- **`alpha.11`, where the store exposes `IFencedOutboxStoreDiagnostics`:** its
+  `ResetFencingHighWaterAsync` recovery surface is available. Apply it only after establishing the
+  correct recovery value and coordinating writers; it is not a general-purpose retry operation.
+- **The historical `alpha.11` Redis outbox:** it does not expose that diagnostics surface. Recovery was
+  out-of-band; its fence key was the configured `KeyPrefix` followed by `:fence`. Confirm the actual
+  installed layout and exact affected scope before an operator removes that key. This is a description
+  of that historical layout, not a command to delete a similarly named key in a current deployment.
+
+Current store capability profiles have changed since those releases. Check the selected package and
+capability rather than assuming that an old provider list or remedy applies unchanged. The earlier
+claim that only a fixed number of stores could be affected is deliberately not used as reassurance.
+
+---
+
+### Every package published before `10.0.0-alpha.20` carries a malformed archive index, and a strict packaging reader can reject the whole file
+
+**Fixed in `10.0.0-alpha.20`, in every package. Affected: `10.0.0-alpha.4` through `10.0.0-alpha.19`.**
+
+:::note The official NuGet client reads these packages correctly — this is about everything else
+`dotnet restore`, `nuget.exe` and the Visual Studio package manager all accept the affected archives, which
+is why this went unnoticed for sixteen versions. If your only consumer of these packages is the NuGet
+client, nothing was ever broken for you and nothing needs re-installing. Read on if a second tool also
+opens the `.nupkg` — an SBOM generator, a licence scanner, an artifact-repository validator, or anything
+built on a general-purpose OPC reader.
+:::
+
+**What went wrong.** A `.nupkg` is an Open Packaging Conventions archive, and its `[Content_Types].xml`
+declares a content type for each part by name. Our packing rule contributed the root `LICENSE` file with a
+path that already began with a separator, so the declared part name came out as `//LICENSE` — two leading
+separators. A part name in that format must begin with exactly one separator and may not contain an empty
+segment, so `//LICENSE` is not a legal part name. The affected archives carry exactly one such declaration,
+and it is the only one they carry.
+
+**Why a reader may reject the whole package rather than that one part.** The content-types stream is read
+before any part is opened, so a reader that validates part names as it parses it fails on the document, not
+on the `LICENSE` entry. That is why the consequence is out of proportion to the cause: the malformed name
+describes a licence file, and the tool that trips over it may decline to tell you anything about the
+assemblies.
+
+**Were you affected?** You were affected if **both** hold:
+
+1. you restored any Excalibur package at `10.0.0-alpha.4` through `10.0.0-alpha.19`; **and**
+2. something other than the NuGet client opened that `.nupkg` — commonly a dependency or licence scanner in
+   a build pipeline, an SBOM step, or an internal feed that re-validates artifacts on ingest.
+
+If a scanner reported one of these packages as corrupt, unreadable or of unknown licence, this is the cause.
+The licence text itself was never missing: the `LICENSE` entry is present in the archive and the NuGet client
+resolves it normally, so a licence your scanner reported as absent was there all along.
+
+**What to do.** Upgrade to `10.0.0-alpha.20` or later; the declaration is well-formed from that version on.
+No data, configuration or code is involved and nothing needs migrating. If a scanner recorded a finding
+against an affected version, re-run it against `alpha.20` or later rather than suppressing the finding — on
+the affected versions it was reporting something real.
+
+**How we checked.** We read `[Content_Types].xml` out of each published archive and parsed it, rather than
+reading our own build output: `Excalibur.Compliance` at all sixteen versions from `alpha.4` through
+`alpha.19` declares `//LICENSE`, and at `alpha.20` and `alpha.21` declares a well-formed name.
+`Excalibur.Dispatch`, `Excalibur.EventSourcing` and `Excalibur.Outbox` show the same transition between
+`alpha.19` and `alpha.20`, which is what establishes that the cause was one shared packing rule and that the
+scope is every package rather than one.
+
+### A single-tenant erasure destroyed nothing and reported itself completed
+
+**Fixed in `Excalibur.Compliance` `10.0.0-alpha.16`. Affected: `10.0.0-alpha.14` and `10.0.0-alpha.15`.**
+
+:::danger If you ran an erasure on either of those two versions, re-run it — the data is still there
+This one did not destroy anything. The erasure derived its target from a different owner identity than
+the write had used, so it destroyed a key that had never existed, found nothing to object to, and
+recorded the request as completed. **Your personal data was never erased and is not damaged.** Upgrade to
+`10.0.0-alpha.16` or later and re-run the same erasure; it completes properly. Any erasure certificate
+those two versions produced for a single-tenant host should be treated as void.
+:::
+
+**What went wrong.** A per-subject encryption key is named by a value derived from the owning tenant and
+the data subject together. On a single-tenant host the write path used the resolved ambient identity for
+that owner, while the erasure store recorded the request's owner as the reserved *untenanted* value
+whenever the request itself did not name a tenant — which is the documented shape for a single-tenant
+host, because that field is described as being for multi-tenant scenarios. Those are two different
+identities, so the two paths derived two different key names. The erasure destroyed the name nothing had
+ever been written under.
+
+**Nothing reported it.** The reserved value is a legal owner identity, so no argument check rejected it,
+nothing threw, and nothing logged. The erasure then found no key to destroy at the name it had derived —
+which is indistinguishable, from inside, from an erasure that had already finished — and the request
+reached `Completed` with a signed certificate.
+
+**Were you affected?** You were affected if **all three** hold:
+
+1. you were running `10.0.0-alpha.14` or `10.0.0-alpha.15`; **and**
+2. your host is single-tenant — you did not require a tenant, so the framework resolved its default
+   identity for you; **and**
+3. you submitted an erasure request without setting a tenant on it, and it completed.
+
+A multi-tenant host that establishes tenant scope and files each erasure for the tenant whose data it
+erases was not affected: both paths then agree on the owner.
+
+**What to do, and it is recoverable.** This is the one erasure defect on this page where the data is
+intact, because nothing was destroyed:
+
+1. Upgrade to `10.0.0-alpha.16` or later.
+2. Re-file every erasure that completed on `alpha.14` or `alpha.15` on a single-tenant host. The same
+   request now derives the owner the write path used, and destroys the key.
+3. Treat the earlier certificates as void, and re-issue from the re-run. If you have already handed one to
+   an auditor or a data subject, the erasure it attested had not happened at the time it was signed.
+
+**How the versions were established.** The commit that makes the erasure record the owner the write path
+uses is not an ancestor of the `10.0.0-alpha.15` release and is an ancestor of `10.0.0-alpha.16`. At the
+`alpha.14` tag the three erasure stores in the box — in-memory, PostgreSQL and SQL Server — all recorded
+the owner the same incorrect way, so the defect was not provider-specific.
+
+---
+
+### One tenant's erasure destroyed another tenant's data when they shared a data-subject id, and the victim's read reported it as lawfully erased
+
+**Fixed in `Excalibur.Compliance` `10.0.0-alpha.14`. Affected: `10.0.0-alpha.4` through `10.0.0-alpha.13`.**
+
+**The repair landed in two stages, and the second one is not in `alpha.14`.** `alpha.14` made the key
+handle tenant-qualified, which is the change that stops one tenant's erasure destroying another's key —
+nothing else does, and that is why this entry is fixed there. A second, independent hardening of the
+*read* path — decryption requiring the owning tenant to be supplied by the caller — shipped in
+`10.0.0-alpha.16`. If you are on `alpha.14` or `alpha.15` you have the fix for this defect and you do
+**not** yet have that second control; see *What changed* below for what each one does.
+
+:::warning Do not read this entry as "alpha.14 is a safe place to stay"
+`alpha.14` and `alpha.15` fix *this* defect and carry a different one: on a single-tenant host an erasure
+on those two versions destroyed nothing and reported itself completed. It is recoverable — re-running the
+erasure on `alpha.16` or later completes it — but any certificate those versions issued is void. See [A
+single-tenant erasure destroyed nothing and reported itself
+completed](#a-single-tenant-erasure-destroyed-nothing-and-reported-itself-completed).
+:::
+
+:::danger If you ran an erasure on an affected release, data may already be gone, and upgrading does not recover it
+Upgrading stops this happening again. It cannot undo an erasure that already crossed a tenant boundary —
+the key was destroyed, and nothing reconstructs it. If you ran crypto-shredding on `alpha.4` through
+`alpha.13`, work through *Has it already happened to you?* below before you treat this entry as closed.
+:::
+
+**What went wrong.** A per-subject encryption key was named by a value derived from the `[DataSubjectId]`
+value alone. **The tenant was not part of that name.** A data-subject identifier comes from your own
+entity — a customer number, an employee identifier, an e-mail address — and those values repeat across
+tenants in ordinary multi-tenant use. Where two tenants held the same value, both tenants' personal data
+was encrypted under one key. Erasing that subject for either tenant destroyed the key, and the other
+tenant's fields then read back as `null` — which this framework defines as the assertion that the data
+*was* lawfully erased. Nothing threw, no certificate recorded a problem, and no log marked which tenant
+was affected. It took no race and no fault: two ordinary writes under two tenants, then one ordinary
+erasure.
+
+**There was no second control, either.** You might reasonably have expected the authenticated data bound
+into each encrypted field to separate the two tenants, so a cross-tenant read would at least fail loudly.
+On this path it did not — that binding carried no tenant term, so the read produced the erasure tombstone
+rather than an authentication failure.
+
+**Were you affected?** You were affected if **all three** hold. "Erasure was broken" would be the wrong
+reading and would send unaffected consumers on an audit they do not need:
+
+1. you called `AddCryptoShredding()`, `AddCryptoShreddingWithoutErasure()` or
+   `AddEventSourcingCryptoShredding()` — with none of them this never reached you; **and**
+2. your `[DataSubjectId]` values are unique only **within** a tenant rather than across your whole
+   deployment, and two tenants have at some point held the same value; **and**
+3. at least one erasure **completed**.
+
+A single-tenant deployment was not exposed by this mechanism — there was no second tenant to collide with.
+
+**Has it already happened to you?** This is answerable from your own data, and the framework cannot answer
+it for you: no record it keeps distinguishes the two tenants.
+
+1. In each store holding `[PersonalData]`, find every `[DataSubjectId]` value that appears under more than
+   one tenant. That is your collision set. **If it is empty, no erasure of yours can have crossed a tenant
+   boundary.**
+2. For each value in that set, look for a **completed** erasure filed by any one of those tenants.
+3. Where you find one, **every other tenant holding that value has lost that data.** Its `[PersonalData]`
+   fields read `null`, and no erasure was ever requested for it.
+
+Step 3 identifies the affected tenants exactly. It recovers nothing, and the reads will not start failing
+to tell you — on an affected release they keep reporting a lawful erasure.
+
+**What changed, and in which release.**
+
+- **`10.0.0-alpha.14` — the key handle became tenant-qualified.** It is derived from the tenant and the
+  subject together, so two tenants holding one data-subject id hold two different keys and neither one's
+  erasure can reach the other's. The tenant is also bound into each field's authenticated data, which
+  closes the inert second control described above. **This is the change that stops the data loss.**
+- **`10.0.0-alpha.16` — the read path stopped trusting the envelope.** Decryption now requires the owning
+  tenant to be supplied by the caller from the authorized request or trusted stored-record metadata, never
+  read out of the envelope being decrypted. An envelope whose tenant does not match is refused, and that
+  check runs *before* any provider lookup and *before* the destruction ledger is consulted — raised later,
+  another tenant's erased envelope would have come back as a lawful `null` tombstone. This is defence in
+  depth against a different mistake (treating input as self-describing); it is **not** what fixed the
+  defect in this entry.
+
+#### What you need to know when you upgrade
+
+- **This is a breaking change to the stored form, and there is no migration.** Personal data written on
+  `alpha.4` through `alpha.13` was encrypted under the earlier key identity and in the earlier envelope
+  layout. It is not readable on `alpha.14` or later, and we supply nothing that converts it.
+- **It fails loudly, and that is deliberate.** An envelope from the earlier layout is **refused by name**
+  with an error stating that the material behind it cannot be identified — it is *not* returned as `null`.
+  That distinction is the whole point: a `null` would have claimed a lawful erasure over data that was
+  never erased, which is the defect this entry is about, re-created by the repair. A refusal is
+  recoverable information; a tombstone is not.
+- **Plan the upgrade as a re-key, or accept the loss.** If you need data written on an affected release to
+  remain readable, read and decrypt it on the affected release first, then write it again once you are on
+  `alpha.14` or later. Do this before any erasure runs. If you do not need it, no action is required —
+  reads of it will fail with a named error rather than silently.
+- **Going to `alpha.16` or later has a second, separate step, and it also applies to data written on the
+  already-fixed `alpha.14` and `alpha.15`.** Envelopes carry an owning tenant only because the write path
+  began stamping one in `alpha.16`, and a blank envelope tenant is refused — so crypto-shredded data
+  written by `alpha.14` or earlier stops decrypting until its envelopes are re-stamped. That is a loud
+  refusal and not data loss: the ciphertext and the key are both untouched.
+- **A resolved tenant context is now required on the write path.** Encrypting a per-subject field throws
+  if no tenant is resolved, instead of proceeding under an empty identity. A host that was relying on an
+  unresolved context will now fail at the call rather than write data nobody can attribute.
+- **The mitigation we previously published is no longer necessary, and you should not adopt it now.** The
+  earlier guidance was to embed your tenant identifier inside the `[DataSubjectId]` value itself. On
+  `alpha.14` or later the framework does this for you. Adopting it anyway still works, but it makes your
+  own existing legal holds, registered data locations and retention rows unmatchable — they were recorded
+  against the old value — so it costs you real reconciliation for no remaining benefit. If you already
+  applied it, you can keep it; it is redundant rather than harmful.
+
+**How the fixed version was confirmed — two independent instruments, which agree.** First, we read the
+member that *only* the tenant-qualified derivation has out of each published package's own
+`lib/net10.0/Excalibur.Compliance.dll`: it is **absent** from `10.0.0-alpha.13` and **present** from
+`10.0.0-alpha.14` onward, while the member behind the `alpha.16` read-path control is absent until
+`alpha.16` exactly as that release states. Unrelated types in the same assembly were read as a control, so
+`alpha.13`'s absence is a real absence and not a failed lookup. Second, and independently of the packages,
+the commit carrying the derivation is not an ancestor of the `alpha.13` release and is an ancestor of
+`alpha.14`. Per the note at the top of this page, this establishes which packages **ship** the fixed
+derivation; it is not a behavioural assessment of any individual build.
+
+**A note on the weaker check we started with, in case you run one yourself.** Asking whether the handle
+*type* appears in an assembly does not answer this: that type is present in `alpha.14` for an unrelated
+reason, and its presence would have been equally consistent with a handle that still carried no tenant.
+The question has to be put to a member that exists only in the corrected design.
+
+---
 
 ### SQL Server change data capture can silently drop captured changes, permanently, when a batch ends abnormally
 
@@ -227,7 +574,7 @@ available:
   reading the code rather than from a test we have run** — verify it in your own deployment before
   relying on it.
 
-**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The correction is complete in our source — the seam no longer carries the weakly-typed value at all, so the defect is not expressible there rather than merely absent. Until a release ships, the mitigation above is the only remedy available to you.
+**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The correction is complete in our source — the seam no longer carries the weakly-typed value at all, so the defect is not expressible there rather than merely absent. For versions earlier than `10.0.0-alpha.12`, the mitigation above remains the available workaround.
 
 :::info What we have not established
 **We do not know which published versions execute the broken path, and we are not going to guess.**
@@ -571,8 +918,7 @@ published: AVL-002 on 2025-11-26 and AVL-003 on 2026-01-19, while the earliest p
 them, and `10.0.0-alpha.12` is the first that does not, so there is no lower bound worth stating but
 there is now an upgrade that removes the behaviour. If you have this package at all, this entry applies to you.
 
-**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. It will also say which controls the fix covers. Until this entry
-names a release, there is no upgrade that changes what your report says.
+**Is it fixed?** **Fixed in `10.0.0-alpha.12`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.12 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The fix covers the controls identified in this entry; versions earlier than `10.0.0-alpha.12` retain the behavior described above.
 
 **Scope.** Plain `AddSoc2Compliance()` does not register the built-in validators, so on its own it is
 unaffected — but `AddControlValidator<TValidator>()` registers one explicitly, and a built-in validator
@@ -668,8 +1014,7 @@ every message, and any decision it made is worth re-examining rather than assume
 Nothing you can configure changes this on a released version; the properties are discarded before the
 message reaches the queue manager.
 
-**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The sender now forwards the properties you set. Until this entry
-names a release, the workaround above is what you have.
+**Is it fixed?** **Fixed in `10.0.0-alpha.11`.** **This entry previously said the fix was "not yet in any released version" — that was wrong, and it stayed wrong after the release shipped.** If you are on 10.0.0-alpha.11 or later you already have this fix; if you are on an earlier version, upgrading resolves it. Not yet confirmed by reading the published assembly — verify against the package you actually restore. The sender now forwards the properties you set. For versions earlier than `10.0.0-alpha.11`, the workaround above remains applicable.
 
 ---
 
@@ -776,7 +1121,7 @@ against a step running twice, and this was a step running zero times.
 **Which versions were affected.** Every 10.x release before this one, and the older 3.x line broadly. The
 identifier had been derived this way since before the 10.x line began.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** Replay identity is the envelope message id
+**Is it fixed?** **Yes, in `10.0.0-alpha.14`.** Replay identity is the envelope message id
 that the delivery carries — a property of the *delivery*, not of the payload — rather than a value
 composed from the event type, the saga id and `StepId`. `StepId` no longer affects deduplication at all,
 and two distinct deliveries cannot share an identifier.
@@ -850,7 +1195,7 @@ already-erased check saw the tombstoned events and agreed the subject was erased
 so every subsequent attempt declared that aggregate done without re-attempting the snapshot. The
 incomplete state was permanent for as long as the snapshot lived.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** The snapshot is destroyed **before** the
+**Is it fixed?** **Yes, in `10.0.0-alpha.14`.** The snapshot is destroyed **before** the
 events, so a fault between the two stores now leaves a not-yet-erased aggregate with no snapshot — a
 slower rehydrate from its own events and nothing else — instead of erased events behind a readable copy.
 Nothing spans those two stores transactionally, so one of the two orders had to survive a fault between
@@ -890,7 +1235,7 @@ access stayed in place, and your records said it was gone.
 publishing a list of versions, for the reason given on [Known issues](known-issues.md): a partial list
 would tell some affected readers they are safe.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** `IGrantQueryStore.GetMatchingGrantsAsync`
+**Is it fixed?** **Yes, no later than `10.0.0-alpha.14`, with the grant-query half in `10.0.0-alpha.12`.** `IGrantQueryStore.GetMatchingGrantsAsync`
 matches under **ordinal equality** — case-sensitive, with no wildcards and no collation folding. **`null`,
 and only `null`, means "do not filter on this field"**; an empty or whitespace filter is **refused** rather
 than read as "all", because a value that means "match everything" is exactly what a caller passes by
@@ -970,7 +1315,7 @@ registration of the in-memory store is present at that same commit, so "affected
 shipped shape and not only our source. **We are not publishing a list of every affected version** — we have
 measured one, and naming versions we have not opened would be guesswork.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** Every key on the in-memory store now
+**Is it fixed?** **Yes, in `10.0.0-alpha.12`.** Every key on the in-memory store now
 carries the tenant, composed through `SegmentedKey` so that no two (tenant, name) pairs can produce the
 same key — a group name is unique only *within* a tenant. Every read filters on the entry's tenant as well
 as composing it into the key, and the two do different jobs: without the filter every caller receives every
@@ -1039,7 +1384,7 @@ of all three operations, so a refresh that threw before reaching it left cached 
 cache uses a sliding expiration renewed by each read, so on a busy deployment **a revocation the refresh
 was performing could fail to take effect indefinitely.**
 
-**Is it fixed?** **Yes, in the release this page accompanies**, and in four separate places:
+**Is it fixed?** **Yes, in `10.0.0-alpha.12`**, and in four separate places:
 
 - **Validation precedes destruction.** Every row's tenant is resolved, and the whole catalogue constructed
   and validated, *before* anything is deleted. A payload one store would refuse is refused for every store
@@ -1092,7 +1437,7 @@ qualifier — contained a colon or a percent sign. Identifiers issued by an exte
 commonly do: an OpenID Connect `sub` claim is an opaque string the provider chooses, and URN- and
 URI-shaped values are ordinary rather than unusual.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** Decomposition is now the format owner's job
+**Is it fixed?** **Yes, in `10.0.0-alpha.12`.** Decomposition is now the format owner's job
 rather than each parser's: `SegmentedKey.Split` unescapes every segment it returns, and `GrantKey` and
 `GrantScope` defer to it instead of splitting by hand. The same change closes two neighbouring defects that
 hand-written parsers carried — a split that dropped empty segments, which shifted every later term left so
@@ -1141,7 +1486,7 @@ correctly.
 
 **Which versions were affected.** Every published 10.x version up to and including `10.0.0-alpha.13`.
 
-**Is it fixed?** **Yes, in the release this page accompanies, and read what the refusal covers before you
+**Is it fixed?** **Yes, in `10.0.0-alpha.14` for the refusal and `10.0.0-alpha.12` for the coverage gate, and read what the refusal covers before you
 rely on it.** The event-store contributor has exactly one action — tombstone every event of an aggregate —
 so it cannot express a category restriction. Rather than tombstoning anyway or reporting a success it did
 not earn, it now **refuses** a `Selective` request and returns a failure naming why. Because that is a
@@ -1207,7 +1552,7 @@ available. It works only while the personal data is separable from the record. W
 
 **Which versions were affected.** Every published 10.x version up to and including `10.0.0-alpha.13`.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** A deployment can now declare that an
+**Is it fixed?** **Yes, in `10.0.0-alpha.14`.** A deployment can now declare that an
 aggregate type is retained, and an erasure skips it:
 
 ```csharp
@@ -1278,7 +1623,7 @@ proceeds for the rest.
 **What it exposed.** The categories you had asserted a legal basis to retain were destroyed, and the result
 reported success.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** A partially-blocking hold now stops the
+**Is it fixed?** **Yes, in `10.0.0-alpha.14`.** A partially-blocking hold now stops the
 erasure **before** the subject's key is destroyed, at both points it can be caught: a request that cannot be
 honoured is declined when it is *made*, rather than accepted and failed later, and the execute path refuses
 again. The refusal names the retained categories, records the request as blocked by legal hold, and states
@@ -1329,7 +1674,7 @@ break that; they may not be the only way.
 `alpha.5`, `alpha.7`, `alpha.8`, `alpha.9`, `alpha.10` and `alpha.11` — by reading the shipped documentation
 surface of each package. **The remaining two we did not examine, and that means unmeasured, not clean.**
 
-**Is it fixed?** **Yes, in the release this page accompanies.** The annotation scan now reports whether its
+**Is it fixed?** **Yes, in `10.0.0-alpha.12`.** The annotation scan now reports whether its
 coverage was *established*, and completion requires it. An unestablished scan is its own state, distinct
 from a scan that ran and found nothing, so the two observations are no longer the same. When the scan could
 not be completed, the erasure is **not** reported `Completed`, and the error says why in terms an operator
@@ -1403,7 +1748,7 @@ logged for them. A certificate with an unkeyed hash establishes nothing about wh
 **Why you would not have found this through your usual channels.** This is our own code. There is no CVE
 and no dependency advisory, so a scanner would not surface it and a supply-chain review would not either.
 
-**Is it fixed?** **Yes, in the release this page accompanies, and in three parts.**
+**Is it fixed?** **Yes, in `10.0.0-alpha.12`, and in three parts.**
 
 - **The signature covers the whole payload.** It is HMAC-SHA256 over a canonical serialization of the
   entire certificate payload rather than an enumerated set of fields, so a claim added later is covered
@@ -1484,7 +1829,7 @@ version's absence from our cache is not evidence that it is clean.
 **The 3.x line is genuinely not affected**, and that one is a measurement rather than a bound: the interface
 does not exist in it at all. We checked its shipped documentation directly.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** The shipped contract text now states the
+**Is it fixed?** **Yes, in `10.0.0-alpha.11`.** The shipped contract text now states the
 placement explicitly rather than leaving it to be inferred: **the high-water mark is stored once per outbox
 *scope*, not per message row.** An implementation must claim rows only when the presented token is greater
 than or equal to the scope's stored mark, and must advance that mark to the maximum of its current value and
@@ -1517,7 +1862,7 @@ so, so a store that fences correctly per scope is not thereby told it has closed
   only the scope placement is correct about leaders and still silent about claims.
 - **The documentation inside packages you have already installed cannot be recalled.** If you hold an
   earlier package, the wrong `MUST` is in its XML documentation file and will keep appearing in your IDE
-  until you upgrade. The corrected text ships with this release.
+  until you upgrade. The corrected text ships in `10.0.0-alpha.11`.
 
 ### A projection could report a position it did not hold, so a read model silently double-counted or omitted events
 
@@ -1562,7 +1907,7 @@ double-count some events and omit others while reporting a position that said ot
 published version that contains them**. We establish this from the release tag and the published version
 list, not from inspecting the compiled assemblies.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** A row carrying no usable position is now
+**Is it fixed?** **Yes, in `10.0.0-alpha.14`.** A row carrying no usable position is now
 **refused** rather than adopted. The write reports `ProjectionAdvanceOutcome.Unplaceable`, which states what
 the write did — nothing was written, and the row carries no number to advance from. It is not a retry:
 re-reading yields the same refusal. To learn what the row itself holds, read its position; the read reports
@@ -1627,7 +1972,7 @@ it did not hold](#a-projection-could-report-a-position-it-did-not-hold-so-a-read
 **Which versions were affected.** `10.0.0-alpha.13` only, which is the one published version containing
 positioned projections.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** All three providers — Cosmos DB,
+**Is it fixed?** **Yes, in `10.0.0-alpha.14`.** All three providers — Cosmos DB,
 Elasticsearch and OpenSearch — now translate an unplaceable write into `ProjectionRefoldOutcome.RequiresRebuild`
 rather than letting it fall through to superseded. A terminal refusal reports that it requires a rebuild, so
 a caller that retries on superseded stops retrying, and a caller that caps its retries is told what the
@@ -1709,7 +2054,7 @@ window changed after `10.0.0-alpha.13`:** a stream offers no keyed read by event
 probing, its Lua script records event identifiers beside the version counter atomically with the append.
 In `10.0.0-alpha.13` it recorded **one**, which covered a retry of the most recent append to a stream but
 not one arriving after another writer had appended — see *Redis reported a retry as a conflict once another
-writer had appended* below. From the release this page accompanies it records a bounded set, so a retry is
+writer had appended* below. From `10.0.0-alpha.14` -- a bound rather than a pin, see the note at the top of this page -- it records a bounded set, so a retry is
 recognised however many writers intervened, up to a configurable limit.
 
 **This supersedes two things this entry previously said.** It said a correct fix required an idempotency
@@ -1785,7 +2130,7 @@ and a second writer also using blank identifiers matched it — so two genuinely
 recognised each other and one conflict was silently swallowed. Blank identifiers are now neither recorded
 nor matched, so that pair conflicts as it should.
 
-**Is it fixed?** **Yes, in the release this page accompanies.** The single marker becomes a bounded set
+**Is it fixed?** **Yes, in `10.0.0-alpha.14`.** The single marker becomes a bounded set
 keyed by identity, maintained inside the same script and therefore still atomic with the append. A retry is
 recognised however many writers appended in between, up to `RetryRecognitionWindow` on the Redis event-store
 options (default 64). Past that bound the retry is reported as a conflict — the same answer a caller who

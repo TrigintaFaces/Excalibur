@@ -3,10 +3,11 @@
 
 
 using System.Text.Json;
+using System.Text;
+using System.Text.RegularExpressions;
 
 using Excalibur.Data.MongoDB.Diagnostics;
 using Excalibur.Dispatch;
-using Excalibur.Dispatch.Metadata;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -33,9 +34,12 @@ namespace Excalibur.Outbox.MongoDB;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class coordinates the MongoDB driver, outbox document mapping, and dispatch metadata/context extraction by design (parity with SqlServerOutboxStore).")]
-public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IAsyncDisposable, ITenantPartitionedStore
+[RequiresUnreferencedCode("MongoDB outbox document mapping depends on driver reflection metadata. This provider is not compatible with trimming.")]
+[RequiresDynamicCode("MongoDB outbox default document mapping constructs generic serializers at runtime. Required native instantiations may be unavailable under NativeAOT; this provider path has not been validated for NativeAOT.")]
+public sealed partial class MongoDbOutboxStore : IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore, IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IAsyncDisposable, ITenantPartitionedStore, IOutboxPayloadTransformStore
 {
 	private readonly MongoDbOutboxOptions _options;
+	private readonly string _claimProcessPrefix;
 	private readonly ILogger<MongoDbOutboxStore> _logger;
 	private readonly TimeProvider _timeProvider;
 	private readonly bool _ownsClient;
@@ -82,6 +86,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 
 		_options = options.Value;
 		_options.Validate();
+		_claimProcessPrefix = Convert.ToBase64String(Encoding.UTF8.GetBytes(_options.ProcessorId));
 		_logger = logger;
 		_timeProvider = timeProvider ?? TimeProvider.System;
 		_ownsClient = true;
@@ -107,6 +112,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 		_client = client;
 		_options = options.Value;
 		_options.Validate();
+		_claimProcessPrefix = Convert.ToBase64String(Encoding.UTF8.GetBytes(_options.ProcessorId));
 		_logger = logger;
 		_timeProvider = timeProvider ?? TimeProvider.System;
 		_database = client.GetDatabase(_options.DatabaseName);
@@ -138,33 +144,58 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
+	public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, null, cancellationToken);
+
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	ValueTask IOutboxPayloadTransformStore.EnqueueWithPayloadTransformAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transformPayload,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(transformPayload);
+		return EnqueueCoreAsync(message, context, transformPayload, cancellationToken);
+	}
+
+	private async ValueTask EnqueueCoreAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>>? transformPayload,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
 		ObjectDisposedException.ThrowIf(_disposed, this);
+		if (transformPayload is not null)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+		}
 
 		var messageType = message.GetType().FullName ?? message.GetType().Name;
-#pragma warning disable IL2026, IL3050 // AOT: MongoDB provider uses reflection-based JSON serialization
+		// Canonical serialization returns fresh provider-owned bytes, borrowed read-only by the
+		// callback during invocation. Mongo has no configurable/reused payload codec buffer.
 		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType(), EventSerializationDefaults.Canonical);
-#pragma warning restore IL2026, IL3050
-
-		// honor a consumer-set routing destination (TransactionalOutboxWriter.SetDestination →
-		// context) rather than persisting the message type name as the destination — parity with the
-		// SQL/Postgres outbox stores. Falls back to the namespace-qualified type name (FullName, not
-		// the bare Name) when no destination was set: two message types with the same short name in
-		// different namespaces must not collapse to one destination. Reuses messageType above -- same value.
-		var destination = context.ExtractMetadata().GetDestination() ?? messageType;
+		// Only routing is consumed here; context.MessageId is not Mongo's row ID or header framing.
+		// Keep the fresh FromContext envelope without validating unused extracted metadata.
+		var destination = context.GetDestination() ?? messageType;
 		var outbound = OutboundMessage.FromContext(messageType, payload, destination, context);
 
-		await StageMessageAsync(outbound, cancellationToken).ConfigureAwait(false);
+		if (transformPayload is not null)
+		{
+			var transformed = await transformPayload(payload, outbound.TenantId, cancellationToken).ConfigureAwait(false)
+				?? throw new InvalidOperationException("The outbox payload transform returned a null payload.");
+			cancellationToken.ThrowIfCancellationRequested();
+			// Own the output before Stage awaits namespace/index admission and maps the BSON document.
+			outbound.Payload = transformed.ToArray();
+		}
 
+		await StageMessageAsync(outbound, cancellationToken).ConfigureAwait(false);
 		LogMessageEnqueued(outbound.Id, messageType);
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 		GetUnsentMessagesCoreAsync(batchSize, cancellationToken);
 
@@ -196,13 +227,14 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 		// the atomic FindOneAndUpdate does not prevent it, because the two are not racing: the second write
 		// is the only one at that instant and succeeds on a predicate that was already wrong. Reading and
 		// writing the lease from the one clock that both dispatchers share removes the disagreement.
+		var claimIdentity = _claimProcessPrefix + ":" + Guid.NewGuid().ToString("N");
 		var claimSetFields = new BsonDocument
 		{
 			{ "leasedAt", "$$NOW" },
 
 			// $literal, because inside an aggregation stage a string beginning with '$' is read as
 			// a field path rather than as the value it plainly is.
-			{ "leasedBy", new BsonDocument("$literal", _options.ProcessorId) },
+			{ "leasedBy", new BsonDocument("$literal", claimIdentity) },
 		};
 
 		var claimUpdate = new PipelineUpdateDefinition<MongoDbOutboxDocument>(
@@ -361,7 +393,8 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 			filterBuilder.Nin(d => d.Status, TerminalStatuses),
 			filterBuilder.Or(
 				filterBuilder.Eq(d => d.LeasedBy, null),
-				filterBuilder.Eq(d => d.LeasedBy, _options.ProcessorId)));
+				filterBuilder.Eq(d => d.LeasedBy, _options.ProcessorId),
+                filterBuilder.Regex(d => d.LeasedBy, new BsonRegularExpression("^" + Regex.Escape(_claimProcessPrefix) + ":"))));
 
 		// R1 floor: the message stays re-claimable (Failed is in the claim predicate) but its NextAttemptAt is
 		// gated to now + F, so the plain path can neither hot-loop the drain (F > poll interval) nor drop the
@@ -424,7 +457,8 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 			filterBuilder.Nin(d => d.Status, TerminalStatuses),
 			filterBuilder.Or(
 				filterBuilder.Eq(d => d.LeasedBy, null),
-				filterBuilder.Eq(d => d.LeasedBy, _options.ProcessorId)));
+				filterBuilder.Eq(d => d.LeasedBy, _options.ProcessorId),
+                filterBuilder.Regex(d => d.LeasedBy, new BsonRegularExpression("^" + Regex.Escape(_claimProcessPrefix) + ":"))));
 
 		// Record the failure and persist the backoff gate, keeping the message re-claimable (Staged) but
 		// excluded by the claim's NextAttemptAt gate until the computed backoff has elapsed —
@@ -493,7 +527,8 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 			Builders<MongoDbOutboxDocument>.Filter.Nin(d => d.Status, TerminalStatuses),
 			Builders<MongoDbOutboxDocument>.Filter.Or(
 				Builders<MongoDbOutboxDocument>.Filter.Eq(d => d.LeasedBy, null),
-				Builders<MongoDbOutboxDocument>.Filter.Eq(d => d.LeasedBy, _options.ProcessorId)));
+				Builders<MongoDbOutboxDocument>.Filter.Eq(d => d.LeasedBy, _options.ProcessorId),
+                Builders<MongoDbOutboxDocument>.Filter.Regex(d => d.LeasedBy, new BsonRegularExpression("^" + Regex.Escape(_claimProcessPrefix) + ":"))));
 
 		var update = Builders<MongoDbOutboxDocument>.Update
 			.Set(d => d.Status, (int)OutboxStatus.DeadLettered)
@@ -525,7 +560,8 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 			return OutboxCompletionOutcome.AlreadyTerminal;
 		}
 
-		if (current.LeasedBy is not null && !string.Equals(current.LeasedBy, _options.ProcessorId, StringComparison.Ordinal))
+		if (current.LeasedBy is not null && !string.Equals(current.LeasedBy, _options.ProcessorId, StringComparison.Ordinal)
+            && !current.LeasedBy.StartsWith(_claimProcessPrefix + ":", StringComparison.Ordinal))
 		{
 			return OutboxCompletionOutcome.ClaimLost;
 		}
@@ -850,6 +886,9 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 				_collection = _database.GetCollection<MongoDbOutboxDocument>(_options.CollectionName);
 			}
 
+			// Admit the actual effective namespace before any provider row or index mutation.
+			await EnsureSimpleIdentityCollectionAsync(cancellationToken).ConfigureAwait(false);
+
 			// Create indexes
 			var indexBuilder = Builders<MongoDbOutboxDocument>.IndexKeys;
 
@@ -884,6 +923,7 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 
 			_ = await _collection!.Indexes.CreateManyAsync([unsentIndex, statusIndex, failedIndex], cancellationToken).ConfigureAwait(false);
 
+			cancellationToken.ThrowIfCancellationRequested();
 			_initialized = true;
 		}
 		finally

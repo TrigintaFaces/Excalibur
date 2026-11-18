@@ -182,13 +182,22 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		var stateJson = response.Item[DynamoDbSagaDocument.StateJson].S;
 		var result = _serializer.Deserialize<TSagaState>(stateJson);
 
-		if (result is not null
-			&& response.Item.TryGetValue(DynamoDbSagaDocument.Version, out var versionAttr)
-			&& long.TryParse(versionAttr.N, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version))
-		{
+		if (result is not null)
+        {
+            if (response.Item.TryGetValue(DynamoDbSagaDocument.Version, out var versionAttr)
+                && long.TryParse(versionAttr.N, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version))
+            {
 			// The version attribute is authoritative for concurrency, independent of any Version
 			// embedded in the JSON blob. The store uses it as the compare-and-swap basis on the next save.
 			result.Version = version;
+            }
+                result.TimerRecoveryIncarnationId = response.Item.TryGetValue("timerRecoveryIncarnation", out var incarnation)
+                    ? Guid.ParseExact(incarnation.S, "N") : Guid.Empty;
+                response.Item.TryGetValue("timerRecoveryPendingBatch", out var pendingBatch);
+                response.Item.TryGetValue("timerRecoveryPendingDigest", out var pendingDigest);
+                if (result.PendingTimerRecovery?.BatchId.ToString("N") != pendingBatch?.S
+                    || (result.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null) != pendingDigest?.S)
+                { throw new InvalidOperationException("The selected saga serializer cannot restore the persisted ordinary timer journal."); }
 		}
 
 		LogSagaLoaded(typeof(TSagaState).Name, sagaId);
@@ -207,7 +216,31 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var now = DateTimeOffset.UtcNow;
-		var stateJson = _serializer.Serialize(sagaState);
+		if (sagaState.TimerRecoveryIncarnationId == Guid.Empty)
+        {
+            if (sagaState.Version < 1) { throw new InvalidOperationException("A new saga must have a nonempty timer recovery incarnation."); }
+            // The conditional write below, not this observation, decides whether legacy initialization is still current.
+            sagaState.TimerRecoveryIncarnationId = Guid.NewGuid();
+        }
+        var stateJson = _serializer.Serialize(sagaState);
+        var recoveryIncarnation = sagaState.TimerRecoveryIncarnationId.ToString("N");
+        var recoveryBatch = sagaState.PendingTimerRecovery?.BatchId.ToString("N");
+        var recoveryDigest = sagaState.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null;
+        var recoveryTracked = recoveryBatch is not null || sagaState.LastTimerRecoveryBatchId != Guid.Empty;
+        if (sagaState.PendingTimerRecovery is { } owned
+            && (owned.Scope.SagaId != sagaState.SagaId || owned.Scope.StateType != typeof(TSagaState).Name
+                || !string.Equals(owned.Scope.TenantId, KeyedTenantPartition.FromScope(CurrentTenantScope).TenantId, StringComparison.Ordinal)
+                || owned.IncarnationId != sagaState.TimerRecoveryIncarnationId || owned.Sequence != sagaState.TimerRecoverySequence))
+        { throw new InvalidOperationException("Timer journal differs from the state store's exact authority."); }
+
+        if (recoveryTracked)
+        {
+            var restored = _serializer.Deserialize<TSagaState>(stateJson);
+            if (restored is null || restored.TimerRecoveryIncarnationId != sagaState.TimerRecoveryIncarnationId
+                || restored.TimerRecoverySequence != sagaState.TimerRecoverySequence || restored.LastTimerRecoveryBatchId != sagaState.LastTimerRecoveryBatchId
+                || (restored.PendingTimerRecovery is { } copy ? Convert.ToHexString(copy.GetAuthorityDigest()) : null) != recoveryDigest)
+            { throw new InvalidOperationException("The selected saga serializer does not preserve ordinary timer recovery authority."); }
+        }
 		var sagaType = typeof(TSagaState).Name;
 		var pk = DynamoDbSagaDocument.CreatePK(CurrentTenantScope.TenantId, sagaState.SagaId);
 		var sk = DynamoDbSagaDocument.CreateSK(sagaType);
@@ -282,7 +315,16 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			document[DynamoDbSagaDocument.TenantId] = new AttributeValue { S = owner };
 		}
 
-		var putRequest = new PutItemRequest
+		document["timerRecoveryIncarnation"] = new AttributeValue { S = recoveryIncarnation };
+        document["timerRecoveryTracked"] = new AttributeValue { BOOL = recoveryTracked
+            || (existing.Item is not null && existing.Item.TryGetValue("timerRecoveryTracked", out var priorTracked) && priorTracked.BOOL == true) };
+        if (recoveryBatch is not null)
+        {
+            document["timerRecoveryPendingBatch"] = new AttributeValue { S = recoveryBatch };
+            document["timerRecoveryPendingDigest"] = new AttributeValue { S = recoveryDigest };
+        }
+
+        var putRequest = new PutItemRequest
 		{
 			TableName = _options.TableName,
 			Item = document
@@ -322,6 +364,23 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			
 			};
 			putRequest.ExpressionAttributeValues[":tenantId"] = new AttributeValue { S = scope.TenantId };
+            // These checks are evaluated by DynamoDB with the version/tenant predicate, not trusted from GetItem.
+            putRequest.ConditionExpression += " AND (attribute_not_exists(#ri) OR #ri = :ri) AND (attribute_not_exists(#rb) OR ";
+            putRequest.ExpressionAttributeNames["#ri"] = "timerRecoveryIncarnation";
+            putRequest.ExpressionAttributeNames["#rb"] = "timerRecoveryPendingBatch";
+            putRequest.ExpressionAttributeValues[":ri"] = new AttributeValue { S = recoveryIncarnation };
+            if (recoveryBatch is null)
+            {
+                putRequest.ConditionExpression += "#rb = :ack)";
+                putRequest.ExpressionAttributeValues[":ack"] = new AttributeValue { S = sagaState.LastTimerRecoveryBatchId.ToString("N") };
+            }
+            else
+            {
+                putRequest.ConditionExpression += "(#rb = :rb AND #rd = :rd))";
+                putRequest.ExpressionAttributeNames["#rd"] = "timerRecoveryPendingDigest";
+                putRequest.ExpressionAttributeValues[":rb"] = new AttributeValue { S = recoveryBatch };
+                putRequest.ExpressionAttributeValues[":rd"] = new AttributeValue { S = recoveryDigest };
+            }
 		}
 
 		try
@@ -422,38 +481,33 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 			var response = await _client!.ScanAsync(scan, cancellationToken).ConfigureAwait(false);
 
-			// Delete matched items in batches of 25 (BatchWriteItem's per-request cap).
-			for (var i = 0; i < response.Items.Count; i += 25)
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-
-				var chunk = response.Items.GetRange(i, Math.Min(25, response.Items.Count - i));
-				var writes = chunk.Select(item => new WriteRequest
-				{
-					DeleteRequest = new DeleteRequest
-					{
-						Key = new Dictionary<string, AttributeValue>
-						{
-							[DynamoDbSagaDocument.PK] = item[DynamoDbSagaDocument.PK],
-							[DynamoDbSagaDocument.SK] = item[DynamoDbSagaDocument.SK],
-						},
-					},
-				}).ToList();
-
-				var batch = new Dictionary<string, List<WriteRequest>> { [_options.TableName] = writes };
-
-				// Drain UnprocessedItems (throttling) so every matched item is actually deleted before it counts.
-				do
-				{
-					cancellationToken.ThrowIfCancellationRequested();
-					var batchResponse = await _client!
-						.BatchWriteItemAsync(new BatchWriteItemRequest { RequestItems = batch }, cancellationToken)
-						.ConfigureAwait(false);
-					batch = batchResponse.UnprocessedItems is { Count: > 0 } ? batchResponse.UnprocessedItems : [];
-				} while (batch.Count > 0);
-
-				removed += chunk.Count;
-			}
+            // BatchWrite cannot carry conditions. Each delete rechecks CURRENT completion, tenant and
+            // absence of pending journal atomically, so a stale scan is never deletion authority.
+            foreach (var item in response.Items)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var names = new Dictionary<string, string>(expressionAttributeNames) { ["#rb"] = "timerRecoveryPendingBatch" };
+                try
+                {
+                    _ = await _client!.DeleteItemAsync(new DeleteItemRequest
+                    {
+                        TableName = _options.TableName,
+                        Key = new Dictionary<string, AttributeValue>
+                        {
+                            [DynamoDbSagaDocument.PK] = item[DynamoDbSagaDocument.PK],
+                            [DynamoDbSagaDocument.SK] = item[DynamoDbSagaDocument.SK],
+                        },
+                        ConditionExpression = filterExpression + " AND attribute_not_exists(#rb)",
+                        ExpressionAttributeNames = names,
+                        ExpressionAttributeValues = expressionAttributeValues,
+                    }, cancellationToken).ConfigureAwait(false);
+                    removed++;
+                }
+                catch (ConditionalCheckFailedException)
+                {
+                    // Current row changed or acquired a pending journal; leave it for a later sweep.
+                }
+            }
 
 			lastKey = response.LastEvaluatedKey is { Count: > 0 } ? response.LastEvaluatedKey : null;
 		} while (lastKey is not null);

@@ -16,11 +16,11 @@ namespace Excalibur.Dispatch.Serialization;
 /// </summary>
 /// <remarks>
 /// This pool implementation provides:
-/// - Thread-local caching for zero-contention fast path
+/// - Thread-local caching with synchronized pool ownership and cleanup
 /// - Adaptive pool sizing based on usage patterns
 /// - Comprehensive telemetry and monitoring
 /// - Pre-warming strategies for different workloads
-/// - Zero-allocation pool operations in hot paths.
+/// - Writer reuse on pool hits; pool misses and telemetry may allocate.
 /// </remarks>
 internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 {
@@ -53,7 +53,18 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	private readonly Counter<long>? _returnThreadLocalCounter;
 	private readonly Counter<long>? _returnGlobalCounter;
 	private readonly Timer _adaptiveSizeTimer;
-	private readonly Lock _sizingLock = new();
+	// LOCK ORDER (I2): this lock is acquired BEFORE any WriterCache gate, never the reverse.
+	// Three call paths nest them and all three nest in this order -- Clear and Dispose via
+	// ClearCore, and PreWarmWithStrategy via PreWarmThreadLocal. The rent and return hot paths
+	// nest nothing: they take a cache gate, RELEASE it, and only then take this lock for the
+	// global-pool consult.
+	//
+	// The way to break this is specific and worth naming, because it looks like an optimisation:
+	// moving the global-pool consult INSIDE the thread-local branch, to take one lock instead of
+	// two, would give cache-then-lifecycle on the rent path against lifecycle-then-cache in
+	// ClearCore -- a two-thread deadlock. No test can catch it, because the cycle is unreachable
+	// until that edit exists, so this comment is the only instrument guarding it.
+	private readonly Lock _lifecycleLock = new();
 
 	private readonly int _threadLocalCacheSize;
 
@@ -200,8 +211,58 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	public Utf8JsonWriter Rent(IBufferWriter<byte> bufferWriter, JsonWriterOptions? options = null)
 	{
 		ArgumentNullException.ThrowIfNull(bufferWriter);
+		// Disposal is observed through the volatile _disposed flag, not by holding the pool-wide
+		// lifecycle lock for the whole rental. That lock used to wrap RentCore, which put TWO things
+		// inside it that touch no shared state: the thread-local cache hit, which reads a per-thread
+		// array and is the entire reason the cache exists, and the construction of a new writer on a
+		// total miss, which extended the hold time for every waiter. With one serializer singleton
+		// there is one pool and one lock, so every message in the process paid it twice -- once here
+		// and once on return -- and throughput ceilinged at one-over-the-hold-time regardless of core
+		// count.
+		//
+		// SCOPE, because the paragraph above otherwise reads as unconditional: what is now
+		// lock-free is a WARM THREAD-LOCAL HIT. A cold thread's first rent, and every rent when
+		// threadLocalCacheSize is 0 -- a supported setting, the documented range is 0 to 32 --
+		// still consults the global pool under the lifecycle lock. The win is real on the path a
+		// steady workload takes, and it is not universal.
+		//
+		// Residual race, stated rather than hidden: a Dispose concurrent with a rental may now complete
+		// between this check and the cache access, in which case ThreadLocal.Value throws
+		// ObjectDisposedException -- the same exception type a caller renting from a disposed pool
+		// already expects, from a different line. Renting concurrently with disposal is a host
+		// teardown-ordering fault either way, and this is the shape the BCL's own disposable caches
+		// take: a flag check, not a monitor on the hot path.
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		var writer = RentCore(bufferWriter, options, out var fromThreadLocal);
 
+		// Meter listeners are caller code and must not run inside the ownership lock.
+		try
+		{
+			RecordRental(fromThreadLocal);
+		}
+		catch
+		{
+			// The caller never received this exclusively held lease.
+			writer.Dispose();
+			throw;
+		}
+		
+		// COUNT LEASES, NOT ATTEMPTS (I4). This sits on the path that actually hands a writer to
+		// the caller, after RecordRental has succeeded, so no throw out of RentCore and no throw
+		// out of a meter listener can leave a counted rent that was never issued. GetHealth
+		// derives ActiveWriters as TotalRented - TotalReturned, nothing decrements _totalRented,
+		// and Clear does not reset counters -- so an increment on a failed rental drifted the
+		// health reading upward permanently, eventually reporting Critical with zero writers
+		// outstanding. A statistics read taken mid-rent now UNDER-counts instead, so the reading
+		// errs toward Healthy: a transient false-healthy beats a permanent false-critical for a
+		// diagnostic that exists to be trusted.
 		_ = Interlocked.Increment(ref _totalRented);
+		return writer;
+	}
+
+	private Utf8JsonWriter RentCore(IBufferWriter<byte> bufferWriter, JsonWriterOptions? options, out bool fromThreadLocal)
+	{
+
 		var requestedOptions = options ?? _defaultOptions;
 
 		// Pooled writers report their options through Utf8JsonWriter.Options, which the BCL has
@@ -220,23 +281,35 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			{
 				_ = Interlocked.Increment(ref _threadLocalHits);
 				writer.Reset(bufferWriter);
-				RecordRental(fromThreadLocal: true);
+				fromThreadLocal = true;
 				return writer;
 			}
 
 			_ = Interlocked.Increment(ref _threadLocalMisses);
 		}
 
-		// Slow path: Try global pool
-		if (TryRentFromGlobalPool(bufferWriter, matchOptions, out var pooledWriter))
+		// Slow path: the global pool. THIS consult keeps the lifecycle lock, and it is the one place
+		// in a rental that takes it, and the reason is OPTIMALITY RATHER THAN SAFETY -- stated
+		// plainly so nobody later cites it as load-bearing for correctness. ConcurrentQueue already
+		// hands each item to exactly one dequeuer, so no ownership or disposal property depends on
+		// this lock. What it buys is the bucket scan's bound: the scan rotates mismatches back into
+		// the queue,
+		// bounded by the count read on entry, and that bound is only sound while the population is
+		// stable. TryRentFromGlobalPool says so in its own comment. Hoisting this out as well would
+		// turn a correct scan into one that can miss a matching writer and allocate instead.
+		lock (_lifecycleLock)
 		{
-			RecordRental(fromThreadLocal: false);
-			return pooledWriter;
+			ObjectDisposedException.ThrowIf(_disposed, this);
+			if (TryRentFromGlobalPool(bufferWriter, matchOptions, out var pooledWriter))
+			{
+				fromThreadLocal = false;
+				return pooledWriter;
+			}
 		}
 
 		// Create new writer
 		var newWriter = new Utf8JsonWriter(bufferWriter, requestedOptions);
-		RecordRental(fromThreadLocal: false);
+		fromThreadLocal = false;
 		return newWriter;
 	}
 #pragma warning restore CA2000
@@ -246,53 +319,68 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	public void ReturnToPool(Utf8JsonWriter writer)
 	{
 		ArgumentNullException.ThrowIfNull(writer);
-
 		_ = Interlocked.Increment(ref _totalReturned);
-
+		var retained = false;
+		var toThreadLocal = false;
 		try
 		{
-			// Flush any pending data
+			// Flush may call the caller's buffer writer. Ownership transfers only afterward.
 			writer.Flush();
-
-			// Try thread-local cache first
-			if (_threadLocalCacheSize > 0)
+			if (!_disposed)
 			{
-				var cache = _threadLocalCache.Value!;
-				if (cache.TryReturn(writer))
+				// Returning to the per-thread cache touches no pool-wide state, so it does not take the
+				// lifecycle lock. Returning to the GLOBAL pool does, for the same population-stability
+				// reason the rent-side consult does.
+				if (_threadLocalCacheSize > 0 && _threadLocalCache.Value!.TryReturn(writer))
 				{
-					RecordReturn(toThreadLocal: true);
-					return;
+					retained = true;
+					toThreadLocal = true;
+				}
+				else
+				{
+					lock (_lifecycleLock)
+					{
+						if (!_disposed)
+						{
+							retained = TryReturnToGlobalPool(writer);
+						}
+					}
 				}
 			}
 
-			// Try global pool
-			if (TryReturnToGlobalPool(writer))
+			if (!retained)
 			{
-				RecordReturn(toThreadLocal: false);
-				return;
+				writer.Dispose();
 			}
 
-			// Pool is full, dispose the writer
-			writer.Dispose();
-			RecordReturn(toThreadLocal: false);
+			RecordReturn(toThreadLocal);
 		}
 		catch
 		{
-			// If anything goes wrong, just dispose the writer
-			writer.Dispose();
+			// A listener failure after transfer must not dispose a pooled or re-rented writer.
+			if (!retained)
+			{
+				writer.Dispose();
+			}
 		}
 	}
 
 	/// <inheritdoc />
 	public void Clear()
 	{
-		// Clear thread-local caches
-		if (_threadLocalCache.IsValueCreated)
+		lock (_lifecycleLock)
 		{
-			foreach (var cache in _threadLocalCache.Values)
-			{
-				cache?.Clear();
-			}
+			ObjectDisposedException.ThrowIf(_disposed, this);
+			ClearCore();
+		}
+	}
+
+	private void ClearCore()
+	{
+		// Values covers every tracked thread, even if this thread never rented.
+		foreach (var cache in _threadLocalCache.Values)
+		{
+			cache.Clear();
 		}
 
 		// Clear global pool
@@ -333,25 +421,29 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			throw new ArgumentOutOfRangeException(nameof(count), Resources.Utf8JsonWriterPool_CountMustBeGreaterThanZero);
 		}
 
-		switch (strategy)
+		lock (_lifecycleLock)
 		{
-			case PreWarmStrategy.ThreadLocal:
-				PreWarmThreadLocal(count);
-				break;
-
-			case PreWarmStrategy.Global:
-				PreWarmGlobal(count);
-				break;
-
-			case PreWarmStrategy.Balanced:
-				var threadLocalCount = Math.Min(count / 4, _threadLocalCacheSize);
-				var globalCount = count - threadLocalCount;
-				PreWarmThreadLocal(threadLocalCount);
-				PreWarmGlobal(globalCount);
-				break;
-
-			default:
-				throw new ArgumentOutOfRangeException(nameof(strategy));
+			ObjectDisposedException.ThrowIf(_disposed, this);
+			switch (strategy)
+			{
+				case PreWarmStrategy.ThreadLocal:
+					PreWarmThreadLocal(count);
+					break;
+	
+				case PreWarmStrategy.Global:
+					PreWarmGlobal(count);
+					break;
+	
+				case PreWarmStrategy.Balanced:
+					var threadLocalCount = Math.Min(count / 4, _threadLocalCacheSize);
+					var globalCount = count - threadLocalCount;
+					PreWarmThreadLocal(threadLocalCount);
+					PreWarmGlobal(globalCount);
+					break;
+	
+				default:
+					throw new ArgumentOutOfRangeException(nameof(strategy));
+			}
 		}
 	}
 
@@ -446,12 +538,24 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 
 		var key = GetOptionsHashCode(requestedOptions);
 
-		if (_globalPool.TryGetValue(key, out var queue) && queue.TryDequeue(out var pooledWriter))
+		if (_globalPool.TryGetValue(key, out var queue))
 		{
-			_ = Interlocked.Decrement(ref _currentPoolSize);
-			pooledWriter.Reset(bufferWriter);
-			writer = pooledWriter;
-			return true;
+			// Hashes select a bucket, not an options identity. The lifecycle lock
+			// keeps this population stable while mismatches rotate back into it.
+			var remaining = queue.Count;
+			while (remaining-- > 0 && queue.TryDequeue(out var pooledWriter))
+			{
+				if (!AreOptionsEqual(pooledWriter.Options, requestedOptions))
+				{
+					queue.Enqueue(pooledWriter);
+					continue;
+				}
+
+				_ = Interlocked.Decrement(ref _currentPoolSize);
+				pooledWriter.Reset(bufferWriter);
+				writer = pooledWriter;
+				return true;
+			}
 		}
 
 		return false;
@@ -509,8 +613,13 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			return;
 		}
 
-		lock (_sizingLock)
+		lock (_lifecycleLock)
 		{
+			if (_disposed)
+			{
+				return;
+			}
+
 			var stats = GetStatistics();
 			var utilizationRate = (double)stats.CurrentPoolSize / MaxPoolSize;
 
@@ -556,7 +665,10 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			// Dispose objects before losing scope - Writer is managed by the cache
 #pragma warning disable CA2000
 			var writer = new Utf8JsonWriter(dummyBuffer, _defaultOptions);
-			_ = cache.TryReturn(writer);
+			if (!cache.TryReturn(writer))
+			{
+				writer.Dispose();
+			}
 #pragma warning restore CA2000
 		}
 	}
@@ -636,21 +748,19 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	/// </summary>
 	public void Dispose()
 	{
-		if (_disposed)
+		lock (_lifecycleLock)
 		{
-			return;
-		}
+			if (_disposed)
+			{
+				return;
+			}
 
-		_adaptiveSizeTimer?.Dispose();
-
-		Clear();
-
-		if (_threadLocalCache.IsValueCreated)
-		{
+			_disposed = true;
+			// Nonblocking shutdown: an already queued callback takes this lock and observes disposal.
+			_adaptiveSizeTimer?.Dispose();
+			ClearCore();
 			_threadLocalCache.Dispose();
 		}
-
-		_disposed = true;
 	}
 
 	/// <summary>
@@ -659,47 +769,87 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	private sealed class WriterCache(int maxSize)
 	{
 		private readonly PooledWriterEntry[] _cache = new PooledWriterEntry[maxSize];
+
+		// This cache is per-thread for TryRent and TryReturn and POOL-WIDE for Clear: ClearCore
+		// walks ThreadLocal.Values (tracked) and clears every thread's cache, including threads
+		// that never rented. So the array below is reachable from a foreign thread and every
+		// access to it owes mutual exclusion -- it has a plain int count and no concurrency
+		// guarantees of its own.
+		//
+		// That exclusion used to come incidentally from the pool-wide lifecycle lock, because all
+		// three callers ran under it. Taking the rent and return paths off that lock for throughput
+		// left Clear holding a lock the other two no longer took, which excludes nothing: a
+		// foreign Clear could land between the options match and the Array.Copy below and leave
+		// the copy with a negative length, or dispose a writer already promised to a caller.
+		//
+		// The gate restores the invariant at PER-THREAD granularity. Uncontended in the common
+		// case -- only a cross-thread Clear contends, and only with one thread at a time -- so N
+		// threads get N independent gates and there is no pool-wide ceiling. This is the shape the
+		// BCL uses for a per-core bucket rather than a pool-wide monitor.
+		// LOCK ORDER (I2): never acquire the pool's _lifecycleLock while holding this gate. See the
+		// comment on that field for why, and for the one edit that would create a cycle.
+		private readonly Lock _gate = new();
+
 		private int _count;
 
 		public Utf8JsonWriter? TryRent(JsonWriterOptions requestedOptions)
 		{
-			for (var i = 0; i < _count; i++)
+			lock (_gate)
 			{
-				if (AreOptionsEqual(_cache[i].Options, requestedOptions))
+				for (var i = 0; i < _count; i++)
 				{
-					var writer = _cache[i].Writer;
+					if (AreOptionsEqual(_cache[i].Options, requestedOptions))
+					{
+						var writer = _cache[i].Writer;
 
-					// Shift remaining items
-					Array.Copy(_cache, i + 1, _cache, i, _count - i - 1);
-					_count--;
+						// Shift remaining items
+						Array.Copy(_cache, i + 1, _cache, i, _count - i - 1);
+						_cache[--_count] = default;
 
-					return writer;
+						return writer;
+					}
 				}
-			}
 
-			return null;
+				return null;
+			}
 		}
 
 		public bool TryReturn(Utf8JsonWriter writer)
 		{
-			if (_count >= maxSize)
+			lock (_gate)
 			{
-				return false;
-			}
+				if (_count >= maxSize)
+				{
+					return false;
+				}
 
-			writer.Reset(DetachedBuffer);
-			_cache[_count++] = new PooledWriterEntry(writer, writer.Options);
-			return true;
+				// ORDERING (I3): rebind BEFORE the store, and both inside the gate. This is the only
+				// store site into _cache, so this line is what guarantees the array never holds a
+				// writer still bound to a caller's buffer. Store-then-rebind, or moving this Reset
+				// outside the gate, opens a window where a foreign-thread Clear reaches a caller-bound
+				// writer and flushes its pending bytes INTO THE CALLER'S BUFFER, then detaches it
+				// mid-serialization. Wrong bytes in someone else's buffer, with no exception raised
+				// anywhere -- the only byte-level failure mode in this class, and the one the gate alone
+				// does not prevent. The global path holds the same property: TryReturnToGlobalPool
+				// resets to DetachedBuffer before it enqueues.
+				writer.Reset(DetachedBuffer);
+				_cache[_count++] = new PooledWriterEntry(writer, writer.Options);
+				return true;
+			}
 		}
 
 		public void Clear()
 		{
-			for (var i = 0; i < _count; i++)
+			lock (_gate)
 			{
-				_cache[i].Writer.Dispose();
-			}
+				for (var i = 0; i < _count; i++)
+				{
+					_cache[i].Writer.Dispose();
+					_cache[i] = default;
+				}
 
-			_count = 0;
+				_count = 0;
+			}
 		}
 	}
 

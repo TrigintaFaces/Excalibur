@@ -31,7 +31,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// Proven against a real Oracle (a mock cannot reproduce the MERGE match / WHERE predicate) and never skipped
 /// (<c>DockerAvailable.ShouldBeTrue</c>). Uses an isolated table whose PK is the full composite
 /// <c>(SagaId, TenantId)</c> so two tenants can hold the same <c>SagaId</c> as distinct rows — otherwise the
-/// canonical <c>SagaId</c>-only PK would collide before the tenant predicate is even exercised.
+/// <c>SagaId</c>-only PK would collide before the tenant predicate is even exercised.
 /// <para>
 /// <b>Safety:</b> tenant B cannot load tenant A's saga by id. <b>Liveness:</b> tenant A still loads its own
 /// saga (the predicate scopes to — never scopes away — the owning tenant). RED on the mutant that drops the
@@ -141,6 +141,10 @@ public sealed class OracleSagaStoreTenantIsolationShould : IClassFixture<OracleS
 				SagaId RAW(16) NOT NULL,
 				SagaType VARCHAR2(500) NOT NULL,
 				StateJson CLOB NOT NULL,
+				TimerRecoveryIncarnation VARCHAR2(32 CHAR) NULL,
+				TimerRecoveryTracked NUMBER(1) DEFAULT 0 NOT NULL,
+				TimerRecoveryPendingBatch VARCHAR2(32 CHAR) NULL,
+				TimerRecoveryPendingDigest VARCHAR2(64 CHAR) NULL,
 				IsCompleted NUMBER(1) DEFAULT 0 NOT NULL,
 				TenantId VARCHAR2(200) NOT NULL,
 				Version NUMBER(19) DEFAULT 0 NOT NULL,

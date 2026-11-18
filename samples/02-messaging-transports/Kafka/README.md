@@ -130,17 +130,14 @@ Multiple application instances can share message processing:
 
 ### Compression
 
-The sample uses Snappy compression (`KafkaCompressionType.Snappy`) for:
-- Reduced network bandwidth
-- Better throughput for high-volume scenarios
-- Minimal CPU overhead
+The sample uses Snappy compression (`KafkaCompressionType.Snappy`). Measure compressed size, CPU cost and completed throughput with the actual payloads.
 
 ### Acknowledgments
 
 With `KafkaAckLevel.All`:
 - Messages are acknowledged only after all replicas confirm
 - Provides strongest durability guarantee
-- Trade-off: slightly higher latency
+- Acknowledgment latency depends on replication and deployment; measure it with the required durability settings.
 
 ## Scaling
 

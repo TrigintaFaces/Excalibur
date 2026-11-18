@@ -29,6 +29,11 @@ public sealed class UpdateAggregateStatusRequest : DataRequestBase<IDbConnection
 	/// <param name="messageId">The message ID to update.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public UpdateAggregateStatusRequest(
 		string outboxTableName,
 		string transportsTableName,
@@ -74,6 +79,9 @@ public sealed class UpdateAggregateStatusRequest : DataRequestBase<IDbConnection
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			await StaticDbCommand.ExecuteAsync(connection, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+			}).ConfigureAwait(false);
 	}
 }

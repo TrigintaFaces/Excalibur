@@ -923,6 +923,12 @@ All five transports implement the `IDeadLetterQueueManager` interface from `Exca
 
 See the [Transports](../transports/index.md#dead-letter-queue-support) page for configuration details and code examples.
 
+## SQL Server replay mutation outcomes
+
+SQL Server dead-letter replay authorizes delivery only when its tenant-scoped conditional claim updates exactly one row. The store captures that mutation's count in a named output parameter immediately after the update. Session `SET NOCOUNT ON`, trigger-generated row counts and trigger result sets do not authorize another delivery. You do not need to disable `NOCOUNT` on your connections.
+
+A losing claim returns `false` without invoking the replay handler. If the update throws or rolls back, the handler is not invoked. Claim release and purge use the same explicit mutation outcome. This preserves the existing replay recovery model; a process crash after claiming still requires the documented operator recovery procedure and does not imply exactly-once delivery.
+
 ## Related Patterns
 
 - [Outbox Pattern](outbox.md) - Reliable message publishing

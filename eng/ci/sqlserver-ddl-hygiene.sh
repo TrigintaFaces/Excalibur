@@ -137,7 +137,25 @@ fence_count() {
 # A file is SQL Server if it uses T-SQL constructs no other dialect has.
 is_sqlserver() {
     local f="$1"
-    grep -qiE 'NVARCHAR|\[dbo\]|^\s*GO\s*$|sys\.(objects|columns|indexes)' "$f" 2>/dev/null
+    # `NVARCHAR[^2]` RATHER THAN `NVARCHAR`: the bare form has no boundary, so it matches ORACLE's
+    # NVARCHAR2 as a substring and classified a pure PL/SQL file as T-SQL. Measured on
+    # src/Excalibur/Excalibur.Saga.Oracle/Scripts/03-SagaTimerRecovery.sql -- an anonymous PL/SQL
+    # block using VARCHAR2, NUMBER, RAW(16), EXECUTE IMMEDIATE and ALL_TABLES, whose only match was
+    # `NVARCHAR2(500)` and which carried none of the other three markers. It was reported as missing
+    # SET QUOTED_IDENTIFIER ON, a T-SQL directive that is a syntax ERROR in Oracle, so the only
+    # available "fix" would have broken the script. That is the cry-wolf failure this gate's own SCOPE
+    # header says the dialect test exists to prevent.
+    #
+    # Verified not to cost coverage: every SQL Server script that matched before still matches, and
+    # SqlServer/Scripts/005 (the file carrying the two REAL violations) matches 6 times.
+    #
+    # SEPARATE PRE-EXISTING BLIND SPOT, recorded here and NOT fixed in this change because widening
+    # the detector surfaces an unbounded new population mid-task: a T-SQL script using only
+    # COL_LENGTH / BIT / N'' literals matches none of the four markers and is invisible to this gate.
+    # Excalibur.Saga.SqlServer/Scripts/05-SagaTimerRecoveryState.sql is such a file -- it scored 0
+    # under the OLD pattern too, so this change neither causes nor worsens it. It has no tenant
+    # column and no filtered index, so no violation is currently hidden by it.
+    grep -qiE 'NVARCHAR[^2]|\[dbo\]|^\s*GO\s*$|sys\.(objects|columns|indexes)' "$f" 2>/dev/null
 }
 
 # A filtered index is an index carrying a WHERE. It appears in TWO forms and this predicate must

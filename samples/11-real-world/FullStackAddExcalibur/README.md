@@ -65,11 +65,17 @@ introduced in the builder-unification epic.
 | # | Subsystem | How it's wired |
 |---|-----------|----------------|
 | 1 | Event Sourcing   | `excalibur.AddEventSourcing(es => es.UseSqlServer(...))` |
-| 2 | Transactional Outbox | `excalibur.AddOutbox(outbox => outbox.UseSqlServer(...))` |
+| 2 | Transactional Outbox | `excalibur.AddOutbox(outbox => outbox.UseSqlServer(...).WithSqlServerDeadLetterQueue(...))` |
 | 3 | CDC (Change Data Capture) | `excalibur.AddCdc(cdc => cdc.UseSqlServer(...))` — composition only; see note below |
 | 4 | IdentityMap (ACL ID mapping) | `excalibur.AddIdentityMap(identity => identity.UseSqlServer(...))` |
 | 5 | ElasticSearch projections | `services.AddElasticSearchProjections(...)` (composes alongside) |
 | 6 | DataProcessing pipeline | `services.AddDataProcessor<T>(config, section).EnableDataProcessingBackgroundService(...)` |
+
+> **Note on the dead-letter queue (row 2).** It is required, not optional. The default outbox
+> processor resolves `IDeadLetterQueue` and throws when none is registered, so an outbox armed
+> without one compiles and then fails on its first poll. Registering it is what gives an exhausted
+> message somewhere to go instead of being dropped silently. To discard exhausted messages instead,
+> register `NullDeadLetterQueue.Instance` explicitly, so discard is a choice rather than an accident.
 
 > **Note on CDC (row 3).** This sample composes the CDC builder but does **not** call
 > `EnableBackgroundProcessing()`, because it ships no `IDataChangeHandler`.

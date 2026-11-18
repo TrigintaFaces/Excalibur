@@ -1,118 +1,84 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Collections.Concurrent;
+
 using Excalibur.Data.Sharding;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Excalibur.EventSourcing.Sharding;
 
-/// <summary>
-/// Health check that verifies connectivity to all configured tenant data shards.
-/// </summary>
+/// <summary>Reads each registered physical event-store shard using its provider's readiness binding.</summary>
 /// <remarks>
-/// <para>
-/// Reports <see cref="HealthStatus.Healthy"/> when all shards are reachable,
-/// <see cref="HealthStatus.Degraded"/> when some shards are unreachable,
-/// and <see cref="HealthStatus.Unhealthy"/> when no shards are reachable.
-/// </para>
+/// All reads passing is Healthy, partial failure is Degraded, and no successful read is Unhealthy.
+/// Missing readiness capabilities cannot report Healthy. This proves provider-specific read access,
+/// not write access, tenant isolation, or schema integrity on an empty schemaless store.
 /// </remarks>
 internal sealed class TenantShardHealthCheck : IHealthCheck
 {
 	private readonly ITenantShardMap _shardMap;
-	private readonly ITenantStoreResolver<IEventStore>? _eventStoreResolver;
+	private readonly ITenantShardReadinessProbe? _probe;
+	private readonly bool _resolverAvailable;
+	private readonly int _maxConcurrentProbes;
 
-	internal TenantShardHealthCheck(
-		ITenantShardMap shardMap,
-		ITenantStoreResolver<IEventStore>? eventStoreResolver = null)
+	internal TenantShardHealthCheck(ITenantShardMap shardMap,
+		ITenantStoreResolver<IEventStore>? eventStoreResolver = null, int maxConcurrentProbes = 4)
 	{
-		ArgumentNullException.ThrowIfNull(shardMap);
-		_shardMap = shardMap;
-		_eventStoreResolver = eventStoreResolver;
+		_shardMap = shardMap ?? throw new ArgumentNullException(nameof(shardMap));
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrentProbes);
+		_probe = eventStoreResolver as ITenantShardReadinessProbe;
+		_resolverAvailable = eventStoreResolver is not null;
+		_maxConcurrentProbes = maxConcurrentProbes;
 	}
 
-	/// <inheritdoc />
-	public Task<HealthCheckResult> CheckHealthAsync(
-		HealthCheckContext context,
-		CancellationToken cancellationToken = default)
+	public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
 		var data = new Dictionary<string, object>
 		{
 			["shardMapType"] = _shardMap.GetType().Name,
-			["resolverAvailable"] = _eventStoreResolver is not null
+			["probeAvailable"] = _probe is not null,
+			["resolverAvailable"] = _resolverAvailable,
+			["maxConcurrentProbes"] = _maxConcurrentProbes
 		};
-
 		try
 		{
-			var shardIds = _shardMap.GetRegisteredShardIds();
-			data["registeredShards"] = shardIds.Count;
-
-			if (_eventStoreResolver is null)
+			var ids = _shardMap.GetRegisteredShardIds().Distinct(StringComparer.Ordinal).ToArray();
+			data["registeredShards"] = ids.Length;
+			if (ids.Length == 0)
 			{
-				// No resolver available -- we can only verify the shard map itself
-				data["detail"] = "No ITenantStoreResolver registered; shard map enumeration only.";
-				return Task.FromResult(HealthCheckResult.Healthy(
-					$"Shard map operational with {shardIds.Count} shard(s) (resolver not configured).", data));
+				return HealthCheckResult.Unhealthy("No physical shards are registered.", data: data);
 			}
-
-			if (shardIds.Count == 0)
+			if (_probe is null)
 			{
-				return Task.FromResult(HealthCheckResult.Unhealthy(
-					"No shards registered in the shard map.", data: data));
+				return HealthCheckResult.Unhealthy("The tenant event-store resolver supplies no physical-shard readiness probe; database reads were not verified.", data: data);
 			}
-
-			// Probe each shard by resolving its event store through the resolver.
-			// ShardInfo.ShardId is used as the tenantId probe because providers
-			// typically map shard IDs directly for self-check purposes.
-			var healthy = new List<string>();
-			var unhealthy = new List<string>();
-
-			foreach (var shardId in shardIds)
-			{
-				try
+			var failures = new ConcurrentDictionary<string, Exception>(StringComparer.Ordinal);
+			await Parallel.ForEachAsync(ids,
+				new ParallelOptions { CancellationToken = cancellationToken, MaxDegreeOfParallelism = _maxConcurrentProbes },
+				async (id, token) =>
 				{
-					// Attempt to resolve the event store for this shard.
-					// This validates that the shard's connection/configuration is functional.
-					_eventStoreResolver.Resolve(shardId);
-					healthy.Add(shardId);
-				}
-#pragma warning disable CA1031 // Health check must report per-shard failures, not throw
-				catch (Exception)
-#pragma warning restore CA1031
-				{
-					unhealthy.Add(shardId);
-				}
-			}
-
-			data["healthyShards"] = healthy.Count;
-			data["unhealthyShards"] = unhealthy.Count;
-
-			if (unhealthy.Count > 0)
+					try { await _probe.ProbeShardAsync(id, token).ConfigureAwait(false); }
+					catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+					catch (Exception error) { failures[id] = error; }
+				}).ConfigureAwait(false);
+			cancellationToken.ThrowIfCancellationRequested();
+			var failed = failures.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToArray();
+			data["healthyShards"] = ids.Length - failed.Length;
+			data["unhealthyShards"] = failed.Length;
+			if (failed.Length == 0)
 			{
-				data["failedShardIds"] = string.Join(", ", unhealthy);
+				return HealthCheckResult.Healthy($"All {ids.Length} physical shard(s) served their readiness read.", data);
 			}
-
-			if (unhealthy.Count == shardIds.Count)
-			{
-				return Task.FromResult(HealthCheckResult.Unhealthy(
-					$"All {shardIds.Count} shard(s) are unreachable.", data: data));
-			}
-
-			if (unhealthy.Count > 0)
-			{
-				return Task.FromResult(HealthCheckResult.Degraded(
-					$"{healthy.Count}/{shardIds.Count} shard(s) reachable, {unhealthy.Count} unreachable.", data: data));
-			}
-
-			return Task.FromResult(HealthCheckResult.Healthy(
-				$"All {shardIds.Count} shard(s) are reachable.", data));
+			data["failedShardIds"] = string.Join(", ", failed.Select(pair => pair.Key));
+			var cause = new AggregateException(failed.Select(pair =>
+				new InvalidOperationException($"Physical shard '{pair.Key}' readiness read failed.", pair.Value)));
+			return failed.Length == ids.Length
+				? HealthCheckResult.Unhealthy($"All {ids.Length} physical shard(s) refused their readiness read.", cause, data)
+				: HealthCheckResult.Degraded($"{ids.Length - failed.Length}/{ids.Length} physical shard(s) served their readiness read.", cause, data);
 		}
-#pragma warning disable CA1031 // Health checks must not throw
-		catch (Exception ex)
-#pragma warning restore CA1031
-		{
-			return Task.FromResult(HealthCheckResult.Unhealthy(
-				"Tenant shard health check failed.", ex, data));
-		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+		catch (Exception error) { return HealthCheckResult.Unhealthy("Tenant shard readiness check failed.", error, data); }
 	}
 }

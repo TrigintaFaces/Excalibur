@@ -29,13 +29,27 @@ public sealed class SqlServerContainerFixture : ContainerFixtureBase, IDatabaseC
 	/// <inheritdoc/>
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
-		_container = new MsSqlBuilder()
+		var ownerToken = Environment.GetEnvironmentVariable("DISPATCH_BENCHMARK_OWNER_TOKEN");
+		if (ownerToken is not null && (ownerToken.Length != 32 ||
+		    ownerToken.Any(character => character is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))))
+		{
+		    throw new InvalidOperationException("DISPATCH_BENCHMARK_OWNER_TOKEN must be 32 lowercase hexadecimal characters.");
+		}
+
+		var builder = new MsSqlBuilder()
 			.WithBoundedMemory()
 			.WithImage(TestContainerImages.SqlServer2022)
 			.WithName($"mssql-test-{Guid.NewGuid():N}")
 			.WithPassword("Test@Pass123")
-			.WithCleanUp(true)
-			.Build();
+			.WithCleanUp(true);
+		if (ownerToken is not null)
+		{
+			builder = builder.WithLabel("dispatch.benchmark.owner", ownerToken)
+				.WithLabel("dispatch.benchmark.fixture", nameof(SqlServerContainerFixture))
+				.WithCreateParameterModifier(parameters => parameters.HostConfig.Memory = 4L * 1024 * 1024 * 1024);
+		}
+
+		_container = builder.Build();
 
 		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
 	}

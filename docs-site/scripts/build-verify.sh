@@ -24,10 +24,13 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 2
 
-# $$ is this shell's PID: unique per invocation, so two concurrent verifications cannot collide.
+# Retained failures outlive their process, so a PID is not a unique output identity.
 # Kept inside docs-site because --out-dir is resolved relative to the site directory.
-OUT="build-verify-$$"
-trap 'rm -rf "$OUT"' EXIT
+SITE="$(pwd -P)" || exit 2
+OUT="$(mktemp -d build-verify-XXXXXX)" || exit 2
+OUT_NAME="$OUT"
+ALLOCATED_OUT="$(cd "$OUT" && pwd -P)" || exit 2
+[ "$ALLOCATED_OUT" = "$SITE/$OUT_NAME" ] && [[ "$OUT_NAME" == build-verify-* ]] && [[ "$OUT_NAME" != */* ]] || exit 2
 
 # CI=true makes Docusaurus treat broken links as errors rather than warnings, matching what the
 # deploy job does -- a verification that is more permissive than CI verifies the wrong thing.
@@ -35,9 +38,14 @@ CI=true DOCUSAURUS_STRICT_LINKS=true npx docusaurus build --out-dir "$OUT"
 rc=$?
 
 if [ "$rc" -ne 0 ]; then
-	echo "::error::docs-site build FAILED (exit $rc). Output was isolated in $OUT; it has been removed."
+	echo "::error::docs-site build FAILED (exit $rc). Output retained at $PWD/$OUT."
 	exit "$rc"
 fi
+
+# Verify the final resolved target immediately before recursive deletion.
+RESOLVED_OUT="$(cd "$OUT" && pwd -P)" || exit 2
+[ "$RESOLVED_OUT" = "$SITE/$OUT_NAME" ] || exit 2
+rm -rf -- "$RESOLVED_OUT" || exit $?
 
 echo "docs-site build: PASS (isolated output, no shared-directory collision possible)"
 exit 0

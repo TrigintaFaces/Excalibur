@@ -77,7 +77,8 @@ jobs:
           import pathlib, xml.etree.ElementTree as ET
           results = [node for path in pathlib.Path('artifacts/namespace-depth').glob('*.trx')
                      for node in ET.parse(path).iter() if node.tag.endswith('}UnitTestResult')]
-          assert results and all(node.attrib['outcome'] == 'Passed' for node in results), 'Namespace tests did not all execute successfully'
+          minimum_executed_tests = 1  # lane-defined result-count minimum; not an independent identity census
+          assert len(results) >= minimum_executed_tests and all(node.attrib['outcome'] == 'Passed' for node in results), 'Namespace tests did not all execute successfully'
           assert any(node.attrib['testName'].endswith('.KeepProductionNamespacesWithinTheDepthBudget') for node in results), 'Production namespace population was not verified'
           print(f'Namespace validation: {len(results)} passed; preferred depth <=4, depth 5 requires justification, depth >=6 prohibited.')
           PY

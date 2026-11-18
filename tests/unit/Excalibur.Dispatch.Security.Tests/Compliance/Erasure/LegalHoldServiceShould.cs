@@ -419,7 +419,7 @@ public sealed class LegalHoldServiceShould
 		_ = A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(
 			A<string>._,
 			A<string?>._,
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(Array.Empty<LegalHold>());
 
 		// Act
@@ -451,7 +451,7 @@ public sealed class LegalHoldServiceShould
 		_ = A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(
 			A<string>._,
 			A<string?>._,
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(new[] { hold });
 
 		// Act
@@ -497,12 +497,12 @@ public sealed class LegalHoldServiceShould
 		_ = A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(
 			A<string>._,
 			"tenant-1",
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(new[] { subjectHold });
 
 		_ = A.CallTo(() => _queryStore.GetActiveHoldsForTenantAsync(
 			"tenant-1",
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(new[] { subjectHold, tenantHold });
 
 		// Act
@@ -533,12 +533,12 @@ public sealed class LegalHoldServiceShould
 		_ = A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(
 			A<string>._,
 			A<string?>._,
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(new[] { hold });
 
 		_ = A.CallTo(() => _queryStore.GetActiveHoldsForTenantAsync(
 			"tenant-1",
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(new[] { hold }); // Same hold returned
 
 		// Act
@@ -571,7 +571,7 @@ public sealed class LegalHoldServiceShould
 		_ = A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(
 			A<string>._,
 			A<string?>._,
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(new[] { hold });
 
 		// Act
@@ -642,7 +642,7 @@ public sealed class LegalHoldServiceShould
 		// Arrange
 		_ = A.CallTo(() => _queryStore.ListActiveHoldsAsync(
 			A<string?>._,
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(Array.Empty<LegalHold>());
 
 		// Act
@@ -660,7 +660,7 @@ public sealed class LegalHoldServiceShould
 		const string tenantId = "tenant-123";
 		_ = A.CallTo(() => _queryStore.ListActiveHoldsAsync(
 			A<string?>._,
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(Array.Empty<LegalHold>());
 
 		// Act
@@ -669,7 +669,7 @@ public sealed class LegalHoldServiceShould
 		// Assert
 		_ = A.CallTo(() => _queryStore.ListActiveHoldsAsync(
 			tenantId,
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -703,7 +703,7 @@ public sealed class LegalHoldServiceShould
 
 		_ = A.CallTo(() => _queryStore.ListActiveHoldsAsync(
 			A<string?>._,
-			A<CancellationToken>._))
+			A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(holds);
 
 		// Act

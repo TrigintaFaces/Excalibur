@@ -45,21 +45,26 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 	private const string CeTimeoutHeader = "ce_timeout";
 	private const string TraceParentHeader = "traceparent";
 
-	private readonly JsonEventFormatter _jsonFormatter = new();
+	private readonly CloudEventSerializer _serializer;
 	private readonly ILogger<KafkaCloudEventAdapter> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="KafkaCloudEventAdapter" /> class.
 	/// </summary>
 	/// <param name="options"> The CloudEvent configuration options. </param>
+	/// <param name="serializer"> The decided CloudEvents serializer, carrying the resolver the consumer configured. </param>
 	/// <param name="kafkaOptions"> Kafka specific CloudEvent options. </param>
 	/// <param name="logger"> Logger used for diagnostics. </param>
 	public KafkaCloudEventAdapter(
 		IOptions<CloudEventOptions> options,
+		CloudEventSerializer serializer,
 		KafkaCloudEventOptions kafkaOptions,
 		ILogger<KafkaCloudEventAdapter> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
+
+		_serializer = serializer;
 		ArgumentNullException.ThrowIfNull(kafkaOptions);
 		ArgumentNullException.ThrowIfNull(logger);
 
@@ -114,8 +119,6 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 	}
 
 	/// <inheritdoc />
-	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	public async Task<Message<string, string>> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -273,9 +276,7 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 		_ => value.ToString() ?? string.Empty,
 	};
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private static string EncodeBinaryBody(CloudEvent cloudEvent)
+	private string EncodeBinaryBody(CloudEvent cloudEvent)
 	{
 		if (cloudEvent.Data is null)
 		{
@@ -288,7 +289,7 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 			byte[] binary => Convert.ToBase64String(binary),
 			ReadOnlyMemory<byte> memory => Convert.ToBase64String(memory.Span),
 			JsonElement element => element.GetRawText(),
-			_ => JsonSerializer.Serialize(cloudEvent.Data),
+			_ => _serializer.SerializePayload(cloudEvent.Data),
 		};
 	}
 
@@ -451,15 +452,13 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 
 	private void EncodeStructuredMessage(CloudEvent cloudEvent, Message<string, string> message)
 	{
-		var payload = _jsonFormatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
+		var payload = _serializer.Formatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
 		message.Value = Encoding.UTF8.GetString(payload.Span);
 
 		var mediaType = contentType?.MediaType ?? StructuredContentType;
 		AddHeader(message.Headers, ContentTypeHeader, mediaType);
 	}
 
-	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Transport.Kafka.CloudEvents.KafkaCloudEventAdapter.EncodeBinaryBody(CloudEvent)")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Transport.Kafka.CloudEvents.KafkaCloudEventAdapter.EncodeBinaryBody(CloudEvent)")]
 	private void EncodeBinaryMessage(CloudEvent cloudEvent, Message<string, string> message)
 	{
 		var headers = message.Headers;
@@ -555,7 +554,7 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 		}
 
 		var payload = Encoding.UTF8.GetBytes(transportMessage.Value);
-		return _jsonFormatter.DecodeStructuredModeMessage(payload, contentType, extensionAttributes: null);
+		return _serializer.Formatter.DecodeStructuredModeMessage(payload, contentType, extensionAttributes: null);
 	}
 
 	private void ApplyDispatchEnvelopeHeaders(Headers headers, CloudEvent cloudEvent)

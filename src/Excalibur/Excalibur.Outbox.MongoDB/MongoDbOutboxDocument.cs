@@ -174,6 +174,12 @@ internal sealed class MongoDbOutboxDocument
 	public string? GroupKey { get; set; }
 
 	/// <summary>
+	/// Gets or sets the exact consumer-supplied sequence value; zero means unsequenced.
+	/// </summary>
+	[BsonElement("sequenceNumber")]
+	public long SequenceNumber { get; set; }
+
+	/// <summary>
 	/// Gets or sets the consumer-supplied comma-separated target transports for multi-transport delivery.
 	/// </summary>
 	[BsonElement("targetTransports")]
@@ -229,6 +235,7 @@ internal sealed class MongoDbOutboxDocument
 			Priority = message.Priority,
 			PartitionKey = message.PartitionKey,
 			GroupKey = message.GroupKey,
+			SequenceNumber = message.SequenceNumber,
 			TargetTransports = message.TargetTransports,
 			IsMultiTransport = message.IsMultiTransport
 		};
@@ -251,6 +258,7 @@ internal sealed class MongoDbOutboxDocument
 			SentAt = SentAt,
 			Status = (OutboxStatus)Status,
 			RetryCount = RetryCount,
+			DispatcherId = LeasedBy,
 			LastError = LastError,
 			LastAttemptAt = LastAttemptAt,
 			CorrelationId = CorrelationId,
@@ -259,6 +267,7 @@ internal sealed class MongoDbOutboxDocument
 			Priority = Priority,
 			PartitionKey = PartitionKey,
 			GroupKey = GroupKey,
+			SequenceNumber = SequenceNumber,
 			TargetTransports = TargetTransports,
 			IsMultiTransport = IsMultiTransport,
 			Headers = Headers.Count > 0

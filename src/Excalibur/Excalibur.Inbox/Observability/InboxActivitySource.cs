@@ -15,7 +15,9 @@ namespace Excalibur.Inbox.Observability;
 /// when available.
 /// </para>
 /// <para>
-/// When no listener is attached, all operations are no-ops with zero allocation overhead.
+/// Activity creation depends on listeners and their sampling decisions.
+/// Start helpers return null when no activity is created and skip their activity-tag updates in that case.
+/// This does not guarantee zero allocation for callers or initialization.
 /// </para>
 /// <para>
 /// All inbox provider packages (SqlServer, Postgres, MongoDB, Redis, ElasticSearch,

@@ -32,6 +32,8 @@ public sealed class ScheduleExecutionSnapshot
 		CorrelationId = message.CorrelationId,
 		CronExpression = message.CronExpression,
 		TimeZoneId = message.TimeZoneId,
+		CronRecurrenceProfileId = message.CronRecurrenceProfileId,
+		CronRecurrenceProfileVersion = message.CronRecurrenceProfileVersion,
 		Interval = message.Interval,
 		NextExecutionUtc = message.NextExecutionUtc,
 		Enabled = message.Enabled,

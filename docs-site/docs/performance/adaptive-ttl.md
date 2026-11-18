@@ -166,12 +166,14 @@ timings and the effect of changing defaults on historical comparisons
 ([discussion](https://github.com/dotnet/BenchmarkDotNet/issues/3266)). That is one
 possible contributor here, not an established explanation for the observed variance.
 
-The current implementation passes **241 caching tests**, including cumulative
+The October 19 implementation passed **241 caching tests**, including cumulative
 logging, concurrent rule application, partial arithmetic failure and diagnostic
 eviction/readmission. An executed win-x64 NativeAOT consumer verifies 10,000 unique
 strategy contexts and 10,000 public cache set/get/remove cycles, including real DI
 and options validation. This verifies the exercised behavior, not native timing or
-whole-framework AOT compatibility.
+whole-framework AOT compatibility. These test and native execution results belong
+to that historical source and toolchain epoch; they do not certify the current
+worktree or later dependency versions.
 
 All four unchanged fresh-GUID writer cases were also exercised for 4,096 calls each.
 Strategy tracking stayed at its 1,024-key limit; all 4,096 written values and the

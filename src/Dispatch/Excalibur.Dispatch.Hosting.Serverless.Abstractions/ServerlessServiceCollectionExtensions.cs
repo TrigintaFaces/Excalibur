@@ -32,14 +32,10 @@ public static class ServerlessServiceCollectionExtensions
 		// Register core services
 		services.TryAddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
 
-		// Register validator
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<ServerlessHostOptions>, ServerlessHostOptionsValidator>());
-
 		// Fail fast at startup if the options are invalid (parity with the IConfiguration overload).
 		// All provider Add* methods (AddAwsLambdaHosting/AddAzureFunctionsHosting/AddGoogleCloudFunctionsHosting)
 		// delegate here, so without this they would never validate-on-start.
-		_ = services.AddOptions<ServerlessHostOptions>().ValidateOnStart();
+		_ = services.AddValidatedServerlessHostOptions();
 
 		// Configure options if provided
 		if (configureOptions != null)
@@ -69,12 +65,8 @@ public static class ServerlessServiceCollectionExtensions
 		// Register core services
 		services.TryAddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
 
-		// Register validator
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<ServerlessHostOptions>, ServerlessHostOptionsValidator>());
-
 		// Bind options from configuration
-		_ = services.AddOptions<ServerlessHostOptions>().Bind(configuration).ValidateOnStart();
+		_ = services.AddValidatedServerlessHostOptions().Bind(configuration);
 
 		return services;
 	}
@@ -149,5 +141,18 @@ public static class ServerlessServiceCollectionExtensions
 		_ = services.AddSingleton(provider);
 
 		return services;
+	}
+
+	/// <summary>Registers shared options validation without adding a provider factory or selecting a platform.</summary>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The validated options builder for optional configuration binding.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
+	internal static OptionsBuilder<ServerlessHostOptions> AddValidatedServerlessHostOptions(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ServerlessHostOptions>, ServerlessHostOptionsValidator>());
+		return services.AddOptions<ServerlessHostOptions>().ValidateOnStart();
 	}
 }

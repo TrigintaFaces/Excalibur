@@ -242,7 +242,8 @@ public static class SqlServerPersistenceExtensions
 			return new Excalibur.Data.SqlServer.SqlServerRetryPolicy(
 				resiliency.MaxRetryAttempts,
 				TimeSpan.FromMilliseconds(resiliency.RetryDelayMilliseconds),
-				sp.GetRequiredService<ILogger<SqlServerPersistenceProvider>>());
+				sp.GetRequiredService<ILogger<SqlServerPersistenceProvider>>(),
+				resiliency.DelegateRetriesToMessagePipeline);
 		});
 
 		// Register the main provider

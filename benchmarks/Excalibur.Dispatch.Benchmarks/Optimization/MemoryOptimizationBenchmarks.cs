@@ -12,18 +12,13 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Excalibur.Dispatch.Benchmarks.Optimization;
 
 /// <summary>
-/// Benchmarks comparing standard vs pooled (zero-allocation) dispatch modes.
+/// Benchmarks exercising the default and builder-overload registrations with three middleware stages.
 /// </summary>
 /// <remarks>
-/// <para>
-/// These benchmarks validate memory optimization achievements:
-/// </para>
-/// <list type="bullet">
-/// <item>Closure allocation elimination per dispatch</item>
-/// <item>Context pooling effectiveness</item>
-/// <item>JIT devirtualization through sealed classes</item>
-/// <item>Static lambda optimizations</item>
-/// </list>
+/// Both registrations use the default pooled context factory. The original timed methods
+/// create contexts without returning them, so these cases measure rents without reuse,
+/// not pooled-versus-unpooled behavior or a zero-allocation dispatch mode. Method names
+/// retain their historical identifiers. Batch results use whole-invocation units.
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -40,7 +35,7 @@ public class MemoryOptimizationBenchmarks
 	[GlobalSetup]
 	public void Setup()
 	{
-		// Standard dispatcher (no pooling)
+		// Default registration overload.
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 
@@ -51,15 +46,15 @@ public class MemoryOptimizationBenchmarks
 		_ = services.AddDispatch();
 
 		// Add some middleware to validate chain builder
-		_ = services.AddMiddleware<LoggingMiddleware>();
-		_ = services.AddMiddleware<ValidationMiddleware>();
-		_ = services.AddMiddleware<MetricsMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, LoggingMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, ValidationMiddleware>();
+		_ = services.AddScoped<IDispatchMiddleware, MetricsMiddleware>();
 
 		_serviceProvider = services.BuildServiceProvider();
 		_dispatcher = _serviceProvider.GetRequiredService<IDispatcher>();
 		_contextFactory = _serviceProvider.GetRequiredService<IMessageContextFactory>();
 
-		// Pooled dispatcher (zero-allocation mode)
+		// Builder registration overload; the context factory is the same default implementation.
 		var pooledServices = new ServiceCollection();
 		_ = pooledServices.AddLogging();
 
@@ -72,9 +67,9 @@ public class MemoryOptimizationBenchmarks
 		// matching what it measured before.
 		_ = pooledServices.AddDispatch(builder => { });
 
-		_ = pooledServices.AddMiddleware<LoggingMiddleware>();
-		_ = pooledServices.AddMiddleware<ValidationMiddleware>();
-		_ = pooledServices.AddMiddleware<MetricsMiddleware>();
+		_ = pooledServices.AddScoped<IDispatchMiddleware, LoggingMiddleware>();
+		_ = pooledServices.AddScoped<IDispatchMiddleware, ValidationMiddleware>();
+		_ = pooledServices.AddScoped<IDispatchMiddleware, MetricsMiddleware>();
 
 		_pooledServiceProvider = pooledServices.BuildServiceProvider();
 		_pooledDispatcher = _pooledServiceProvider.GetRequiredService<IDispatcher>();
@@ -101,7 +96,7 @@ public class MemoryOptimizationBenchmarks
 	}
 
 	/// <summary>
-	/// Pooled dispatch with zero-allocation mode enabled.
+	/// Dispatch through the builder-overload registration with the default context factory.
 	/// </summary>
 	[Benchmark]
 	public Task<IMessageResult> PooledDispatch()
@@ -111,7 +106,7 @@ public class MemoryOptimizationBenchmarks
 	}
 
 	/// <summary>
-	/// Measures context creation overhead (standard factory).
+	/// Measures context creation through the default registration; contexts are not returned.
 	/// </summary>
 	[Benchmark]
 	public IMessageContext CreateContext_Standard()
@@ -120,7 +115,7 @@ public class MemoryOptimizationBenchmarks
 	}
 
 	/// <summary>
-	/// Measures context creation overhead (pooled factory).
+	/// Measures context creation through the builder-overload registration; contexts are not returned.
 	/// </summary>
 	[Benchmark]
 	public IMessageContext CreateContext_Pooled()
@@ -149,7 +144,7 @@ public class MemoryOptimizationBenchmarks
 	}
 
 	/// <summary>
-	/// Batch of 100 pooled dispatches.
+	/// Batch of 100 dispatches through the builder-overload registration.
 	/// </summary>
 	[Benchmark]
 	public async Task<int> PooledDispatch_Batch100()
@@ -169,7 +164,7 @@ public class MemoryOptimizationBenchmarks
 	}
 
 	/// <summary>
-	/// Concurrent dispatch (10 parallel operations) - standard.
+	/// Creates and joins ten dispatch tasks through the default registration; overlap is not guaranteed.
 	/// </summary>
 	[Benchmark]
 	public async Task<int> ConcurrentDispatch_Standard()
@@ -186,7 +181,7 @@ public class MemoryOptimizationBenchmarks
 	}
 
 	/// <summary>
-	/// Concurrent pooled dispatch (10 parallel operations).
+	/// Creates and joins ten dispatch tasks through the builder registration; overlap is not guaranteed.
 	/// </summary>
 	[Benchmark]
 	public async Task<int> ConcurrentDispatch_Pooled()

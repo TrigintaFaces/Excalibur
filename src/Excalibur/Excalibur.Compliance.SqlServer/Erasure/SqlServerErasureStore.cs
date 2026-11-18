@@ -3,9 +3,11 @@
 
 // ddl-migration: provisioning-only {_options.FullRequestsTableName} - Earlier alpha tenant identity and partition schemas require fresh provisioning; preserve the earlier schema separately.
 // ddl-migration: provisioning-only {_options.FullDestroyedKeysTableName} - Earlier alpha ledger identities require a new schema; no record is deleted or backfilled.
+// ddl-migration: provisioning-only {_options.FullMintedKeysTableName} - Earlier prerelease mint-ledger identity and intent schemas require a new dedicated schema; retain the earlier schema and destruction evidence, with no in-place backfill.
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Transactions;
 
 using Dapper;
 
@@ -31,9 +33,21 @@ namespace Excalibur.Compliance.SqlServer.Erasure;
 /// <item>7-year certificate retention for regulatory compliance</item>
 /// </list>
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+	"Maintainability",
+	"CA1506:AvoidExcessiveClassCoupling",
+	Justification =
+		"This store implements eight contracts, and the claim fence added the three custody result types "
+		+ "plus two verdict readers, taking it past the threshold of 96. The threshold is a smell and the "
+		+ "fence is a correctness invariant: without it two executors each write a signed erasure "
+		+ "certificate over coverage neither established, which a regulated consumer hands to an auditor. "
+		+ "Naming the trade rather than hiding it -- the coupling is real and is tracked as debt. Splitting "
+		+ "the store along its eight interfaces is the fix, and it is not a change to make in the same "
+		+ "commit as a fence.")]
 public sealed partial class SqlServerErasureStore
 	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureBackgroundQueryStore, IErasureSchemaValidator,
-		IKeyDestructionLedger, IDisposable
+		IDataSubjectTokenFingerprintLedger,
+		IKeyDestructionLedger, IKeyMintLedger, IDisposable
 {
 	private readonly SqlServerErasureStoreOptions _options;
 	private readonly IDataSubjectHasher _dataSubjectHasher;
@@ -150,7 +164,7 @@ public sealed partial class SqlServerErasureStore
 	{
 		ArgumentNullException.ThrowIfNull(request);
 		var tenant = AmbientScope;
-		var owner = new TenantId((_requireTenant ? tenant.TenantId : request.TenantId ?? _tenantContext.TenantId)!).Value;
+		var owner = ErasureRequestOwner.Resolve(_requireTenant, tenant, request, _tenantContext);
 
 		// THE PARTITION IS THE SECOND FACT, decided here and persisted, from whether multi-tenancy is
 		// configured rather than from the shape of the tenant term -- so a tenant named like the
@@ -232,7 +246,7 @@ public sealed partial class SqlServerErasureStore
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId AND DATALENGTH(TenantId) = DATALENGTH(@AmbientTenantId)" : string.Empty;
 
 		var sql = $@"
 			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, TenantPartition, Scope, LegalBasisV2,
@@ -267,35 +281,250 @@ public sealed partial class SqlServerErasureStore
 	}
 
 	/// <inheritdoc />
-	public async Task<bool> UpdateStatusAsync(
+	public async Task<ErasureWriteOutcome> UpdateStatusAsync(
 		Guid requestId,
 		ErasureRequestStatus status,
+		ErasureRequestStatus? expectedStatus,
 		string? errorMessage,
+		string? claimIdentity,
 		CancellationToken cancellationToken)
 	{
+		// Custody has its own door. Refused rather than quietly handled: a second door would advance a
+		// request into the claimed status for a caller holding no identity, and every fenced write it
+		// then made would compare against nothing.
+		if (status == ErasureRequestStatus.InProgress)
+		{
+			throw new ArgumentException(
+				"The in-progress status records CUSTODY and may only be written by ClaimForExecutionAsync, "
+				+ "which is the only member that mints the identity a fenced write presents.",
+				nameof(status));
+		}
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId AND DATALENGTH(TenantId) = DATALENGTH(@AmbientTenantId)" : string.Empty;
 
+		// THE WRITE FIRST, then the diagnostics, and only when nothing was written. A bare affected-row
+		// count cannot tell "no such request" from "another claim holds it" from "that transition is
+		// illegal", and those three oblige different things of the caller: report it, stand down
+		// silently, report a defect. The UPDATE remains the single atomic act; the counts below only
+		// explain a refusal that has already happened, so a concurrent change between them can change
+		// the EXPLANATION and never the outcome.
+		//
+		// THE CLAIM TERM, and the expiry appears in ONE arm of it only. A presented identity is compared
+		// for equality and nothing else, because A LAPSE DOES NOT REVOKE -- a holder whose run outlasted
+		// its own lease but whom nobody superseded still owns the row and its writes still apply. The
+		// expiry is consulted only when NO identity is presented, which is a supervisor asserting that
+		// nobody is working on the request.
 		var sql = $@"
+			SET NOCOUNT ON;
+
 			UPDATE {_options.FullRequestsTableName}
 			SET Status = @Status,
 				ErrorMessage = @ErrorMessage,
-				ExecutedAt = CASE WHEN @Status = {(int)ErasureRequestStatus.InProgress} THEN @Now ELSE ExecutedAt END,
-				UpdatedAt = @Now
+				UpdatedAt = @Now,
+				ClaimIdentity = NULL,
+				ClaimExpiresAt = NULL
 			WHERE RequestId = @RequestId{tenantPredicate}
-			  AND (@Status <> {(int)ErasureRequestStatus.InProgress}
-			       OR Status = {(int)ErasureRequestStatus.Scheduled})";
+			  AND (@ExpectedStatus IS NULL OR Status = @ExpectedStatus)
+			  -- A LEGAL HOLD IS OUTSIDE THE FENCE, and for the same reason the destruction ledger is:
+			  -- refusing it loses something the law requires rather than preventing a false claim. A hold
+			  -- recorded while an executor holds the claim MUST land, or the hold is silently dropped and
+			  -- the run completes over data the controller asserted a basis to retain. The asymmetry is
+			  -- this subsystem's own: withholding an erasure is recoverable by releasing the hold;
+			  -- destroying held records is not.
+			  AND (@Status = {(int)ErasureRequestStatus.BlockedByLegalHold} OR (CASE
+			         WHEN @ClaimIdentity IS NULL
+			           THEN CASE WHEN ClaimIdentity IS NULL OR ClaimExpiresAt <= SYSUTCDATETIME() THEN 1 ELSE 0 END
+			         ELSE CASE WHEN ClaimIdentity = @ClaimIdentity AND DATALENGTH(ClaimIdentity) = DATALENGTH(@ClaimIdentity) THEN 1 ELSE 0 END
+			       END) = 1)
+			  AND (@Status <> {(int)ErasureRequestStatus.Scheduled}
+			       OR Status NOT IN ({(int)ErasureRequestStatus.InProgress}, {(int)ErasureRequestStatus.AwaitingKeyDestruction}, {(int)ErasureRequestStatus.Completed}, {(int)ErasureRequestStatus.Cancelled}))
+			  AND (@Status <> {(int)ErasureRequestStatus.AwaitingKeyDestruction}
+			       OR Status IN ({(int)ErasureRequestStatus.InProgress}, {(int)ErasureRequestStatus.AwaitingKeyDestruction}));
+
+			DECLARE @Written INT = @@ROWCOUNT;
+
+			SELECT
+				@Written AS WrittenCount,
+				(SELECT COUNT(*) FROM {_options.FullRequestsTableName}
+				 WHERE RequestId = @RequestId{tenantPredicate}) AS TargetCount,
+				(SELECT COUNT(*) FROM {_options.FullRequestsTableName}
+				 WHERE RequestId = @RequestId{tenantPredicate}
+				   AND (CASE
+				          WHEN @ClaimIdentity IS NULL
+				            THEN CASE WHEN ClaimIdentity IS NULL OR ClaimExpiresAt <= SYSUTCDATETIME() THEN 1 ELSE 0 END
+				          ELSE CASE WHEN ClaimIdentity = @ClaimIdentity AND DATALENGTH(ClaimIdentity) = DATALENGTH(@ClaimIdentity) THEN 1 ELSE 0 END
+				        END) = 1) AS ClaimOk;";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var affected = await connection.ExecuteAsync(new CommandDefinition(sql,
-			new { RequestId = requestId, Status = (int)status, ErrorMessage = errorMessage, Now = DateTimeOffset.UtcNow, AmbientTenantId = tenant.TenantId },
+		var verdict = await connection.QuerySingleAsync<StatusWriteVerdict>(new CommandDefinition(sql,
+			new
+			{
+				RequestId = requestId,
+				Status = (int)status,
+				ExpectedStatus = expectedStatus is null ? (int?)null : (int)expectedStatus,
+				ErrorMessage = errorMessage,
+				// The audit stamp, and ONLY the audit stamp. Every lapse comparison above reads
+				// SYSUTCDATETIME() at the server: a process-side instant there would make a lapse a
+				// comparison between two machines' clocks, which is the one comparison that may never
+				// decide anything.
+				Now = DateTimeOffset.UtcNow,
+				// Plain string so the driver infers a wide text parameter rather than the column's own
+				// width. A parameter typed to nvarchar(64) would silently truncate a 65-character
+				// presented identity into a match against a 64-character stored one -- and the
+				// DATALENGTH comparisons above are the second half of that guard, matching the tenant
+				// predicate's own idiom.
+				ClaimIdentity = claimIdentity,
+				AmbientTenantId = tenant.TenantId
+			},
 			cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
-		return affected > 0;
+		return verdict.ToOutcome();
+	}
+
+	/// <inheritdoc />
+	public async Task<ErasureClaimResult> ClaimForExecutionAsync(
+		Guid requestId,
+		ErasureRequestStatus expectedStatus,
+		TimeSpan claimDuration,
+		CancellationToken cancellationToken)
+	{
+		// Zero is legal and yields an already-lapsed claim, which is the only lever a provider-agnostic
+		// conformance test has to construct one without controlling a clock. Negative is not: it would be
+		// a claim that expired before it was granted, which no caller can mean.
+		ArgumentOutOfRangeException.ThrowIfLessThan(claimDuration, TimeSpan.Zero);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var tenant = AmbientScope;
+		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId AND DATALENGTH(TenantId) = DATALENGTH(@AmbientTenantId)" : string.Empty;
+
+		// ONE conditional UPDATE, so the status test, the status write, the identity and the expiry all
+		// become visible together or not at all. Two statements would let a second caller observe the
+		// status it needs between them, be granted as well, and then write past a fence comparing
+		// against its own identity -- a weakened postcondition no sequential test can observe.
+		//
+		// The expiry is DATEADD over SYSUTCDATETIME() AT THE SERVER, and every lapse test compares
+		// against SYSUTCDATETIME() too. Nothing here takes an instant from the caller.
+		//
+		// Claiming from Scheduled ADVANCES the status; claiming from AwaitingKeyDestruction leaves it
+		// alone, because that status is a STAGE of the work rather than a statement about who is doing
+		// it. One unconditional SET would silently un-stage a request mid-confirmation.
+		var sql = $@"
+			SET NOCOUNT ON;
+
+			UPDATE {_options.FullRequestsTableName}
+			SET ClaimIdentity = @ClaimIdentity,
+				ClaimExpiresAt = DATEADD(MILLISECOND, @ClaimMilliseconds, SYSUTCDATETIME()),
+				Status = CASE WHEN @ExpectedStatus = {(int)ErasureRequestStatus.Scheduled} THEN {(int)ErasureRequestStatus.InProgress} ELSE Status END,
+				ExecutedAt = CASE WHEN @ExpectedStatus = {(int)ErasureRequestStatus.Scheduled} THEN @Now ELSE ExecutedAt END,
+				UpdatedAt = @Now
+			WHERE RequestId = @RequestId{tenantPredicate}
+			  AND Status = @ExpectedStatus
+			  AND (ClaimIdentity IS NULL OR ClaimExpiresAt <= SYSUTCDATETIME());
+
+			DECLARE @Granted INT = @@ROWCOUNT;
+
+			SELECT
+				@Granted AS GrantedCount,
+				(SELECT COUNT(*) FROM {_options.FullRequestsTableName}
+				 WHERE RequestId = @RequestId{tenantPredicate}) AS TargetCount,
+				(SELECT COUNT(*) FROM {_options.FullRequestsTableName}
+				 WHERE RequestId = @RequestId{tenantPredicate}
+				   AND Status = @ExpectedStatus) AS StatusOk,
+				(SELECT COUNT(*) FROM {_options.FullRequestsTableName}
+				 WHERE RequestId = @RequestId{tenantPredicate}
+				   AND ClaimIdentity IS NOT NULL AND ClaimExpiresAt > SYSUTCDATETIME()) AS LiveClaim;";
+
+		// Minted here and nowhere else, and opaque by construction: a GUID carries no order anyone could
+		// compare, which is what the contract requires of it.
+		var identity = Guid.NewGuid().ToString("N");
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var verdict = await connection.QuerySingleAsync<ClaimVerdict>(new CommandDefinition(sql,
+			new
+			{
+				RequestId = requestId,
+				ExpectedStatus = (int)expectedStatus,
+				ClaimIdentity = identity,
+				// Milliseconds rather than binding the TimeSpan: DATEADD takes an integer, and an
+				// explicit unit is one fewer driver conversion to reason about in a correctness path.
+				ClaimMilliseconds = (int)Math.Min(claimDuration.TotalMilliseconds, int.MaxValue),
+				Now = DateTimeOffset.UtcNow,
+				AmbientTenantId = tenant.TenantId
+			},
+			cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		if (verdict.GrantedCount > 0)
+		{
+			return ErasureClaimResult.Granted(identity);
+		}
+
+		if (verdict.TargetCount == 0)
+		{
+			return ErasureClaimResult.NotFound();
+		}
+
+		// CUSTODY IS TESTED BEFORE STATUS, and the order is load-bearing rather than stylistic. Granting a
+		// claim from Scheduled ADVANCES the status, so a second contender arriving a moment later finds the
+		// row in the claimed status -- and answering StatusMismatch there obliges the caller to STOP
+		// OFFERING the request. That is wrong in the direction this mechanism exists to prevent: the
+		// request IS coming back when the holder's claim lapses, and a caller told otherwise strands it.
+		if (verdict.LiveClaim > 0)
+		{
+			return ErasureClaimResult.AlreadyClaimed();
+		}
+
+		return ErasureClaimResult.StatusMismatch();
+	}
+
+	/// <summary>Whether the request exists at all, and whether this caller still holds its claim.</summary>
+	/// <remarks>
+	/// Two counts rather than one, because a single query filtering on both columns cannot tell an
+	/// absent request from a superseded claim, and the caller must do opposite things about them.
+	/// </remarks>
+	private sealed class CompletionPresence
+	{
+		/// <summary>One when the request exists in this tenant, zero when it does not.</summary>
+		public long RequestExists { get; init; }
+
+		/// <summary>One when the request still carries the identity this caller presented.</summary>
+		public long ClaimHeld { get; init; }
+	}
+
+	/// <summary>The three counts a status write reports.</summary>
+	private sealed class StatusWriteVerdict
+	{
+		public int WrittenCount { get; init; }
+
+		public int TargetCount { get; init; }
+
+		public int ClaimOk { get; init; }
+
+		/// <summary>Maps the counts onto the outcome, testing success first and by name.</summary>
+		public ErasureWriteOutcome ToOutcome() =>
+			WrittenCount > 0 ? ErasureWriteOutcome.Applied
+			: TargetCount == 0 ? ErasureWriteOutcome.NotFound
+			: ClaimOk == 0 ? ErasureWriteOutcome.ClaimLost
+			: ErasureWriteOutcome.StatusRefused;
+	}
+
+	/// <summary>The three counts a claim attempt reports.</summary>
+	private sealed class ClaimVerdict
+	{
+		public int GrantedCount { get; init; }
+
+		public int TargetCount { get; init; }
+
+		public int StatusOk { get; init; }
+
+		public int LiveClaim { get; init; }
 	}
 
 	/// <inheritdoc />
@@ -311,7 +540,7 @@ public sealed partial class SqlServerErasureStore
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = _requireTenant ? " AND r.TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND r.TenantId = @AmbientTenantId AND DATALENGTH(r.TenantId) = DATALENGTH(@AmbientTenantId)" : string.Empty;
 
 		// A SEPARATE TABLE from the ledger, and that is the load-bearing part of this design. Between this
 		// INSERT and the destruction the row names LIVE material, so if the read predicate could match it a
@@ -389,7 +618,7 @@ public sealed partial class SqlServerErasureStore
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = _requireTenant ? " AND r.TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND r.TenantId = @AmbientTenantId AND DATALENGTH(r.TenantId) = DATALENGTH(@AmbientTenantId)" : string.Empty;
 
 		// Joined to the request so another tenant's staged intents read as absent: a staged generation is a
 		// backend token for live material, and one tenant must not be able to enumerate another's.
@@ -424,7 +653,7 @@ public sealed partial class SqlServerErasureStore
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = _requireTenant ? " AND r.TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND r.TenantId = @AmbientTenantId AND DATALENGTH(r.TenantId) = DATALENGTH(@AmbientTenantId)" : string.Empty;
 
 		// The INSERT is gated on the request EXISTING IN THIS TENANT, in the same statement, so a record can
 		// never be written into another tenant's partition and the check cannot drift from the write.
@@ -603,6 +832,211 @@ public sealed partial class SqlServerErasureStore
 	}
 
 	/// <inheritdoc />
+	/// <inheritdoc />
+	/// <remarks>
+	/// TRUE: a committed row is on disk in the compliance schema and outlives the process. The write path
+	/// awaits the commit before returning, so a caller that has returned from
+	/// <see cref="RecordMintIntentAsync"/> holds a row an erasure will enumerate after any crash.
+	/// </remarks>
+	public bool IsDurable => true;
+
+	/// <inheritdoc />
+	public async Task RecordMintIntentAsync(
+		string keyHandle,
+		TenantId tenantId,
+		string dataSubjectIdHash,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(keyHandle);
+		ArgumentNullException.ThrowIfNull(tenantId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(dataSubjectIdHash);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		// INSERT WHERE NOT EXISTS, so a handle already on file is a no-op and the FIRST instant stands. A
+		// LOST RACE IS A SUCCESS by contract: two concurrent first writes for one subject and obligation
+		// class both need the row to exist, and it does. The UPDLOCK/HOLDLOCK hint takes a range lock on the
+		// probed key so a concurrent inserter cannot slip between the check and the insert; without it the
+		// loser raises a duplicate-key error, which is a failure the caller would have to interpret.
+		//
+		// NOT CAUGHT, by contract, and this is the one place where the rule that cross-cutting
+		// infrastructure fails OPEN is inapplicable. Returning normally here tells the caller the row is
+		// durable, and the caller then mints a key. Swallowing a failure mints a key nothing will ever
+		// enumerate, which is the catastrophic direction; a refused write is loud and recoverable.
+		var inserted = await connection.ExecuteAsync(new CommandDefinition(
+			// MintedAt is NOT written here. The key does not exist yet and this row must not claim it does.
+			$@"INSERT INTO {_options.FullMintedKeysTableName}
+					(KeyHandle, TenantId, DataSubjectIdHash, IntentAt, MintedAt)
+				SELECT @KeyHandle, @TenantId, @SubjectHash, @Now, NULL
+				WHERE NOT EXISTS (
+					SELECT 1 FROM {_options.FullMintedKeysTableName} WITH (UPDLOCK, HOLDLOCK)
+					WHERE KeyHandle = @KeyHandle)",
+			new
+			{
+				KeyHandle = keyHandle,
+				TenantId = tenantId.Value,
+				SubjectHash = dataSubjectIdHash,
+				Now = DateTimeOffset.UtcNow,
+			},
+			cancellationToken: cancellationToken,
+			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		if (inserted > 0)
+		{
+			return;
+		}
+
+		// A HANDLE ALREADY ON FILE UNDER A DIFFERENT OWNER OR SUBJECT IS REFUSED, not absorbed. The row is
+		// what an erasure enumerates by, so letting a second owner write silently keep the first owner row
+		// would make the handle enumerate for the wrong subject -- either erasing a subject who never asked
+		// or withholding erasure from one who did. The handle is a digest over (owner, subject), so
+		// disagreement here means a derivation collision or a caller passing terms the handle was not
+		// derived from, and both are defects to report rather than record.
+		var existing = await connection.QuerySingleOrDefaultAsync<MintedKeyOwnerRow>(new CommandDefinition(
+			$@"SELECT TenantId, DataSubjectIdHash
+				FROM {_options.FullMintedKeysTableName}
+				WHERE KeyHandle = @KeyHandle",
+			new { KeyHandle = keyHandle },
+			cancellationToken: cancellationToken,
+			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false)
+			// GONE between the two statements, which means something deleted it. The rows are insert-only
+			// and permanent by contract, so this is not a state the framework can produce -- and it must
+			// not be read as agreement: returning normally would promise durability for an absent row.
+			?? throw new InvalidOperationException(
+				$"The mint-ledger row for key handle '{keyHandle}' was not inserted and could not be read "
+				+ "back. Mint rows are insert-only and permanent, so this indicates the row was deleted "
+				+ "concurrently. The key was NOT minted: minting one whose handle no erasure can enumerate "
+				+ "would leave this data subject's personal data readable after a completed erasure.");
+
+		if (!string.Equals(existing.TenantId, tenantId.Value, StringComparison.Ordinal)
+			|| !string.Equals(existing.DataSubjectIdHash, dataSubjectIdHash, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException(
+				$"Key handle '{keyHandle}' is already recorded in the mint ledger for a different data "
+				+ "subject or owner. A handle names the thing an erasure destroys, so recording it twice "
+				+ "under different terms would make it enumerate for the wrong subject. The key was NOT "
+				+ "minted.");
+		}
+	}
+
+	/// <inheritdoc />
+	public async Task<MintLedgerSnapshot> ListHandlesAsync(
+		TenantId tenantId,
+		string dataSubjectIdHash,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(tenantId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(dataSubjectIdHash);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		// BOTH TERMS ARE PREDICATES, and neither is an ambient value. The owner is the one the erasure own
+		// request recorded; the storage partition plays no part here. These two columns carry BIN2 precisely
+		// so this comparison is bytewise, matching the service ordinal comparison -- the server default
+		// collation is case-INsensitive and would let one owner rows answer for another.
+		//
+		// NO TOP and NO PAGING: the contract is COMPLETE ENUMERATION OR THROW. A truncated list is
+		// indistinguishable from a subject with fewer handles, so the erasure would destroy the page it
+		// received and certify. The set is bounded by the number of obligation classes a subject data
+		// spans, which is small.
+		//
+		// NOT CAUGHT, by contract. An enumeration that cannot be completed must not degrade to a short
+		// list; the exception leaves the request non-terminal and retryable instead of falsely attested.
+		var rows = await connection.QueryAsync<(string KeyHandle, DateTimeOffset? MintedAt)>(new CommandDefinition(
+			// THE DATALENGTH TERMS ARE LOAD-BEARING AND ARE NOT DEFENSIVE PADDING. SQL Server follows the
+			// ANSI rule that TRAILING BLANKS ARE INSIGNIFICANT in a character comparison, so
+			// `TenantId = @TenantId AND DATALENGTH(TenantId) = DATALENGTH(@TenantId)` matches an owner stored with a trailing space. That is a DIFFERENT
+			// OWNER: this enumeration would return their handles, and the erasure adds every handle it
+			// returns to the destruction set -- one tenant's erasure destroying another tenant's keys,
+			// which is the cross-tenant direction this subsystem has already shipped once.
+			//
+			// A BINARY COLLATION ON THE COLUMN IS NOT SUFFICIENT HERE, which is why this is in the
+			// statement rather than left to the DDL. The column is declared BIN2 by this store's own
+			// CREATE TABLE, but that clause runs only when the table is ABSENT -- a database provisioned
+			// out of band, or by an earlier schema, can present the right column NAMES with a padding
+			// comparison, and the startup verification checks names and not collations. Putting the
+			// predicate in the statement makes the comparison a property of the QUERY, so no table's
+			// declaration can weaken it.
+			//
+			// The equality terms are kept so the (TenantId, DataSubjectIdHash) index still drives the
+			// seek; DATALENGTH only discards the padded false positives the seek admits. Measured: the
+			// conformance kit's MintLedger_ShouldMatchTheOwnerOrdinally arm fails on real SQL Server
+			// without these two terms and passes with them, while Postgres passes either way -- its
+			// equality is not blank-insensitive.
+			$@"SELECT KeyHandle, MintedAt
+				FROM {_options.FullMintedKeysTableName}
+				WHERE TenantId = @TenantId AND DATALENGTH(TenantId) = DATALENGTH(@TenantId)
+				  AND DATALENGTH(TenantId) = DATALENGTH(@TenantId)
+				  AND DataSubjectIdHash = @SubjectHash
+				  AND DATALENGTH(DataSubjectIdHash) = DATALENGTH(@SubjectHash)",
+			new { TenantId = tenantId.Value, SubjectHash = dataSubjectIdHash },
+			cancellationToken: cancellationToken,
+			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		var materialised = rows.ToList();
+
+		IReadOnlyList<string> minted = [.. materialised.Where(r => r.MintedAt is not null).Select(r => r.KeyHandle)];
+		IReadOnlyList<string> pending = [.. materialised.Where(r => r.MintedAt is null).Select(r => r.KeyHandle)];
+
+		return new MintLedgerSnapshot(minted, pending);
+	}
+
+	/// <inheritdoc />
+	public async Task MarkMintedAsync(string keyHandle, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(keyHandle);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		// IS NULL IS PART OF THE PREDICATE, so a confirmation already on file is not moved. The row records
+		// when the key came into existence and a retry may not restate that instant. DATALENGTH guards the
+		// handle for the reason the enumeration does: SQL Server equality ignores trailing blanks, so a
+		// padded handle would otherwise confirm a different row.
+		var updated = await connection.ExecuteAsync(new CommandDefinition(
+			$@"UPDATE {_options.FullMintedKeysTableName}
+				SET MintedAt = @Now
+				WHERE KeyHandle = @KeyHandle
+				  AND DATALENGTH(KeyHandle) = DATALENGTH(@KeyHandle)
+				  AND MintedAt IS NULL",
+			new { KeyHandle = keyHandle, Now = DateTimeOffset.UtcNow },
+			cancellationToken: cancellationToken,
+			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		if (updated > 0)
+		{
+			return;
+		}
+
+		// ZERO ROWS IS AMBIGUOUS AND THE TWO CAUSES ARE NOT INTERCHANGEABLE: either the row is already
+		// confirmed (idempotent success) or there is no row at all (the caller skipped the intent step, and
+		// a key may now exist at a handle no erasure enumerates). One cheap read separates them.
+		var exists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+			$@"SELECT COUNT(1) FROM {_options.FullMintedKeysTableName}
+				WHERE KeyHandle = @KeyHandle
+				  AND DATALENGTH(KeyHandle) = DATALENGTH(@KeyHandle)",
+			new { KeyHandle = keyHandle },
+			cancellationToken: cancellationToken,
+			commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		if (exists == 0)
+		{
+			throw new InvalidOperationException(
+				$"No mint-ledger row exists for key handle '{keyHandle}', so its key creation cannot be "
+				+ "confirmed. The row is written before the key is created, always; its absence means the "
+				+ "intent step was skipped and a key may exist at a handle no erasure can enumerate.");
+		}
+	}
+
+	/// <inheritdoc />
 	public async ValueTask<bool> IsGenerationDestroyedAsync(
 		string keyHandle,
 		string keyGeneration,
@@ -640,17 +1074,20 @@ public sealed partial class SqlServerErasureStore
 	}
 
 	/// <inheritdoc />
-	public async Task RecordCompletionAsync(
+	public async Task<ErasureWriteOutcome> RecordCompletionAsync(
 		Guid requestId,
 		int keysDeleted,
 		int recordsAffected,
 		Guid certificateId,
+		string claimIdentity,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(claimIdentity);
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId AND DATALENGTH(TenantId) = DATALENGTH(@AmbientTenantId)" : string.Empty;
 
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
@@ -661,7 +1098,15 @@ public sealed partial class SqlServerErasureStore
 				CompletedAt = @Now,
 				UpdatedAt = @Now
 			WHERE RequestId = @RequestId{tenantPredicate}
-			  AND Status IN ({(int)ErasureRequestStatus.Scheduled}, {(int)ErasureRequestStatus.InProgress}, {(int)ErasureRequestStatus.AwaitingKeyDestruction})";
+			  AND Status IN ({(int)ErasureRequestStatus.Scheduled}, {(int)ErasureRequestStatus.InProgress}, {(int)ErasureRequestStatus.AwaitingKeyDestruction})
+			  AND ClaimIdentity = @ClaimIdentity
+			  AND DATALENGTH(ClaimIdentity) = DATALENGTH(@ClaimIdentity)";
+
+		// THE FENCE, and it compares the identity and ONLY the identity. No expiry term: a lapse does not
+		// revoke, so a holder nobody superseded still completes its own run. Were the expiry tested here,
+		// an executor that had already destroyed a subject's keys and overrun its lease would be refused
+		// the certificate attesting what it had done -- the erasure performed, and nothing able to say so.
+		// The DATALENGTH term is the truncation guard, matching the tenant predicate's own idiom.
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -680,17 +1125,44 @@ public sealed partial class SqlServerErasureStore
 				RecordsAffected = recordsAffected,
 				CertificateId = certificateId,
 				Now = DateTimeOffset.UtcNow,
+				ClaimIdentity = claimIdentity,
 				AmbientTenantId = tenant.TenantId
 			}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
-		if (affected == 0)
+		if (affected > 0)
 		{
-			throw new KeyNotFoundException(
-				$"No erasure request with id '{requestId}' is in a state from which a completion can be "
-				+ "recorded: it does not exist, it belongs to another tenant, or its status changed while "
-				+ "the run was executing. A legal hold or a cancellation recorded mid-run takes the request "
-				+ "out of the run deliberately, and a completion must not overwrite it.");
+			return ErasureWriteOutcome.Applied;
 		}
+
+		// ABSENCE AND SUPERSESSION BOTH YIELD ZERO FROM A SINGLE QUERY THAT FILTERS ON BOTH COLUMNS, and
+		// they oblige OPPOSITE things of the caller, so they are asked separately. A superseded claim is
+		// an ordinary race the caller stands down from silently. An ABSENT request is the anomaly this
+		// member has always thrown for, and its contract still states that. Asking one combined question
+		// reported every absent request as a lost claim, so a caller swallowed a defect as a race.
+		//
+		// The DATALENGTH term stays on the claim half only: SQL Server compares char data ignoring
+		// trailing spaces, so without it an identity differing only by padding compares equal.
+		var presence = await connection.QuerySingleAsync<CompletionPresence>(new CommandDefinition(
+			$@"SELECT
+				(SELECT COUNT(*) FROM {_options.FullRequestsTableName}
+				 WHERE RequestId = @RequestId{tenantPredicate}) AS RequestExists,
+				(SELECT COUNT(*) FROM {_options.FullRequestsTableName}
+				 WHERE RequestId = @RequestId{tenantPredicate}
+				   AND ClaimIdentity = @ClaimIdentity
+				   AND DATALENGTH(ClaimIdentity) = DATALENGTH(@ClaimIdentity)) AS ClaimHeld",
+			new { RequestId = requestId, ClaimIdentity = claimIdentity, AmbientTenantId = tenant.TenantId },
+			cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		if (presence.RequestExists > 0 && presence.ClaimHeld == 0)
+		{
+			return ErasureWriteOutcome.ClaimLost;
+		}
+
+		throw new KeyNotFoundException(
+			$"No erasure request with id '{requestId}' is in a state from which a completion can be "
+			+ "recorded: it does not exist, it belongs to another tenant, or its status changed while "
+			+ "the run was executing. A legal hold or a cancellation recorded mid-run takes the request "
+			+ "out of the run deliberately, and a completion must not overwrite it.");
 	}
 
 	/// <inheritdoc />
@@ -703,7 +1175,7 @@ public sealed partial class SqlServerErasureStore
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId AND DATALENGTH(TenantId) = DATALENGTH(@AmbientTenantId)" : string.Empty;
 
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
@@ -755,9 +1227,16 @@ public sealed partial class SqlServerErasureStore
 				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
 				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
 			FROM {_options.FullRequestsTableName}
-			WHERE Status = {(int)ErasureRequestStatus.Scheduled}
-			  AND ScheduledExecutionAt <= @Now
+			WHERE (Status = {(int)ErasureRequestStatus.Scheduled} AND ScheduledExecutionAt <= @Now)
+			   OR (Status = {(int)ErasureRequestStatus.InProgress} AND ClaimExpiresAt <= SYSUTCDATETIME())
 			ORDER BY ScheduledExecutionAt";
+
+		// THE SECOND DISJUNCT IS WHAT MAKES AN INTERRUPTED ERASURE COME BACK. A request whose executor
+		// died stays in the claimed status with nothing to advance it, and this query is the only thing
+		// that offers work -- so without the lapse term it is excluded forever, correctly and silently,
+		// and the subject's data is never erased. Compared against SYSUTCDATETIME() AT THE SERVER, never
+		// against the @Now the first disjunct binds: a lapse decided against a caller's clock is a
+		// comparison between two machines, which is the one comparison that may never decide anything.
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -772,6 +1251,67 @@ public sealed partial class SqlServerErasureStore
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<ErasureStatus>> GetAwaitingKeyDestructionRequestsAsync(
 		int pageNumber, int pageSize, CancellationToken cancellationToken)
+	{
+		// NOT DiscoverByStatusAsync, and the divergence is deliberate: this status is the only one a
+		// confirmation pass CLAIMS from, so a live claim means another confirmer already holds the
+		// request. Offering it anyway makes the second confirmer take a claim it cannot get, be refused
+		// at its first write, and log a defect on every poll for as long as the first one holds -- a
+		// defect report that says nothing is wrong. The hold-deferred query keeps the shared helper
+		// because nothing claims a deferred request.
+		// THE PAGING GUARDS ARE THE SHARED HELPER'S, COPIED RATHER THAN PARAPHRASED. My first
+		// hand-written version dropped the widened offset, so paging at int.MaxValue overflowed to a
+		// wrapped negative, which LINQ and both engines read as "skip nothing" -- a page far past the
+		// end returned the FIRST page instead of nothing. A tenant-scope arm caught it.
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+		ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 1000);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// ESTATE-WIDE AND DELIBERATELY UNSCOPED, like the other background discovery surfaces: this runs
+		// from a host that has no tenant, so a tenant predicate here returns nothing and the whole
+		// confirmation pass silently stops. The claim exclusion below is the only new term.
+		var sql = $@"
+			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, TenantPartition, Scope, LegalBasisV2,
+				   ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
+				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
+				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
+			FROM {_options.FullRequestsTableName}
+			WHERE Status = {(int)ErasureRequestStatus.AwaitingKeyDestruction}
+			  AND (ClaimIdentity IS NULL OR ClaimExpiresAt <= SYSUTCDATETIME())
+			ORDER BY RequestedAt, RequestId
+			OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var rows = await connection.QueryAsync<ErasureRequestRow>(
+			new CommandDefinition(sql,
+				new { PageSize = pageSize, Offset = ((long)pageNumber - 1) * pageSize },
+				cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		return rows.Select(r => r.ToStatus()).ToList();
+	}
+
+	/// <inheritdoc />
+	public Task<IReadOnlyList<ErasureStatus>> GetHoldDeferredRequestsAsync(
+		int pageNumber, int pageSize, CancellationToken cancellationToken) =>
+		DiscoverByStatusAsync(ErasureRequestStatus.BlockedByLegalHold, pageNumber, pageSize, cancellationToken);
+
+	/// <summary>
+	/// The estate-wide discovery statement both background members are served by.
+	/// </summary>
+	/// <remarks>
+	/// Shared deliberately: the two members differ only in the status they look for, and what drifts
+	/// between hand-copied discovery statements is the paging, the ordering and the tenancy rather than
+	/// the constant. In particular this statement carries NO ambient-tenant term, which the nearest
+	/// sibling statements in this file DO -- a background worker runs under no tenant scope, so an
+	/// ambient term here would return an empty set under multi-tenancy and the work would silently
+	/// never be done. The unique tie-breaker is what makes the page boundary stable when requested
+	/// times tie.
+	/// </remarks>
+	private async Task<IReadOnlyList<ErasureStatus>> DiscoverByStatusAsync(
+		ErasureRequestStatus status, int pageNumber, int pageSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
@@ -789,7 +1329,7 @@ public sealed partial class SqlServerErasureStore
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 		var rows = await connection.QueryAsync<ErasureRequestRow>(new CommandDefinition(sql,
-			new { Status = (int)ErasureRequestStatus.AwaitingKeyDestruction, PageSize = pageSize, Offset = ((long)pageNumber - 1) * pageSize },
+			new { Status = (int)status, PageSize = pageSize, Offset = ((long)pageNumber - 1) * pageSize },
 			cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 		return rows.Select(row => row.ToStatus()).ToList();
 	}
@@ -821,7 +1361,7 @@ public sealed partial class SqlServerErasureStore
 		var tenant = AmbientScope;
 		if (_requireTenant)
 		{
-			whereClauses.Add("TenantId = @AmbientTenantId");
+			whereClauses.Add("TenantId = @AmbientTenantId AND DATALENGTH(TenantId) = DATALENGTH(@AmbientTenantId)");
 			parameters.Add("AmbientTenantId", tenant.TenantId);
 		}
 
@@ -833,7 +1373,7 @@ public sealed partial class SqlServerErasureStore
 
 		if (!string.IsNullOrEmpty(tenantId))
 		{
-			whereClauses.Add("TenantId = @TenantId");
+			whereClauses.Add("TenantId = @TenantId AND DATALENGTH(TenantId) = DATALENGTH(@TenantId)");
 			parameters.Add("TenantId", tenantId);
 		}
 
@@ -958,7 +1498,7 @@ public sealed partial class SqlServerErasureStore
 		var tenant = AmbientScope;
 		var tenantPredicate = _requireTenant
 			? $@" AND EXISTS (SELECT 1 FROM {_options.FullRequestsTableName} r
-				  WHERE r.RequestId = {_options.FullCertificatesTableName}.RequestId AND r.TenantId = @AmbientTenantId)"
+				  WHERE r.RequestId = {_options.FullCertificatesTableName}.RequestId AND r.TenantId = @AmbientTenantId AND DATALENGTH(r.TenantId) = DATALENGTH(@AmbientTenantId))"
 			: string.Empty;
 
 		// ORDER BY plus QueryFirstOrDefault, and the pairing IS the fix rather than a tidy-up. This read was
@@ -1005,7 +1545,7 @@ public sealed partial class SqlServerErasureStore
 		var tenant = AmbientScope;
 		var tenantPredicate = _requireTenant
 			? $@" AND EXISTS (SELECT 1 FROM {_options.FullRequestsTableName} r
-				  WHERE r.RequestId = {_options.FullCertificatesTableName}.RequestId AND r.TenantId = @AmbientTenantId)"
+				  WHERE r.RequestId = {_options.FullCertificatesTableName}.RequestId AND r.TenantId = @AmbientTenantId AND DATALENGTH(r.TenantId) = DATALENGTH(@AmbientTenantId))"
 			: string.Empty;
 
 		var sql = $@"
@@ -1172,8 +1712,147 @@ public sealed partial class SqlServerErasureStore
 		_initLock?.Dispose();
 	}
 
+	/// <summary>
+	/// The one row this database's token fingerprint lives under. A constant, so the table holds at most
+	/// one row by primary key rather than by convention.
+	/// </summary>
+	private const string TokenFingerprintRowId = "data-subject-token-function";
+
+	/// <summary>SQL Server primary-key violation.</summary>
+	private const int PrimaryKeyViolation = 2627;
+
+	/// <summary>SQL Server unique-index violation.</summary>
+	private const int UniqueIndexViolation = 2601;
+
+	/// <inheritdoc />
+	public async Task<string> ClaimTokenFingerprintAsync(string fingerprint, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		return await ClaimTokenFingerprintCoreAsync(fingerprint, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Records the fingerprint if none is recorded and returns what is recorded afterwards, without
+	/// entering the initialisation funnel.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Separate from the public member because initialisation itself calls this while HOLDING the
+	/// initialisation lock. A core that re-entered the funnel would deadlock the first operation of every
+	/// process.
+	/// </para>
+	/// <para>
+	/// <b>The duplicate is swallowed BY NUMBER, and only those two numbers.</b> Several processes may start
+	/// together against a database with no fingerprint; exactly one insert wins and the rest collide. A lost
+	/// race is a SUCCESS, so the collision must not surface — but a blanket <c>catch (SqlException)</c>
+	/// would make the read-back the only evidence and turn a transient fault, a timeout or a permissions
+	/// error into a silent pass. Only 2627 and 2601 mean "someone else already recorded it".
+	/// </para>
+	/// <para>
+	/// <b>It runs on its own connection with no ambient transaction</b>, which is what makes the swallow
+	/// effective: under <c>XACT_ABORT ON</c> inside an enclosing transaction the batch would be doomed and
+	/// the subsequent read would fail too, so this must not be moved inside one.
+	/// </para>
+	/// <para>
+	/// <b>No tenant term, deliberately, and not an oversight.</b> The token function is a property of the
+	/// process, not of a tenant; the table has no tenant column at all, so the term is inexpressible rather
+	/// than merely omitted.
+	/// </para>
+	/// </remarks>
+	private async Task<string> ClaimTokenFingerprintCoreAsync(
+		string fingerprint,
+		CancellationToken cancellationToken)
+	{
+		// Public claims also reach this core outside initialization. Safety metadata is durable
+		// independently of business work and must never enlist in the caller's transaction.
+		using var claimScope = new TransactionScope(
+			TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
+
+		var insertSql = $@"
+			INSERT INTO {_options.FullTokenFingerprintTableName} ([Id], [Fingerprint], [RecordedAt])
+			VALUES (@Id, @Fingerprint, @RecordedAt)";
+
+		var selectSql = $@"
+			SELECT [Fingerprint]
+			FROM {_options.FullTokenFingerprintTableName}
+			WHERE [Id] = @Id";
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			_ = await connection.ExecuteAsync(
+					new CommandDefinition(
+						insertSql,
+						new { Id = TokenFingerprintRowId, Fingerprint = fingerprint, RecordedAt = DateTimeOffset.UtcNow },
+						cancellationToken: cancellationToken,
+						commandTimeout: _options.CommandTimeoutSeconds))
+				.ConfigureAwait(false);
+		}
+		catch (SqlException ex) when (ex.Number is PrimaryKeyViolation or UniqueIndexViolation)
+		{
+			// Another process recorded it first. That is the specified no-op, not a failure.
+		}
+
+		var recorded = await connection.ExecuteScalarAsync<string?>(
+				new CommandDefinition(
+					selectSql,
+					new { Id = TokenFingerprintRowId },
+					cancellationToken: cancellationToken,
+					commandTimeout: _options.CommandTimeoutSeconds))
+			.ConfigureAwait(false);
+
+		// Reported rather than coalesced to the caller's own argument: returning the argument would make
+		// every mismatch compare equal and the whole check vacuous.
+		return recorded
+			?? throw new InvalidOperationException(
+				$"The data-subject token fingerprint could not be read back from {_options.FullTokenFingerprintTableName} " +
+				"immediately after it was claimed. The record is write-once and must never be deleted; a " +
+				"deployment whose fingerprint row can disappear cannot detect a changed hashing key.");
+	}
+
+	/// <summary>
+	/// Refuses to finish initialising when this database's records were produced by a different
+	/// data-subject token function than this process computes.
+	/// </summary>
+	/// <remarks>
+	/// Runs as the last step of initialisation, inside the initialisation lock and after the schema is
+	/// known to exist, so every one of this store's operations happens-after it.
+	/// </remarks>
+	private async Task VerifyTokenFingerprintAsync(CancellationToken cancellationToken)
+	{
+		var mine = DataSubjectPepperFingerprint.Derive(_dataSubjectHasher);
+		var recorded = await ClaimTokenFingerprintCoreAsync(mine, cancellationToken).ConfigureAwait(false);
+
+		if (string.Equals(recorded, mine, StringComparison.Ordinal))
+		{
+			return;
+		}
+
+		throw new InvalidOperationException(
+			"The data-subject hashing key (or the registered hasher) has CHANGED since this database was " +
+			"first used, so every pseudonymisation token it is keyed by would now be computed differently. " +
+			"Startup is refused because continuing is silent and unrecoverable: an erasure would enumerate " +
+			"no key handles and still sign a completion certificate, a legal-hold lookup would find nothing " +
+			"so an erasure would proceed over data the law requires you to keep, and personal data already " +
+			"encrypted would stop being decryptable. Restore the original " +
+			$"{nameof(DataSubjectHashingOptions)}.{nameof(DataSubjectHashingOptions.Pepper)} and the original " +
+			$"{nameof(IDataSubjectHasher)} registration, or migrate every token-keyed record to the new value " +
+			"before starting. The hashing key is a permanent derivation parameter for the life of the data it " +
+			"protects; it is not a credential to rotate.");
+	}
+
 	private async Task InitializeCoreAsync(CancellationToken cancellationToken)
 	{
+		// Initialization is cached, so its schema and fingerprint must survive caller rollback.
+		// Ordinary data operations run after this scope restores the caller's ambient transaction.
+		using var initializationScope = new TransactionScope(
+			TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled);
+
 		if (_options.AutoCreateSchema)
 		{
 			await CreateSchemaIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
@@ -1182,130 +1861,30 @@ public sealed partial class SqlServerErasureStore
 		// Existing tables survive conditional creation unchanged. Verify their columns on both paths
 		// so an older schema fails before any request is accepted.
 		await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
+
+		// LAST, and after the schema is known to exist, because it writes a row. Placed here rather than at
+		// each operation because every operation already awaits this funnel: the 21 call sites are what make
+		// "every token-bound statement happens-after the check" true by construction instead of by review.
+		await VerifyTokenFingerprintAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
-	/// Confirms the required tables exist when automatic provisioning is disabled.
+	/// Verifies that the backing schema is one this store's statements can rely on, delegating to the
+	/// type that owns that question.
 	/// </summary>
 	/// <remarks>
-	/// Initialization must never complete without either creating the schema or verifying it. Marking the store
-	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
-	/// provider error far from its cause. This method is the verification half of that guarantee.
+	/// Separate from this class on purpose. Compatibility is a different concern from data access: it
+	/// reads the catalogue rather than the rows, it is answered once at startup rather than per call, and
+	/// it is the half the provisioning scripts also answer -- so keeping the two definitions of
+	/// "compatible" in one place is what stops them drifting apart.
 	/// </remarks>
+	/// <param name="cancellationToken">A token that cancels the catalogue reads.</param>
+	/// <returns>A task that completes when the schema is verified.</returns>
 	/// <exception cref="ErasureStoreNotProvisionedException">
-	/// A required table is absent, or is present but missing columns this store's statements bind.
-	/// Deliberately outside the <see cref="InvalidOperationException"/> hierarchy: that is the hierarchy a
-	/// duplicate request identifier uses, and a caller cannot be left unable to tell "this request is
-	/// already on file" from "this database was never provisioned".
+	/// A required table is absent, or is present in a shape this store's statements cannot rely on.
 	/// </exception>
-	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
-	{
-		// Reading the COLUMN catalogue rather than the table catalogue is the whole point of this method.
-		// A probe that asks only whether the table exists reports healthy on precisely the database that is
-		// broken: one provisioned before a column was added, where the table is present and the wrong shape.
-		// The consumer then gets a dead store plus a check that told them it was fine, and the real failure
-		// arrives later as a raw "Invalid column name" far from its cause. Automatic schema creation does not
-		// repair that database either -- it only creates tables that are absent.
-		const string ColumnsSql =
-			"SELECT c.name FROM sys.columns c WHERE c.object_id = OBJECT_ID(@TableName, 'U')";
-
-		await using var connection = new SqlConnection(_options.ConnectionString);
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		foreach (var (tableName, requiredColumns) in RequiredSchema)
-		{
-			var actualColumns = (await connection.QueryAsync<string>(
-				new CommandDefinition(
-					ColumnsSql,
-					new { TableName = tableName },
-					cancellationToken: cancellationToken,
-					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false)).ToList();
-
-			// No columns at all means no such table: sys.columns joins on OBJECT_ID, which is NULL for a
-			// table that does not exist, so the same query answers both questions and they stay in step.
-			if (actualColumns.Count == 0)
-			{
-				throw new ErasureStoreNotProvisionedException(
-					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
-					$"Either create the schema out of band, or set {nameof(SqlServerErasureStoreOptions)}."
-					+ $"{nameof(SqlServerErasureStoreOptions.AutoCreateSchema)} to true to provision it on startup.")
-				{
-					TableName = tableName,
-				};
-			}
-
-			// Named, not counted. An operator reading this at startup needs to know WHICH columns are absent
-			// to choose the migration; "the schema is stale" sends them to diff it by hand.
-			var missing = requiredColumns
-				.Where(required => !actualColumns.Contains(required, StringComparer.OrdinalIgnoreCase))
-				.ToList();
-
-			if (missing.Count > 0)
-			{
-				throw new ErasureStoreNotProvisionedException(
-					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
-					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
-					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
-					+ "that path only creates tables that are absent. If the missing column names end in V2, "
-					+ "the package ships the migration that adds them -- apply "
-					+ "'003_ReplaceLegalBasisColumns.sql' and restart. For any other missing column we ship no "
-					+ "alter script: the create scripts already declare them, so a freshly provisioned database "
-					+ "is correct and only a pre-existing one reaches this. Provision a new compliance schema from the shipped "
-					+ "create script. Preserve the earlier schema and its destruction evidence; "
-					+ "arbitrary defaults cannot safely backfill tenant identity. Then restart.")
-				{
-					TableName = tableName,
-				};
-			}
-		}
-	}
-
-	/// <summary>
-	/// Gets the columns every statement this store issues binds, per table.
-	/// </summary>
-	/// <remarks>
-	/// The request columns are the union of the INSERT and the several UPDATE paths, not the INSERT alone.
-	/// A request is created with a subset and then mutated through execution, completion and cancellation,
-	/// so the columns only an UPDATE names -- the outcome and cancellation fields -- are exactly the ones a
-	/// schema predating those features would lack, and the ones whose absence would otherwise surface at the
-	/// end of an erasure rather than at startup.
-	/// </remarks>
-	private IEnumerable<(string TableName, string[] RequiredColumns)> RequiredSchema =>
-	[
-		(_options.FullRequestsTableName,
-		[
-			"RequestId", "DataSubjectIdHash", "IdType", "TenantId", "TenantPartition", "Scope", "LegalBasisV2",
-			"ExternalReference", "RequestedBy", "RequestedAt", "ScheduledExecutionAt",
-			"ExecutedAt", "CompletedAt", "CancelledAt", "CancellationReason", "CancelledBy",
-			"Status", "KeysDeleted", "RecordsAffected", "CertificateId", "ErrorMessage",
-			"DataCategories", "CreatedAt", "UpdatedAt",
-		]),
-		(_options.FullCertificatesTableName,
-		[
-			"CertificateId", "RequestId", "DataSubjectReference", "RequestReceivedAt", "CompletedAt",
-			"Method", "Summary", "Verification", "LegalBasisV2", "Signature", "RetainUntil",
-			"Exceptions", "UnreachedData", "GeneratedAt", "Version", "CreatedAt",
-		]),
-
-		// Verified like the others, so a database provisioned before this table existed fails at STARTUP with
-		// the table named, rather than mid-erasure. The failure is loud on purpose: without this table a
-		// retried erasure silently attests less coverage than the request achieved, and the subject's
-		// completion becomes unreachable with nothing reporting why.
-		(_options.FullDestroyedKeysTableName,
-		[
-			"KeyGeneration", "RequestId", "KeyHandle", "DestroyedAt", "RecordedBy",
-		]),
-
-		// Verified for the same reason, and the failure it prevents is worse. Without this table a destruction
-		// proceeds with nowhere to stage the generation it is about to annihilate, so a crash between the
-		// destroy and the record leaves the subject's ciphertext permanently undecryptable AND their erasure
-		// permanently unreportable, with no repair available at all. Naming the table at STARTUP is the only
-		// place that is still cheap.
-		(_options.FullDestructionIntentsTableName,
-		[
-			"RequestId", "KeyHandle", "KeyGeneration", "StagedAt",
-		]),
-	];
+	private Task VerifySchemaExistsAsync(CancellationToken cancellationToken) =>
+		new SqlServerErasureSchemaVerifier(_options).VerifyAsync(cancellationToken);
 
 	/// <summary>
 	/// The ledger's provenance values. Stored as text because the audience for this table is a compliance
@@ -1374,6 +1953,22 @@ public sealed partial class SqlServerErasureStore
 					CertificateId UNIQUEIDENTIFIER NULL,
 					ErrorMessage NVARCHAR(2000) NULL,
 					DataCategories NVARCHAR(MAX) NULL,
+					-- CUSTODY, on its own axis. The Status column answers what HAPPENED to the erasure;
+					-- these answer whether a process is currently responsible for it, which it could not
+					-- express. Both nullable with no default, because an unclaimed row is the honest and
+					-- correct reading of every row written before custody was tracked. Binary collation
+					-- on the identity, matching this schema's tenant columns and for the same reason: the
+					-- framework compares it ordinally, and a more permissive database collation would
+					-- admit a write the fence was supposed to refuse. The expiry is written and compared
+					-- by the SERVER. Added here AND in the packaged migration script, because this
+					-- statement is a no-op against a table that already exists -- which is exactly why
+					-- the schema verifier names both columns.
+					ClaimIdentity NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL,
+					ClaimExpiresAt DATETIMEOFFSET NULL,
+					CONSTRAINT CK_{_options.RequestsTableName}_ClaimPairing CHECK (
+						(ClaimIdentity IS NULL AND ClaimExpiresAt IS NULL)
+						OR (ClaimIdentity IS NOT NULL AND ClaimExpiresAt IS NOT NULL)
+					),
 					CreatedAt DATETIMEOFFSET NOT NULL,
 					UpdatedAt DATETIMEOFFSET NOT NULL,
 					INDEX IX_{_options.RequestsTableName}_Status (Status, ScheduledExecutionAt),
@@ -1497,8 +2092,86 @@ public sealed partial class SqlServerErasureStore
 				)
 			END";
 
+		// THE MINT LEDGER: the handles the write path has intended to mint for a data subject, written
+		// AHEAD of each mint. It is what makes an erasure's destruction set COMPLETE rather than DERIVED --
+		// the declared retentions and the data inventory each answer which handles SHOULD exist, and a
+		// handle neither implies is a key nothing destroys.
+		var createMintedKeysTableSql = $@"
+			IF NOT EXISTS (SELECT 1 FROM sys.tables t
+				JOIN sys.schemas s ON t.schema_id = s.schema_id
+				WHERE s.name = '{_options.SchemaName}' AND t.name = '{_options.MintedKeysTableName}')
+			BEGIN
+				CREATE TABLE {_options.FullMintedKeysTableName} (
+					-- THE HANDLE ALONE IS THE KEY, the opposite choice from the destruction ledger, for a
+					-- reason rather than by inconsistency. Existence is a per-HANDLE fact here; a
+					-- destruction is a per-GENERATION one. A handle minted, destroyed and minted again has
+					-- one row throughout and that row stays true, so the row is immutable.
+					--
+					-- BIN2 is not stylistic. An erasure enumerates by (TenantId, DataSubjectIdHash) and the
+					-- service compares handles ordinally; the server default collation is case-INsensitive,
+					-- which would let one owner rows answer for another -- the cross-tenant direction this
+					-- subsystem has already shipped once.
+					KeyHandle NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
+					-- THE OWNER the data was encrypted under, stored verbatim, never an ambient value and
+					-- never the storage partition. An erasure is filed by one actor and executed later by
+					-- another, so the enumeration must join on the term the WRITE recorded.
+					TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
+					DataSubjectIdHash NVARCHAR(128) COLLATE Latin1_General_BIN2 NOT NULL,
+					-- WHEN THE ROW WAS WRITTEN, which is BEFORE the key was created.
+					IntentAt DATETIMEOFFSET NOT NULL,
+					-- WHEN THE KEY WAS CONFIRMED TO EXIST, and NULL until it was. The null is load-bearing
+					-- rather than a default: between the row and the key a write is invisible to both
+					-- observables an erasure has, so that state is indistinguishable from a writer that
+					-- crashed and is safely ignorable. This column separates them, and an erasure that
+					-- finds a null must report a concurrent write rather than certify.
+					MintedAt DATETIMEOFFSET NULL,
+					CONSTRAINT PK_{_options.MintedKeysTableName} PRIMARY KEY (KeyHandle)
+				)
+				-- THE ENUMERATION INDEX, and the erasure cannot work without it: a handle is an opaque
+				-- digest, so (TenantId, DataSubjectIdHash) is the only key a subject handles can be
+				-- found by.
+				CREATE INDEX IX_{_options.MintedKeysTableName}_Subject
+					ON {_options.FullMintedKeysTableName} (TenantId, DataSubjectIdHash)
+			END";
+
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		// NO TENANT COLUMN, deliberately. The token function belongs to the process, not to a tenant: a
+		// per-tenant fingerprint would record a rotated hashing key as correct for a tenant onboarded
+		// after the rotation while every earlier tenant's records were already orphaned, and the check
+		// would then pass forever on exactly the deployment where the damage is worst. Omitting the column
+		// makes a tenant predicate inexpressible rather than merely unused.
+		//
+		// This must stay equivalent in shape to the shipped provisioning script: the two are separate
+		// provisioning surfaces for the same table, and a database created by one is verified against the
+		// same contract as a database created by the other.
+		var createTokenFingerprintTableSql = $@"
+			IF OBJECT_ID(N'{_options.FullTokenFingerprintTableName}') IS NULL
+			CREATE TABLE {_options.FullTokenFingerprintTableName} (
+				[Id] NVARCHAR(128) COLLATE Latin1_General_BIN2 NOT NULL,
+				[Fingerprint] NVARCHAR(128) COLLATE Latin1_General_BIN2 NOT NULL,
+				[RecordedAt] DATETIMEOFFSET NOT NULL CONSTRAINT [DF_{_options.TokenFingerprintTableName}_RecordedAt] DEFAULT SYSDATETIMEOFFSET(),
+				CONSTRAINT [PK_{_options.TokenFingerprintTableName}] PRIMARY KEY CLUSTERED ([Id]),
+				CONSTRAINT [CK_{_options.TokenFingerprintTableName}_NotBlank] CHECK (LEN(LTRIM(RTRIM([Fingerprint]))) > 0)
+			)";
+
+		// WRITE-ONCE, ENFORCED AT THE DATABASE. The claim is an insert-if-absent followed by a read, which
+		// is sound only while a recorded fingerprint can never change: otherwise a process with the WRONG
+		// key can overwrite the value and then match it, while the process with the RIGHT key refuses.
+		var createTokenFingerprintGuardSql = $@"
+			IF OBJECT_ID(N'[{_options.SchemaName}].[TR_{_options.TokenFingerprintTableName}_WriteOnce]') IS NOT NULL
+				DROP TRIGGER [{_options.SchemaName}].[TR_{_options.TokenFingerprintTableName}_WriteOnce];
+			EXEC sys.sp_executesql N'
+			CREATE TRIGGER [{_options.SchemaName}].[TR_{_options.TokenFingerprintTableName}_WriteOnce]
+			ON {_options.FullTokenFingerprintTableName}
+			AFTER UPDATE, DELETE
+			AS
+			BEGIN
+				SET NOCOUNT ON;
+				IF NOT EXISTS (SELECT 1 FROM deleted) RETURN;
+				THROW 51004, ''The recorded data-subject token fingerprint is write-once and must never change or be removed. Changing it would let a process with the wrong hashing key proceed while a process with the right one is refused.'', 1;
+			END'";
 
 		_ = await connection.ExecuteAsync(new CommandDefinition(createSchemaSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
@@ -1510,8 +2183,73 @@ public sealed partial class SqlServerErasureStore
 			.ConfigureAwait(false);
 		_ = await connection.ExecuteAsync(new CommandDefinition(createDestructionIntentsTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
+		_ = await connection.ExecuteAsync(new CommandDefinition(createMintedKeysTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+			.ConfigureAwait(false);
+		// ONE ROW PER DECLARED PAIR, insert-if-absent, NEVER updated on the advance path. A set-valued row
+		// would make advancing a read-modify-write and therefore a lost update: two processes starting
+		// together each read the set, each write their own union, and the first one's additions vanish.
+		// Per-pair rows make the union form by construction.
+		//
+		// NO WRITE-ONCE TRIGGER HERE, and that is the difference from the fingerprint table above rather
+		// than an omission. A declaration set legitimately GROWS, and a withdrawal must be able to
+		// tombstone a row in place -- the tombstone OCCUPIES the key, which is what stops a later advance
+		// resurrecting a withdrawn declaration.
+		var createRetentionDeclarationsTableSql = $@"
+			IF OBJECT_ID(N'{_options.FullRetentionDeclarationsTableName}') IS NULL
+			CREATE TABLE {_options.FullRetentionDeclarationsTableName} (
+				[TenantId] NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
+				[AggregateType] NVARCHAR(512) COLLATE Latin1_General_BIN2 NOT NULL,
+				[RecordedAt] DATETIMEOFFSET NOT NULL CONSTRAINT [DF_{_options.RetentionDeclarationsTableName}_RecordedAt] DEFAULT SYSDATETIMEOFFSET(),
+				[WithdrawnAt] DATETIMEOFFSET NULL,
+				[WithdrawnBy] NVARCHAR(256) NULL,
+				[WithdrawalReason] NVARCHAR(1000) NULL,
+				CONSTRAINT [PK_{_options.RetentionDeclarationsTableName}] PRIMARY KEY CLUSTERED ([TenantId], [AggregateType]),
+				CONSTRAINT [CK_{_options.RetentionDeclarationsTableName}_TypeNotBlank]
+					CHECK (LEN(LTRIM(RTRIM([AggregateType]))) > 0),
+				CONSTRAINT [CK_{_options.RetentionDeclarationsTableName}_WithdrawalComplete]
+					CHECK (([WithdrawnAt] IS NULL AND [WithdrawnBy] IS NULL AND [WithdrawalReason] IS NULL)
+						OR ([WithdrawnAt] IS NOT NULL AND [WithdrawnBy] IS NOT NULL AND [WithdrawalReason] IS NOT NULL))
+			)";
+
+		// The read is by tenant, which the tenant's leading position in the clustered key already serves.
+		// Declared anyway because the verifier asks which columns a read locates rows by, and a provider
+		// that reordered the key would otherwise pass while every read scanned.
+		var createRetentionDeclarationsIndexesSql = $@"
+			IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_{_options.RetentionDeclarationsTableName}_Tenant')
+			CREATE INDEX [IX_{_options.RetentionDeclarationsTableName}_Tenant]
+				ON {_options.FullRetentionDeclarationsTableName} ([TenantId])";
+
+		_ = await connection.ExecuteAsync(new CommandDefinition(createTokenFingerprintTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+			.ConfigureAwait(false);
+		// Replace the guard atomically, as the shipped provisioning script does. If CREATE fails after
+		// DROP, rollback must restore the old guard rather than leaving an existing ledger writable.
+		await using (var guardTransaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false))
+		{
+			_ = await connection.ExecuteAsync(new CommandDefinition(
+				createTokenFingerprintGuardSql,
+				transaction: guardTransaction,
+				cancellationToken: cancellationToken,
+				commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+			await guardTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+		}
+
+		_ = await connection.ExecuteAsync(new CommandDefinition(createRetentionDeclarationsTableSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+			.ConfigureAwait(false);
+		_ = await connection.ExecuteAsync(new CommandDefinition(createRetentionDeclarationsIndexesSql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+			.ConfigureAwait(false);
 
 		LogSchemaEnsured();
+	}
+
+	/// <summary>
+	/// The owner terms of a mint-ledger row, read back to decide whether a conflicting insert agrees.
+	/// </summary>
+	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Dapper materializes this type.")]
+	private sealed class MintedKeyOwnerRow
+	{
+		public string TenantId { get; init; } = string.Empty;
+
+		public string DataSubjectIdHash { get; init; } = string.Empty;
 	}
 
 	// Internal row classes for Dapper mapping

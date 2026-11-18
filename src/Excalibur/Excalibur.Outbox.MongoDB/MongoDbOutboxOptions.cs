@@ -78,7 +78,7 @@ public sealed class MongoDbOutboxOptions
 	public int LeaseTimeoutSeconds { get; set; } = 120;
 
 	/// <summary>
-	/// Gets or sets the failure-backoff floor F, in seconds: after <see cref="MongoDbOutboxStore.MarkFailedAsync"/>
+	/// Gets or sets the failure-backoff floor F, in seconds: after <see cref="MongoDbOutboxStore.MarkFailedAsync(string, string, int, System.Threading.CancellationToken)"/>
 	/// records a plain failure, the message becomes re-claimable only after F has elapsed (its <c>NextAttemptAt</c>
 	/// gate). This bounds the retry cadence of the plain (no fine-grained backoff) path so it cannot hot-loop the
 	/// drain, while the message remains eventually re-claimable (at-least-once). F must exceed the drain polling

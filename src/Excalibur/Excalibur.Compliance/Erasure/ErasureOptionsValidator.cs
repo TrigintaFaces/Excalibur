@@ -51,6 +51,18 @@ internal sealed class ErasureOptionsValidator : IValidateOptions<ErasureOptions>
 			failures.Add($"{nameof(ErasureExecutionOptions.BatchSize)} must be >= 1 (was {options.Execution.BatchSize}).");
 		}
 
+		// A claim of zero or less is a claim that has already lapsed when it is granted, so every poll
+		// re-offers the request and two instances race on every cycle. Refused at startup rather than
+		// producing a store that hands out dead claims forever.
+		if (options.Execution.ClaimDuration <= TimeSpan.Zero)
+		{
+			failures.Add(
+				$"{nameof(ErasureExecutionOptions.ClaimDuration)} must be greater than zero (was "
+				+ $"{options.Execution.ClaimDuration}). It is how long an executing instance holds a "
+				+ "request before another may take it over; a non-positive value is granted already "
+				+ "lapsed, so every poll re-offers the request and instances race on every cycle.");
+		}
+
 		if (options.Execution.MaxRetryAttempts < 0)
 		{
 			failures.Add($"{nameof(ErasureExecutionOptions.MaxRetryAttempts)} must be >= 0 (was {options.Execution.MaxRetryAttempts}).");

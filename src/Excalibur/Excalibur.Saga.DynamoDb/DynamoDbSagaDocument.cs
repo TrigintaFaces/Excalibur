@@ -157,7 +157,7 @@ SagaPrefix + TenantScopedKey.Compose(tenantId, sagaId.ToString());
 			item[CompletedAt] = new() { S = completedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture) };
 		}
 
-		if (ttlSeconds > 0)
+		if (ttlSeconds > 0 && sagaState.PendingTimerRecovery is null)
 		{
 			var ttlValue = DateTimeOffset.UtcNow.AddSeconds(ttlSeconds).ToUnixTimeSeconds();
 			item[ttlAttributeName] = new() { N = ttlValue.ToString(CultureInfo.InvariantCulture) };

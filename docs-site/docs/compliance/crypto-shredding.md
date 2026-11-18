@@ -220,24 +220,37 @@ A tombstone's claim is scoped to the **envelope**, not the subject. A `true` say
 
 The **tenant is part of the key's identity**, not a filter applied around it. A data-subject identifier comes from your own entity, so customer numbers, employee identifiers and e-mail addresses repeat across tenants; a handle that did not carry the tenant would give two such tenants one key, and either tenant's erasure would destroy it for both. A handle is a name in a key store with no row beside it to carry a tenant column, so the name itself carries the tenant.
 
-:::danger Check the assessed versions and your installed implementation
-The paragraph above describes the **current source** behavior. The shared-key defect was identified in
-`10.0.0-alpha.4` through `10.0.0-alpha.13`: package type presence was checked at the endpoints,
-and the intervening versions were inferred from continuity. Later published versions, including
-`alpha.14` and `alpha.15`, have not been verified here for this behavior; do not infer that they are
-fixed or affected from this assessment. **In an implementation whose handle carries no tenant**, two tenants whose
-`[DataSubjectId]` values collide therefore share one key, and either tenant's erasure destroys it for
-both. The other tenant then reads `null` over data nobody asked to erase — which the read path on this
-page defines as the assertion of a lawful erasure — and the key is gone, so that data is unrecoverable.
-It takes no race and no fault: two ordinary writes and one ordinary erasure. The authenticated data
-carries no tenant on this path either, so the read produces the tombstone rather than failing loudly.
+:::danger If you are on an affected version, upgrade — and know what upgrading does to data already written
+The paragraph above describes `10.0.0-alpha.14` and later. **In `10.0.0-alpha.4` through
+`10.0.0-alpha.13` the handle carried no tenant**, so two tenants whose `[DataSubjectId]` values collided
+shared one key and either tenant's erasure destroyed it for both. The victim then read `null` over data
+nobody asked to erase — which the read path on this page defines as the assertion of a lawful erasure —
+and the key was gone, so that data is unrecoverable. It took no race and no fault: two ordinary writes
+and one ordinary erasure. The authenticated data carried no tenant on that path either, so the read
+produced the tombstone rather than failing loudly.
 
-**If your implementation has the shared-key defect, make the `[DataSubjectId]` value globally unique yourself** by
-embedding your tenant identifier in it, at **both** the write path and the erasure-request path. It
-protects only data written afterwards, repairs nothing already written, and cannot recover a collision
-that has already been erased. Changing those values also makes your existing legal holds and registered
-data locations unmatchable until you re-place them. See [the full entry in Known
-issues](../known-issues.md#one-tenants-erasure-destroys-another-tenants-data-when-they-share-a-data-subject-id-and-the-victims-read-reports-it-as-lawfully-erased).
+**Upgrading is the fix, and it is a breaking change to the stored form.** Personal data written on an
+affected version is not readable afterwards, and no migration is supplied. It is **refused with a named
+error rather than returned as `null`**, so it can never be mistaken for a lawful erasure — but if you
+need it, decrypt and re-write it on the affected version before you upgrade.
+
+**Do not adopt the former mitigation on a fixed version.** The earlier guidance was to embed your tenant
+identifier in the `[DataSubjectId]` value yourself. From `alpha.14` the framework derives the handle from
+the tenant and the subject together, so doing it by hand adds nothing and makes your existing legal holds
+and registered data locations unmatchable until you re-place them.
+
+**A second, separate control shipped later.** From `10.0.0-alpha.16` the read path also requires the
+owning tenant to be supplied by the caller rather than read out of the envelope. That is defence against a
+different mistake and is not what fixed the defect above — on `alpha.14` and `alpha.15` you have this fix
+without that control.
+
+**How those versions were established:** the member that only the tenant-qualified derivation has is
+absent from the published `alpha.13` assembly and present from `alpha.14` onward, read out of each
+package's own assembly; independently, the commit carrying the derivation is not an ancestor of the
+`alpha.13` release and is an ancestor of `alpha.14`. That establishes which packages ship the fixed
+derivation; it is not a behavioral assessment of an individual build. Full entry, including how to tell
+whether a collision was already erased in your own data: [Resolved
+issues](../resolved-issues.md#one-tenants-erasure-destroyed-another-tenants-data-when-they-shared-a-data-subject-id-and-the-victims-read-reported-it-as-lawfully-erased).
 :::
 
 Single-tenant hosts pass `TenantDefaults.DefaultTenantId` and need no further configuration — `IFieldEncryptor` resolves the ambient tenant for you, and an unconfigured host resolves that same identity. **That identity is the data's OWNER — the term a key handle is derived from — and it is not the same thing as the tenant *partition* a retention declaration names.** A retention is declared against `KeyedTenantPartition.Untenanted` in a single-tenant host, and the erasure request carries both facts so each is read by the operation that needs it: the owner decides which key decrypts the data, the partition decides whose legal obligations apply. They were one field once, and because a single-tenant owner is not its partition, the retention lookup missed and destroyed the key protecting a legally retained record while the certificate reported it kept. Reading one as the other is the mistake to avoid here. In a multi-tenant host, establish the tenant scope before the write (tenant middleware or `TenantContextHolder.BeginScope`) and **file each erasure request for the tenant whose data it erases** — an erasure for one tenant destroys only that tenant's key.

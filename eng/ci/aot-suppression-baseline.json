@@ -471,18 +471,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 38,
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/CloudEventEncoderAdapter.cs",
-      "justification": "Mismatch-only, not a swallow: ICloudEventEncoderAdapter is an internal, non-extensible wiring shim over ICloudEventEncoder<TOutbound> (whose interface member already carries this requirement) — the consumer-facing signal already lives at each transport's opt-in registration (e.g. UseCloudEvents/AddCloudEventsForRabbitMq/AddCloudEventsForPubSub), which is annotated. Annotating this internal interface too would be redundant, not a new hole.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 42,
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/CloudEventEncoderAdapter.cs",
-      "justification": "Same as IL2046: the interface mismatch is against ICloudEventEncoderAdapter, an internal wiring shim with a single implementation, not a consumer-implementable contract. Same as IL2046.",
-      "warningId": "IL3051"
-    },
-    {
       "line": 79,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/AwsServiceCollectionExtensions.cs",
       "justification": "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.",
@@ -641,13 +629,13 @@
     {
       "line": 109,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
-      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type \u2014 concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "warningId": "IL2026"
     },
     {
       "line": 111,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
-      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type \u2014 concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "warningId": "IL3050"
     },
     {
@@ -5119,7 +5107,7 @@
     {
       "line": 319,
       "file": "src/Excalibur/Excalibur.Saga/DependencyInjection/SagaServiceCollectionExtensions.cs",
-      "justification": "Typed dispatch delegate created at DI composition time with concrete generic arguments. No runtime code generation needed — the generic method instantiation is known at compile time.",
+      "justification": "Typed dispatch delegate created at DI composition time with concrete generic arguments. No runtime code generation needed \u2014 the generic method instantiation is known at compile time.",
       "warningId": "IL3050"
     },
     {
@@ -5405,30 +5393,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 89,
-      "file": "src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs",
-      "justification": "AotJustification",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 90,
-      "file": "src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs",
-      "justification": "AotJustification",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 98,
-      "file": "src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs",
-      "justification": "AotJustification",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 99,
-      "file": "src/Excalibur/Excalibur.Workflows/WorkflowPayloadSerializer.cs",
-      "justification": "AotJustification",
-      "warningId": "IL3050"
-    },
-    {
       "line": 623,
       "file": "src/Dispatch/Excalibur.Dispatch/Configuration/DispatchBuilder.cs",
       "justification": "DynamicallyAccessedMembers does not flow through a List<Type>; this is the boundary where it stops, and both sources crossing it are annotated. _globalMiddleware has exactly one insertion -- UseMiddleware<TMiddleware>(), whose TMiddleware carries DynamicallyAccessedMemberTypes.PublicConstructors -- so every element's constructors are preserved. The second source is GetType() on an instance the container already activated, whose implementation type the container annotates the same way (ServiceDescriptor.ImplementationType). Independently of both, the scope walk this feeds fails safe: a type whose constructors it cannot see is classified scope-requiring, never root-safe.",
@@ -5563,7 +5527,7 @@
       "warningId": "IL2026",
       "verdict": "PROVABLY-SAFE",
       "classifiedBy": "inspection",
-      "note": "Bounded by a throwing runtime guard. The suppressed statement is `_options.MakeReadOnly(populateMissingResolver: true)` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:176, reachable only past `if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault) throw` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:168. The native compiler substitutes RuntimeFeature.IsDynamicCodeSupported to false and removes the branch, so the populate-missing-resolver fallback cannot be entered in a natively compiled application. When reflection is unavailable the guard does not degrade silently: it throws, and the message names the AOT-safe alternatives (AddAotJsonSerialization, or supplying TypeInfoResolver)."
+      "note": "Bounded by a throwing runtime guard. The suppressed statement is `_options.MakeReadOnly(populateMissingResolver: true)` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:176, reachable only past `if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault) throw` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:168. The native compiler substitutes RuntimeFeature.IsDynamicCodeSupported to false and removes the branch, so the populate-missing-resolver fallback cannot be entered in a natively compiled application. When reflection is unavailable the guard does not degrade silently: it throws, and the message names the explicit source-generated TypeInfoResolver requirement on this serializer's options."
     },
     {
       "line": 175,
@@ -5572,7 +5536,7 @@
       "warningId": "IL3050",
       "verdict": "PROVABLY-SAFE",
       "classifiedBy": "inspection",
-      "note": "Bounded by a throwing runtime guard. The suppressed statement is `_options.MakeReadOnly(populateMissingResolver: true)` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:176, reachable only past `if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault) throw` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:168. The native compiler substitutes RuntimeFeature.IsDynamicCodeSupported to false and removes the branch, so the populate-missing-resolver fallback cannot be entered in a natively compiled application. When reflection is unavailable the guard does not degrade silently: it throws, and the message names the AOT-safe alternatives (AddAotJsonSerialization, or supplying TypeInfoResolver)."
+      "note": "Bounded by a throwing runtime guard. The suppressed statement is `_options.MakeReadOnly(populateMissingResolver: true)` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:176, reachable only past `if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault) throw` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:168. The native compiler substitutes RuntimeFeature.IsDynamicCodeSupported to false and removes the branch, so the populate-missing-resolver fallback cannot be entered in a natively compiled application. When reflection is unavailable the guard does not degrade silently: it throws, and the message names the explicit source-generated TypeInfoResolver requirement on this serializer's options."
     },
     {
       "line": 66,

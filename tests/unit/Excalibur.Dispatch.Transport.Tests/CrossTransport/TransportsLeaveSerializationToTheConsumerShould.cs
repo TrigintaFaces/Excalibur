@@ -107,7 +107,7 @@ public sealed class TransportsLeaveSerializationToTheConsumerShould
 				_ = services.AddKafkaTransport(k => k.BootstrapServers("localhost:9092"));
 				break;
 			case "rabbitmq":
-				_ = services.AddRabbitMQTransport(r => r.ConnectionString("amqp://guest:guest@localhost:5672/"));
+				_ = services.AddRabbitMQTransport(r => r.ConnectionString("amqp://serialization-test:serialization-test-password@localhost:5672/"));
 				break;
 			case "aws-sqs":
 				_ = services.AddAwsSqsTransport(sqs => sqs.UseRegion("us-east-1"));

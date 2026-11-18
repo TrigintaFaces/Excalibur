@@ -97,10 +97,27 @@ internal sealed partial class RecurringDispatchScheduler(
 	/// <param name="message"> The message to schedule. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
-	public async Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
-			string cronExpression, TimeZoneInfo timeZone, TMessage message,
-			CancellationToken cancellationToken)
-			where TMessage : class
+    public Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
+        string cronExpression, TimeZoneInfo timeZone, TMessage message, CancellationToken cancellationToken)
+        where TMessage : class => ScheduleCronAsync(cronExpression, timeZone, null, message, cancellationToken);
+
+    /// <inheritdoc />
+    public Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
+        string cronExpression, CronRecurrenceProfile profile, TMessage message, CancellationToken cancellationToken)
+        where TMessage : class => ScheduleRecurringAsync(cronExpression, _cronOptions.DefaultTimeZone, profile, message, cancellationToken);
+
+    /// <inheritdoc />
+    public Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
+        string cronExpression, TimeZoneInfo timeZone, CronRecurrenceProfile profile,
+        TMessage message, CancellationToken cancellationToken) where TMessage : class
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        return ScheduleCronAsync(cronExpression, timeZone, profile, message, cancellationToken);
+    }
+
+    private async Task ScheduleCronAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
+        string cronExpression, TimeZoneInfo timeZone, CronRecurrenceProfile? profile,
+        TMessage message, CancellationToken cancellationToken) where TMessage : class
 	{
 		var type = typeof(TMessage);
 		// A schedule row outlives the process that wrote it, so its type name must not encode anything that
@@ -110,8 +127,14 @@ internal sealed partial class RecurringDispatchScheduler(
 		// no version and is the form the inbox and outbox writers store.
 		var name = type.FullName ?? type.Name;
 
-		// Validate cron expression using our cron scheduler
-		var cronExpr = cronScheduler.Parse(cronExpression, timeZone);
+        // Resolve before serialization/write so persisted identity and computation use the same installed rules.
+        timeZone = CronRecurrenceValidation.ResolveSuppliedTimeZone(timeZone);
+        _ = CronRecurrenceValidation.Validate(new ScheduledMessage
+        {
+            CronExpression = cronExpression, TimeZoneId = timeZone.Id,
+            CronRecurrenceProfileId = profile?.Id, CronRecurrenceProfileVersion = profile?.Version,
+        });
+        var cronExpr = cronScheduler.Parse(cronExpression, timeZone);
 		var body = await serializer.SerializeAsync(message, typeof(TMessage)).ConfigureAwait(false);
 
 		// Calculate next execution time
@@ -121,6 +144,8 @@ internal sealed partial class RecurringDispatchScheduler(
 		{
 			CronExpression = cronExpression,
 			TimeZoneId = timeZone.Id,
+            CronRecurrenceProfileId = profile?.Id,
+            CronRecurrenceProfileVersion = profile?.Version,
 			MessageName = name,
 			MessageBody = body,
 			CorrelationId = ExtractCorrelationId(message),

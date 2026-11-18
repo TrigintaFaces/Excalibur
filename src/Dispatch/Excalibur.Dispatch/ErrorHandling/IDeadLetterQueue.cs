@@ -45,6 +45,33 @@ namespace Excalibur.Dispatch.ErrorHandling;
 /// tenant re-enters untenanted — never as the caller's ambient tenant.
 /// </para>
 /// <para>
+/// <strong>Effects — a value the caller supplies is the value a reader gets back.</strong> Whatever a
+/// caller hands to <see cref="EnqueueAsync{T}"/> is what a subsequent read of that entry reports. This is
+/// stated as an effect and not as a schema: how an implementation stores a value is its own business, and
+/// what it owes is that a read agrees with the write.
+/// </para>
+/// <para>
+/// Two consequences follow, and both are correct outcomes rather than loopholes. The clause binds only
+/// what the caller <em>supplies</em>, so an implementation is never obliged to invent provenance it was
+/// not given. And it says nothing about retention, so a discarding implementation satisfies it vacuously
+/// because nothing is ever read back from it.
+/// </para>
+/// <para>
+/// <strong>Every filter axis this contract exposes is a promise that the underlying value varies.</strong>
+/// An implementation that pins a filtered value to a constant turns a caller's query into a confident
+/// wrong answer with nothing to show for it, because an empty result is indistinguishable from "there are
+/// none". Two entries that must fall on opposite sides of any exposed filter are required to be separated
+/// by it.
+/// </para>
+/// <para>
+/// <strong>Failure — the operation may fail with an implementation-specific exception, and a caller must
+/// treat any failure as "not enqueued".</strong> This contract deliberately does not enumerate an
+/// exception set. Enumerating one would oblige an implementation whose backing technology raises something
+/// unlisted either to lie by wrapping it or to break the contract by throwing, so the honest clause is the
+/// weaker one. A caller that wraps the call in a catch-all over every failure is therefore <em>correct</em>
+/// rather than merely defensive.
+/// </para>
+/// <para>
 /// <strong>Not supported.</strong> Two tenants holding the same entry identifier is outside this contract.
 /// Identifiers are allocated per entry and are not reused across tenants; a store that admits the same
 /// identifier under two tenants fails the addressing operations rather than choosing between the rows.
@@ -125,8 +152,31 @@ public interface IDeadLetterQueue
 	/// </summary>
 	/// <param name="entryId">The unique identifier of the entry to replay.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>True if the entry was successfully replayed, false if not found.</returns>
+	/// <returns>
+	/// <see langword="true"/> when this call replayed the entry; <see langword="false"/> when it did not.
+	/// </returns>
 	/// <remarks>
+	/// <para>
+	/// <strong>A replay happens at most once per entry, and the return says whether it was THIS call that
+	/// performed it.</strong> An implementation claims the entry before invoking the handler, so of several
+	/// concurrent callers exactly one replays and the others return <see langword="false"/>. A
+	/// <see langword="false"/> therefore carries three distinct situations and does not separate them: no
+	/// such entry; the entry was already replayed; or another caller claimed it first. Treat it as "not
+	/// replayed by me" rather than as "not found".
+	/// </para>
+	/// <para>
+	/// A handler that throws propagates, and the claim is released so the entry can be replayed again —
+	/// a transient downstream failure does not consume the entry.
+	/// </para>
+	/// <para>
+	/// <strong>Known gap.</strong> If the process stops between claiming an entry and delivering it, or if
+	/// releasing the claim after a failed handler does not succeed, the entry is left marked replayed
+	/// without having been delivered — and that state cannot be told apart from a replay that succeeded,
+	/// because the entry carries the same flag either way. The lost replay is bounded: it affects the one
+	/// entry, and no later batch re-delivers it. The remaining signal is a logged warning, so treat a
+	/// replay that reported an error as needing confirmation from your own handler's effects rather than
+	/// from the entry's state.
+	/// </para>
 	/// Tenant-scoped: only an entry stored under the ambient tenant is replayable, and another tenant's entry
 	/// is reported as not found. Fails closed: when multi-tenancy is registered but resolves no tenant, this
 	/// raises <see cref="TenantRequiredException"/> rather than replaying unscoped.

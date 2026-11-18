@@ -89,18 +89,82 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 	[Fact]
 	public async Task Delegate_enqueue_to_inner_when_encrypt_mode()
 	{
-		// Arrange
-		var inner = A.Fake<IOutboxStore>();
+		// The provider retains serialization/envelope ownership. A raw Enqueue forward bypasses encryption.
+		var inner = A.Fake<IOutboxStore>(options => options.Implements<IOutboxPayloadTransformStore>());
+		var facet = (IOutboxPayloadTransformStore)inner;
+		A.CallTo(() => inner.GetService(typeof(IOutboxPayloadTransformStore))).Returns(inner);
 		var sut = CreateSut(inner, EncryptionMode.EncryptAndDecrypt);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
+		using var cancellation = new CancellationTokenSource();
+		var token = cancellation.Token;
+		// Independent provider framing is deliberately not a JSON encoding of the fake typed message.
+		var preparedPayload = new byte[] { 2, 255, 0, 123, 9, 17 };
+		const string preparedTenant = "provider-owned-tenant";
+		byte[]? encryptionInput = null;
+		EncryptionContext? encryptionContext = null;
+		byte[]? transformedPayload = null;
+		var transformCalls = 0;
+		A.CallTo(() => _registry.GetPrimary()).Returns(_provider);
+		A.CallTo(() => _provider.EncryptAsync(A<byte[]>._, A<EncryptionContext>._, token))
+			.ReturnsLazily((byte[] bytes, EncryptionContext encryption, CancellationToken _) =>
+			{
+				encryptionInput = bytes;
+				encryptionContext = encryption;
+				return Task.FromResult(new EncryptedData
+				{
+					Ciphertext = [99, 7], Iv = new byte[12], KeyId = "k1", KeyVersion = 1,
+					Algorithm = EncryptionAlgorithm.Aes256Gcm,
+				});
+			});
+		async ValueTask TransformAndAcceptAsync(
+			Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transform,
+			CancellationToken actualToken)
+		{
+			actualToken.ShouldBe(token);
+			transformCalls++;
+			transformedPayload = await transform(preparedPayload, preparedTenant, actualToken).ConfigureAwait(false);
+		}
+		A.CallTo(() => facet.EnqueueWithPayloadTransformAsync(message, context,
+			A<Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>>>._, token))
+			.ReturnsLazily((IDispatchMessage _, IMessageContext _,
+				Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transform,
+				CancellationToken actualToken) => TransformAndAcceptAsync(transform, actualToken));
 
-		// Act
-		await sut.EnqueueAsync(message, context, CancellationToken.None).ConfigureAwait(false);
+		await sut.EnqueueAsync(message, context, token).ConfigureAwait(false);
 
-		// Assert
-		A.CallTo(() => inner.EnqueueAsync(message, context, A<CancellationToken>._))
+		transformCalls.ShouldBe(1);
+		encryptionInput.ShouldNotBeSameAs(preparedPayload);
+		encryptionInput.ShouldBe(preparedPayload);
+		preparedPayload.ShouldBe(new byte[] { 2, 255, 0, 123, 9, 17 });
+		var observedContext = encryptionContext.ShouldNotBeNull();
+		observedContext.TenantId.ShouldBe(preparedTenant);
+		observedContext.Purpose.ShouldBe("test");
+		EncryptedData.IsFieldEncrypted(transformedPayload.ShouldNotBeNull()).ShouldBeTrue();
+		A.CallTo(() => _provider.EncryptAsync(A<byte[]>.That.Matches(bytes => bytes.SequenceEqual(preparedPayload)),
+			A<EncryptionContext>.That.Matches(encryption => encryption.TenantId == preparedTenant && encryption.Purpose == "test"), token))
 			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => facet.EnqueueWithPayloadTransformAsync(message, context,
+			A<Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>>>._, token))
+			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => inner.EnqueueAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => inner.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._)).MustNotHaveHappened();
+
+		// Read through the real decorator envelope parser, proving the transformed bytes contain the mock
+		// cipher/key metadata rather than merely a magic prefix. No private serializer is copied into this test.
+		A.CallTo(() => _registry.FindDecryptionProvider(A<EncryptedData>._)).Returns(_provider);
+		A.CallTo(() => _provider.DecryptAsync(
+			A<EncryptedData>.That.Matches(data => data.Ciphertext.SequenceEqual(new byte[] { 99, 7 })
+				&& data.KeyId == "k1" && data.KeyVersion == 1 && data.Algorithm == EncryptionAlgorithm.Aes256Gcm),
+			A<EncryptionContext>.That.Matches(encryption => encryption.TenantId == preparedTenant && encryption.Purpose == "test"), token))
+			.ReturnsLazily(() => Task.FromResult(preparedPayload.ToArray()));
+		A.CallTo(() => inner.GetUnsentMessagesAsync(1, token)).ReturnsLazily(() =>
+			new ValueTask<IEnumerable<OutboundMessage>>([new OutboundMessage("provider-type", transformedPayload!.ToArray(), "provider-route")
+			{
+				TenantId = preparedTenant,
+			}]));
+		(await sut.GetUnsentMessagesAsync(1, token).ConfigureAwait(false)).ShouldHaveSingleItem().Payload.ShouldBe(preparedPayload);
+		A.CallTo(() => _provider.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, token)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -280,8 +344,13 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 			ReceivedAt = DateTimeOffset.UtcNow,
 		};
 
-		A.CallTo(() => ((IOutboxStoreBatch)inner).TryMarkSentAndReceivedAsync("m1", inboxEntry, A<CancellationToken>._))
-			.Returns(new ValueTask<bool>(true));
+		var batchWrite = A.CallTo(() => ((IOutboxStoreBatch)inner).TryMarkSentAndReceivedAsync("m1",
+			A<InboxEntry>.That.Matches(entry => !ReferenceEquals(entry, inboxEntry)
+				&& entry.MessageId == inboxEntry.MessageId && entry.HandlerType == inboxEntry.HandlerType
+				&& entry.MessageType == inboxEntry.MessageType && entry.Status == inboxEntry.Status
+				&& entry.ReceivedAt == inboxEntry.ReceivedAt && EncryptedData.IsFieldEncrypted(entry.Payload)),
+			A<CancellationToken>._));
+		batchWrite.Returns(new ValueTask<bool>(true));
 
 		// Act
 		var result = await sut.TryMarkSentAndReceivedAsync("m1", inboxEntry, CancellationToken.None)
@@ -289,6 +358,8 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 
 		// Assert
 		result.ShouldBeTrue();
+		batchWrite.MustHaveHappenedOnceExactly();
+		inboxEntry.Payload.ShouldBe(new byte[] { 1 });
 	}
 
 	[Fact]
@@ -352,5 +423,363 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 			DefaultPurpose = "test",
 		});
 		return new EncryptingOutboxStoreDecorator(inner, _registry, options);
+	}
+
+	[Theory]
+	[InlineData("PlainSent")]
+	[InlineData("FencedSent")]
+	[InlineData("PlainDeadLetter")]
+	[InlineData("FencedDeadLetter")]
+	public async Task PreserveTypedCompletionCancellationAndExactArguments(string route)
+	{
+		using var cancellation = new CancellationTokenSource();
+		var token = cancellation.Token;
+		var authority = new OutboxWriteAuthority(73, "acquisition-id");
+		cancellation.Cancel();
+		var expected = new OperationCanceledException(token);
+		var faulted = Task.FromException<OutboxCompletionOutcome>(expected);
+		faulted.IsFaulted.ShouldBeTrue();
+		faulted.Exception!.InnerException.ShouldBeSameAs(expected);
+		switch (route)
+		{
+			case "PlainSent":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IClaimScopedOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IClaimScopedOutboxStore))).Returns(inner);
+				var capable = (IClaimScopedOutboxStore)inner;
+				A.CallTo(() => capable.MarkSentAsync("durable-id", "acquisition-id", token))
+					.Returns(new ValueTask<OutboxCompletionOutcome>(faulted));
+				var resolved = CreateSut(inner).GetService(typeof(IClaimScopedOutboxStore)) as IClaimScopedOutboxStore;
+				resolved.ShouldNotBeNull();
+				resolved.ShouldBeSameAs(inner);
+				var completion = resolved.MarkSentAsync("durable-id", "acquisition-id", token);
+				var observedTask = completion.AsTask();
+				observedTask.ShouldBeSameAs(faulted);
+				observedTask.IsCompleted.ShouldBeTrue();
+				OperationCanceledException? actual = null;
+				try
+				{
+					await observedTask.ConfigureAwait(false);
+				}
+				catch (OperationCanceledException error)
+				{
+					actual = error;
+				}
+				actual.ShouldNotBeNull();
+				actual.ShouldBeSameAs(expected);
+				actual.CancellationToken.ShouldBe(token);
+				A.CallTo(() => capable.MarkSentAsync("durable-id", "acquisition-id", token)).MustHaveHappenedOnceExactly();
+				break;
+			}
+			case "FencedSent":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IFencedClaimScopedOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IFencedClaimScopedOutboxStore))).Returns(inner);
+				var capable = (IFencedClaimScopedOutboxStore)inner;
+				A.CallTo(() => capable.MarkSentAsync("durable-id", authority, token))
+					.Returns(new ValueTask<OutboxCompletionOutcome>(faulted));
+				var resolved = CreateSut(inner).GetService(typeof(IFencedClaimScopedOutboxStore)) as IFencedClaimScopedOutboxStore;
+				resolved.ShouldNotBeNull();
+				resolved.ShouldBeSameAs(inner);
+				var completion = resolved.MarkSentAsync("durable-id", authority, token);
+				var observedTask = completion.AsTask();
+				observedTask.ShouldBeSameAs(faulted);
+				observedTask.IsCompleted.ShouldBeTrue();
+				OperationCanceledException? actual = null;
+				try
+				{
+					await observedTask.ConfigureAwait(false);
+				}
+				catch (OperationCanceledException error)
+				{
+					actual = error;
+				}
+				actual.ShouldNotBeNull();
+				actual.ShouldBeSameAs(expected);
+				actual.CancellationToken.ShouldBe(token);
+				A.CallTo(() => capable.MarkSentAsync("durable-id", authority, token)).MustHaveHappenedOnceExactly();
+				break;
+			}
+			case "PlainDeadLetter":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IClaimScopedDeadLetterableOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IClaimScopedDeadLetterableOutboxStore))).Returns(inner);
+				var capable = (IClaimScopedDeadLetterableOutboxStore)inner;
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token))
+					.Returns(new ValueTask<OutboxCompletionOutcome>(faulted));
+				var resolved = CreateSut(inner).GetService(typeof(IClaimScopedDeadLetterableOutboxStore)) as IClaimScopedDeadLetterableOutboxStore;
+				resolved.ShouldNotBeNull();
+				resolved.ShouldBeSameAs(inner);
+				var completion = resolved.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token);
+				var observedTask = completion.AsTask();
+				observedTask.ShouldBeSameAs(faulted);
+				observedTask.IsCompleted.ShouldBeTrue();
+				OperationCanceledException? actual = null;
+				try
+				{
+					await observedTask.ConfigureAwait(false);
+				}
+				catch (OperationCanceledException error)
+				{
+					actual = error;
+				}
+				actual.ShouldNotBeNull();
+				actual.ShouldBeSameAs(expected);
+				actual.CancellationToken.ShouldBe(token);
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token)).MustHaveHappenedOnceExactly();
+				break;
+			}
+			case "FencedDeadLetter":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IFencedDeadLetterableOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IFencedDeadLetterableOutboxStore))).Returns(inner);
+				var capable = (IFencedDeadLetterableOutboxStore)inner;
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token))
+					.Returns(new ValueTask<OutboxCompletionOutcome>(faulted));
+				var resolved = CreateSut(inner).GetService(typeof(IFencedDeadLetterableOutboxStore)) as IFencedDeadLetterableOutboxStore;
+				resolved.ShouldNotBeNull();
+				resolved.ShouldBeSameAs(inner);
+				var completion = resolved.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token);
+				var observedTask = completion.AsTask();
+				observedTask.ShouldBeSameAs(faulted);
+				observedTask.IsCompleted.ShouldBeTrue();
+				OperationCanceledException? actual = null;
+				try
+				{
+					await observedTask.ConfigureAwait(false);
+				}
+				catch (OperationCanceledException error)
+				{
+					actual = error;
+				}
+				actual.ShouldNotBeNull();
+				actual.ShouldBeSameAs(expected);
+				actual.CancellationToken.ShouldBe(token);
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token)).MustHaveHappenedOnceExactly();
+				break;
+			}
+			default: throw new ArgumentOutOfRangeException(nameof(route));
+		}
+	}
+
+	[Theory]
+	[InlineData("PlainSent")]
+	[InlineData("FencedSent")]
+	[InlineData("PlainDeadLetter")]
+	[InlineData("FencedDeadLetter")]
+	public async Task PreserveTypedCompletionErrorAndExactArguments(string route)
+	{
+		using var cancellation = new CancellationTokenSource();
+		var token = cancellation.Token;
+		var authority = new OutboxWriteAuthority(73, "acquisition-id");
+		var expected = new InvalidOperationException("inner completion failure");
+		switch (route)
+		{
+			case "PlainSent":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IClaimScopedOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IClaimScopedOutboxStore))).Returns(inner);
+				var capable = (IClaimScopedOutboxStore)inner;
+				A.CallTo(() => capable.MarkSentAsync("durable-id", "acquisition-id", token))
+					.Returns(new ValueTask<OutboxCompletionOutcome>(Task.FromException<OutboxCompletionOutcome>(expected)));
+				var resolved = CreateSut(inner).GetService(typeof(IClaimScopedOutboxStore)) as IClaimScopedOutboxStore;
+				resolved.ShouldNotBeNull();
+				var actual = await Should.ThrowAsync<InvalidOperationException>(async () =>
+					await resolved.MarkSentAsync("durable-id", "acquisition-id", token).ConfigureAwait(false)).ConfigureAwait(false);
+				actual.ShouldBeSameAs(expected);
+				A.CallTo(() => capable.MarkSentAsync("durable-id", "acquisition-id", token)).MustHaveHappenedOnceExactly();
+				break;
+			}
+			case "FencedSent":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IFencedClaimScopedOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IFencedClaimScopedOutboxStore))).Returns(inner);
+				var capable = (IFencedClaimScopedOutboxStore)inner;
+				A.CallTo(() => capable.MarkSentAsync("durable-id", authority, token))
+					.Returns(new ValueTask<OutboxCompletionOutcome>(Task.FromException<OutboxCompletionOutcome>(expected)));
+				var resolved = CreateSut(inner).GetService(typeof(IFencedClaimScopedOutboxStore)) as IFencedClaimScopedOutboxStore;
+				resolved.ShouldNotBeNull();
+				var actual = await Should.ThrowAsync<InvalidOperationException>(async () =>
+					await resolved.MarkSentAsync("durable-id", authority, token).ConfigureAwait(false)).ConfigureAwait(false);
+				actual.ShouldBeSameAs(expected);
+				A.CallTo(() => capable.MarkSentAsync("durable-id", authority, token)).MustHaveHappenedOnceExactly();
+				break;
+			}
+			case "PlainDeadLetter":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IClaimScopedDeadLetterableOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IClaimScopedDeadLetterableOutboxStore))).Returns(inner);
+				var capable = (IClaimScopedDeadLetterableOutboxStore)inner;
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token))
+					.Returns(new ValueTask<OutboxCompletionOutcome>(Task.FromException<OutboxCompletionOutcome>(expected)));
+				var resolved = CreateSut(inner).GetService(typeof(IClaimScopedDeadLetterableOutboxStore)) as IClaimScopedDeadLetterableOutboxStore;
+				resolved.ShouldNotBeNull();
+				var actual = await Should.ThrowAsync<InvalidOperationException>(async () =>
+					await resolved.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token).ConfigureAwait(false)).ConfigureAwait(false);
+				actual.ShouldBeSameAs(expected);
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token)).MustHaveHappenedOnceExactly();
+				break;
+			}
+			case "FencedDeadLetter":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IFencedDeadLetterableOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IFencedDeadLetterableOutboxStore))).Returns(inner);
+				var capable = (IFencedDeadLetterableOutboxStore)inner;
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token))
+					.Returns(new ValueTask<OutboxCompletionOutcome>(Task.FromException<OutboxCompletionOutcome>(expected)));
+				var resolved = CreateSut(inner).GetService(typeof(IFencedDeadLetterableOutboxStore)) as IFencedDeadLetterableOutboxStore;
+				resolved.ShouldNotBeNull();
+				var actual = await Should.ThrowAsync<InvalidOperationException>(async () =>
+					await resolved.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token).ConfigureAwait(false)).ConfigureAwait(false);
+				actual.ShouldBeSameAs(expected);
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token)).MustHaveHappenedOnceExactly();
+				break;
+			}
+			default: throw new ArgumentOutOfRangeException(nameof(route));
+		}
+	}
+
+	[Theory]
+	[InlineData("PlainSent")]
+	[InlineData("FencedSent")]
+	[InlineData("PlainDeadLetter")]
+	[InlineData("FencedDeadLetter")]
+	public async Task PreserveTheActualCanceledTaskAndTokenForTypedCompletion(string route)
+	{
+		using var cancellation = new CancellationTokenSource();
+		cancellation.Cancel();
+		var token = cancellation.Token;
+		var authority = new OutboxWriteAuthority(73, "acquisition-id");
+		var canceled = Task.FromCanceled<OutboxCompletionOutcome>(token);
+		canceled.IsCanceled.ShouldBeTrue();
+		canceled.IsFaulted.ShouldBeFalse();
+		switch (route)
+		{
+			case "PlainSent":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IClaimScopedOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IClaimScopedOutboxStore))).Returns(inner);
+				var capable = (IClaimScopedOutboxStore)inner;
+				A.CallTo(() => capable.MarkSentAsync("durable-id", "acquisition-id", token)).Returns(new ValueTask<OutboxCompletionOutcome>(canceled));
+				var resolved = CreateSut(inner).GetService(typeof(IClaimScopedOutboxStore)) as IClaimScopedOutboxStore;
+				resolved.ShouldNotBeNull();
+				resolved.ShouldBeSameAs(inner);
+				var completion = resolved.MarkSentAsync("durable-id", "acquisition-id", token);
+				var observedTask = completion.AsTask();
+				observedTask.ShouldBeSameAs(canceled);
+				observedTask.IsCompleted.ShouldBeTrue();
+				completion.IsCanceled.ShouldBeTrue();
+				TaskCanceledException? actual = null;
+				try
+				{
+					await observedTask.ConfigureAwait(false);
+				}
+				catch (TaskCanceledException error)
+				{
+					actual = error;
+				}
+				actual.ShouldNotBeNull();
+				actual.CancellationToken.ShouldBe(token);
+				actual.Task.ShouldBeSameAs(canceled);
+				A.CallTo(() => capable.MarkSentAsync("durable-id", "acquisition-id", token)).MustHaveHappenedOnceExactly();
+				A.CallTo(() => inner.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+				A.CallTo(() => inner.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._)).MustNotHaveHappened();
+				break;
+			}
+			case "FencedSent":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IFencedClaimScopedOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IFencedClaimScopedOutboxStore))).Returns(inner);
+				var capable = (IFencedClaimScopedOutboxStore)inner;
+				A.CallTo(() => capable.MarkSentAsync("durable-id", authority, token)).Returns(new ValueTask<OutboxCompletionOutcome>(canceled));
+				var resolved = CreateSut(inner).GetService(typeof(IFencedClaimScopedOutboxStore)) as IFencedClaimScopedOutboxStore;
+				resolved.ShouldNotBeNull();
+				resolved.ShouldBeSameAs(inner);
+				var completion = resolved.MarkSentAsync("durable-id", authority, token);
+				var observedTask = completion.AsTask();
+				observedTask.ShouldBeSameAs(canceled);
+				observedTask.IsCompleted.ShouldBeTrue();
+				completion.IsCanceled.ShouldBeTrue();
+				TaskCanceledException? actual = null;
+				try
+				{
+					await observedTask.ConfigureAwait(false);
+				}
+				catch (TaskCanceledException error)
+				{
+					actual = error;
+				}
+				actual.ShouldNotBeNull();
+				actual.CancellationToken.ShouldBe(token);
+				actual.Task.ShouldBeSameAs(canceled);
+				A.CallTo(() => capable.MarkSentAsync("durable-id", authority, token)).MustHaveHappenedOnceExactly();
+				A.CallTo(() => inner.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+				A.CallTo(() => inner.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._)).MustNotHaveHappened();
+				break;
+			}
+			case "PlainDeadLetter":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IClaimScopedDeadLetterableOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IClaimScopedDeadLetterableOutboxStore))).Returns(inner);
+				var capable = (IClaimScopedDeadLetterableOutboxStore)inner;
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token)).Returns(new ValueTask<OutboxCompletionOutcome>(canceled));
+				var resolved = CreateSut(inner).GetService(typeof(IClaimScopedDeadLetterableOutboxStore)) as IClaimScopedDeadLetterableOutboxStore;
+				resolved.ShouldNotBeNull();
+				resolved.ShouldBeSameAs(inner);
+				var completion = resolved.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token);
+				var observedTask = completion.AsTask();
+				observedTask.ShouldBeSameAs(canceled);
+				observedTask.IsCompleted.ShouldBeTrue();
+				completion.IsCanceled.ShouldBeTrue();
+				TaskCanceledException? actual = null;
+				try
+				{
+					await observedTask.ConfigureAwait(false);
+				}
+				catch (TaskCanceledException error)
+				{
+					actual = error;
+				}
+				actual.ShouldNotBeNull();
+				actual.CancellationToken.ShouldBe(token);
+				actual.Task.ShouldBeSameAs(canceled);
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token)).MustHaveHappenedOnceExactly();
+				A.CallTo(() => inner.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+				A.CallTo(() => inner.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._)).MustNotHaveHappened();
+				break;
+			}
+			case "FencedDeadLetter":
+			{
+				var inner = A.Fake<IOutboxStore>(b => b.Implements<IFencedDeadLetterableOutboxStore>());
+				A.CallTo(() => inner.GetService(typeof(IFencedDeadLetterableOutboxStore))).Returns(inner);
+				var capable = (IFencedDeadLetterableOutboxStore)inner;
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token)).Returns(new ValueTask<OutboxCompletionOutcome>(canceled));
+				var resolved = CreateSut(inner).GetService(typeof(IFencedDeadLetterableOutboxStore)) as IFencedDeadLetterableOutboxStore;
+				resolved.ShouldNotBeNull();
+				resolved.ShouldBeSameAs(inner);
+				var completion = resolved.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token);
+				var observedTask = completion.AsTask();
+				observedTask.ShouldBeSameAs(canceled);
+				observedTask.IsCompleted.ShouldBeTrue();
+				completion.IsCanceled.ShouldBeTrue();
+				TaskCanceledException? actual = null;
+				try
+				{
+					await observedTask.ConfigureAwait(false);
+				}
+				catch (TaskCanceledException error)
+				{
+					actual = error;
+				}
+				actual.ShouldNotBeNull();
+				actual.CancellationToken.ShouldBe(token);
+				actual.Task.ShouldBeSameAs(canceled);
+				A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token)).MustHaveHappenedOnceExactly();
+				A.CallTo(() => inner.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+				A.CallTo(() => inner.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._)).MustNotHaveHappened();
+				break;
+			}
+			default: throw new ArgumentOutOfRangeException(nameof(route));
+		}
 	}
 }

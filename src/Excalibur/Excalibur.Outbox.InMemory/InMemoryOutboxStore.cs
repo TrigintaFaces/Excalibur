@@ -34,7 +34,7 @@ namespace Excalibur.Outbox.InMemory;
 /// interface states the claim this store's own behaviour otherwise leaves silent.
 /// </para>
 /// </remarks>
-public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITenantPartitionedStore, IAsyncDisposable, IDisposable
+public sealed partial class InMemoryOutboxStore : IOutboxPayloadTransformStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore, IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITenantPartitionedStore, IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<string, OutboundMessage> _messages = new(StringComparer.Ordinal);
 
@@ -66,7 +66,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 	/// </summary>
 	private long _fencingHighWaterMark;
 
-	private readonly string _processorId = $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}";
+	private readonly TimeProvider _timeProvider;
 	private readonly InMemoryOutboxOptions _options;
 	private readonly ILogger<InMemoryOutboxStore> _logger;
 	private volatile bool _disposed;
@@ -83,12 +83,22 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 	internal InMemoryOutboxStore(
 		IOptions<InMemoryOutboxOptions> options,
 		ILogger<InMemoryOutboxStore> logger)
+		: this(options, logger, TimeProvider.System)
+	{
+	}
+
+	internal InMemoryOutboxStore(
+		IOptions<InMemoryOutboxOptions> options,
+		ILogger<InMemoryOutboxStore> logger,
+		TimeProvider timeProvider)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(timeProvider);
 
 		_options = options.Value;
 		_logger = logger;
+		_timeProvider = timeProvider;
 	}
 
 	/// <inheritdoc/>
@@ -105,9 +115,10 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 		// message staged with no tenant is drained carrying that value rather than a null. Without this fold
 		// a consumer handler written as `msg.TenantId is null` would re-establish a different partition
 		// depending on which store happened to be underneath it.
-		message.TenantId = KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId;
+		var stored = Snapshot(message);
+		stored.TenantId = KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId;
 
-		if (!_messages.TryAdd(message.Id, message))
+		if (!_messages.TryAdd(stored.Id, stored))
 		{
 			throw new InvalidOperationException($"Message with ID '{message.Id}' already exists in the outbox.");
 		}
@@ -122,59 +133,96 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
+		ValidateEnqueueInput(message, context);
+		var outbound = PrepareEnqueueMessage(message, context);
+		AcceptEnqueue(outbound);
+		return default;
+	}
+
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	async ValueTask IOutboxPayloadTransformStore.EnqueueWithPayloadTransformAsync(
+		IDispatchMessage message, IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transformPayload,
+		CancellationToken cancellationToken)
+	{
+		ValidateEnqueueInput(message, context);
+		ArgumentNullException.ThrowIfNull(transformPayload);
+		cancellationToken.ThrowIfCancellationRequested();
+		var outbound = PrepareEnqueueMessage(message, context);
+		var transformed = await transformPayload(outbound.Payload, outbound.TenantId, cancellationToken).ConfigureAwait(false)
+			?? throw new InvalidOperationException("transformPayload returned a null payload; the message was not enqueued.");
+		// The callback owns its result; never keep its mutable array as accepted store state.
+		outbound.Payload = (byte[])transformed.Clone();
+		cancellationToken.ThrowIfCancellationRequested();
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		AcceptEnqueue(outbound);
+	}
+
+	private void ValidateEnqueueInput(IDispatchMessage message, IMessageContext context)
+	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
 		ObjectDisposedException.ThrowIf(_disposed, this);
+	}
 
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private static OutboundMessage PrepareEnqueueMessage(IDispatchMessage message, IMessageContext context)
+	{
 		var messageType = message.GetType().FullName ?? message.GetType().Name;
-#pragma warning disable IL2026, IL3050 // In-memory store uses reflection-based serialization
 		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
-#pragma warning restore IL2026, IL3050
+		return OutboundMessage.FromContext(messageType, payload, messageType, context);
+	}
 
-		var outbound = OutboundMessage.FromContext(messageType, payload, messageType, context);
-
-		// Enforce capacity limits
+	private void AcceptEnqueue(OutboundMessage outbound)
+	{
 		EnforceCapacityLimit();
-
 		if (!_messages.TryAdd(outbound.Id, outbound))
 		{
 			throw new InvalidOperationException($"Failed to enqueue message with ID '{outbound.Id}'.");
 		}
-
-		LogMessageEnqueued(outbound.Id, messageType);
-
-		return default;
+		LogMessageEnqueued(outbound.Id, outbound.MessageType);
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 		GetUnsentMessagesCore(batchSize, fencingToken: null, cancellationToken);
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, long fencingToken, CancellationToken cancellationToken) =>
 		GetUnsentMessagesCore(batchSize, fencingToken, cancellationToken);
 
 	private ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesCore(int batchSize, long? fencingToken, CancellationToken cancellationToken)
 	{
+		var result = ClaimUnsentMessages(batchSize, fencingToken, out var refusedHighWater, cancellationToken);
+		if (refusedHighWater is { } highWater)
+		{
+			ReportClaimFenceRefusal(fencingToken!.Value, highWater);
+		}
+		return result;
+	}
+
+	private ValueTask<IEnumerable<OutboundMessage>> ClaimUnsentMessages(int batchSize, long? fencingToken,
+		out long? refusedHighWater, CancellationToken cancellationToken)
+	{
+		refusedHighWater = null;
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		var now = DateTimeOffset.UtcNow;
-		var leaseCutoff = now - TimeSpan.FromSeconds(_options.LeaseTimeoutSeconds);
 
 		// Atomically select-and-lease under a single lock: choosing the claimable batch and recording its
 		// leases happens as one step, so two concurrent callers (pollers in the same process) can never
 		// both select the same eligible message -- mirrors the SQL Server / MongoDB atomic-claim contract.
 		lock (_claimLock)
 		{
+			var now = _timeProvider.GetUtcNow();
+			var leaseCutoff = now - TimeSpan.FromSeconds(_options.LeaseTimeoutSeconds);
+
 			if (fencingToken.HasValue)
 			{
 				if (fencingToken.Value < _fencingHighWaterMark)
 				{
+					refusedHighWater = _fencingHighWaterMark;
 					// Presented token is stale (superseded leader): exclude all rows from the claim rather
 					// than throwing -- this is a set-based operation.
 					return new ValueTask<IEnumerable<OutboundMessage>>(Array.Empty<OutboundMessage>());
@@ -211,20 +259,64 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 			var claimed = new OutboundMessage[resultSize];
 			for (var i = 0; i < resultSize; i++)
 			{
-				claimed[i] = candidates[i];
-				_leases[candidates[i].Id] = (now, _processorId);
-
-				// STAMP THE CLAIM ONTO THE MESSAGE, not only into the side-map. The drain reads the claim
-				// identity it completes under from the message it was handed; a store that records the
-				// lease privately and hands back a message with no DispatcherId leaves that identity null,
-				// and the drain's claim-scoped completion -- fenced or not -- is then unreachable no matter
-				// which capabilities this store advertises. The capability would be inert and would read as
-				// present to every guard that probes for it.
-				claimed[i].DispatcherId = _processorId;
+				var identity = Guid.NewGuid().ToString("N");
+				_leases[candidates[i].Id] = (now, identity);
+				// Each acquisition owns its evidence. Reclaim must never rewrite an older caller's stamp.
+				claimed[i] = Snapshot(candidates[i]);
+				claimed[i].DispatcherId = identity;
 			}
 
 			return new ValueTask<IEnumerable<OutboundMessage>>(claimed);
 		}
+	}
+
+	// Own the envelope, byte buffer and top-level bags. Arbitrary header values retain their
+	// declared object semantics; this does not promise a deep clone of consumer object graphs.
+	private static OutboundMessage Snapshot(OutboundMessage message)
+	{
+		var snapshot = new OutboundMessage
+		{
+			Id = message.Id,
+			MessageType = message.MessageType,
+			Destination = message.Destination,
+			CreatedAt = message.CreatedAt,
+			ScheduledAt = message.ScheduledAt,
+			SentAt = message.SentAt,
+			Status = message.Status,
+			RetryCount = message.RetryCount,
+			LastError = message.LastError,
+			LastAttemptAt = message.LastAttemptAt,
+			DispatcherId = message.DispatcherId,
+			CorrelationId = message.CorrelationId,
+			CausationId = message.CausationId,
+			TenantId = message.TenantId,
+			Priority = message.Priority,
+			PartitionKey = message.PartitionKey,
+			GroupKey = message.GroupKey,
+			SequenceNumber = message.SequenceNumber,
+			TargetTransports = message.TargetTransports,
+			IsMultiTransport = message.IsMultiTransport,
+			Payload = (byte[])message.Payload.Clone(),
+			Headers = new Dictionary<string, object>(message.Headers, StringComparer.Ordinal),
+		};
+		foreach (var delivery in message.TransportDeliveries)
+		{
+			snapshot.TransportDeliveries.Add(new OutboundMessageTransport
+			{
+				Id = delivery.Id,
+				MessageId = delivery.MessageId,
+				TransportName = delivery.TransportName,
+				Destination = delivery.Destination,
+				Status = delivery.Status,
+				CreatedAt = delivery.CreatedAt,
+				AttemptedAt = delivery.AttemptedAt,
+				SentAt = delivery.SentAt,
+				RetryCount = delivery.RetryCount,
+				LastError = delivery.LastError,
+				TransportMetadata = delivery.TransportMetadata,
+			});
+		}
+		return snapshot;
 	}
 
 	/// <summary>
@@ -253,7 +345,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 			return false;
 		}
 
-		return !_leases.TryGetValue(message.Id, out var lease) || lease.LeasedAt < leaseCutoff;
+		return !_leases.TryGetValue(message.Id, out var lease) || lease.LeasedAt <= leaseCutoff;
 	}
 
 	/// <inheritdoc/>
@@ -292,14 +384,36 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 	}
 
 	/// <inheritdoc/>
-	public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken) =>
-		MarkSentCore(messageId, fencingToken: null, cancellationToken);
+	public async ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken)
+	{
+		// The unfenced member reports by THROWING, and that asymmetry is the contract rather than an
+		// oversight: IOutboxStore.MarkSentAsync returns void, so it has nowhere to put an outcome, and a
+		// caller on this path presented no token and therefore cannot be a superseded tenure. The refusals
+		// reachable here are a missing row and an already-terminal one, both of which this member has always
+		// raised, with the three distinct messages the conformance kit asserts. Translating them back from
+		// the shared core is what keeps those messages identical.
+		var outcome = await MarkSentCore(messageId, fencingToken: null, cancellationToken).ConfigureAwait(false);
+		switch (outcome)
+		{
+			case OutboxCompletionOutcome.Applied:
+				break;
+
+			case OutboxCompletionOutcome.MessageNotFound:
+				throw new InvalidOperationException($"Message with ID '{messageId}' not found.");
+
+			default:
+				throw new InvalidOperationException(
+					_messages.TryGetValue(messageId, out var terminal) && terminal.Status == OutboxStatus.DeadLettered
+						? $"Message with ID '{messageId}' was dead-lettered and cannot be marked as sent."
+						: $"Message with ID '{messageId}' is already marked as sent.");
+		}
+	}
 
 	/// <inheritdoc />
-	public ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken) =>
+	public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken) =>
 		MarkSentCore(messageId, fencingToken, cancellationToken);
 
-	private ValueTask MarkSentCore(string messageId, long? fencingToken, CancellationToken cancellationToken)
+	private ValueTask<OutboxCompletionOutcome> MarkSentCore(string messageId, long? fencingToken, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -319,14 +433,13 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 		{
 			if (fencingToken.HasValue)
 			{
+				// REPORTED, NOT THROWN. The fence is judged first and its refusal is TENURE-scoped: a newer
+				// tenure exists, so every remaining write this caller would make is unfenced and it must
+				// stand down rather than carry on with its batch. Judging the row's state first would hand
+				// a superseded tenure a row-scoped answer, which says the opposite.
 				if (fencingToken.Value < _fencingHighWaterMark)
 				{
-					throw new StaleOutboxFencingTokenException(
-						$"The presented outbox fencing token ({fencingToken.Value}) is lower than the recorded high-water mark ({_fencingHighWaterMark}).")
-					{
-						PresentedToken = fencingToken.Value,
-						HighWaterToken = _fencingHighWaterMark,
-					};
+					return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.FenceRefused);
 				}
 
 				_fencingHighWaterMark = Math.Max(_fencingHighWaterMark, fencingToken.Value);
@@ -334,30 +447,27 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 
 			if (!_messages.TryGetValue(messageId, out var message))
 			{
-				throw new InvalidOperationException($"Message with ID '{messageId}' not found.");
+				return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.MessageNotFound);
 			}
 
-			if (message.Status == OutboxStatus.Sent)
+			// Sent and DeadLettered are both terminal, and both report AlreadyTerminal rather than ClaimLost:
+			// a terminal message is owned by nobody, so reporting it as re-claimed describes a decision
+			// nobody made. This store keeps the row, so unlike the delete-on-sent stores it can tell the
+			// difference and must.
+			if (message.Status is OutboxStatus.Sent or OutboxStatus.DeadLettered)
 			{
-				throw new InvalidOperationException($"Message with ID '{messageId}' is already marked as sent.");
-			}
-
-			// DeadLettered is terminal too -- the dead-letter path already refuses both.
-			if (message.Status == OutboxStatus.DeadLettered)
-			{
-				throw new InvalidOperationException(
-					$"Message with ID '{messageId}' was dead-lettered and cannot be marked as sent.");
+				return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.AlreadyTerminal);
 			}
 
 			message.MarkSent();
+			message.SentAt = _timeProvider.GetUtcNow();
+			_ = _leases.TryRemove(messageId, out _);
+			_ = _nextAttempt.TryRemove(messageId, out _);
 		}
-
-		_ = _leases.TryRemove(messageId, out _);
-		_ = _nextAttempt.TryRemove(messageId, out _);
 
 		LogMessageSent(messageId);
 
-		return default;
+		return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied);
 	}
 
 	/// <inheritdoc/>
@@ -399,17 +509,8 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 				return default;
 			}
 
-			// R2 — reservation-ownership guard: a MarkFailed reported against a reservation a DIFFERENT
-			// processor now holds is a no-op. A superseded/zombie processor's late failure report cannot free a
-			// live successor's lease, so it can never trigger a second concurrent delivery. Mirrors the SQL
-			// family's "dispatcher_id IN (NULL, @caller)" claim predicate; the unreserved-input path (stage then
-			// fail without ever claiming) has no lease and proceeds.
-			if (_leases.TryGetValue(messageId, out var lease)
-				&& !string.Equals(lease.LeasedBy, _processorId, StringComparison.Ordinal))
-			{
-				return default;
-			}
-
+			// This legacy overload carries no acquisition evidence. Claim-scoped workers must use
+			// the authority overload; an implicit process identity cannot prove ownership of a lease.
 			ApplyFailureUnderClaimLock(messageId, message, errorMessage, retryCount, nextAttemptAt);
 		}
 
@@ -420,7 +521,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 	// State, schedule and lease release must be one transition: a successor cannot claim in a gap.
 	private void ApplyFailureUnderClaimLock(string messageId, OutboundMessage message, string errorMessage, int retryCount, DateTimeOffset? requestedNextAttempt)
 	{
-		var now = DateTimeOffset.UtcNow;
+		var now = _timeProvider.GetUtcNow();
 		var floor = now + TimeSpan.FromSeconds(_options.FailureBackoffFloorSeconds);
 		var priorRetryCount = message.RetryCount;
 		message.MarkFailed(errorMessage);
@@ -491,7 +592,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 				(maxRetries <= 0 || m.RetryCount < maxRetries) &&
 				(!olderThan.HasValue || m.LastAttemptAt < olderThan.Value))
 			{
-				candidateList.Add(m);
+				candidateList.Add(Snapshot(m));
 			}
 		}
 
@@ -531,7 +632,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 		{
 			if (m.Status == OutboxStatus.Staged && m.ScheduledAt.HasValue && m.ScheduledAt.Value <= scheduledBefore)
 			{
-				candidateList.Add(m);
+				candidateList.Add(Snapshot(m));
 			}
 		}
 
@@ -611,7 +712,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		// Single-pass statistics without ToList() allocations
-		var now = DateTimeOffset.UtcNow;
+		var now = _timeProvider.GetUtcNow();
 		var stagedCount = 0;
 		var sendingCount = 0;
 		var sentCount = 0;

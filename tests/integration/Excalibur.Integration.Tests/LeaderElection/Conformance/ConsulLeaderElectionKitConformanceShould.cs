@@ -118,7 +118,14 @@ public sealed class ConsulLeaderElectionKitConformanceShould
 		});
 
 		// See the WHY LockDelay IS FORCED TO ZERO remark on the class.
-		_ = services.Configure<ConsulLeaderElectionOptions>(o => o.LockDelay = TimeSpan.Zero);
+		// The real 10-second session also needs an explicit test renewal profile:
+		// 1-second renewal + 2-second grace + reserved 1-second headroom < SessionTTL.
+		_ = services.Configure<ConsulLeaderElectionOptions>(o =>
+		{
+			o.LockDelay = TimeSpan.Zero;
+			o.RenewInterval = TimeSpan.FromSeconds(1);
+			o.GracePeriod = TimeSpan.FromSeconds(2);
+		});
 
 		_ = services.AddConsulLeaderElectionForResource(resourceName, instanceId);
 
@@ -279,6 +286,24 @@ public sealed class ConsulLeaderElectionKitConformanceShould
     {
         _useFactory = useFactory;
         return CurrentLeadership_AfterStop_ShouldBeNull();
+    }
+
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task IsLeader_AfterDispose_ShouldBeFalse_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return IsLeader_AfterDispose_ShouldBeFalse();
+    }
+
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task StartAsync_ShouldCompeteUnderTheConfiguredIdentity_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return StartAsync_ShouldCompeteUnderTheConfiguredIdentity();
     }
 
 	[Theory]

@@ -92,6 +92,11 @@ public sealed class OutboxRequestParameterBindingShould : UnitTestBase
 		["GetScheduledMessages"] = () => new GetScheduledMessagesRequest(OutboxTable, DateTimeOffset.UtcNow, 100, Timeout, CancellationToken.None).Command,
 		["GetTransportDeliveries"] = () => new GetTransportDeliveriesRequest(TransportsTable, MessageId, Timeout, CancellationToken.None).Command,
 		["GetTenantScopedTransportDeliveries"] = () => new GetTenantScopedTransportDeliveriesRequest(TransportsTable, MessageId, KeyedTenantPartition.Scoped("tenant-a"), Timeout, CancellationToken.None).Command,
+		["SqlServerClaimCompletion"] = () => Completion(SqlServerClaimTransition.Sent),
+		["SqlServerClaimCompletion.Failed"] = () => Completion(SqlServerClaimTransition.Failed),
+		["SqlServerClaimCompletion.FailedScheduled"] = () => Completion(SqlServerClaimTransition.Failed, DateTimeOffset.UtcNow.AddSeconds(7)),
+		["SqlServerClaimCompletion.DeadLettered"] = () => Completion(SqlServerClaimTransition.DeadLettered),
+		["SqlServerTransactionalFence"] = () => new SqlServerTransactionalFenceRequest(FenceTable, OutboxTable, 7L, Timeout, A.Fake<System.Data.IDbTransaction>(), CancellationToken.None).Command,
 		["GetUnsentMessages"] = () => new GetUnsentMessagesRequest(OutboxTable, 100, Timeout, 300, "proc-1", null, FenceTable, OutboxTable, CancellationToken.None).Command,
 		["InsertOutboxMessage"] = () => new InsertOutboxMessageRequest(OutboxTable, Message(), null, Timeout, CancellationToken.None).Command,
 		["InsertTransportDelivery"] = () => new InsertTransportDeliveryRequest(TransportsTable, Delivery(), "tenant-a", null, Timeout, CancellationToken.None).Command,
@@ -107,6 +112,11 @@ public sealed class OutboxRequestParameterBindingShould : UnitTestBase
 		["ResetOutboxFenceHighWater"] = () => new ResetOutboxFenceHighWaterRequest(FenceTable, OutboxTable, 7L, false, Timeout, CancellationToken.None).Command,
 		["UpdateAggregateStatus"] = () => new UpdateAggregateStatusRequest(OutboxTable, TransportsTable, MessageId, Timeout, CancellationToken.None).Command,
 	};
+
+	// Command construction only. Provider execution controls use actual owned SqlTransaction instances.
+	private static CommandDefinition Completion(SqlServerClaimTransition transition, DateTimeOffset? schedule = null) =>
+		new SqlServerClaimCompletionRequest(OutboxTable, MessageId, "claim-a", transition, "controlled-error", 2,
+			schedule, 30, 300, Timeout, 7L, A.Fake<System.Data.IDbTransaction>(), CancellationToken.None).Command;
 
 	/// <summary>Names the requests under test — a serializable key so each row enumerates on its own.</summary>
 	public static TheoryData<string> EveryRequest() => [.. Builders.Keys];

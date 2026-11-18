@@ -221,6 +221,7 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 	public Task<IReadOnlyList<LegalHold>> GetActiveHoldsForDataSubjectAsync(
 		string dataSubjectIdHash,
 		string? tenantId,
+		DateTimeOffset asOf,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(dataSubjectIdHash);
@@ -241,20 +242,25 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 		}
 
 		// Exclude expired holds
-		var now = DateTimeOffset.UtcNow;
+		var now = asOf;
 		query = query.Where(h => !h.ExpiresAt.HasValue || h.ExpiresAt.Value > now);
 
-		return Task.FromResult<IReadOnlyList<LegalHold>>(query.ToList());
+		// NEWEST FIRST, matching both SQL providers. These two members returned dictionary order while
+		// ListActiveHoldsAsync and both SQL stores ordered by CreatedAt descending, so a caller taking the
+		// first row got the newest hold on one provider and an arbitrary one here.
+		return Task.FromResult<IReadOnlyList<LegalHold>>(
+			query.OrderByDescending(h => h.CreatedAt).ToList());
 	}
 
 	/// <inheritdoc />
 	public Task<IReadOnlyList<LegalHold>> GetActiveHoldsForTenantAsync(
 		string tenantId,
+		DateTimeOffset asOf,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
 
-		var now = DateTimeOffset.UtcNow;
+		var now = asOf;
 
 		// The caller names a tenant, but the ambient term is still applied on top: asking for another tenant's
 		// holds now intersects to the empty set instead of returning them.
@@ -272,6 +278,10 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 						MatchesCallerTenant(tenantId, h.TenantId) &&
 						(!h.ExpiresAt.HasValue || h.ExpiresAt.Value > now))
 			.Where(h => MatchesAmbientTenant(tenant, h.TenantId))
+			// NEWEST FIRST, matching both SQL providers. These two members returned dictionary order while
+			// ListActiveHoldsAsync and both SQL stores ordered by CreatedAt descending, so a caller taking the
+			// first row got the newest hold on one provider and an arbitrary one here.
+			.OrderByDescending(h => h.CreatedAt)
 			.ToList();
 
 		return Task.FromResult<IReadOnlyList<LegalHold>>(holds);
@@ -280,9 +290,10 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 	/// <inheritdoc />
 	public Task<IReadOnlyList<LegalHold>> ListActiveHoldsAsync(
 		string? tenantId,
+		DateTimeOffset asOf,
 		CancellationToken cancellationToken)
 	{
-		var now = DateTimeOffset.UtcNow;
+		var now = asOf;
 
 		var query = _holds.Values
 			.Where(h => h.IsActive && (!h.ExpiresAt.HasValue || h.ExpiresAt.Value > now));

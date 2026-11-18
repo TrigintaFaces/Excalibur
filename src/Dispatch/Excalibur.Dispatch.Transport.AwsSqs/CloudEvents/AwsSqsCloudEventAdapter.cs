@@ -42,7 +42,7 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventEncoder<SendMessageRe
 	private const string TraceParentAttribute = "traceparent";
 	private const string StringAttributeType = "String";
 
-	private readonly JsonEventFormatter _jsonFormatter = new();
+	private readonly CloudEventSerializer _serializer;
 	private readonly ILogger<AwsSqsCloudEventAdapter> _logger;
 	private readonly AwsSqsCloudEventOptions _sqsOptions;
 
@@ -50,14 +50,19 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventEncoder<SendMessageRe
 	/// Initializes a new instance of the <see cref="AwsSqsCloudEventAdapter" /> class.
 	/// </summary>
 	/// <param name="options"> The CloudEvents configuration options. </param>
+	/// <param name="serializer"> The decided CloudEvents serializer, carrying the resolver the consumer configured. </param>
 	/// <param name="logger"> Logger used for diagnostics. </param>
 	/// <param name="sqsOptions"> Provider specific CloudEvent options. </param>
 	public AwsSqsCloudEventAdapter(
 		IOptions<CloudEventOptions> options,
+		CloudEventSerializer serializer,
 		ILogger<AwsSqsCloudEventAdapter> logger,
 		IOptions<AwsSqsCloudEventOptions>? sqsOptions = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
+
+		_serializer = serializer;
 		ArgumentNullException.ThrowIfNull(logger);
 
 		Options = options.Value ?? throw new ArgumentNullException(nameof(options));
@@ -102,8 +107,6 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventEncoder<SendMessageRe
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async Task<SendMessageRequest> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -124,7 +127,7 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventEncoder<SendMessageRe
 		switch (mode)
 		{
 			case CloudEventMode.Structured:
-				var payload = _jsonFormatter.EncodeStructuredModeMessage(cloudEvent, out _);
+				var payload = _serializer.Formatter.EncodeStructuredModeMessage(cloudEvent, out _);
 				request.MessageBody = Encoding.UTF8.GetString(payload.Span);
 				request.MessageAttributes[StructuredContentTypeAttribute] =
 					CreateStringAttribute(CloudEventsStructuredContentType);
@@ -152,8 +155,6 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventEncoder<SendMessageRe
 	/// Converts a CloudEvent into an SQS <see cref="SendMessageRequest" /> targeted at the provided queue URL.
 	/// </summary>
 	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public async Task<SendMessageRequest> ToSqsMessageAsync(
 		CloudEvent cloudEvent,
 		string queueUrl,
@@ -197,8 +198,6 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventEncoder<SendMessageRe
 	/// Converts a batch of CloudEvents into an SQS batch request respecting provider options.
 	/// </summary>
 	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public async Task<SendMessageBatchRequest> ToBatchSqsMessageAsync(
 		IEnumerable<CloudEvent> cloudEvents,
 		string queueUrl,
@@ -236,15 +235,13 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventEncoder<SendMessageRe
 		return batch;
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private static string EncodeBinaryBody(CloudEvent cloudEvent) => cloudEvent.Data switch
+	private string EncodeBinaryBody(CloudEvent cloudEvent) => cloudEvent.Data switch
 	{
 		null => string.Empty,
 		byte[] binary => Convert.ToBase64String(binary),
 		ReadOnlyMemory<byte> rom => Convert.ToBase64String(rom.Span),
 		string text => text,
-		_ => JsonSerializer.Serialize(cloudEvent.Data),
+		_ => _serializer.SerializePayload(cloudEvent.Data),
 	};
 
 	private static object DeserializeMessageBody(string body, string? contentType)
@@ -467,7 +464,7 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventEncoder<SendMessageRe
 		}
 
 		await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(sqsMessage.Body));
-		var cloudEvent = await _jsonFormatter.DecodeStructuredModeMessageAsync(
+		var cloudEvent = await _serializer.Formatter.DecodeStructuredModeMessageAsync(
 				stream,
 				new ContentType("application/json"),
 				extensionAttributes: null)

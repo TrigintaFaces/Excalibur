@@ -312,6 +312,13 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddDispatchPipeline();
 		_ = services.AddDispatchScheduling();
 
+		if (!services.Any(static descriptor => descriptor.ServiceType == typeof(ScheduleDispositionHealth)))
+		{
+			services.TryAddSingleton<ScheduleDispositionHealth>();
+			_ = services.AddHealthChecks().AddCheck<ScheduleDispositionHealth>("schedule-disposition");
+		}
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SchedulerOptions>, SchedulerExecutionSafetyValidator>());
+		_ = services.AddOptions<SchedulerOptions>().ValidateOnStart();
 		_ = services.AddHostedService<ScheduledMessageService>();
 		_ = services.AddScheduleDurabilityGate();
 

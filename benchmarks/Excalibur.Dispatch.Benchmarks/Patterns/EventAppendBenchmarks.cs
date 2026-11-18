@@ -45,10 +45,23 @@ public class EventAppendBenchmarks
 		try
 		{
 			// Start SQL Server container
-			_sqlContainer = new MsSqlBuilder()
+			var ownerToken = Environment.GetEnvironmentVariable("DISPATCH_BENCHMARK_OWNER_TOKEN");
+			if (ownerToken is not null && (ownerToken.Length != 32 ||
+			    ownerToken.Any(character => character is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))))
+			{
+			    throw new InvalidOperationException("DISPATCH_BENCHMARK_OWNER_TOKEN must be 32 lowercase hexadecimal characters.");
+			}
+
+			var builder = new MsSqlBuilder()
 				.WithImage("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")
-				.WithCreateParameterModifier(parameters => parameters.HostConfig.Memory = 4L * 1024 * 1024 * 1024)
-				.Build();
+				.WithCreateParameterModifier(parameters => parameters.HostConfig.Memory = 4L * 1024 * 1024 * 1024);
+			if (ownerToken is not null)
+			{
+				builder = builder.WithLabel("dispatch.benchmark.owner", ownerToken)
+					.WithLabel("dispatch.benchmark.fixture", nameof(EventAppendBenchmarks));
+			}
+
+			_sqlContainer = builder.Build();
 
 			using var startupDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
 			await _sqlContainer.StartAsync(startupDeadline.Token);

@@ -45,7 +45,7 @@ At runtime the engine also requires an `IEventStore` (the journal) and an `IEven
 
 ## Registration
 
-`AddWorkflows()` registers the engine (the `IWorkflowExecutor`, the workflow and activity registries, and validated `WorkflowOptions`). `AddWorkflow(name, body)` registers a workflow body under a name, and `AddActivity<TActivity, TInput, TOutput>(name)` registers an at-least-once activity:
+`AddWorkflows(payloadResolver)` registers the engine with explicit payload metadata (the `IWorkflowExecutor`, the workflow and activity registries, and validated `WorkflowOptions`). `AddWorkflow(name, body)` registers a workflow body under a name, and `AddActivity<TActivity, TInput, TOutput>(name)` registers an at-least-once activity:
 
 ```csharp ignore
 using Microsoft.Extensions.DependencyInjection;
@@ -53,7 +53,7 @@ using Excalibur.Workflows;
 
 services
     .AddEventSourcing(/* your event store + serializer */)
-    .AddWorkflows();
+    .AddWorkflows(WorkflowPayloadContext.Default);
 
 // A workflow body: ordinary async logic whose only source of non-determinism is the context.
 services.AddWorkflow("order-fulfilment", async (context, input, cancellationToken) =>
@@ -82,22 +82,43 @@ A workflow body is a `WorkflowBody` delegate — `ValueTask<object?> (IWorkflowC
 | `MaxReplayEvents` | Maximum journal events a single instance may accumulate before replay is rejected, guarding against unbounded histories. | `10,000` |
 | `PayloadTypeInfoResolver` | A source-generated `IJsonTypeInfoResolver` covering your activity input and result types. Composed after the framework-owned context. | none (reflection) |
 
-**Under native AOT, `PayloadTypeInfoResolver` is required.** The default payload path is reflection-based,
-which is not AOT-safe, so serializing an activity payload without a resolver throws a `NotSupportedException`
-at the first activity call rather than failing opaquely inside the serializer. Point it at a
-`JsonSerializerContext` covering every activity input and result type:
+**For trimming and Native AOT, use the explicit resolver overload.** It has no reflection fallback;
+the generated context must cover every activity, workflow result and signal payload type. For example:
 
 ```csharp
+using System.Text.Json.Serialization;
+using Microsoft.Extensions.DependencyInjection;
+
+// Application-owned payloads; adapt these declarations to the actual activity contract.
+public sealed record ChargeCardInput(string PaymentId, decimal Amount);
+public sealed record ChargeCardResult(string ReceiptId);
+
 [JsonSerializable(typeof(ChargeCardInput))]
 [JsonSerializable(typeof(ChargeCardResult))]
 internal sealed partial class WorkflowPayloadContext : JsonSerializerContext;
 
-services.AddWorkflows();
-services.Configure<WorkflowOptions>(
-    options => options.PayloadTypeInfoResolver = WorkflowPayloadContext.Default);
+public static class WorkflowPayloadRegistration
+{
+    // The host must first register its real event store and event serializer journal.
+    public static void Configure(IServiceCollection services)
+        => services.AddWorkflows(WorkflowPayloadContext.Default);
+}
 ```
 
-On a host where dynamic code is supported, leaving it unset keeps the reflection-based default.
+Adapt that context to the actual types in your workflow (the registration example above uses
+`OrderInput` and `ReservationResult`). Missing metadata fails naming the uncovered type. Payload options
+are frozen once per service provider and reused by executor scopes for serialization and replay.
+
+The parameterless `AddWorkflows()` preserves ordinary JIT reflection behavior and still honors the last
+`WorkflowOptions.PayloadTypeInfoResolver` configuration. It is now explicitly marked with trimming and
+dynamic-code requirements. A consumer using that old entry and later configuring generated metadata can
+see the warning too: migrate the call itself to `AddWorkflows(WorkflowPayloadContext.Default)` instead of
+suppressing it. The safe overload carries neither requirement.
+
+An explicit resolver is authoritative over unspecified parameterless calls in either order. Repeating the
+same resolver instance is idempotent. A different explicit resolver is refused at registration; a different
+non-null resolver from options is refused at options resolution. Null options metadata remains unspecified,
+not a request to downgrade an explicit choice to reflection. Other workflow options are unchanged.
 
 ## The workflow body and `IWorkflowContext`
 

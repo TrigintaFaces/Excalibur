@@ -17,11 +17,54 @@ Excalibur providers are designed for operational resilience, handling transient 
   ```
 - Familiarity with [data access](../data-access/idb-interface.md) and [Polly resilience](./resilience-polly.md) concepts
 
+## Failure knowledge and automatic retries
+
+Dispatch distinguishes recognized transient failures, permanent operation failures, poison messages,
+uncertain delivery acceptance and **Unknown** failures. An unrecognized exception is Unknown: the
+default message middleware propagates the original failure without assuming another attempt will
+recover. This deliberately changes the earlier broad transient fallback. Register an explicit
+`IMessageFailureClassifier` for business faults whose recovery behavior is known. The Polly adapter's
+default uses the framework classification; its existing `ShouldRetry` predicate is the explicit
+customization seam, and does not automatically resolve a custom DI classifier. Caller cancellation
+still stops retries. Uncertain delivery acceptance retains bounded replay and requires idempotency.
+
+CDC stops on unknown failures without advancing the checkpoint; inspect the failure and explicitly
+classify it before restarting. Stopping does not declare the change permanent or processed. Without
+a registered classifier, recognized BCL transient faults still reconnect, while unknown faults stop.
+
+Durable Unknown handling must retain original work for review, never infer delivery or safe discard.
+The outbox's source-retention profile and explicit claim-authorized recovery are described in its
+architecture; an external queue acknowledgement alone does not establish safe source retirement.
+
 ## Retry Policies
 
 ### SQL Server
 
-The `SqlServerRetryPolicy` handles transient failures with exponential backoff automatically. Configure SQL Server stores with their storage-specific options:
+The SQL Server data-request retry policy handles transient failures with exponential backoff.
+By default it retains its configured local retry budget, including inside a message handler.
+For requests whose failures should propagate to a framework message retry boundary, explicitly
+set `options.Resiliency.DelegateRetriesToMessagePipeline = true` in the explicit
+`AddSqlServerPersistence(options => ...)` registration. With this opt-in, the nearest active logical-flow owner
+handles the failure classes it accepts, so SQL propagates the same first fault instead of
+multiplying the inner and outer retry budgets. Standalone calls and classes declined by that
+nearest owner retain local retries. An inactive captured child scope does not expose an older
+parent owner. Concurrent calls share policy configuration, not ownership.
+
+Choose this option deliberately: a handler that catches the first SQL timeout can select its
+fallback immediately, whereas the default local retry might have succeeded on its second call.
+For example, a timeout followed by a successful request returns that success with local retries;
+with delegation enabled, catching the first timeout can return the handler's fallback instead.
+The configured retry count and pure SQL failure classification remain unchanged.
+
+Generic `DataRequest` operations have no message/context identity binding. This cooperation
+concerns the current asynchronous logical flow; it is not a global physical-attempt budget,
+proof that a detached task belongs to a message, or a transaction/ambiguous-commit guarantee.
+Owned failures must reach their retry boundary for outer retries to execute. Preserve idempotency
+and transaction boundaries; intentionally uncoordinated profiles can still compose local and
+message budgets. Caller cancellation propagates without retry. Exact message/context SDK
+publication ownership retains its separate existing contract.
+
+Configure SQL Server stores with their storage-specific options:
 
 ```csharp
 // Event sourcing - configure storage options via builder
@@ -41,6 +84,9 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
     outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
           .WithProcessing(p => p.MaxRetryCount(5)
                                 .RetryDelay(TimeSpan.FromMinutes(5)))
+          // The processor requires an explicitly registered dead-letter queue for
+          // messages that exhaust those retries, or it throws on its first poll.
+          .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString)
           .EnableBackgroundProcessing();
 }));
 ```

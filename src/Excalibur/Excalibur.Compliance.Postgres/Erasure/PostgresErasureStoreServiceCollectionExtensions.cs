@@ -65,6 +65,12 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 		// with a ledger that is not the one the erasure writes to -- which would silently separate the
 		// record from the read that depends on it.
 		services.TryAddSingleton<IKeyDestructionLedger>(sp => sp.GetRequiredService<PostgresErasureStore>());
+		// THE MINT LEDGER, from the SAME instance. The write path records a handle here before minting it and
+		// the erasure enumerates it; resolving the two from different instances would let the write record
+		// into one object and the erasure enumerate another, which is a subject whose keys nothing destroys.
+		services.TryAddSingleton<IKeyMintLedger>(sp => sp.GetRequiredService<PostgresErasureStore>());
+		services.TryAddSingleton<IDataSubjectTokenFingerprintLedger>(
+			sp => sp.GetRequiredService<PostgresErasureStore>());
 
 		// Provisioning is a configuration concern, so it is settled once at host startup rather than on the
 		// path of every write. The hosted service verifies this store's schema before the host accepts
@@ -153,6 +159,12 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 		// with a ledger that is not the one the erasure writes to -- which would silently separate the
 		// record from the read that depends on it.
 		services.TryAddSingleton<IKeyDestructionLedger>(sp => sp.GetRequiredService<PostgresErasureStore>());
+		// THE MINT LEDGER, from the SAME instance. The write path records a handle here before minting it and
+		// the erasure enumerates it; resolving the two from different instances would let the write record
+		// into one object and the erasure enumerate another, which is a subject whose keys nothing destroys.
+		services.TryAddSingleton<IKeyMintLedger>(sp => sp.GetRequiredService<PostgresErasureStore>());
+		services.TryAddSingleton<IDataSubjectTokenFingerprintLedger>(
+			sp => sp.GetRequiredService<PostgresErasureStore>());
 
 		// Provisioning is a configuration concern, so it is settled once at host startup rather than on the
 		// path of every write. The hosted service verifies this store's schema before the host accepts

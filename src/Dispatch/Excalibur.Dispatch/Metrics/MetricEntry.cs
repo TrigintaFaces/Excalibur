@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 namespace Excalibur.Dispatch.Metrics;
 
 /// <summary>
-/// Zero-allocation metric entry structure for high-performance metrics collection.
+/// Stores a metric's timestamp, type, identifier, value and label-set identifier.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public readonly struct MetricEntry(

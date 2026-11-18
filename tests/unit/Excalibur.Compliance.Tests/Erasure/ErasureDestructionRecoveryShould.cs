@@ -42,7 +42,11 @@ public sealed class ErasureDestructionRecoveryShould
         var services = new ServiceCollection();
         _ = services.AddDefaultTenantContext();
         using var container = services.BuildServiceProvider();
-        var manager = new SubjectKeyManager(keys, TestDataSubjectHasher.Instance, TestRetentions.None);
+        var manager = new SubjectKeyManager(
+            keys,
+            TestDataSubjectHasher.Instance,
+            (IKeyMintLedger)harness.Store,
+            NullLogger<SubjectKeyManager>.Instance);
         using var aes = new AesGcmEncryptionProvider(keys, NullLogger<AesGcmEncryptionProvider>.Instance);
         var registry = A.Fake<IEncryptionProviderRegistry>();
         A.CallTo(() => registry.GetPrimary()).Returns(aes);
@@ -71,8 +75,7 @@ public sealed class ErasureDestructionRecoveryShould
         (await encryptor.DecryptAsync(newEnvelope, TenantDefaults.DefaultTenantId, CancellationToken.None))
             .ShouldBe("later personal data"u8.ToArray());
         (await keys.GetKeyAsync(handle, CancellationToken.None)).ShouldNotBeNull();
-        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled,
-            "Operator retry of the same stopped request after ordinary remint", CancellationToken.None)).ShouldBeTrue();
+        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled, expectedStatus: null, "Operator retry of the same stopped request after ordinary remint", claimIdentity: null, CancellationToken.None)).ShouldBe(ErasureWriteOutcome.Applied);
         var retried = await harness.Service.ExecuteAsync(requestId, CancellationToken.None);
 
         // The real second Delete returns Completed, not NotFound. Completion requires both durable rows.
@@ -150,8 +153,7 @@ public sealed class ErasureDestructionRecoveryShould
         staged.Count.ShouldBe(2);
         staged.ShouldContain(older);
         staged.ShouldContain(newer);
-        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled,
-            "Explicit retry after destruction", CancellationToken.None)).ShouldBeTrue();
+        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled, expectedStatus: null, "Explicit retry after destruction", claimIdentity: null, CancellationToken.None)).ShouldBe(ErasureWriteOutcome.Applied);
         (await harness.Service.ExecuteAsync(requestId, CancellationToken.None)).Success.ShouldBeFalse();
         committed.ShouldNotBeNullOrWhiteSpace();
         pending.ShouldNotBeNullOrWhiteSpace();
@@ -164,8 +166,7 @@ public sealed class ErasureDestructionRecoveryShould
         (await harness.StatusOfAsync(requestId)).ShouldNotBe(ErasureRequestStatus.Completed);
 
         verification = confirmed;
-        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled,
-            "Explicit retry after partial ledger write", CancellationToken.None)).ShouldBeTrue();
+        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled, expectedStatus: null, "Explicit retry after partial ledger write", claimIdentity: null, CancellationToken.None)).ShouldBe(ErasureWriteOutcome.Applied);
         var final = await harness.Service.ExecuteAsync(requestId, CancellationToken.None);
         final.Success.ShouldBe(confirmed, final.ErrorMessage);
         (await ledger.IsGenerationDestroyedAsync(handle, committed, CancellationToken.None)).ShouldBeTrue();
@@ -230,8 +231,7 @@ public sealed class ErasureDestructionRecoveryShould
 
         // Execute requires a scheduled request. Model the scheduler/operator retry decision here.
         // This verifies ledger repair, without claiming automatic abandoned-request recovery.
-        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled,
-            "Explicit retry after interruption", CancellationToken.None)).ShouldBeTrue();
+        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled, expectedStatus: null, "Explicit retry after interruption", claimIdentity: null, CancellationToken.None)).ShouldBe(ErasureWriteOutcome.Applied);
         var retried = await harness.Service.ExecuteAsync(requestId, CancellationToken.None);
 
         A.CallTo(() => ((IKeyDestructionStatusProvider)admin).IsKeyDestroyedAsync(handle, A<CancellationToken>._))
@@ -309,7 +309,11 @@ public sealed class ErasureDestructionRecoveryShould
         var services = new ServiceCollection();
         _ = services.AddDefaultTenantContext();
         using var container = services.BuildServiceProvider();
-        var manager = new SubjectKeyManager(keys, TestDataSubjectHasher.Instance, TestRetentions.None);
+        var manager = new SubjectKeyManager(
+            keys,
+            TestDataSubjectHasher.Instance,
+            (IKeyMintLedger)harness.Store,
+            NullLogger<SubjectKeyManager>.Instance);
         using var aes = new AesGcmEncryptionProvider(keys, NullLogger<AesGcmEncryptionProvider>.Instance);
         var registry = A.Fake<IEncryptionProviderRegistry>();
         A.CallTo(() => registry.GetPrimary()).Returns(aes);
@@ -338,8 +342,7 @@ public sealed class ErasureDestructionRecoveryShould
         (await encryptor.DecryptAsync(newEnvelope, TenantDefaults.DefaultTenantId, CancellationToken.None))
             .ShouldBe("later personal data"u8.ToArray());
         (await keys.GetKeyAsync(handle, CancellationToken.None)).ShouldNotBeNull();
-        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled,
-            "Operator retry of the same stopped request after ordinary remint", CancellationToken.None)).ShouldBeTrue();
+        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled, expectedStatus: null, "Operator retry of the same stopped request after ordinary remint", claimIdentity: null, CancellationToken.None)).ShouldBe(ErasureWriteOutcome.Applied);
         phase = 2;
         var retried = await harness.Service.ExecuteAsync(requestId, CancellationToken.None);
 
@@ -362,8 +365,7 @@ public sealed class ErasureDestructionRecoveryShould
 
         verification = confirmed;
         phase = 3;
-        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled,
-            "Operator retry after partial immediate destruction ledger drain", CancellationToken.None)).ShouldBeTrue();
+        (await harness.Store.UpdateStatusAsync(requestId, ErasureRequestStatus.Scheduled, expectedStatus: null, "Operator retry after partial immediate destruction ledger drain", claimIdentity: null, CancellationToken.None)).ShouldBe(ErasureWriteOutcome.Applied);
         var final = await harness.Service.ExecuteAsync(requestId, CancellationToken.None);
         deleteOutcomes.ShouldBe(new[] { KeyDestructionState.Completed, KeyDestructionState.Completed, KeyDestructionState.NotFound });
         A.CallTo(() => ((IKeyDestructionStatusProvider)admin).IsKeyDestroyedAsync(handle, A<CancellationToken>._))

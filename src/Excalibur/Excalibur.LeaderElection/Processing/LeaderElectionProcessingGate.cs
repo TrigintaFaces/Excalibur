@@ -18,7 +18,7 @@ namespace Excalibur.LeaderElection.Processing;
 /// <see langword="null"/> snapshot fails the gate closed. Gating on the advisory bool instead would be
 /// split-brain-vulnerable — the whole point of this type is to make that mistake unreachable on the default path.
 /// </remarks>
-internal sealed class LeaderElectionProcessingGate : ILeaderProcessingGate
+internal sealed class LeaderElectionProcessingGate : ILeaderProcessingGate, ILeaderProcessingAuthorityDomain
 {
 	private readonly ILeaderElection _leaderElection;
 
@@ -30,6 +30,9 @@ internal sealed class LeaderElectionProcessingGate : ILeaderProcessingGate
 	{
 		_leaderElection = leaderElection ?? throw new ArgumentNullException(nameof(leaderElection));
 	}
+
+	/// <inheritdoc/>
+	public object AuthorityDomain => _leaderElection;
 
 	/// <inheritdoc/>
 	public bool ShouldProcess => _leaderElection.CurrentLeadership is not null;

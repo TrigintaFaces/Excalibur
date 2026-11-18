@@ -41,7 +41,7 @@ All `await` expressions in framework/library code must use `ConfigureAwait(false
 
 ### DISP106: Blocking Calls in Async Methods
 
-Async methods must not use `.Result`, `.Wait()`, or `.GetAwaiter().GetResult()`. These blocking patterns cause thread pool starvation in high-throughput dispatch pipelines. Use `await` instead.
+Async methods must not use `.Result`, `.Wait()`, or `.GetAwaiter().GetResult()`. These blocking patterns can contribute to thread-pool starvation under load. Use `await` instead.
 
 ## Related Packages
 

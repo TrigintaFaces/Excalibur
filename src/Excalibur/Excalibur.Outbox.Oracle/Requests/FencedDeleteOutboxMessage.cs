@@ -77,6 +77,11 @@ internal sealed class FencedDeleteOutboxMessage : DataRequest<FenceMutationResul
 	/// <param name="fenceTableName">The (qualified) name of the fence control table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public FencedDeleteOutboxMessage(
 		string messageId,
 		string outboxTableName,
@@ -123,12 +128,22 @@ internal sealed class FencedDeleteOutboxMessage : DataRequest<FenceMutationResul
 			commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
 		ResolveAsync = async conn =>
 		{
-			_ = await conn.ExecuteAsync(Command).ConfigureAwait(false);
-			return new FenceMutationResult
+			return await StaticDbCommand.ExecuteOutputsAsync(conn, Command, command =>
 			{
-				HighWaterToken = parameters.Get<long>("OutHigh"),
-				DeletedCount = parameters.Get<long>("OutDeleted"),
-			};
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "ScopeKey", StaticDbCommand.Input<string>(parameters, "ScopeKey"), DbType.String);
+				StaticDbCommand.AddParameter(command, "Token", StaticDbCommand.Input<long>(parameters, "Token"), DbType.Int64);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddOutputParameter(command, "OutHigh", DbType.Int64);
+				StaticDbCommand.AddOutputParameter(command, "OutDeleted", DbType.Int64);
+			}, command =>
+			{
+				return new FenceMutationResult
+				{
+					HighWaterToken = StaticDbCommand.Output<long>(command, parameters, "OutHigh", DbType.Int64),
+					DeletedCount = StaticDbCommand.Output<long>(command, parameters, "OutDeleted", DbType.Int64),
+				};
+			}).ConfigureAwait(false);
 		};
 	}
 }

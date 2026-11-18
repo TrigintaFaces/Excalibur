@@ -29,6 +29,11 @@ def run_attempt(value):
     return int(value)
 
 
+def minimum_executed(value):
+    require(type(value) is int and 1 <= value <= 2147483647, "minimumExecutedTests must be a positive JSON integer <=2147483647")
+    return value
+
+
 def require_external_context(actual: dict, expected: dict, label: str):
     """Bind one recorded context to the externally supplied expectation.
 
@@ -45,6 +50,8 @@ def require_external_context(actual: dict, expected: dict, label: str):
     Both externally compared sites -- the invocation plan and each execution census -- go through here
     so that the attempt cannot be bound at one and left exact at the other.
     """
+    minimum = minimum_executed(expected.get("minimumExecutedTests"))
+    require(minimum_executed(actual.get("minimumExecutedTests")) == minimum, f"{label}: minimumExecutedTests")
     for key in CONTEXT:
         require(isinstance(expected.get(key), str) and (expected[key] or key == "filter"), f"Missing external context: {key}")
         if key == "runAttempt":
@@ -223,8 +230,21 @@ def verify(plan_path: Path, expected: dict):
                 f"missing={sorted(expected_ids-observed)}, unexpected={sorted(observed-expected_ids)}")
         total += len(observed)
     require(total > 0, "Required job executed zero independently expected tests")
+    minimum = minimum_executed(expected.get("minimumExecutedTests"))
+    require(total >= minimum, f"Required job executed {total} tests below minimumExecutedTests={minimum}")
     require({p.resolve() for p in root.rglob('*.trx')} == used_trx, "Unclaimed TRX artifacts in invocation evidence")
-    return {"invocations": len(invocations), "executed": total, "planSha256": plan_hash}
+    return {"invocations": len(invocations), "executed": total, "minimumExecutedTests": minimum, "planSha256": plan_hash}
+
+
+def declared_lane_minimum(body):
+    rows = re.findall(r"^          minimum-executed-tests: (.+)$", body, re.M)
+    require(len(rows) == 1, "Unit lane lacks one explicit executed minimum")
+    text = rows[0].strip()
+    if text[:1] in ("'", chr(34)):
+        require(len(text) >= 2 and text[-1:] == text[:1], "Invalid quoted lane minimum")
+        text = text[1:-1]
+    require(re.fullmatch(r"[1-9][0-9]{0,9}", text) is not None, "Invalid canonical lane minimum")
+    return minimum_executed(int(text))
 
 
 def verify_unit_artifacts(directory, repo, candidate, run_id, attempt, test_filter):
@@ -258,7 +278,8 @@ def verify_unit_artifacts(directory, repo, candidate, run_id, attempt, test_filt
         plans = list(artifact_root.rglob("plan.json"))
         require(len(plans) == 1, f"Expected exactly one plan for {artifact}")
         source_path = repo / source
-        context = dict(candidateSha=candidate, runId=run_id, runAttempt=attempt, job=job,
+        minimum = declared_lane_minimum(sections[job])
+        context = dict(minimumExecutedTests=minimum, candidateSha=candidate, runId=run_id, runAttempt=attempt, job=job,
                        shard=shard, os=os_name, provider="in-process", source=source,
                        sourceSha256=digest(source_path).upper(), filter=test_filter)
         plan = read_json(plans[0])

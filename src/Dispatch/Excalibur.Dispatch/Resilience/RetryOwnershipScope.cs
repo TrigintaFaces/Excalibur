@@ -44,6 +44,21 @@ internal sealed class RetryOwnershipScope : IDisposable
 
 	internal static bool Owns(IDispatchMessage message, IMessageContext context) => GetOwner(message, context) is not null;
 
+	// Generic data requests have no message/context binding. This deliberately narrow
+	// bridge coordinates only the nearest logical-flow boundary, not SDK publication
+	// ownership. An inactive captured child must never expose its still-active parent.
+	internal static bool OwnsCurrentFailure(Exception exception)
+	{
+		ArgumentNullException.ThrowIfNull(exception);
+		var scope = Current.Value;
+		if (scope is null || Volatile.Read(ref scope._active) == 0)
+		{
+			return false;
+		}
+		return scope._canRetry?.Invoke(exception)
+			?? ((scope._failureClassifier ?? DefaultClassifier).Classify(exception) is MessageFailureKind.Transient or MessageFailureKind.Uncertain);
+	}
+
 	internal static RetryOwnershipScope? GetOwner(IDispatchMessage message, IMessageContext context)
 	{
 		for (var scope = Current.Value; scope is not null; scope = scope._previous)
@@ -76,7 +91,7 @@ internal sealed class RetryOwnershipScope : IDisposable
 		// One immutable value replaces all evidence atomically. A later unknown/retryable
 		// report must replace earlier terminal evidence rather than leaving it in a second map.
 		var kind = !result.Succeeded
-			&& (knownFailureKind == MessageFailureKind.Uncertain || (!hasRetryableFailure
+			&& (knownFailureKind is MessageFailureKind.Unknown or MessageFailureKind.Uncertain || (!hasRetryableFailure
 				&& knownFailureKind is MessageFailureKind.Permanent or MessageFailureKind.Poison))
 			? knownFailureKind : null;
 		attempt.Results[result] = new ResultEvidence(hasRetryableFailure, kind, kind is null ? null : originalFault);
@@ -137,7 +152,7 @@ internal sealed class RetryOwnershipScope : IDisposable
 		catch (Exception exception)
 		{
 			var classified = (_failureClassifier ?? DefaultClassifier).Classify(exception);
-			MessageFailureKind? kind = classified is MessageFailureKind.Transient or MessageFailureKind.Permanent or MessageFailureKind.Poison or MessageFailureKind.Uncertain
+			MessageFailureKind? kind = classified is MessageFailureKind.Transient or MessageFailureKind.Permanent or MessageFailureKind.Poison or MessageFailureKind.Uncertain or MessageFailureKind.Unknown
 				? classified : null;
 			var retryable = _canRetry?.Invoke(exception) ?? (kind is MessageFailureKind.Transient or MessageFailureKind.Uncertain);
 			var outcome = new DestinationOutcome(ExceptionDispatchInfo.Capture(exception), retryable, kind);

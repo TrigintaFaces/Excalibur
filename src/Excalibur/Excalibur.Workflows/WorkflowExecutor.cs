@@ -37,7 +37,8 @@ internal sealed class WorkflowExecutor : IWorkflowExecutor
         TimeProvider timeProvider,
         IWorkflowSignalInbox signalInbox,
         WorkflowSignalNotifier signalNotifier,
-        IOptions<WorkflowOptions> options)
+        IOptions<WorkflowOptions> options,
+        WorkflowPreparedPayloadOptions preparedPayloadOptions)
     {
         _eventStore = eventStore;
         _serializer = serializer;
@@ -48,7 +49,7 @@ internal sealed class WorkflowExecutor : IWorkflowExecutor
         _signalInbox = signalInbox;
         _signalNotifier = signalNotifier;
         _options = options.Value;
-        _payloadOptions = WorkflowPayloadSerializer.CreateOptions(_options.PayloadTypeInfoResolver);
+        _payloadOptions = preparedPayloadOptions.Options;
     }
 
     /// <inheritdoc/>

@@ -21,6 +21,9 @@
     <!-- ProjectReferences from all merged outbox test projects -->
     <!-- From Excalibur.Outbox.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox\Excalibur.Outbox.csproj" />
+    <!-- Public encryption registration for actual cross-decorator composition controls; no new shipping IVT. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance\Excalibur.Compliance.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.MultiTenancy\Excalibur.MultiTenancy.csproj" />
     <!-- From Excalibur.Outbox.SqlServer.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
     <!-- From Excalibur.Outbox.CosmosDb.Tests -->

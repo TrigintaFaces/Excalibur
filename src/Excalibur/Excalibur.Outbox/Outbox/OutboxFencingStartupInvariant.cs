@@ -47,12 +47,14 @@ internal static class OutboxFencingStartupInvariant
 	/// <param name="leaderGate"> The registered leader processing gate, or <see langword="null"/> when the drain is not fenced. </param>
 	/// <param name="singleActiveWriter"> The consumer's explicit single-active-writer opt-out (<c>OutboxDeliveryOptions.SingleActiveWriter</c>). </param>
 	/// <param name="outboxStore"> The configured outbox store whose fencing capability is probed via <see cref="IServiceProvider.GetService(Type)"/>. </param>
+	/// <param name="requiresDeadLetterCompletion">Whether this route invokes the store terminal dead-letter transition.</param>
 	/// <exception cref="InvalidOperationException"> Thrown when fencing is active and either no leader gate is registered or the store does not implement <see cref="IFencedOutboxStore"/>. </exception>
 	public static void EnsureFencingCapableStore(
 		bool electionRegistered,
 		ILeaderProcessingGate? leaderGate,
 		bool singleActiveWriter,
-		IOutboxStore outboxStore)
+		IOutboxStore outboxStore,
+		bool requiresDeadLetterCompletion)
 	{
 		ArgumentNullException.ThrowIfNull(outboxStore);
 
@@ -64,6 +66,16 @@ internal static class OutboxFencingStartupInvariant
 		var fencingActive = (electionRegistered || leaderGate is not null) && !singleActiveWriter;
 		if (!fencingActive)
 		{
+			if (outboxStore.GetService(typeof(IClaimScopedOutboxStore)) is not IClaimScopedOutboxStore
+				|| (requiresDeadLetterCompletion
+					&& outboxStore.GetService(typeof(IClaimScopedDeadLetterableOutboxStore)) is not IClaimScopedDeadLetterableOutboxStore))
+			{
+				throw new InvalidOperationException($"The outbox worker requires IClaimScopedOutboxStore" +
+					(requiresDeadLetterCompletion ? " and IClaimScopedDeadLetterableOutboxStore" : string.Empty) +
+					$" from '{outboxStore.GetType().FullName}'. Register a store with " +
+					"atomic acquisition-scoped completion. A single active writer still permits expired leases to be reclaimed; " +
+					"legacy message-ID-only completion cannot establish ownership of that acquisition.");
+			}
 			return;
 		}
 
@@ -112,12 +124,15 @@ internal static class OutboxFencingStartupInvariant
 		// separate members with separate implementor populations, and a store that fences one and not the
 		// other closes half the window while reading as though it closed all of it.
 		if (outboxStore.GetService(typeof(IFencedClaimScopedOutboxStore)) is not IFencedClaimScopedOutboxStore
-			|| outboxStore.GetService(typeof(IFencedDeadLetterableOutboxStore)) is not IFencedDeadLetterableOutboxStore)
+			|| (requiresDeadLetterCompletion
+				&& outboxStore.GetService(typeof(IFencedDeadLetterableOutboxStore)) is not IFencedDeadLetterableOutboxStore))
 		{
 			throw new InvalidOperationException(
 				$"Leader election is configured for the outbox, but the configured store " +
-				$"'{outboxStore.GetType().FullName}' cannot fence the COMPLETION path: it does not implement both " +
-				"IFencedClaimScopedOutboxStore and IFencedDeadLetterableOutboxStore. Fencing the mark-sent " +
+				$"'{outboxStore.GetType().FullName}' cannot fence the COMPLETION path: it does not implement the required " +
+				"IFencedClaimScopedOutboxStore" +
+				(requiresDeadLetterCompletion ? " and IFencedDeadLetterableOutboxStore" : string.Empty) +
+				" with acquisition-scoped completion for the transitions used by this worker. Fencing the mark-sent " +
 				"transition alone is not sufficient. A superseded leader would still be able to report a failure, " +
 				"apply a backoff, or dead-letter a message that the live leader then delivers successfully -- " +
 				"leaving that message both delivered and sitting unreplayed in the dead-letter queue, so an " +

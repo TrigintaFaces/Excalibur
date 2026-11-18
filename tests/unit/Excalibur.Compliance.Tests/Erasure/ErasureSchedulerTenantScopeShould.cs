@@ -104,7 +104,7 @@ public sealed class ErasureSchedulerTenantScopeShould
 	public async Task BackgroundDiscoveryPagesOwnersAndPreservesConsumerTenantFloor()
 	{
 		var store = new InMemoryErasureStore(TestDataSubjectHasher.Instance, TenantContextHolder.AmbientContext,
-			Options.Create(new TenantContextOptions { RequireTenant = true }));
+			Options.Create(new TenantContextOptions { RequireTenant = true }), TimeProvider.System);
 		var expected = new List<Guid>();
 		var when = DateTimeOffset.UtcNow.AddDays(-1);
 		foreach (var tenant in new[] { "tenant-t", "tenant-u", "tenant-t" })
@@ -112,7 +112,17 @@ public sealed class ErasureSchedulerTenantScopeShould
 			using var owner = TenantContextHolder.BeginScope(tenant);
 			var request = Request(tenant) with { RequestedAt = when };
 			await store.SaveRequestAsync(request, when, CancellationToken.None);
-			_ = await store.UpdateStatusAsync(request.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, null, CancellationToken.None);
+			// ENROL VIA THE CLAIM, because that is the only way the product reaches this status. Writing
+			// AwaitingKeyDestruction is conditional on the request having been claimed: the status is the
+			// completion pass's DISCOVERY predicate, and a request that was never executed has had no keys
+			// destroyed for the provider to confirm. A fixture that wrote it directly was asserting over a row
+			// the store refuses to create, and it discarded the refusal, so the arm failed later as a count.
+			// The comment above said "enrol via the claim" when the claim was still a status write. It is
+			// its own member now, so the fixture takes a real one and presents its identity on the handoff.
+			var claim = await store.ClaimForExecutionAsync(
+				request.RequestId, ErasureRequestStatus.Scheduled, TimeSpan.FromMinutes(5), CancellationToken.None);
+			claim.Outcome.ShouldBe(ErasureClaimOutcome.Granted);
+			(await store.UpdateStatusAsync(request.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, expectedStatus: null, null, claim.ClaimIdentity, CancellationToken.None)).ShouldBe(ErasureWriteOutcome.Applied);
 			expected.Add(request.RequestId);
 		}
 		using var caller = TenantContextHolder.BeginScope("tenant-t");
@@ -275,8 +285,23 @@ public sealed class ErasureSchedulerTenantScopeShould
 		}
 		A.CallTo(() => executor.ExecuteAsync(malformed.RequestId, A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => store.GetStatusAsync(A<Guid>._, A<CancellationToken>._)).MustNotHaveHappened();
-		A.CallTo(() => store.UpdateStatusAsync(A<Guid>._, A<ErasureRequestStatus>._, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => store.UpdateStatusAsync(A<Guid>._, A<ErasureRequestStatus>._, A<ErasureRequestStatus?>._, A<string?>._, A<string?>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
+
+		// The claim is arranged explicitly now. The wildcard status setup above used to cover it, because
+		// taking custody WAS a status write; it is a separate member now, and a fake with no setup returns
+		// a default that is deliberately not a grant -- so without this the service refuses every arm.
+		A.CallTo(() => store.ClaimForExecutionAsync(
+				A<Guid>._, A<ErasureRequestStatus>._, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(ErasureClaimResult.Granted("test-claim-identity"));
+
+		// The completion returns an outcome now, where it used to return a bare Task with no value
+		// to arrange. A fake with no setup returns the default, the default is deliberately not
+		// Applied, and the service correctly stands down on anything else -- so without this every
+		// arm here reports a refusal. Applied is what a bare Task meant.
+		A.CallTo(() => store.RecordCompletionAsync(
+				A<Guid>._, A<int>._, A<int>._, A<Guid>._, A<string>._, A<CancellationToken>._))
+			.Returns(ErasureWriteOutcome.Applied);
 		TenantContextHolder.Current.ShouldBe("unrelated-caller");
 	}
 
@@ -314,7 +339,7 @@ public sealed class ErasureSchedulerTenantScopeShould
 		}
 		A.CallTo(() => executor.ExecuteAsync(next.RequestId, A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => store.GetStatusAsync(A<Guid>._, A<CancellationToken>._)).MustNotHaveHappened();
-		A.CallTo(() => store.UpdateStatusAsync(A<Guid>._, A<ErasureRequestStatus>._, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => store.UpdateStatusAsync(A<Guid>._, A<ErasureRequestStatus>._, A<ErasureRequestStatus?>._, A<string?>._, A<string?>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		TenantContextHolder.Current.ShouldBe("unrelated-caller");
 	}

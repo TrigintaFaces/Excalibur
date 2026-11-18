@@ -233,7 +233,7 @@ $filter = (Get-Content -LiteralPath $Context -Raw | ConvertFrom-Json).filter
 if ([string]::IsNullOrWhiteSpace($filter)) { throw 'Context carries no filter to compose against.' }
 & (Join-Path $Repo 'eng/build.ps1') -Test -NoRestore -NoBuild -Project $Source `
     -TestFilter $filter -MaxCpuCount 1 -BlameTimeout 5s `
-    -TestSessionTimeout 5000 -RequiredTestContext $Context -ResultsDirectory $Results -ResultsPrefix timeout
+    -TestSessionTimeout 5000 -RequiredTestContext $Context -MinimumExecutedTests 1 -ResultsDirectory $Results -ResultsPrefix timeout
 '@ | Set-Content $timeoutDriver
     & $shell -NoProfile -File $timeoutDriver -Repo $repo -Source $source `
         -Context (Join-Path $passing 'nightly-integration-fixture.run.context.json') -Results $timeoutDirectory *> (Join-Path $root 'execution-timeout.log')

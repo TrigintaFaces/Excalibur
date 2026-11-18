@@ -35,9 +35,29 @@ public interface IUpcastingPipeline
 	/// Upcasts a message to the latest registered version for its type.
 	/// </summary>
 	/// <param name="message">The message to upcast (any version, any type).</param>
-	/// <returns>The message upcasted to the latest version, or the original if already latest.</returns>
+	/// <returns>
+	/// The message upcasted to the version that was latest when the call observed the registered
+	/// upcasters, or the original message if it was already there.
+	/// </returns>
 	/// <remarks>
+	/// <para>
 	/// If no upcasters are registered for the message type, returns the original message unchanged.
+	/// </para>
+	/// <para>
+	/// <b>"Latest" is observed once, at the start of the call.</b> An implementation reads the registered
+	/// upcasters a single time and both chooses the target version and resolves the chain against that
+	/// one observation — which is what makes the result explicable by a single set of registrations. The
+	/// visible consequence is that a <see cref="Register{TOld, TNew}(IMessageUpcaster{TOld, TNew})"/>
+	/// completing on another thread DURING this call does not retroactively raise this call's target: the
+	/// returned message may be at a version that is no longer the latest by the time you inspect it. That
+	/// is the correct and intended behaviour, equivalent to the registration having happened immediately
+	/// after this call returned, and it is stated here because the method name alone implies otherwise.
+	/// </para>
+	/// <para>
+	/// Callers that need the newest version after a concurrent registration should call again. Callers
+	/// that need a specific version should use
+	/// <see cref="UpcastTo(IDispatchMessage, int)"/>, which takes the target explicitly.
+	/// </para>
 	/// </remarks>
 	IDispatchMessage Upcast(IDispatchMessage message);
 

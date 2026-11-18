@@ -40,7 +40,8 @@ namespace Excalibur.Outbox.Postgres;
 /// </para>
 /// <para>
 /// The claim stamps <c>dispatcher_id</c>/<c>dispatcher_timeout</c> and the <c>RETURNING</c> clause returns
-/// exactly the claimed rows, bounded to the requested batch size. The claim targets the outbox rows by their
+/// the claimed rows, bounded to the requested batch size, with the same atomic high-water. A null-message
+/// control row carries that high-water when no message was claimed and is removed before public return. The claim targets the outbox rows by their
 /// eligibility predicate (no tenant filter): the drain is cross-tenant infrastructure and each returned row
 /// carries its own persisted <c>tenant_id</c>.
 /// </para>
@@ -48,7 +49,7 @@ namespace Excalibur.Outbox.Postgres;
 [NoTenantTerm(
 	TenantConfinement.EstateWide,
 	"the fenced drain is cross-tenant by design, exactly as the unfenced claim is: one dispatcher serves every tenant and each claimed row carries its own tenant_id. The fence token bounds which dispatcher generation may claim, not which tenant; scoping the claim by tenant would stall delivery for every other tenant")]
-internal sealed class FencedReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessage>>
+internal sealed class FencedReserveOutboxMessages : DataRequest<FencedOutboxClaimBatch>
 {
 
 	/// <summary>
@@ -129,8 +130,9 @@ internal sealed class FencedReserveOutboxMessages : DataRequest<IEnumerable<IOut
 		                   -- the dispatcher its batch unordered, which is the path that matters most: a
 		                   -- fenced claim runs in the multi-instance deployments partition ordering exists
 		                   -- for. Kept identical to the unfenced sibling so the two cannot drift.
-		                   SELECT * FROM claimed
-		                   ORDER BY PartitionKey, SequenceNumber, CreatedAt;
+		                   SELECT claimed.*, fence.high_water_token AS ClaimHighWater
+		                   FROM fence LEFT JOIN claimed ON TRUE
+		                   ORDER BY claimed.PartitionKey, claimed.SequenceNumber, claimed.CreatedAt;
 		           """;
 
 		var parameters = new DynamicParameters();
@@ -151,6 +153,35 @@ internal sealed class FencedReserveOutboxMessages : DataRequest<IEnumerable<IOut
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds,
 			cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QueryAsync<OutboxMessage>(Command).ConfigureAwait(false);
-	}
+        ResolveAsync = async conn =>
+        {
+            var rows = await ReadRowsAsync(conn, command =>
+            {
+                StaticDbCommand.AddParameter(command, "ScopeKey", StaticDbCommand.Input<string>(Parameters, "ScopeKey"), DbType.String);
+                StaticDbCommand.AddParameter(command, "Token", StaticDbCommand.Input<long>(Parameters, "Token"), DbType.Int64);
+                StaticDbCommand.AddParameter(command, "DispatcherId", StaticDbCommand.Input<string>(Parameters, "DispatcherId"), DbType.String);
+                StaticDbCommand.AddParameter(command, "ReservationTimeout", StaticDbCommand.Input<int>(Parameters, "ReservationTimeout"), DbType.Int32);
+            }, static reader => (
+                HighWater: StaticDbValue.Int64(reader, 20),
+                Message: StaticDbValue.String(reader, 0) is null ? null : (IOutboxMessage)PostgresOutboxRowReader.Read(reader))).ConfigureAwait(false);
+            long? highWater = null;
+            var messages = new List<IOutboxMessage>();
+            foreach (var row in rows)
+            {
+                if (highWater.HasValue && highWater.Value != row.HighWater)
+                {
+                    throw new InvalidOperationException("The atomic fenced claim returned inconsistent high-water evidence.");
+                }
+
+                highWater = row.HighWater;
+                if (row.Message is { } message)
+                {
+                    messages.Add(message);
+                }
+            }
+
+            return new FencedOutboxClaimBatch(
+                highWater ?? throw new InvalidOperationException("The atomic fenced claim returned no high-water evidence."), messages);
+        };
+    }
 }

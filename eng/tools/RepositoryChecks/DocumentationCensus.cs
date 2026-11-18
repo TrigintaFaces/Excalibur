@@ -15,13 +15,13 @@ internal static class DocumentationCensus
     /// <summary>Builds the source consumer before evaluating standalone documentation.</summary>
     internal static async Task<int> PrepareAndWriteAsync(string root, string reportPath, CancellationToken cancellationToken)
     {
-        var references = await DocumentationReferences.PrepareAsync(root, cancellationToken).ConfigureAwait(false);
+        using var references = await DocumentationReferences.PrepareAsync(root, cancellationToken).ConfigureAwait(false);
         return await WriteAsync(references, root, reportPath, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Checks selected fragments without attributing unchanged-context diagnostics to changed lines.</summary>
     /// <exception cref="InvalidOperationException">Fence extraction or the source population is incomplete.</exception>
-    internal static async Task<int> WriteAsync(MetadataReference[] references, string root, string reportPath, CancellationToken cancellationToken)
+    internal static async Task<int> WriteAsync(DocumentationConsumerContext references, string root, string reportPath, CancellationToken cancellationToken)
     {
         var blocks = await ExtractAsync(root, cancellationToken).ConfigureAwait(false);
         if (blocks.Length == 0)
@@ -30,24 +30,24 @@ internal static class DocumentationCensus
         }
 
         var selected = blocks.Where(block => block.Selected && !string.Equals(block.Tier, "ignore", StringComparison.Ordinal)).ToArray();
-        var results = selected.Select(block =>
+        var results = new List<object>();
+        var failures = new List<string[]>();
+        foreach (var group in selected.GroupBy(block => ProfileProject(block.File), StringComparer.Ordinal))
         {
-            var result = DocumentationApiRule.Analyze(block, blocks, references);
-            var diagnostics = result.Selected.Concat(result.Context).ToArray();
-            return new
+            if (group.Key is null)
             {
-                block.File,
-                block.StartLine,
-                block.Tier,
-                status = diagnostics.Any(diagnostic => diagnostic.Severity is DiagnosticSeverity.Error or DiagnosticSeverity.Warning) ? "unbound-or-invalid" : "bound",
-                selectedDiagnostics = result.Selected.Select(diagnostic => diagnostic.ToString()).ToArray(),
-                contextualDiagnostics = result.Context.Select(diagnostic => diagnostic.ToString()).ToArray(),
-            };
-        }).ToArray();
-        var failures = results.Where(result => !string.Equals(result.status, "bound", StringComparison.Ordinal)).ToArray();
-        foreach (var result in failures)
+                AnalyzeGroup(group, blocks, references, results, failures);
+                continue;
+            }
+
+            using var profile = await DocumentationReferences.PrepareProfileAsync(
+                root, group.Key, references.References, references.Project.CompilationOptions, cancellationToken).ConfigureAwait(false);
+            AnalyzeGroup(group, blocks, profile, results, failures);
+        }
+
+        foreach (var diagnostics in failures)
         {
-            foreach (var diagnostic in result.selectedDiagnostics.Concat(result.contextualDiagnostics))
+            foreach (var diagnostic in diagnostics)
             {
                 await Console.Error.WriteLineAsync(diagnostic).ConfigureAwait(false);
             }
@@ -55,7 +55,7 @@ internal static class DocumentationCensus
 
         await File.WriteAllTextAsync(reportPath, JsonSerializer.Serialize(new
         {
-            status = failures.Length == 0 ? "passed" : "failed",
+            status = failures.Count == 0 ? "passed" : "failed",
             fences = blocks.Length,
             selected = selected.Length,
             ignored = blocks.Count(block => block.Selected && string.Equals(block.Tier, "ignore", StringComparison.Ordinal)),
@@ -63,8 +63,44 @@ internal static class DocumentationCensus
         }), cancellationToken).ConfigureAwait(false);
         await Console.Out.WriteLineAsync(string.Create(
             CultureInfo.InvariantCulture,
-            $"EXAMINED: {blocks.Length} documentation fences; {selected.Length} selected; {failures.Length} unbound/invalid snippets.")).ConfigureAwait(false);
-        return failures.Length == 0 ? 0 : 1;
+            $"EXAMINED: {blocks.Length} documentation fences; {selected.Length} selected; {failures.Count} unbound/invalid snippets.")).ConfigureAwait(false);
+        return failures.Count == 0 ? 0 : 1;
+    }
+
+    /// <summary>Selects only existing, explicitly supported optional application dependency profiles.</summary>
+    internal static string? ProfileProject(string file) => file.Replace('\\', '/') switch
+    {
+        "docs-site/docs/deployment/aws-lambda.md" => "samples/05-serverless/AwsLambda/AwsLambda.csproj",
+        "docs-site/docs/deployment/azure-functions.md" => "samples/05-serverless/AzureFunctions/AzureFunctions.csproj",
+        "docs-site/docs/deployment/google-cloud-functions.md" => "samples/05-serverless/GoogleCloudFunctions/GoogleCloudFunctions.csproj",
+        "docs-site/docs/advanced/native-aot.md" => "samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj",
+        _ => null,
+    };
+
+    /// <summary>Preserves one group's strict per-fence diagnostics and report order.</summary>
+    private static void AnalyzeGroup(IEnumerable<DocumentationBlock> group, DocumentationBlock[] blocks, DocumentationConsumerContext consumer, List<object> results, List<string[]> failures)
+    {
+        foreach (var block in group)
+        {
+            var result = DocumentationApiRule.Analyze(block, blocks, consumer.References, consumer.Project);
+            var diagnostics = result.Selected.Concat(result.Context).ToArray();
+            var failed = diagnostics.Any(diagnostic => diagnostic.Severity is DiagnosticSeverity.Error or DiagnosticSeverity.Warning);
+            var selectedDiagnostics = result.Selected.Select(diagnostic => diagnostic.ToString()).ToArray();
+            var contextualDiagnostics = result.Context.Select(diagnostic => diagnostic.ToString()).ToArray();
+            results.Add(new
+            {
+                block.File,
+                block.StartLine,
+                block.Tier,
+                status = failed ? "unbound-or-invalid" : "bound",
+                selectedDiagnostics,
+                contextualDiagnostics,
+            });
+            if (failed)
+            {
+                failures.Add(selectedDiagnostics.Concat(contextualDiagnostics).ToArray());
+            }
+        }
     }
 
     private static async Task<DocumentationBlock[]> ExtractAsync(string root, CancellationToken cancellationToken)

@@ -36,6 +36,8 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	/// either way and the match predicate is unconditional. A tenant-scoped scope cannot
 	/// be constructed without a tenant, so a predicate-less save while tenancy is active is unrepresentable.
 	/// </param>
+	/// <exception cref="ArgumentOutOfRangeException">The saga state's version is negative.</exception>
+	/// <exception cref="OverflowException">The saga state's version is <see cref="long.MaxValue"/> and cannot be incremented.</exception>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public SaveSagaRequest(
@@ -59,8 +61,19 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		// MISSING row with a non-zero expected (a deleted/stale saga) is NOT resurrected at a high version (it
 		// matches neither branch -> 0 rows -> ConcurrencyException). This makes the previous unchecked
 		// last-writer-wins UPDATE inexpressible: there is no save path that ignores Version.
-		var expectedVersion = sagaState.Version;
-		var newVersion = sagaState.Version + 1;
+		if (sagaState.TimerRecoveryIncarnationId == Guid.Empty)
+        {
+            if (sagaState.Version < 1) { throw new InvalidOperationException("A new saga must have a nonempty timer recovery incarnation."); }
+            // The conditional write below, not this observation, decides whether legacy initialization is still current.
+            sagaState.TimerRecoveryIncarnationId = Guid.NewGuid();
+        }
+        var recoveryTracked = sagaState.PendingTimerRecovery is not null || sagaState.LastTimerRecoveryBatchId != Guid.Empty;
+        var recoveryIncarnation = sagaState.TimerRecoveryIncarnationId.ToString("N");
+        var recoveryBatch = sagaState.PendingTimerRecovery?.BatchId.ToString("N");
+        var recoveryDigest = sagaState.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null;
+        var expectedVersion = sagaState.Version;
+		ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion, nameof(sagaState));
+		var newVersion = checked(expectedVersion + 1);
 
 		// UNCONDITIONAL, and a const so it cannot become conditional again.
 		//
@@ -74,7 +87,9 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		// form Oracle uses and it makes the regression inexpressible: a const cannot acquire a
 		// `scope.IsScoped` branch without someone deliberately changing its type — which matters here
 		// precisely because the conditional was removed from the other providers and survived in this one.
-		const string onTenant = " AND target.TenantId = @TenantId";
+		const string onTenant = " AND target.TenantId = @TenantId"
+			+ " AND DATALENGTH(target.TenantId) = DATALENGTH(@TenantId)"
+			+ " AND CONVERT(VARBINARY(128), target.TenantId) = CONVERT(VARBINARY(128), @TenantId)";
 		// WITH (UPDLOCK, HOLDLOCK) -- both hints, and neither is optional.
 		//
 		// HOLDLOCK takes a serializable key-range lock on the MERGE target so two concurrent saves for the
@@ -97,7 +112,16 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
                         MERGE {qualifiedTableName} WITH (UPDLOCK, HOLDLOCK) AS target
                         USING (SELECT @SagaId AS SagaId) AS source
                         ON (target.SagaId = source.SagaId{onTenant})
-                        WHEN MATCHED AND target.Version = @ExpectedVersion THEN UPDATE SET
+                        WHEN MATCHED AND target.Version = @ExpectedVersion
+                        AND (target.TimerRecoveryIncarnation IS NULL OR target.TimerRecoveryIncarnation = @RecoveryIncarnation)
+                        AND (target.TimerRecoveryPendingBatch IS NULL OR (target.TimerRecoveryPendingBatch = @RecoveryBatch AND target.TimerRecoveryPendingDigest = @RecoveryDigest)
+                          OR (@RecoveryBatch IS NULL AND target.TimerRecoveryPendingBatch = @RecoveryLastAck))
+                        AND target.SagaType = @SagaType
+                        AND DATALENGTH(target.SagaType) = DATALENGTH(@SagaType)
+                        AND CONVERT(VARBINARY(1000), target.SagaType) = CONVERT(VARBINARY(1000), @SagaType) THEN UPDATE SET
+                        TimerRecoveryIncarnation = COALESCE(target.TimerRecoveryIncarnation, @RecoveryIncarnation),
+                        TimerRecoveryTracked = CASE WHEN target.TimerRecoveryTracked = 1 OR @RecoveryTracked = 1 THEN 1 ELSE 0 END,
+                        TimerRecoveryPendingBatch = @RecoveryBatch, TimerRecoveryPendingDigest = @RecoveryDigest,
                         StateJson = @StateJson,
                         IsCompleted = @IsCompleted,
                         CompletedAt = @CompletedAt,
@@ -105,11 +129,21 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
                         Version = @NewVersion,
                         UpdatedUtc = SYSUTCDATETIME()
                         WHEN NOT MATCHED AND @ExpectedVersion = 0 THEN INSERT
-                        (SagaId, SagaType, StateJson, IsCompleted, CompletedAt, TenantId, Version)
-                        VALUES (@SagaId, @SagaType, @StateJson, @IsCompleted, @CompletedAt, @TenantId, @NewVersion);
+                        (SagaId, SagaType, StateJson, IsCompleted, CompletedAt, TenantId, Version, TimerRecoveryIncarnation, TimerRecoveryTracked, TimerRecoveryPendingBatch, TimerRecoveryPendingDigest)
+                        VALUES (@SagaId, @SagaType, @StateJson, @IsCompleted, @CompletedAt, @TenantId, @NewVersion, @RecoveryIncarnation, @RecoveryTracked, @RecoveryBatch, @RecoveryDigest);
                         """;
 
 		var stateJson = serializer.Serialize(sagaState);
+        if (recoveryTracked)
+        {
+            var restored = serializer.Deserialize<TSagaState>(stateJson);
+            if (restored is null || restored.TimerRecoveryIncarnationId != sagaState.TimerRecoveryIncarnationId
+                || restored.TimerRecoverySequence != sagaState.TimerRecoverySequence
+                || restored.LastTimerRecoveryBatchId != sagaState.LastTimerRecoveryBatchId
+                || (restored.PendingTimerRecovery is { } restoredJournal ? Convert.ToHexString(restoredJournal.GetAuthorityDigest()) : null) != recoveryDigest)
+            { throw new InvalidOperationException("The selected saga serializer does not preserve ordinary timer recovery authority."); }
+        }
+
 		Parameters.Add("SagaId", sagaState.SagaId);
 		Parameters.Add("SagaType", typeof(TSagaState).Name);
 		Parameters.Add("StateJson", stateJson);
@@ -127,9 +161,21 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		// looks. Postgres and Oracle both resolve it this way; this brings SQL Server onto the same contract
 		// rather than inventing a third.
 		var partition = KeyedTenantPartition.FromScope(scope);
+        if (sagaState.PendingTimerRecovery is { } owned
+            && (owned.Scope.SagaId != sagaState.SagaId || owned.Scope.StateType != typeof(TSagaState).Name
+                || !string.Equals(owned.Scope.TenantId, partition.TenantId, StringComparison.Ordinal)
+                || owned.IncarnationId != sagaState.TimerRecoveryIncarnationId || owned.Sequence != sagaState.TimerRecoverySequence))
+        { throw new InvalidOperationException("Timer journal differs from the state store's exact authority."); }
+
 		Parameters.Add("TenantId", partition.TenantId);
 		Parameters.Add("ExpectedVersion", expectedVersion);
 		Parameters.Add("NewVersion", newVersion);
+
+		Parameters.Add("RecoveryIncarnation", recoveryIncarnation);
+        Parameters.Add("RecoveryTracked", recoveryTracked ? 1 : 0);
+        Parameters.Add("RecoveryBatch", recoveryBatch);
+        Parameters.Add("RecoveryDigest", recoveryDigest);
+        Parameters.Add("RecoveryLastAck", sagaState.LastTimerRecoveryBatchId.ToString("N"));
 
 		Command = CreateCommand(sql, cancellationToken: cancellationToken);
 		ResolveAsync = conn => conn.ExecuteAsync(Command);

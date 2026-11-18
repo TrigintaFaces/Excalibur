@@ -43,8 +43,6 @@ Excalibur.Cdc.MongoDB.MongoDbConnectionOptions::ConnectTimeout
 Excalibur.Cdc.MongoDB.MongoDbConnectionOptions::MaxPoolSize
 Excalibur.Cdc.MongoDB.MongoDbConnectionOptions::ServerSelectionTimeout
 Excalibur.Cdc.MongoDB.MongoDbConnectionOptions::UseSsl
-Excalibur.Cdc.SqlServer.CdcRecoveryOptions::EnableStructuredLogging
-Excalibur.Cdc.SqlServer.DatabaseOptions::Tables
 Excalibur.Compliance.AuditAnnotationOptions::EmitMetaAuditEvents
 Excalibur.Compliance.AuditContextOptions::DefaultEventType
 Excalibur.Compliance.Aws.AwsKmsCacheOptions::DataKeyCacheDurationSeconds
@@ -265,7 +263,6 @@ Excalibur.Dispatch.Transport.Kafka.KafkaAdminOptions::OperationTimeout
 Excalibur.Dispatch.Transport.Kafka.KafkaCloudEventOptions::ConsumerGroupId
 Excalibur.Dispatch.Transport.Kafka.KafkaCloudEventOptions::OffsetReset
 Excalibur.Dispatch.Transport.Kafka.KafkaCloudEventProducerOptions::CompressionThreshold
-Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions::MaxBatchSize
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions::MaxBatchWaitMs
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions::MaxConcurrentCommits
 Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::AutoCreateTopics
@@ -307,10 +304,8 @@ Excalibur.Jobs.IJobOptions::DegradedThreshold
 Excalibur.Jobs.IJobOptions::UnhealthyThreshold
 Excalibur.Jobs.Quartz.QuartzJobOptions::Description
 Excalibur.Jobs.Quartz.QuartzJobOptions::JobData
-Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions::TimeoutInSeconds
 Excalibur.Outbox.Firestore.FirestoreOutboxOptions::CreateCollectionIfNotExists
 Excalibur.Outbox.Firestore.FirestoreOutboxOptions::MaxRetryAttempts
-Excalibur.Outbox.Oracle.OracleOutboxStoreOptions::FenceTableName
 Excalibur.Outbox.Outbox.OutboxProcessingOptions::DrainTimeoutSeconds
 Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions::DefaultRetentionPeriod
 Excalibur.Saga.Firestore.FirestoreSagaOptions::TimeoutInSeconds
@@ -385,9 +380,7 @@ Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions::ConnectionString
 Excalibur.EventSourcing.Services.MaterializedViewRefreshOptions::BatchSize
 Excalibur.Outbox.Marten.MartenOutboxStoreOptions::DefaultRetentionPeriod
 Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions::SchemaName
-Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions::SchemaName
 Excalibur.Saga.SagaTimeoutOptions::ShutdownTimeout
-Excalibur.Saga.SqlServer.SqlServerSagaTimeoutStoreOptions::SchemaName
 Excalibur.Security.SigningOptions::KeyRotationIntervalDays
 #
 # --- ACCEPTED: genuinely un-observable-from-IL cases. Each carries its own rationale above it. ---

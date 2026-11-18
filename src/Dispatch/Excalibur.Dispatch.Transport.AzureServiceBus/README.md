@@ -17,7 +17,7 @@ This package is included in the following metapackages:
 This package provides Azure messaging integration for Excalibur.Dispatch, enabling:
 
 - **Azure Service Bus**: Enterprise messaging with queues, topics, and sessions
-- **Azure Event Hubs**: High-throughput event streaming with partitions
+- **Azure Event Hubs**: Partitioned event streaming
 - **Azure Storage Queues**: Simple, cost-effective queue storage
 - **CloudEvents Support**: Standards-compliant structured and binary event formatting on outbound messages. Inbound messages are decoded automatically. On the send path, registering the bundled encoder is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventEncoder<TOutbound>` over a source-generated serializer to avoid the requirement. Inbound decoding is trim-safe and ahead-of-time-safe, attaches the decoded event to the message rather than replacing it, and delivers every message in the batch — a malformed one arrives carrying a decode error instead of a decoded event, never dropped.
 - **Managed Identity**: Passwordless authentication with Azure AD
@@ -286,7 +286,7 @@ public class ServiceBusHealthCheck(ITransportHealthChecker healthChecker) : IHea
 
 - Scale based on **partition count** (1 consumer per partition max)
 - Use **consumer groups** for multiple applications
-- Configure appropriate **prefetch count** for throughput
+- Evaluate **prefetch count** against completed throughput, memory, lock duration and ordering requirements
 - Consider **Capture** for archival to storage
 
 #### Storage Queues
@@ -297,14 +297,14 @@ public class ServiceBusHealthCheck(ITransportHealthChecker healthChecker) : IHea
 
 ### Performance Tuning
 
-#### Service Bus High-Throughput
+#### Service Bus Configuration Example
 
 ```csharp
 services.Configure<AzureServiceBusOptions>(options =>
 {
     options.Processor.MaxConcurrentCalls = 32;    // Increase concurrency
     options.Processor.PrefetchCount = 100;        // More prefetch
-    options.TransportType = ServiceBusTransportType.AmqpTcp;  // Faster than WebSockets
+    options.TransportType = ServiceBusTransportType.AmqpTcp;  // Select when network requirements permit; measure the deployed configuration
 });
 ```
 
@@ -333,7 +333,7 @@ Key Azure Monitor metrics:
 ### Cost Optimization
 
 1. **Choose the right tier**: Basic, Standard, or Premium for Service Bus
-2. **Use Standard tier Event Hubs** for most scenarios (Premium for high throughput)
+2. **Select the Event Hubs tier** against required features, quotas, measured workload and cost
 3. **Storage Queues** are cheapest for simple queue patterns
 4. **Auto-delete idle resources** to avoid costs
 5. **Set appropriate message TTL** to avoid accumulation

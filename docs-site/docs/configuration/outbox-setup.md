@@ -108,10 +108,12 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 
 ### Suggested profiles
 
+These are tuning starting points, not measured capacity or latency guarantees. Measure the complete processing path; polling interval alone does not establish delivery latency.
+
 There is no preset argument to pass. `AddOutbox` takes a configuration callback and nothing else, so a
 profile is just the set of `WithProcessing` values below -- type out the one you want.
 
-| Setting | High throughput | Balanced | High reliability |
+| Setting | Larger parallel batch | Moderate parallel batch | Sequential batch |
 |---------|-----------------|----------|------------------|
 | `BatchSize` | 1000 | 100 | 10 |
 | `PollingInterval` | 100ms | 1s | 5s |
@@ -122,7 +124,7 @@ profile is just the set of `WithProcessing` values below -- type out the one you
 To drain sequentially, leave `EnableParallelProcessing` off rather than passing `1`: passing `1` turns the
 parallel path *on* with a single worker, which is not the same thing as not enabling it.
 
-High throughput -- large batches, tight polling:
+Large batches, frequent polling:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
@@ -136,7 +138,7 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
     .EnableBackgroundProcessing()));
 ```
 
-Balanced -- most applications:
+Moderate batches and polling:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
@@ -150,7 +152,7 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
     .EnableBackgroundProcessing()));
 ```
 
-High reliability -- small batches, long backoff, sequential:
+Small batches, longer retry delay, sequential processing:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
@@ -250,7 +252,7 @@ outbox.UseElasticSearch(options =>
     options.IndexName = "excalibur-outbox";
     options.DefaultBatchSize = 100;
 
-    // Longer than your slowest expected delivery — see the note below.
+    // Cover the entire claim-to-completion interval — see the note below.
     options.LeaseTimeoutSeconds = 300;
 });
 ```
@@ -261,28 +263,30 @@ Key `ElasticsearchOutboxOptions` properties:
 |----------|------|---------|-------------|
 | `IndexName` | `string` | `"excalibur-outbox"` | Elasticsearch index name |
 | `DefaultBatchSize` | `int` | `100` | Default batch size for operations |
-| `RefreshPolicy` | `ElasticsearchRefreshPolicy` | `WaitFor` | Refresh policy applied after index **writes**. `None` favours throughput; `Immediate` forces a refresh per write. Statistics refresh on read, so this cannot make a reported count wrong. |
+| `RefreshPolicy` | `ElasticsearchRefreshPolicy` | `WaitFor` | Refresh policy applied after index **writes**. `None` avoids an explicit write refresh; measure its throughput and visibility tradeoffs. `Immediate` forces a refresh per write. Statistics refresh before reading, but counts can change concurrently. |
 | `LeaseTimeoutSeconds` | `int` | `300` | How long a claimed message stays hidden from other pollers |
 | `ProcessorId` | `string?` | `null` | Lease-owner identifier for diagnostics; generated per instance when unset |
 
 **Sizing the lease.** When a poller claims a batch, each message is leased for `LeaseTimeoutSeconds` and
 hidden from other pollers until it reaches a terminal state or the lease expires. Set this comfortably
-longer than your slowest expected delivery: if the lease expires while a delivery is still in flight,
+longer than the expected interval from each message's claim to its durable completion update, including
+remaining batch-claim work, queue and scheduling waits, dispatch and retry work, and completion marking.
+Include operating margin. If the lease expires while a delivery is still in flight,
 another poller may claim the same message and your handler sees a duplicate. Setting it too long has the
 opposite cost — a poller that dies mid-delivery leaves its messages unclaimable until the lease runs out.
 
-**Your slowest delivery is the only quantity you need.** Whether a lease has expired is decided by the
-Elasticsearch node, not by the poller asking the question: the claim reads the node's clock, compares the
-stored lease against it, and stamps the new lease from that same reading. Two pollers whose own clocks
-disagree therefore cannot disagree about whether a lease is live, and you do not need to pad
-`LeaseTimeoutSeconds` to cover clock differences between your poller hosts. The same is true of the
-MongoDB, Redis and Marten outbox stores, each of which decides claim eligibility on its own store's clock.
+**Clock scope.** The Elasticsearch claim script compares the stored lease and stamps the new expiry
+using the same node-side clock reading. Poller-host clocks do not decide that claim's eligibility.
+This does not establish clock agreement across datastore nodes or eliminate clock adjustments. Verify
+the clock and lease behavior of the provider and deployment you use.
 
 `ProcessorId` records which poller holds a lease and is used for diagnostics only. Claim disjointness does
 not depend on it. It is enforced by two mechanisms together: a compare-and-swap on the document's
 concurrency tokens, which refuses a candidate that changed between the search and the claim, and the
 node-side condition above, which refuses a lease that is still live. Two pollers sharing an identifier
-still receive disjoint batches.
+cannot both acquire the same unchanged live lease. This is not a duplicate-free delivery guarantee:
+an expired lease can be reclaimed while the prior worker is still executing, and successful effects can
+be repeated if completion marking fails. Keep effects idempotent.
 
 ### Firestore
 
@@ -371,7 +375,9 @@ Controls how many messages are processed per iteration:
 .WithProcessing(p => p.BatchSize(100))
 ```
 
-| Scenario | Recommended Size |
+These are unverified tuning starting points; measure completed throughput, latency and memory with equivalent work.
+
+| Scenario | Candidate Size |
 |----------|------------------|
 | Low latency | 10-50 |
 | Standard workloads | 100-200 |
@@ -386,7 +392,9 @@ How often the processor checks for new messages:
 .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)))
 ```
 
-| Scenario | Recommended Interval |
+These are unverified starting points. Polling interval alone does not establish end-to-end delivery latency.
+
+| Scenario | Candidate Interval |
 |----------|---------------------|
 | Real-time requirements | 100ms - 500ms |
 | Standard applications | 1s - 5s |
@@ -395,6 +403,9 @@ How often the processor checks for new messages:
 ### Parallel Processing
 
 Enable concurrent message processing:
+
+Enable concurrency only when ordering and recovery contracts permit it. Ordered claims alone
+do not establish ordered completion.
 
 ```csharp
 .WithProcessing(p => p.EnableParallelProcessing(4))
@@ -416,16 +427,20 @@ Configure retry behavior for failed messages:
 
 Whether stored entries are removed automatically depends on the store.
 
-**The in-memory inbox and the in-memory deduplicator** run a periodic cleanup pass on a configurable interval, enabled by default; their entries do not accumulate without bound.
+**The in-memory inbox and the in-memory deduplicator** run a periodic cleanup pass on a configurable interval, enabled by default. Expired entries are eligible for periodic cleanup; retained memory depends on arrival rate, retention and successful cleanup.
 
-**Two separate properties decide what happens to a sent message.** Read them independently — a provider can have one, both, or one-with-conditions.
+Successful sent completion already deletes the row on PostgreSQL and Oracle. The following properties
+apply to retained sent entries on the other providers; deletion at completion is not native expiry.
+See [Polling provider capabilities](../patterns/outbox.md#polling-provider-capabilities) for acquisition,
+fencing, worker-mode and verification limits.
 
 - **Expires on its own** — the datastore removes sent entries with **no host action**.
 - **Cleanup you can call** — the store exposes a cleanup operation your host can invoke. **The framework schedules nothing**; calling it is your job.
 
 | Provider | Expires on its own | Cleanup you can call |
 |---|---|---|
-| SQL Server, PostgreSQL, Oracle | No | Yes |
+| SQL Server | No | Yes |
+| PostgreSQL, Oracle | Sent row deleted by successful completion, not TTL | Sent cleanup is a no-op because no sent row is retained |
 | Marten, in-memory | No | Yes |
 | Redis, MongoDB | **Yes** — native expiry, on by default (7 days) | Yes |
 | Cosmos DB | **Yes** — container and per-document TTL, on by default (7 days) | Yes |
@@ -433,11 +448,14 @@ Whether stored entries are removed automatically depends on the store.
 | Firestore | **No, until you act.** The store writes an `expireAt` field but never creates a TTL policy — Firestore deletes nothing until you configure that policy on the field yourself | Yes |
 | Elasticsearch | No | Yes |
 
-**Every provider gives you a callable cleanup operation.** What differs is whether anything happens if you never call it: on the relational stores, Marten and in-memory, nothing does — entries accumulate until you remove them.
+**Every provider gives you a callable cleanup operation.** PostgreSQL and Oracle remove sent rows at
+completion. Retained sent entries on SQL Server, Marten and in-memory accumulate until you remove them;
+the other providers have the expiry prerequisites shown above.
 
 ### What this means for erasure
 
-An erasure request is **not** satisfied by waiting for a retention window to expire — and on the relational stores there is no window at all. Any personal data in a message payload remains readable in the outbox until that entry is removed. The framework provides no mechanism for rendering an existing outbox payload unreadable in place; the available paths today are explicit deletion of the affected entries, or a cleanup pass that covers them.
+An erasure request is **not** satisfied by waiting for a retention window to expire. Some providers retain
+sent entries until explicit cleanup; others remove them at successful completion or through configured TTL. Any personal data in a message payload remains readable in the outbox until that entry is removed. The framework provides no mechanism for rendering an existing outbox payload unreadable in place; the available paths today are explicit deletion of the affected entries, or a cleanup pass that covers them.
 
 Do **not** treat a provider's native TTL as an erasure control. It is time-based, not subject-based: it cannot target one data subject, its default window is long, and on DynamoDB and Firestore it deletes nothing at all unless the store's TTL feature has been enabled.
 
@@ -474,7 +492,9 @@ await processor.DispatchPendingMessagesAsync(CancellationToken.None);
 
 ### Processor ID
 
-Assign unique IDs to prevent duplicate processing:
+Assign processor IDs for attribution and diagnostics. IDs alone do not prevent duplicate delivery;
+correctness depends on provider claim/fencing behavior and idempotent effects. A machine name also
+does not distinguish multiple processes on the same host:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
@@ -489,13 +509,12 @@ Monitor outbox health:
 
 ```csharp
 services.AddHealthChecks()
-    .AddCheck<OutboxHealthCheck>("outbox");
+    .AddOutboxHealthCheck();
 ```
 
-The health check reports:
-- **Healthy**: Processing normally
-- **Degraded**: High pending count or old messages
-- **Unhealthy**: Processing failures
+The health check examines whether the background service is running, its inactivity duration, and
+failure-rate thresholds when failure counts are complete. It reports degraded or unhealthy status
+according to the configured thresholds. It does not measure pending-message count or oldest-message age.
 
 ## Observability
 
@@ -505,15 +524,20 @@ The health check reports:
 services.AddOpenTelemetry()
     .WithMetrics(metrics =>
     {
-        metrics.AddMeter("Excalibur.Outbox.*");
+        metrics.AddMeter("Excalibur.Dispatch.BackgroundServices");
+        metrics.AddMeter("Excalibur.Outbox.Store");
     });
 ```
 
-Metrics exported:
-- `excalibur.outbox.pending` — Pending message count
-- `excalibur.outbox.processed` — Messages processed per interval
-- `excalibur.outbox.failed` — Failed message count
-- `excalibur.outbox.age_ms` — Age of oldest pending message
+Background-service instruments include:
+- `excalibur.background_service.messages_processed` — Processed-message counter
+- `excalibur.background_service.messages_failed` — Failed-message counter
+- `excalibur.background_service.processing_duration` — Processing-cycle duration histogram, milliseconds
+- `excalibur.background_service.processing_cycles` — Processing-cycle counter
+
+Filter the service tags for outbox activity. Compute interval throughput from counter deltas or rates;
+these instruments do not report queue depth or oldest-message age. Store-operation telemetry uses the
+separate `Excalibur.Outbox.Store` meter.
 
 ### Logging
 
@@ -533,8 +557,8 @@ Outbox operations are logged automatically. Configure log levels:
 
 | Practice | Reason |
 |----------|--------|
-| Use presets | Tested configurations for common scenarios |
-| Set processor ID | Prevent duplicate processing in multi-instance |
+| Measure candidate settings | The examples are tuning starting points |
+| Set processor ID | Support attribution and diagnostics |
 | Plan sent-message removal | Prevent unbounded table growth — see [Retention and cleanup](#retention-and-cleanup) for which providers expire rows themselves |
 | Monitor pending count | Detect processing bottlenecks |
 | Use appropriate batch size | Balance throughput vs. latency |
@@ -549,7 +573,7 @@ Outbox operations are logged automatically. Configure log levels:
 
 ### High pending count
 
-1. Increase batch size or parallelism
+1. Identify the limiting resource; evaluate batch size or permitted parallelism while preserving ordering and recovery behavior
 2. Check for slow downstream handlers
 3. Monitor for retry storms
 
@@ -557,19 +581,10 @@ Outbox operations are logged automatically. Configure log levels:
 
 Ensure your handlers are idempotent. The outbox guarantees at-least-once delivery.
 
-```csharp
-public class OrderCreatedHandler : IEventHandler<OrderCreated>
-{
-    public async Task HandleAsync(OrderCreated @event, CancellationToken ct)
-    {
-        // Idempotent: check if already processed
-        if (await _store.ExistsAsync(@event.OrderId))
-            return;
-
-        // Process...
-    }
-}
-```
+A separate existence check followed by an effect is not sufficient: concurrent deliveries can both
+pass the check. Use a stable message identity and an atomic deduplication decision coordinated with the
+effect, such as a unique-key record and effect in the same database transaction. For external effects,
+use the destination's idempotency facility or a recovery protocol appropriate to that destination.
 
 ## See Also
 

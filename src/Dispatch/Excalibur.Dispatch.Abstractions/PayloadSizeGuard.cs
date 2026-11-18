@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
+using System.Buffers;
 
 namespace Excalibur.Dispatch;
 
@@ -75,6 +76,58 @@ internal static class PayloadSizeGuard
         {
             EnsureWithinLimit(GetBase64DecodedLength(base64), max);
         }
+    }
+
+    /// <summary>
+    /// Reads <paramref name="source"/> to its end, refusing as soon as the bytes produced exceed
+    /// <paramref name="maxBytes"/>, and returns what was read. A <see langword="null"/>
+    /// <paramref name="maxBytes"/> is an explicit opt-out (unbounded).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For a <em>decompressing</em> stream the inbound length and the produced length are different
+    /// quantities, and only the first one is on the wire. Checking the compressed length bounds what a
+    /// sender transmitted; it does not bound what the decompressor allocates, because the expansion ratio
+    /// is chosen by the sender. A payload that passes an inbound limit can still expand by three orders of
+    /// magnitude, so the limit has to be applied again to the output.
+    /// </para>
+    /// <para>
+    /// The check runs <strong>before each write</strong> rather than after the copy, so the buffer never
+    /// holds more than the limit permits. Reading to the end and then measuring would have performed the
+    /// allocation the limit exists to prevent, which is the shape a declared-length header produces: the
+    /// length is the sender's claim, and trusting it to size a buffer lets a few hundred bytes of input
+    /// name an arbitrary allocation.
+    /// </para>
+    /// </remarks>
+    /// <param name="source"> The stream to read, typically a decompressor over an inbound payload. </param>
+    /// <param name="maxBytes"> The configured maximum produced length, or <see langword="null"/> to opt out. </param>
+    /// <returns> The bytes read from <paramref name="source"/>. </returns>
+    /// <exception cref="ArgumentNullException"> Thrown when <paramref name="source"/> is <see langword="null"/>. </exception>
+    /// <exception cref="PayloadTooLargeException"> Thrown as soon as the produced length would exceed <paramref name="maxBytes"/>. </exception>
+    public static byte[] ReadAllWithinLimit(Stream source, int? maxBytes)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        using var output = new MemoryStream();
+        var buffer = ArrayPool<byte>.Shared.Rent(81920);
+
+        try
+        {
+            int read;
+            while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                // output.Length is bounded by maxBytes on every prior iteration, and read is bounded by the
+                // rented buffer, so this addition cannot overflow before the limit rejects it.
+                EnsureWithinLimit((int)output.Length + read, maxBytes);
+                output.Write(buffer, 0, read);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+
+        return output.ToArray();
     }
 
     /// <summary>

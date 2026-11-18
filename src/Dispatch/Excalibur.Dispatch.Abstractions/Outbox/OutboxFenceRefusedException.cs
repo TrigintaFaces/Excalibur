@@ -17,9 +17,10 @@ namespace Excalibur.Dispatch;
 /// family grows.
 /// </para>
 /// <para>
-/// The correct response is always the same regardless of which derived type arrives: abort the operation for
-/// that message with no further store write, and leave it as claimed. The live leader resolves it once the
-/// claim ages out. Never retry with the same token — the refusal is fail-closed, not transient.
+/// Abort the refused operation without a failure-store fallback. A learned stale-token refusal additionally
+/// stops later admissions at that captured token or older tokens in the same authority domain. An absent
+/// token stops the current drain without inventing a rejected-token watermark. The live leader resolves
+/// claims left behind once they age out; typed row-scoped outcomes allow unrelated rows to continue.
 /// </para>
 /// <para>
 /// <b>The family is defined by that obligation, not by the mechanism that produced it.</b> Entitlement

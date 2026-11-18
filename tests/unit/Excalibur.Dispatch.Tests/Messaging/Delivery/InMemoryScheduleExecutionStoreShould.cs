@@ -161,11 +161,11 @@ public sealed class InMemoryScheduleExecutionStoreShould
 		await store.StoreAsync(message, CancellationToken.None);
 		var snapshot = (await store.GetExecutionSnapshotsAsync(CancellationToken.None)).Single();
 		var lease = (await store.TryAcquireExecutionAsync(message.Id, snapshot.Generation, due, CancellationToken.None)).ShouldNotBeNull();
-		var wrongOccurrence = new ScheduleExecutionLease(lease.StoreId, lease.ScheduleId, lease.Generation, due.AddTicks(1), lease.OwnerToken);
+		var wrongOccurrence = new ScheduleExecutionLease(lease.StoreId, lease.ScheduleId, lease.Generation, due.AddTicks(1), lease.OwnerToken) { AdmissionAttempt = lease.AdmissionAttempt };
 		(await store.TryUpdateProgressAsync(wrongOccurrence, new(due, null), CancellationToken.None)).ShouldBeFalse();
 		(await store.ReleaseExecutionAsync(wrongOccurrence, CancellationToken.None)).ShouldBeFalse();
 		(await other.ReleaseExecutionAsync(lease, CancellationToken.None)).ShouldBeFalse();
-		var copiedBearer = new ScheduleExecutionLease(lease.StoreId, lease.ScheduleId, lease.Generation, lease.OccurrenceUtc, lease.OwnerToken);
+		var copiedBearer = new ScheduleExecutionLease(lease.StoreId, lease.ScheduleId, lease.Generation, lease.OccurrenceUtc, lease.OwnerToken) { AdmissionAttempt = lease.AdmissionAttempt };
 		(await store.ReleaseExecutionAsync(copiedBearer, CancellationToken.None)).ShouldBeTrue();
 	}
 

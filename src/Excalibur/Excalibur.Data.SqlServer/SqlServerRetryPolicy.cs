@@ -4,6 +4,7 @@
 
 using Excalibur.Data.Resilience;
 using Excalibur.Data.SqlServer.Diagnostics;
+using Excalibur.Dispatch.Resilience;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -41,6 +42,12 @@ internal sealed partial class SqlServerRetryPolicy : IRelationalDataRequestRetry
 	/// <param name="baseRetryDelay"> The base delay between retry attempts. </param>
 	/// <param name="logger"> The logger instance. </param>
 	public SqlServerRetryPolicy(int maxRetryAttempts, TimeSpan baseRetryDelay, ILogger logger)
+		: this(maxRetryAttempts, baseRetryDelay, logger, delegateRetriesToMessagePipeline: false)
+	{
+	}
+
+	internal SqlServerRetryPolicy(int maxRetryAttempts, TimeSpan baseRetryDelay, ILogger logger,
+		bool delegateRetriesToMessagePipeline)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -49,9 +56,10 @@ internal sealed partial class SqlServerRetryPolicy : IRelationalDataRequestRetry
 
 		// Setup retry policy for transient failures
 		_retryPolicy = Policy
-			.Handle<SqlException>(IsTransientError)
-			.Or<TimeoutException>()
-			.Or<InvalidOperationException>(ex => ex.Message.Contains("Timeout expired", StringComparison.OrdinalIgnoreCase))
+			.Handle<SqlException>(ex => IsTransientError(ex) && (!delegateRetriesToMessagePipeline || !RetryOwnershipScope.OwnsCurrentFailure(ex)))
+			.Or<TimeoutException>(ex => !delegateRetriesToMessagePipeline || !RetryOwnershipScope.OwnsCurrentFailure(ex))
+			.Or<InvalidOperationException>(ex => ex.Message.Contains("Timeout expired", StringComparison.OrdinalIgnoreCase)
+				&& (!delegateRetriesToMessagePipeline || !RetryOwnershipScope.OwnsCurrentFailure(ex)))
 			.WaitAndRetryAsync(
 				MaxRetryAttempts,
 				CalculateDelay,

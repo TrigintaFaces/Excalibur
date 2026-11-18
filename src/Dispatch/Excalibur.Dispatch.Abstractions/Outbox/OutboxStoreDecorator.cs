@@ -1,13 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Collections.Frozen;
+
 using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Base class for outbox store decorators. Forwards capability resolution to the decorated store so that
-/// decoration can never drop a capability the underlying store provides.
+/// ordinary capability forwarding remains intact. Transactional preparation requires explicit mediation.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -16,10 +18,10 @@ namespace Excalibur.Dispatch;
 /// guess, and every guess is wrong for some inner store: declare too few and a real capability becomes
 /// invisible to consumers; declare too many and the decorator advertises behaviour its inner store cannot
 /// perform. Resolving capabilities through <see cref="IServiceProvider.GetService(Type)"/> removes the
-/// guess -- the decorator answers for what it adds and asks the store it wraps about everything else.
+/// guess -- the decorator answers for what it adds and asks the store it wraps about ordinary capabilities. New transactional preparation facets require explicit opt-in so unknown payload transforms cannot be bypassed.
 /// </para>
 /// <para>
-/// Consequently a decorator derived from this type <em>cannot</em> strip a capability: there is no
+/// For ordinary capabilities a decorator derived from this type does not strip capabilities: there is no
 /// declaration to omit. The failure is not detected by a test; it is unwritable.
 /// </para>
 /// <para>
@@ -55,7 +57,13 @@ public abstract class OutboxStoreDecorator(IOutboxStore inner) : IOutboxStore
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
 
-		return serviceType.IsInstanceOfType(this) ? this : Inner.GetService(serviceType);
+		// Transactional preparation is invariant-bearing: an unknown decorator cannot safely
+        // inherit it merely by forwarding to its inner store. Known decorators opt in explicitly.
+        if (serviceType == typeof(ITransactionalOutboxPreparer) || serviceType == typeof(ITransactionalOutboxPayloadTransformPreparer))
+        {
+            return null;
+        }
+        return serviceType.IsInstanceOfType(this) ? this : Inner.GetService(serviceType);
 	}
 
 	/// <inheritdoc />
@@ -69,8 +77,6 @@ public abstract class OutboxStoreDecorator(IOutboxStore inner) : IOutboxStore
 		Inner.EnqueueAsync(message, context, cancellationToken);
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public virtual ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 		Inner.GetUnsentMessagesAsync(batchSize, cancellationToken);
 
@@ -135,7 +141,14 @@ public abstract class IsolatingOutboxStoreDecorator(IOutboxStore inner) : Outbox
 	/// </remarks>
 	protected virtual IReadOnlySet<Type> ForwardableCapabilities => EmptyCapabilities;
 
-	private static readonly IReadOnlySet<Type> EmptyCapabilities = new HashSet<Type>();
+	// FrozenSet.Empty, never a HashSet. This instance is shared by every decorator that does not
+	// override ForwardableCapabilities, and the set is read at the forwarding decision below --
+	// .Contains(serviceType) decides whether a capability request reaches the INNER store, bypassing
+	// this decorator. HashSet<T> implements ISet<T>, so returning one behind IReadOnlySet publishes a
+	// mutable collection: one cast from any assembly could add a Type that every such decorator then
+	// forwards, for the life of the process. A read-only annotation over a mutable runtime type is a
+	// comment, not a guarantee.
+	private static readonly IReadOnlySet<Type> EmptyCapabilities = FrozenSet<Type>.Empty;
 
 	/// <summary>
 	/// Returns a view over the decorated store's capability that upholds this decorator's invariant, when the

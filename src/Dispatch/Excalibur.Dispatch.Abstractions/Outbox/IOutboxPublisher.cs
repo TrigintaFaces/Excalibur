@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
-using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Dispatch;
 
@@ -53,8 +52,6 @@ public interface IOutboxPublisher
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
 	/// <returns> The result of the publishing operation including success/failure counts. </returns>
 	/// <exception cref="OperationCanceledException"> Thrown when the operation is cancelled. </exception>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task<PublishingResult> PublishPendingMessagesAsync(CancellationToken cancellationToken);
 
 	/// <summary>
@@ -72,8 +69,6 @@ public interface IOutboxPublisher
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
 	/// <returns> The result of the publishing operation including success/failure counts. </returns>
 	/// <exception cref="OperationCanceledException"> Thrown when the operation is cancelled. </exception>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task<PublishingResult> PublishScheduledMessagesAsync(CancellationToken cancellationToken);
 
 	/// <summary>
@@ -97,8 +92,6 @@ public interface IOutboxPublisher
 	/// <returns> The result of the retry operation including success/failure counts. </returns>
 	/// <exception cref="ArgumentOutOfRangeException"> Thrown when maxRetries is less than 0. </exception>
 	/// <exception cref="OperationCanceledException"> Thrown when the operation is cancelled. </exception>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task<PublishingResult> RetryFailedMessagesAsync(
 		int maxRetries,
 		CancellationToken cancellationToken);

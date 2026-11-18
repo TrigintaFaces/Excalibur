@@ -25,34 +25,92 @@ attached to it — body and properties untouched, and a message that is not a Cl
 unchanged. Every message in the batch is delivered, including a malformed one: it arrives carrying a
 decode error instead of a decoded event, never dropped. There is nothing to register.
 
-**Outbound CloudEvents formatting is opt-in.** It is not applied unless you register it:
+**Outbound CloudEvents use the registered MQTT encoder.** Register core payload serialization and
+`AddCloudEventsForMqtt`, then attach a `CloudEvent` under `TransportMessage.Properties["cloudevent"]`.
+The named sender honors `CloudEventOptions.DefaultMode`: binary mode carries the attributes as MQTT-5
+user properties using their bare CloudEvents names, while structured mode carries the complete JSON
+event with `application/cloudevents+json` content type. `MqttCloudEventOptions.Retain` applies to these
+outbound events. Ordinary messages retain their existing payload and application properties.
+
+The sender supplies the configured topic, QoS, response topic and correlation data. Unrelated application
+properties remain available; they cannot replace encoder-provided attributes or introduce absent standard
+CloudEvents attributes. The in-process `cloudevent` marker is consumed by the sender and never emitted as a
+user property on an encoded event.
+
+For trimming and Native AOT, configure the core serializer with source-generated metadata for every type
+carried in `CloudEvent.Data`. The MQTT encoder uses that resolver. Publish and run the consuming
+application to verify its complete dependency and payload configuration.
 
 ```csharp
-services.AddCloudEventsForMqtt(mqtt => { /* MqttCloudEventOptions */ });
+using System.Text.Json.Serialization;
+using CloudNative.CloudEvents;
+using Excalibur.Dispatch.CloudEvents;
+using Excalibur.Dispatch.Transport;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class MqttCloudEventExample
+{
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddDispatch(builder => builder.AddCloudEvents(OrderJsonContext.Default));
+        services.AddCloudEventsForMqtt(
+            mqtt => mqtt.Retain = true,
+            cloudEvents => cloudEvents.DefaultMode = CloudEventMode.Binary);
+    }
+
+    // Invoke only after the host has registered AddMqttTransport("mqtt", ...)
+    // and built its provider. The caller owns that provider and its disposal.
+    public static async Task SendAsync(IServiceProvider provider, CancellationToken cancellationToken)
+    {
+        var sender = provider.GetRequiredKeyedService<ITransportSender>("mqtt");
+        await sender.SendAsync(new TransportMessage
+        {
+            Properties = new Dictionary<string, object>
+            {
+                ["cloudevent"] = new CloudEvent
+                {
+                    Id = "order-created-42",
+                    Source = new Uri("urn:orders"),
+                    Type = "com.example.order.created.v1",
+                    DataContentType = "application/json",
+                    Data = new OrderCreated("order-42"),
+                },
+            },
+        }, cancellationToken);
+    }
+}
+
+public sealed record OrderCreated(string OrderId);
+
+[JsonSerializable(typeof(OrderCreated))]
+internal partial class OrderJsonContext : JsonSerializerContext { }
 ```
 
-Both CloudEvents bindings are supported on the send path, per the CNCF CloudEvents MQTT protocol binding:
-**structured mode** carries the whole event as a JSON payload with `ContentType` set to
-`application/cloudevents+json`, and **binary mode** carries the attributes as MQTT v5 user properties named
-exactly as the attributes are. The naming is not ours to choose — renaming it would make our events
-unreadable to conformant consumers and theirs unreadable to us.
-
-Registering the bundled encoder is annotated for trimming and ahead-of-time builds — it serializes
-payloads with reflection-based JSON. Supply your own `ICloudEventEncoder<TOutbound>` over a
-source-generated serializer to avoid the requirement. **This applies to the send path only; inbound
-decoding is trim-safe and ahead-of-time-safe.**
+The example uses `CloudNative.CloudEvents`, `Excalibur.Dispatch.CloudEvents`,
+`Excalibur.Dispatch.Transport`, `Microsoft.Extensions.DependencyInjection`, and
+`System.Text.Json.Serialization`.
 
 ## Usage
 
 ```csharp
-services.AddMqttTransport("mqtt", o =>
+using Excalibur.Dispatch.Transport.Mqtt;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class MqttRegistration
 {
-    o.Host = "localhost";
-    o.Port = 1883;
-    o.ClientId = "dispatch-1";
-    o.Topic = "dispatch/events";
-    o.QualityOfService = MqttQualityOfService.AtLeastOnce;
-});
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddMqttTransport("mqtt", o =>
+        {
+            o.Host = "localhost";
+            o.Port = 1883;
+            o.ClientId = "dispatch-1";
+            o.Topic = "dispatch/events";
+            o.QualityOfService = MqttQualityOfService.AtLeastOnce;
+            o.RequireTls = false; // Local development only; configure TLS for a remote broker.
+        });
+    }
+}
 ```
 
 Credentials (`Username`/`Password`) must come from configuration or a secret manager — never commit values.

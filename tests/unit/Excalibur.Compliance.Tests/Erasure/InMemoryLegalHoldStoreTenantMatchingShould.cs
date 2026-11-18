@@ -111,7 +111,7 @@ public sealed class InMemoryLegalHoldStoreTenantMatchingShould
 		context.TenantId = AmbientTenant;
 
 		var visible = await store
-			.GetActiveHoldsForDataSubjectAsync(SubjectHash, null, CancellationToken.None)
+			.GetActiveHoldsForDataSubjectAsync(SubjectHash, null, DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		return visible.Select(h => h.HoldId).ToList();

@@ -1,0 +1,19 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project -->
+<!-- SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0 -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <DebugType>None</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
+    <Compile Include="../Excalibur.Dispatch.Aot.Sample/DataProcessingSmoke.cs" Link="DataProcessingSmoke.cs" />
+  </ItemGroup>
+</Project>

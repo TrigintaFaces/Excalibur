@@ -47,7 +47,7 @@ public sealed class RedisFencingTokenMonotonicShould : IntegrationTestBase, ICla
 		services.AddRedisFencingTokenProvider();
 
 		await using var provider = services.BuildServiceProvider();
-		var fencing = provider.GetRequiredService<IFencingTokenProvider>();
+		var fencing = provider.GetRequiredService<IFencingTokenIssuer>();
 
 		var resourceId = $"resource-{Guid.NewGuid():N}";
 		const int issuances = 50;

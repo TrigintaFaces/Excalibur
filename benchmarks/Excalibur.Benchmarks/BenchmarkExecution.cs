@@ -3,6 +3,8 @@
 
 using System.Reflection;
 
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Reports;
 using BenchmarkDotNet.Running;
 
@@ -21,7 +23,11 @@ internal static class BenchmarkExecution
 	/// </remarks>
 	internal static int Run(Assembly assembly, string[] args, out string diagnosis)
 	{
-		var summaries = BenchmarkSwitcher.FromAssembly(assembly).Run(args).ToArray();
+		// Preserve each declared job while leaving the machine's power plan unchanged.
+		var config = DefaultConfig.Instance.AddJob(Job.Default.DontEnforcePowerPlan()
+			.WithArguments([new MsBuildArgument("-m:1"), new MsBuildArgument("/p:BuildExamplesAndTests=true")])
+			.AsMutator());
+		var summaries = BenchmarkSwitcher.FromAssembly(assembly).Run(args, config).ToArray();
 		if (summaries.Length == 0 && args.Any(arg => arg is "--help" or "-h" or "--list" or "--info"))
 		{
 			diagnosis = "informational invocation; no run expected";

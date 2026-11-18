@@ -13,9 +13,27 @@
     references 7 projects and 2 packages, including QuestPDF, MongoDB.Driver and Npgsql. A consumer
     installing a package named for Postgres pulled a PDF library and the MongoDB driver into their app.
 
-    Turning pinning off here does NOT lose the version floors it was providing. Those floors live on the
-    implementation packages, which keep pinning and keep declaring them, and a consumer of a metapackage
-    reaches them through exactly that chain.
+    Turning pinning off here does NOT lose the version floors for a CONSUMER. Those floors live on the
+    implementation packages, which keep pinning and keep declaring them, and a consumer installing a
+    metapackage reaches them through exactly that chain.
+
+    IT DOES LOSE THEM FOR THIS PROJECT'S OWN RESTORE, and that distinction cost three fix attempts before
+    anyone wrote it down. A metapackage's lock file still records the central floor but cannot apply it:
+    the entry reads type CentralTransitive, requested [X, ) and resolved SOMETHING BELOW X. Deleting the
+    lock file and restoring from nothing reproduces it exactly, so it is neither staleness nor a resolver
+    fault, and force-evaluate does not touch it either. Measured here: four such entries across this
+    directory's projects.
+
+    That is harmless until the package underneath carries an ADVISORY, because NU1902 is an error in this
+    repository and it is evaluated against what this project resolved, not against what the implementation
+    package resolved. Then restore fails on the metapackage while the transport beneath it is clean, and
+    because a failed restore aborts before anything compiles, a whole-solution build reports zero C#
+    errors and looks green.
+
+    THE REMEDY IS A DIRECT PackageReference ON THE AFFECTED METAPACKAGE, not re-enabling pinning here.
+    It is the first-party remedy for an advisory on a transitive dependency, it adds exactly one entry to
+    that bundle's nuspec instead of the promoted union, and the version stays centrally managed. See the
+    worked example in Excalibur.Dispatch.Aws.csproj.
   -->
   <PropertyGroup>
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>

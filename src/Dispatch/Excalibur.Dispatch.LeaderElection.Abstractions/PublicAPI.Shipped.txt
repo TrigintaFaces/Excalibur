@@ -32,9 +32,10 @@ Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.Stage.get -> Ex
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMinting
 Excalibur.Dispatch.LeaderElection.Fencing.IFencedResource
 Excalibur.Dispatch.LeaderElection.Fencing.IFencedResource.GuardAsync(long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenIssuer
+Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenIssuer.IssueTokenAsync(string! resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.GetTokenAsync(string! resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long?>
-Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.IssueTokenAsync(string! resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.ValidateTokenAsync(string! resourceId, long token, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Dispatch.LeaderElection.Fencing.MonotonicFencedResourceGuard
 Excalibur.Dispatch.LeaderElection.Fencing.MonotonicFencedResourceGuard.GuardAsync(long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -59,11 +60,13 @@ Excalibur.Dispatch.LeaderElection.ILeaderElection.CurrentLeadership.get -> Excal
 Excalibur.Dispatch.LeaderElection.ILeaderElection.IsLeader.get -> bool
 Excalibur.Dispatch.LeaderElection.ILeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
 Excalibur.Dispatch.LeaderElection.ILeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
+Excalibur.Dispatch.LeaderElection.ILeaderElection.NotificationsCompleted.get -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.LeaderElection.ILeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.LeaderElection.ILeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory
 Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
 Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
+Excalibur.Dispatch.LeaderElection.LeaderCandidateIdentity
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.FencingToken.get -> long?
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.LeaderChangedEventArgs(string? previousLeaderId, string? newLeaderId, string! resourceName, long? fencingToken = null, System.DateTimeOffset? timestamp = null) -> void
@@ -89,7 +92,7 @@ Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.EnableHealthChecks.get -
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.EnableHealthChecks.set -> void
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.GracePeriod.get -> System.TimeSpan
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.GracePeriod.set -> void
-Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.InstanceId.get -> string!
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.InstanceId.get -> string?
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.InstanceId.set -> void
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.LeaderElectionOptions() -> void
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.LeaseDuration.get -> System.TimeSpan
@@ -116,6 +119,9 @@ Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions
 const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingResourceIdKey = "FencingResourceId" -> string!
 const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingTokenKey = "FencingToken" -> string!
 const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMinting.DefaultMaxAttempts = 3 -> int
-static Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMinting.MintWithRetryAsync(Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider! provider, string! resourceId, System.Threading.CancellationToken cancellationToken, int maxAttempts = 3) -> System.Threading.Tasks.Task<long>!
+static Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMinting.MintWithRetryAsync(Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenIssuer! provider, string! resourceId, System.Threading.CancellationToken cancellationToken, int maxAttempts = 3) -> System.Threading.Tasks.Task<long>!
+static Excalibur.Dispatch.LeaderElection.LeaderCandidateIdentity.Resolve(string? configuredInstanceId) -> string!
+static Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions.AddFencingTokenIssuerSupport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenIssuer! issuer) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions.AddFencingTokenIssuerSupport<TIssuer>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions.AddFencingTokenSupport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider! provider) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions.AddFencingTokenSupport<TProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

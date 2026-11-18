@@ -148,6 +148,7 @@ Excalibur.Compliance.SqlServer:KeyEscrow:TENANTID
 Excalibur.Compliance.SqlServer:LegalHolds:TENANTID
 Excalibur.Data.Postgres:activity_group:NAME
 Excalibur.Data.SqlServer:ActivityGroup:NAME
+Excalibur.Data.SqlServer:ScheduleOccurrenceFailure:TENANTID
 Excalibur.EventSourcing.Oracle:EVENTSTOREEVENTS:POSITION
 Excalibur.EventSourcing.Oracle:EVENTSTOREEVENTS:TENANTID
 Excalibur.EventSourcing.Oracle:EVENTSTORESNAPSHOTS:TENANTID
@@ -177,8 +178,6 @@ Excalibur.Outbox.Postgres:outbox_dead_letters:MESSAGE_ID
 Excalibur.Outbox.Postgres:outbox_dead_letters:TENANT_ID
 Excalibur.Outbox.Postgres:outbox_dead_letters:constraint:CONSTRAINT PK_OUTBOX_DEAD_LETTERS PRIMARY KEY (MESSAGE_ID, T
 Excalibur.Saga.Oracle:SAGAS:TENANTID
-Excalibur.Saga.Oracle:SAGATIMEOUTS:TENANTID
-Excalibur.Saga.SqlServer:SagaTimeouts:TENANTID
 Excalibur.Workflows.SqlServer:workflow_signal_inbox:TENANTID
 Excalibur.Workflows.SqlServer:workflow_signal_inbox:constraint:CONSTRAINT UQ_WORKFLOW_SIGNAL_INBOX UNIQUE (TENANTID, INSTAN
 #

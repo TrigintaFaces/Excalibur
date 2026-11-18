@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Transport.Kafka
 
-Apache Kafka transport implementation for the Excalibur framework, providing high-throughput, distributed event streaming with exactly-once semantics and CloudEvents publishing and decoding.
+Apache Kafka transport implementation for the Excalibur framework, providing partitioned, distributed event streaming with exactly-once semantics and CloudEvents publishing and decoding.
 
 ## Part Of
 
@@ -16,7 +16,7 @@ This package is included in the following metapackages:
 
 This package provides Apache Kafka integration for Excalibur.Dispatch, enabling:
 
-- **High-Throughput Messaging**: Distributed streaming with partitioning and consumer groups
+- **Partitioned Messaging**: Distributed streaming with partitioning and consumer groups
 - **Exactly-Once Semantics**: Idempotent producers and transactional messaging
 - **CloudEvents Support**: Standards-compliant structured event formatting on outbound messages. Inbound messages are decoded automatically. On the send path, registering the bundled encoder is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventEncoder<TOutbound>` over a source-generated serializer to avoid the requirement. Inbound decoding is trim-safe and ahead-of-time-safe, attaches the decoded event to the message rather than replacing it, and delivers every message in the batch — a malformed one arrives carrying a decode error instead of a decoded event, never dropped.
 - **Flexible Partitioning**: Multiple strategies including correlation ID, tenant ID, and round-robin
@@ -376,7 +376,7 @@ metadata. Register the transport before the health check so that a producer exis
 - **Partition Key**: Choose keys that distribute load evenly
 
 ```csharp
-// High-throughput configuration
+// Partitioning configuration example
 services.Configure<KafkaCloudEventOptions>(options =>
 {
     options.DefaultPartitionCount = 12;          // More partitions for parallelism
@@ -393,13 +393,15 @@ services.Configure<KafkaCloudEventOptions>(options =>
 
 ### Performance Tuning
 
-#### High-Throughput Producer
+#### Batch and Prefetch Configuration Examples
+
+These settings are illustrations, not measured throughput recommendations. Evaluate completed processing, memory use and recovery under the application's ordering requirements before changing batch or prefetch sizes.
 
 ```csharp
 services.Configure<KafkaOptions>(options =>
 {
     options.Consumer.MaxBatchSize = 500;          // Larger batches
-    options.Consumer.MaxBatchWaitMs = 50;         // Shorter wait time
+    options.Consumer.MaxBatchWaitMs = 50;         // Batch wait setting
     options.Consumer.QueuedMinMessages = 5000;    // More prefetch
 });
 ```
@@ -407,32 +409,36 @@ services.Configure<KafkaOptions>(options =>
 ```csharp
 services.Configure<KafkaCloudEventOptions>(options =>
 {
-    options.Producer.AcknowledgmentLevel = KafkaAckLevel.Leader;  // Faster acks (less durable)
+    options.Producer.AcknowledgmentLevel = KafkaAckLevel.Leader;  // Weaker acknowledgment requirement
     options.Producer.EnableCompression = true;
-    options.Producer.CompressionType = KafkaCompressionType.Lz4;  // Fast compression
-    options.Producer.EnableIdempotentProducer = false;            // Disable for max throughput
+    options.Producer.CompressionType = KafkaCompressionType.Lz4;  // Measure with representative payloads
+    options.Producer.EnableIdempotentProducer = false;            // Does not request producer idempotence
 });
 ```
 
-#### Low-Latency Consumer
+The producer example above weakens delivery guarantees. It is not a behavior-preserving optimization or a recommendation to disable idempotence. Keep the acknowledgment, idempotency and transaction settings required by the application when measuring performance.
+
+#### Consumer Timing Configuration Example
 
 ```csharp
 services.Configure<KafkaOptions>(options =>
 {
-    options.Consumer.MaxBatchSize = 1;            // Process immediately
+    options.Consumer.MaxBatchSize = 1;            // One record per batch
     options.Consumer.MaxBatchWaitMs = 0;          // No batching delay
-    options.Consumer.SessionTimeoutMs = 10000;    // Faster failure detection
-    options.Consumer.MaxPollIntervalMs = 60000;   // Shorter poll interval
+    options.Consumer.SessionTimeoutMs = 10000;    // Session timeout setting
+    options.Consumer.MaxPollIntervalMs = 60000;   // Maximum allowed poll interval
 });
 ```
 
-#### Exactly-Once Processing
+These values do not establish an end-to-end latency bound. Ensure poll and session settings accommodate the actual processing duration and recovery behavior.
+
+#### Transaction-Related Configuration
 
 ```csharp
 services.Configure<KafkaCloudEventOptions>(options =>
 {
     options.Producer.EnableIdempotentProducer = true;    // Idempotent writes
-    options.Producer.EnableTransactions = true;          // Transactional processing
+    options.Producer.EnableTransactions = true;          // Enable producer transactions
     options.Producer.TransactionalId = "my-service-txn"; // Unique transaction ID
     options.Producer.AcknowledgmentLevel = KafkaAckLevel.All;
 });
@@ -444,6 +450,8 @@ services.Configure<KafkaOptions>(options =>
     options.Consumer.EnableAutoCommit = false;    // Manual offset commits
 });
 ```
+
+Configuration alone does not establish exactly-once application effects. Verify how the actual processing path coordinates produced records, consumed offsets and external side effects, including crash recovery. Disabling automatic commits does not itself commit offsets atomically with application work.
 
 ### Monitoring and Alerting
 
@@ -471,7 +479,7 @@ Key Kafka metrics to monitor:
 
 1. **Right-size partitions**: More partitions = higher cost
 2. **Set retention policies**: Don't retain data longer than needed
-3. **Enable compression**: Reduces storage and network costs
+3. **Evaluate compression** using actual payload size, CPU cost and network/storage charges
 4. **Use tiered storage**: Move cold data to cheaper storage (Confluent Cloud)
 5. **Monitor throughput**: Pay for what you use
 

@@ -187,7 +187,7 @@ services.AddHealthChecks()
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `UseDirectMode` | Use direct connection mode (lower latency) | `true` |
+| `UseDirectMode` | Use direct connection mode | `true` |
 | `MaxConnectionsPerEndpoint` | Maximum connections per endpoint | `50` |
 | `RequestTimeoutInSeconds` | Request timeout | `60` |
 | `IdleConnectionTimeoutInSeconds` | Idle connection timeout | `600` |
@@ -325,13 +325,13 @@ switch (result.StatusCode)
 
 ## Best Practices
 
-1. **Use Direct Mode** for lowest latency in production
+1. **Evaluate Direct Mode** against deployment requirements and measure latency
 2. **Enable Session Consistency** for read-your-writes scenarios
 3. **Monitor Request Charges** (RU/s) via `CloudOperationResult.RequestCharge`
 4. **Use Transactional Batches** for atomic operations within a partition
 5. **Configure Preferred Regions** for geo-redundant deployments
-6. **Set `EnableContentResponseOnWrite = false`** to reduce RU consumption when you don't need the response
-7. **Enable Bulk Execution** for high-throughput batch operations
+6. **Set `EnableContentResponseOnWrite = false`** when you do not need the returned resource. Microsoft documents reduced [networking and CPU work](https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.itemrequestoptions.enablecontentresponseonwrite); this is not a request-unit reduction claim.
+7. **Evaluate Bulk Execution** when independent operations may run concurrently. [Microsoft describes bulk support](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-migrate-from-bulk-executor-library) as grouping concurrent operations; measure completed work and preserve required ordering.
 8. **Use connection pooling** with appropriate `MaxConnectionsPerEndpoint` for your workload
 
 ## License

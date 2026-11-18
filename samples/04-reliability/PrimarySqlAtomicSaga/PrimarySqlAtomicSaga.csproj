@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch/Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Saga/Excalibur.Saga.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Saga.SqlServer/Excalibur.Saga.SqlServer.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox.SqlServer/Excalibur.Outbox.SqlServer.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+  </ItemGroup>
+</Project>

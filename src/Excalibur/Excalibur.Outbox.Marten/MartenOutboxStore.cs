@@ -45,7 +45,9 @@ namespace Excalibur.Outbox.Marten;
 /// identity already addresses at most one — and could only turn the correct document into none.
 /// </para>
 /// </remarks>
-public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin, ITenantPartitionedStore, IDisposable
+[RequiresUnreferencedCode("Marten outbox document mapping and queries depend on runtime metadata. This provider is not compatible with trimming.")]
+[RequiresDynamicCode("Marten outbox document mapping uses runtime type metadata and may require native generic instantiations unavailable under NativeAOT. The current internal document path has not been validated for NativeAOT.")]
+public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxPayloadTransformStore, IOutboxStoreAdmin, ITenantPartitionedStore, IClaimScopedOutboxStore, IDisposable
 {
 	private readonly IDocumentStore _store;
 	private readonly MartenOutboxStoreOptions _options;
@@ -56,9 +58,8 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	/// Identifies this store instance as the holder of a claim.
 	/// </summary>
 	/// <remarks>
-	/// Per instance, not per call: a claim belongs to the dispatcher that will do the sending, and one
-	/// store instance is one dispatcher. Two instances — the multi-process case this claim exists for —
-	/// get different ids and therefore never both hold the same message.
+	/// The instance id prefixes independently minted acquisitions. Legacy failure reports remain
+	/// process-scoped; strong completion requires the complete opaque acquisition identity.
 	/// </remarks>
 	private readonly string _dispatcherId = Guid.NewGuid().ToString("N");
 
@@ -126,18 +127,46 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
+	public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, transformPayload: null, transformRequested: false, cancellationToken);
+
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	ValueTask IOutboxPayloadTransformStore.EnqueueWithPayloadTransformAsync(
+		IDispatchMessage message, IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>> transformPayload,
+		CancellationToken cancellationToken) =>
+		EnqueueCoreAsync(message, context, transformPayload, transformRequested: true, cancellationToken);
+
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private async ValueTask EnqueueCoreAsync(
+		IDispatchMessage message, IMessageContext context,
+		Func<ReadOnlyMemory<byte>, string?, CancellationToken, ValueTask<byte[]>>? transformPayload,
+		bool transformRequested, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
+		if (transformRequested)
+		{
+			ArgumentNullException.ThrowIfNull(transformPayload);
+			cancellationToken.ThrowIfCancellationRequested();
+		}
 
-#pragma warning disable IL2026, IL3050 // Reflection-based serialization; this package is not AOT-compatible.
 		var payload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
-#pragma warning restore IL2026, IL3050
 		var messageType = message.GetType().FullName ?? message.GetType().Name;
 
 		// Canonical context->message factory so tenant/correlation/causation are never dropped.
-		var outbound = OutboundMessage.FromContext(messageType, payload, messageType, context);
+		var outbound = OutboundMessage.FromContext(messageType, payload, context.GetDestination() ?? messageType, context);
+		if (transformPayload is not null)
+		{
+			// The provider's default serializer returned fresh input. Borrow it for this invocation,
+			// then own the callback result before Marten's session can serialize the staged document.
+			var transformed = await transformPayload(outbound.Payload, outbound.TenantId, cancellationToken).ConfigureAwait(false)
+				?? throw new InvalidOperationException("transformPayload returned a null payload; the message was not enqueued.");
+			outbound.Payload = (byte[])transformed.Clone();
+			cancellationToken.ThrowIfCancellationRequested();
+		}
 
 		await StageMessageAsync(outbound, cancellationToken).ConfigureAwait(false);
 
@@ -145,8 +174,6 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
@@ -179,21 +206,43 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 
 		await using var connection = await OpenClaimConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-		var claimed = await MartenOutboxClaims.ClaimAsync(
-			connection,
-			_options.ClaimsSchemaName,
-			_options.ClaimsTableName,
-			[.. candidates.Select(static d => d.Id)],
-			_dispatcherId,
-			_options.ClaimTimeout,
-			cancellationToken).ConfigureAwait(false);
-
-		// Order is preserved from the candidate query, so a partially-claimed batch still leaves this
-		// dispatcher's messages in priority and age order.
-		return candidates
-			.Where(d => claimed.Contains(d.Id))
-			.Select(static d => d.ToOutbound())
-			.ToList();
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var acquisition = _dispatcherId + ":" + Guid.NewGuid().ToString("N");
+        var claimed = await MartenOutboxClaims.ClaimInTransactionAsync(connection, transaction,
+            _options.ClaimsSchemaName, _options.ClaimsTableName,
+            candidates.Select(static d => d.Id).ToArray(), acquisition, _options.ClaimTimeout, cancellationToken).ConfigureAwait(false);
+        // A new enlisted session must reload authoritative documents after the claim lock is held.
+        // The initial query's objects may have become terminal or been purged while claim acquisition waited.
+        await using var freshSession = _store.LightweightSession(global::Marten.Services.SessionOptions.ForTransaction(transaction));
+        var fresh = await freshSession.LoadManyAsync<MartenOutboxDocument>(cancellationToken, claimed).ConfigureAwait(false);
+        var byId = fresh.ToDictionary(static d => d.Id, StringComparer.Ordinal);
+        var databaseNow = await MartenOutboxClaims.GetDatabaseTimeAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+        var result = new List<OutboundMessage>(claimed.Count);
+        foreach (var candidate in candidates)
+        {
+            if (!claimed.Contains(candidate.Id)) { continue; }
+            if (!byId.TryGetValue(candidate.Id, out var document)
+                || document.Status is not (OutboxStatus.Staged or OutboxStatus.Failed)
+                || document.ScheduledAt > databaseNow)
+            {
+                await MartenOutboxClaims.ReleaseAcquisitionAsync(connection, transaction,
+                    _options.ClaimsSchemaName, _options.ClaimsTableName, candidate.Id, acquisition, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+            // A claim that expired while loading is not handed to the dispatcher.
+            if (!await MartenOutboxClaims.IsLiveAcquisitionAsync(connection, transaction,
+                _options.ClaimsSchemaName, _options.ClaimsTableName, candidate.Id, acquisition, _options.ClaimTimeout, cancellationToken).ConfigureAwait(false))
+            {
+                await MartenOutboxClaims.ReleaseAcquisitionAsync(connection, transaction,
+                    _options.ClaimsSchemaName, _options.ClaimsTableName, candidate.Id, acquisition, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+            var outbound = document.ToOutbound();
+            outbound.DispatcherId = acquisition;
+            result.Add(outbound);
+        }
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return result;
 	}
 
 	/// <inheritdoc/>
@@ -201,40 +250,22 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
-		await using var session = _store.LightweightSession();
+        await using var connection = await OpenClaimConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        // Legacy callers have no claim evidence. Retain direct settlement behavior, but not its old split commit.
+        var won = await MartenOutboxClaims.TrySettleInTransactionAsync(connection, transaction,
+            _options.ClaimsSchemaName, _options.ClaimsTableName, messageId, cancellationToken).ConfigureAwait(false);
+        if (!won) { throw new InvalidOperationException($"Message with ID '{messageId}' is already marked as sent."); }
+        await using var session = _store.LightweightSession(global::Marten.Services.SessionOptions.ForTransaction(transaction));
+        var document = await session.LoadAsync<MartenOutboxDocument>(messageId, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Message with ID '{messageId}' not found.");
+        document.Status = OutboxStatus.Sent;
+        document.SentAt = _timeProvider.GetUtcNow();
+        document.LastError = null;
+        session.Update(document);
+        await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = await session.LoadAsync<MartenOutboxDocument>(messageId, cancellationToken).ConfigureAwait(false)
-			?? throw new InvalidOperationException($"Message with ID '{messageId}' not found.");
-
-		// The status read above cannot decide this. Every caller has its own session and a session applies
-		// no optimistic concurrency, so concurrent callers all observe a not-yet-sent message and all
-		// write it sent. The transition is arbitrated in the claim table instead, where exactly one caller
-		// can win it, and the loser is told the message was already settled rather than settling it again.
-		await using (var connection = await OpenClaimConnectionAsync(cancellationToken).ConfigureAwait(false))
-		{
-			var won = await MartenOutboxClaims.TrySettleAsync(
-				connection,
-				_options.ClaimsSchemaName,
-				_options.ClaimsTableName,
-				messageId,
-				cancellationToken).ConfigureAwait(false);
-
-			if (!won)
-			{
-				throw new InvalidOperationException($"Message with ID '{messageId}' is already marked as sent.");
-			}
-		}
-
-		document.Status = OutboxStatus.Sent;
-		document.SentAt = _timeProvider.GetUtcNow();
-		document.LastError = null;
-
-		session.Update(document);
-		await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-		// The claim row is deliberately NOT released here. It stays as the terminal tombstone that made
-		// this transition single-winner; releasing it would let the next caller settle the same message
-		// again. It is removed when the message itself is purged.
 		LogMessageSent(messageId);
 	}
 
@@ -286,10 +317,8 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		// the commit to us, which is what lets both writes land together. This is the store's documented
 		// seam for joining an existing transaction, so no part of the unit of work is hand-rolled.
 		//
-		// Note this does NOT contradict the drain's rule that a claim must not ride the session's unit of
-		// work. That rule exists because a read-only drain disposes its session without saving, which would
-		// roll a claim back; this path always reaches a decision — commit or rollback — so there is no
-		// session lifetime for the claim to be lost to.
+        // The drain follows the same ownership rule: an explicitly owned transaction is committed
+        // before messages are returned; disposing a read-only Marten session cannot silently undo claims.
 		await using var session = _store.LightweightSession(global::Marten.Services.SessionOptions.ForTransaction(transaction));
 
 		var document = await session.LoadAsync<MartenOutboxDocument>(messageId, cancellationToken).ConfigureAwait(false);
@@ -401,29 +430,26 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 			return 0;
 		}
 
-		foreach (var id in ids)
-		{
-			session.Delete<MartenOutboxDocument>(id);
-		}
+        await using var connection = await OpenClaimConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using var cleanupSession = _store.LightweightSession(global::Marten.Services.SessionOptions.ForTransaction(transaction));
+        var cleaned = 0;
+        foreach (var id in ids.Order(StringComparer.Ordinal))
+        {
+            await MartenOutboxClaims.LockAcquisitionAsync(connection, transaction,
+                _options.ClaimsSchemaName, _options.ClaimsTableName, id, cancellationToken).ConfigureAwait(false);
+            var document = await cleanupSession.LoadAsync<MartenOutboxDocument>(id, cancellationToken).ConfigureAwait(false);
+            if (document is not { Status: OutboxStatus.Sent, SentAt: { } sentAt } || sentAt >= olderThan) { continue; }
+            cleanupSession.Delete<MartenOutboxDocument>(id);
+            await MartenOutboxClaims.PurgeInTransactionAsync(connection, transaction,
+                _options.ClaimsSchemaName, _options.ClaimsTableName, id, cancellationToken).ConfigureAwait(false);
+            cleaned++;
+        }
+        await cleanupSession.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
-		await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-		// Purging the messages is what bounds the claim table. A settled message keeps its claim row as
-		// the terminal tombstone that made its transition single-winner, so nothing else removes it: the
-		// row goes when the message goes, and skipping this would grow the table by one row per message
-		// ever sent.
-		await using (var connection = await OpenClaimConnectionAsync(cancellationToken).ConfigureAwait(false))
-		{
-			await MartenOutboxClaims.PurgeAsync(
-				connection,
-				_options.ClaimsSchemaName,
-				_options.ClaimsTableName,
-				ids,
-				cancellationToken).ConfigureAwait(false);
-		}
-
-		LogMessagesCleanedUp(ids.Count, olderThan);
-		return ids.Count;
+		LogMessagesCleanedUp(cleaned, olderThan);
+		return cleaned;
 	}
 
 	/// <inheritdoc/>
@@ -483,62 +509,48 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	/// </remarks>
 	public void Dispose() => _claimsTableLock.Dispose();
 
+    [LoggerMessage(102406, LogLevel.Warning, "Failed to dispose a Marten outbox claim connection after setup failed. Preserving the setup exception.")]
+    private partial void LogConnectionCleanupFailed(Exception exception);
+
 	/// <summary>
 	/// Opens a connection to the Marten database with the claim table present.
 	/// </summary>
-	/// <remarks>
-	/// A SEPARATE connection built by Marten's own factory, never the session's, so a claim does not ride
-	/// a unit of work that a read-only drain discards. The claim table is ensured on every call rather
-	/// than once per store instance: Marten manages the schema and a consumer or test fixture may recreate
-	/// it under a live store, after which a cached "already created" is simply wrong. The body carries the
-	/// full reasoning for both choices.
-	/// </remarks>
+    /// <remarks>
+    /// The caller owns the returned connection and any transaction it starts. Acquisition, settlement
+    /// and cleanup explicitly commit their enlisted transactions before returning observable results.
+    /// Table setup is checked on each call because a consumer can recreate its schema under a live store.
+    /// If opening, lock admission or table setup fails, ownership never transfers and this helper disposes it.
+    /// </remarks>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The open connection. The caller disposes it.</returns>
 	private async Task<NpgsqlConnection> OpenClaimConnectionAsync(CancellationToken cancellationToken)
 	{
-		// A SEPARATE connection, built by Marten's own factory, and the caller disposes it.
-		//
-		// The claim must not ride the session's unit of work: Marten owns that transaction and rolls it
-		// back when a session is disposed without SaveChanges, which is exactly what a read-only drain
-		// does. Claims written on the session's connection vanished with it, so every claimer saw an
-		// empty claim table and two of them won the same messages — the defect this exists to close,
-		// reproduced through the mechanism meant to prevent it. Autocommit per statement is what makes a
-		// claim durable the instant it is taken, which is the only sense of "claimed" that means anything
-		// to a second dispatcher polling concurrently.
-		//
-		// Marten's factory, not the session connection's ConnectionString: Npgsql strips the password
-		// from that string once the connection is open, so a connection built from it cannot authenticate.
+        // Use Marten's factory rather than a live session's redacted connection string.
+        // An enlisted session does not own this connection or the transaction started by its caller.
 		var connection = _store.Options.Tenancy.Default.Database.CreateConnection();
 
-		try
-		{
-			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-		}
-		catch
-		{
-			await connection.DisposeAsync().ConfigureAwait(false);
-			throw;
-		}
-
-		// Ensured on every use rather than cached behind a flag. The flag would be a statement about a
-		// database this store does not own: Marten manages the schema, and a consumer (or a test fixture)
-		// may recreate it underneath a live store, after which a cached "already created" is simply wrong
-		// and every claim fails with an undefined-table error. CREATE TABLE IF NOT EXISTS is one cheap
-		// statement per drain and cannot go stale.
-		await _claimsTableLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-		try
-		{
-			await MartenOutboxClaims.EnsureTableAsync(
-				connection, _options.ClaimsSchemaName, _options.ClaimsTableName, cancellationToken)
-				.ConfigureAwait(false);
-		}
-		finally
-		{
-			_ = _claimsTableLock.Release();
-		}
-
-		return connection;
+        try
+        {
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            await _claimsTableLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await MartenOutboxClaims.EnsureTableAsync(connection,
+                    _options.ClaimsSchemaName, _options.ClaimsTableName, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                _ = _claimsTableLock.Release();
+            }
+            // Ownership transfers only after all setup has succeeded.
+            return connection;
+        }
+        catch
+        {
+            try { await connection.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception cleanupFailure) { LogConnectionCleanupFailed(cleanupFailure); }
+            throw;
+        }
 	}
 
 	/// <summary>

@@ -133,7 +133,7 @@ public sealed class ErasureVerificationServiceReportShould
 	}
 
 	[Fact]
-	public async Task VerifyErasureAsync_ReturnsVerified_WhenKmsAndAuditPass()
+	public async Task VerifyErasureAsync_RefusesVerification_WhenOnlyTheAuditTrailSubstantiates()
 	{
 		// Arrange
 		var requestId = Guid.NewGuid();
@@ -163,8 +163,13 @@ public sealed class ErasureVerificationServiceReportShould
 		// Act
 		var result = await _sut.VerifyErasureAsync(requestId, CancellationToken.None).ConfigureAwait(false);
 
-		// Assert
-		result.Verified.ShouldBeTrue();
+		// Assert - the certificate store returns NULL here, so key-deletion verification
+		// establishes nothing: only the audit trail substantiates, and the verdict refuses.
+		// This arm was named ..._WhenKmsAndAuditPass and asserted Verified == true, which its own
+		// fixture contradicts -- KMS never passed. Renamed and flipped rather than relaxed.
+		result.Verified.ShouldBeFalse();
+		result.Failures.ShouldNotBeEmpty();
+		result.Methods.HasFlag(VerificationMethod.AuditLog).ShouldBeTrue();
 		result.ResultHash.ShouldNotBeNullOrEmpty();
 	}
 

@@ -2225,14 +2225,16 @@ Cloud-native providers (MongoDB, Cosmos DB, DynamoDB, Firestore) use their own c
 
 ### Provider Comparison
 
-| Provider | Mechanism | Latency | State Store |
-|----------|-----------|---------|-------------|
-| SQL Server | Polling (change tables) | Seconds | Built-in |
-| PostgreSQL | Logical replication | Real-time | Built-in |
-| MongoDB | Change Streams | Real-time | MongoDB / In-memory |
-| Cosmos DB | Change Feed | Near real-time | Cosmos DB / In-memory |
-| DynamoDB | DynamoDB Streams | Near real-time | DynamoDB / In-memory |
-| Firestore | Snapshot listeners | Real-time | Firestore / In-memory |
+| Provider | Mechanism | State Store |
+|----------|-----------|-------------|
+| SQL Server | Polling (change tables) | Built-in |
+| PostgreSQL | Logical replication | Built-in |
+| MongoDB | Change Streams | MongoDB / In-memory |
+| Cosmos DB | Change Feed | Cosmos DB / In-memory |
+| DynamoDB | DynamoDB Streams | DynamoDB / In-memory |
+| Firestore | Snapshot listeners | Firestore / In-memory |
+
+Measure end-to-end latency in the configured deployment; the change-capture mechanism alone does not establish a latency bound.
 
 ## Limitations
 

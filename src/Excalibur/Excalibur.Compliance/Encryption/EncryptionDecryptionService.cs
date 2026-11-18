@@ -414,10 +414,34 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 
 	private EncryptionContext CreateDefaultContext()
 	{
+		// ABSENCE IS DETECTED HERE, AT THE RESOLUTION SEAM, and never papered over at the point of use. The
+		// tenant travels into the AES-GCM associated data, where an unresolved tenant encodes identically to
+		// every other unresolved tenant -- so a caller that never established a scope would bind the same
+		// authenticated data as any other, forever, and the field whose stated purpose is to separate tenants
+		// would be inert on exactly the path that needed it.
+		//
+		// A RESOLVED tenant whose identifier is a well-known constant is a resolved tenant and passes: the
+		// single-tenant context reports its fixed default identity with HasTenant true, which is a declared
+		// mode and not an absence. The distinction drawn here is "nobody decided", never "the value is a
+		// constant".
+		//
+		// A caller that legitimately has no ambient tenant -- background replay, a bulk export over records
+		// belonging to a tenant other than the ambient one -- supplies DecryptionOptions.Context explicitly
+		// and never reaches this method.
+		var tenantId = _tenantContext.TenantId;
+		if (!_tenantContext.HasTenant || string.IsNullOrWhiteSpace(tenantId))
+		{
+			throw new InvalidOperationException(
+				"No tenant was resolved for this encryption operation, so the tenant bound into the "
+				+ "authenticated data would be a value nobody decided and identical for every unresolved "
+				+ "caller. Establish a tenant scope before calling, or supply an explicit encryption context "
+				+ "for records whose tenant differs from the ambient one.");
+		}
+
 		return new EncryptionContext
 		{
 			Purpose = _options.Value.DefaultPurpose,
-			TenantId = _tenantContext.TenantId,
+			TenantId = tenantId,
 			RequireFipsCompliance = _options.Value.RequireFipsCompliance
 		};
 	}

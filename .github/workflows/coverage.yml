@@ -303,7 +303,7 @@ jobs:
         continue-on-error: true
         working-directory: base
         run: |
-          bash ../eng/ci/run-filtered-tests.sh \
+          bash ../eng/ci/run-filtered-tests.sh --minimum-executed-tests 1 \
             --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" -- \
             "$BASE_UNIT_TESTS_SLNF" \
             --configuration Release \

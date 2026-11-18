@@ -237,6 +237,10 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 			// carries the stale pre-save version (e.g. 0). Apply the persisted version so load-modify-save
 			// gates against the real value instead of always comparing against the stale embedded one.
 			result.Version = document.Version;
+                result.TimerRecoveryIncarnationId = document.TimerRecoveryIncarnation is { } incarnation ? Guid.ParseExact(incarnation, "N") : Guid.Empty;
+                if (result.PendingTimerRecovery?.BatchId.ToString("N") != document.TimerRecoveryPendingBatch
+                    || (result.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null) != document.TimerRecoveryPendingDigest)
+                { throw new InvalidOperationException("The selected saga serializer cannot restore the persisted ordinary timer journal."); }
 		}
 
 		LogSagaLoaded(typeof(TSagaState).Name, sagaId);
@@ -254,7 +258,8 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var stateJson = _serializer.Serialize(sagaState);
+		var (stateJson, recoveryIncarnation, recoveryBatch, recoveryDigest, recoveryTracked) = PrepareRecoveryState(sagaState);
+
 		// UpdatedUtc/CreatedUtc are DateTime fields; use a DateTime value so the Update builder does not emit a
 		// Convert(d.UpdatedUtc, DateTimeOffset) node — the MongoDB LINQ provider cannot translate that and
 		// throws ExpressionNotSupportedException on every real save (the unit tests mock IMongoCollection and
@@ -286,11 +291,25 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		var filter = Builders<MongoDbSagaDocument>.Filter.And(
 			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.Id, BuildDocumentId(sagaState.SagaId)),
 			TenantFilter(),
-			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.Version, expectedVersion));
+			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.Version, expectedVersion),
+            Builders<MongoDbSagaDocument>.Filter.Or(
+                Builders<MongoDbSagaDocument>.Filter.Eq(d => d.TimerRecoveryIncarnation, null),
+                Builders<MongoDbSagaDocument>.Filter.Eq(d => d.TimerRecoveryIncarnation, recoveryIncarnation)),
+            Builders<MongoDbSagaDocument>.Filter.Or(
+                Builders<MongoDbSagaDocument>.Filter.Eq(d => d.TimerRecoveryPendingBatch, null),
+                Builders<MongoDbSagaDocument>.Filter.And(
+                    Builders<MongoDbSagaDocument>.Filter.Eq(d => d.TimerRecoveryPendingBatch, recoveryBatch),
+                    Builders<MongoDbSagaDocument>.Filter.Eq(d => d.TimerRecoveryPendingDigest, recoveryDigest)),
+                recoveryBatch is null
+                    ? Builders<MongoDbSagaDocument>.Filter.Eq(d => d.TimerRecoveryPendingBatch, sagaState.LastTimerRecoveryBatchId.ToString("N"))
+                    : Builders<MongoDbSagaDocument>.Filter.Where(_ => false)));
 
 		var update = Builders<MongoDbSagaDocument>.Update
 			.Set(d => d.SagaType, typeof(TSagaState).Name)
 			.Set(d => d.StateJson, stateJson)
+            .Set(d => d.TimerRecoveryIncarnation, recoveryIncarnation)
+            .Set(d => d.TimerRecoveryPendingBatch, recoveryBatch)
+            .Set(d => d.TimerRecoveryPendingDigest, recoveryDigest)
 			.Set(d => d.IsCompleted, sagaState.Completed)
 			.Set(d => d.CompletedAt, sagaState.CompletedAt?.UtcDateTime)
 			.Set(d => d.UpdatedUtc, now)
@@ -301,6 +320,10 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 			// the overwrite leak wearing the costume of a fix.
 			.SetOnInsert(d => d.TenantId, tenantId)
 			.SetOnInsert(d => d.CreatedUtc, now);
+
+        update = recoveryTracked
+            ? update.Set(d => d.TimerRecoveryTracked, true)
+            : update.SetOnInsert(d => d.TimerRecoveryTracked, false);
 
 		// No-resurrect guard (SqlServer reference contract): only a brand-new saga (expected version 0) may
 		// be inserted. For a stale save (expected > 0) we do NOT upsert — a missing/version-moved document is
@@ -372,6 +395,44 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		LogSagaSaved(typeof(TSagaState).Name, sagaState.SagaId, sagaState.Completed);
 	}
 
+    // Serialization/authority projection is completed before constructing the single conditional write.
+    [RequiresUnreferencedCode("Saga state is serialized with a reflection-based serializer that may require types which cannot be statically analyzed.")]
+    [RequiresDynamicCode("Saga state is serialized with the reflection-based serializer, which generates converters at run time.")]
+    private SerializedRecoveryState PrepareRecoveryState<TSagaState>(TSagaState sagaState)
+        where TSagaState : SagaState
+    {
+		if (sagaState.TimerRecoveryIncarnationId == Guid.Empty)
+        {
+            if (sagaState.Version < 1) { throw new InvalidOperationException("A new saga must have a nonempty timer recovery incarnation."); }
+            // The conditional write below, not this observation, decides whether legacy initialization is still current.
+            sagaState.TimerRecoveryIncarnationId = Guid.NewGuid();
+        }
+        var stateJson = _serializer.Serialize(sagaState);
+        var recoveryIncarnation = sagaState.TimerRecoveryIncarnationId.ToString("N");
+        var recoveryBatch = sagaState.PendingTimerRecovery?.BatchId.ToString("N");
+        var recoveryDigest = sagaState.PendingTimerRecovery is { } journal ? Convert.ToHexString(journal.GetAuthorityDigest()) : null;
+        var recoveryTracked = recoveryBatch is not null || sagaState.LastTimerRecoveryBatchId != Guid.Empty;
+        if (sagaState.PendingTimerRecovery is { } owned
+            && (owned.Scope.SagaId != sagaState.SagaId || owned.Scope.StateType != typeof(TSagaState).Name
+                || !string.Equals(owned.Scope.TenantId, KeyedTenantPartition.FromScope(CurrentTenantScope).TenantId, StringComparison.Ordinal)
+                || owned.IncarnationId != sagaState.TimerRecoveryIncarnationId || owned.Sequence != sagaState.TimerRecoverySequence))
+        { throw new InvalidOperationException("Timer journal differs from the state store's exact authority."); }
+
+        if (recoveryTracked)
+        {
+            var restored = _serializer.Deserialize<TSagaState>(stateJson);
+            if (restored is null || restored.TimerRecoveryIncarnationId != sagaState.TimerRecoveryIncarnationId
+                || restored.TimerRecoverySequence != sagaState.TimerRecoverySequence || restored.LastTimerRecoveryBatchId != sagaState.LastTimerRecoveryBatchId
+                || (restored.PendingTimerRecovery is { } copy ? Convert.ToHexString(copy.GetAuthorityDigest()) : null) != recoveryDigest)
+            { throw new InvalidOperationException("The selected saga serializer does not preserve ordinary timer recovery authority."); }
+        }
+
+        return new(stateJson, recoveryIncarnation, recoveryBatch, recoveryDigest, recoveryTracked);
+    }
+
+    private readonly record struct SerializedRecoveryState(string StateJson, string Incarnation,
+        string? Batch, string? Digest, bool Tracked);
+
 	/// <inheritdoc/>
 	public async Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
 	{
@@ -388,7 +449,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		// one statement in this store confined by the tenant term and by nothing else, so the builder for it
 		// takes the partition as an explicit argument: a range sweep cannot be composed here without naming
 		// what it confines to.
-		var filter = CompletedBeforeScoped(threshold.UtcDateTime, CurrentTenantScope);
+		var filter = CompletedBeforeScoped(threshold.UtcDateTime, CurrentTenantScope) & Builders<MongoDbSagaDocument>.Filter.Eq(d => d.TimerRecoveryPendingBatch, null);
 
 		var result = await _collection!.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
 
@@ -409,7 +470,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		// Query the dedicated completedAt field directly from the document (SA ruling). Compare as UTC
 		// DateTime — the MongoDB LINQ/filter provider cannot translate DateTimeOffset. Filtered to non-null so a
 		// running saga (completedAt == null) is never purged.
-		var filter = CompletedBefore(threshold.UtcDateTime);
+		var filter = CompletedBefore(threshold.UtcDateTime) & Builders<MongoDbSagaDocument>.Filter.Eq(d => d.TimerRecoveryPendingBatch, null);
 
 		var result = await _collection!.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
 

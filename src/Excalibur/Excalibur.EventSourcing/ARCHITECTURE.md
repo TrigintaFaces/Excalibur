@@ -667,6 +667,15 @@ per-partition version arm both go RED against the real emulator, and both return
 
 ## Known gaps
 
+- **Shard readiness is a bounded read, not complete schema or write validation.** The shard check now
+  uses physical shard IDs, never tenant/default routing. Provider resolver bindings serve both tenant
+  stores and readiness reads, so probes use the same physical coordinates. SQL/PG global reads bind the
+  event-read columns; a successful empty relational read does not establish materialization of existing
+  rows, write columns, snapshots or projections. Document providers perform native namespace reads;
+  empty schemaless namespaces cannot prove event-field integrity. Missing readiness support is not
+  Healthy. Runtime checks do not replace deployment/startup schema verification. Acceptance requires
+  the real empty-database missing-column and physical-shard routing controls, not resolver mocks.
+
 - **A projection row written with no position may be advanced by a positioned writer, and the result can
   assert a prefix it does not hold.** This is the most severe gap in this section and the guarantee above is
   **UNVERIFIED** for it.
@@ -873,8 +882,8 @@ runs can.
 
 - **There is no non-atomic opt-out on any provider.** DynamoDB and Cosmos DB previously exposed one
   (`UseTransactionalWrite=false`, `UseTransactionalBatch=false`) which permitted an append larger than the
-  provider's atomic limit by writing the events one at a time. Both are **removed**. The flag bought
-  throughput with silent, permanent corruption — a failure partway left a prefix with no suffix, and no
+  provider's atomic limit by writing the events one at a time. Both are **removed**. The flag allowed
+  individual writes outside the atomic append boundary, risking silent, permanent corruption — a failure partway left a prefix with no suffix, and no
   later read distinguishes that from a stream never written further — and it was reachable by
   configuration alone, on a guarantee this document states in absolute terms. A caller with more events
   than the limit splits the append; the exception carries `ActualCount` and `MaxBatchSize` so the split is
@@ -1432,9 +1441,9 @@ between independent counters. Transaction completion is necessary for liveness, 
 counter owner stalls other allocations. Sequence-based alternatives must account for allocations
 that survive rollback and for any cached values that can be issued after higher positions.
 
-Allocation is the **last** step before the rows are written. Correctness does not depend on that; sustained
-append throughput does, because every other appender blocks on the counter row until this transaction
-commits.
+Allocation is the **last** step before the rows are written. Placing allocation late can shorten the
+serialized interval, since other appenders wait on the counter row until this transaction commits.
+Measure the complete append workload; placement alone does not establish sustained throughput.
 
 ### Archival preserves positions
 
@@ -1558,9 +1567,8 @@ that it reached that state — otherwise the next reorder makes it vacuous again
   work inside it is paid by every blocked appender rather than only by the one holding the lock:
 
   - The allocation is issued **in the same command as the first insert** rather than as a round trip of
-    its own. The single-command form sustained measurably higher throughput than the two-round-trip form
-    in every cell of every run, which is the one arm-to-arm comparison that has reproduced; no ratio is
-    quoted because the harness's between-run agreement gate has not yet passed. SQL Server and Postgres
+    its own. Earlier captures favored the single-command form, but failed between-run agreement
+    prevents a verified improvement claim. SQL Server and Postgres
     both ship the single-command form.
   - Outbox staging, which is one round trip per integration event, runs **before** the allocation rather
     than after, so an append carrying integration events holds the lock for fewer round trips.
@@ -1570,18 +1578,17 @@ that it reached that state — otherwise the next reorder makes it vacuous again
 
   **The single-writer figure is deliberately omitted.** It is dominated by per-append latency rather than
   by contention, and it did not measure reproducibly here — across runs the uncontended ratio moved
-  between 0.9x and 1.3x with the baseline's own variance as large as the effect. Treat the uncontended
-  cost as "not distinguishable from an identity column on this hardware" and measure it on yours.
+  between 0.9x and 1.3x with the baseline's own variance as large as the effect. The historical experiment
+  did not resolve the cost difference; it establishes neither equivalence nor a current bound.
 
   **Absolute figures are NOT quoted.** These came from a containerized SQL Server on a developer
-  workstation, where even the identity baseline took ~9 ms for a single append — that describes the
-  storage, not this design. Re-run the benchmark on representative hardware before planning capacity.
+  workstation, where even the identity baseline took ~9 ms for a single append. That is a whole-append
+  observation from that environment; storage and framework contributions were not isolated. Re-run the benchmark on representative hardware before planning capacity.
 
   *(Superseded figures, recorded so a reader who met them elsewhere recognises them: this table once read
   1.14x / 7.6x / 4.7x at 1 / 8 / 32 writers. Those were measured without truncating between arms, so the
   comparison table had accumulated twice the rows of the baseline table — the benchmark was partly
-  measuring table growth. The old numbers also showed the cost FALLING from 8 to 32 writers, which is
-  backwards for a serialization bottleneck and was the tell.)*
+  measuring table growth. Non-monotonic timing alone does not diagnose the bottleneck.)*
 
   A host needing more write throughput than one ordered stream can carry should shard, and accept that
   there is then no cross-shard global order to read.

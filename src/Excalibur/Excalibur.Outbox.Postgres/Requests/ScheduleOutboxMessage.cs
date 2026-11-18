@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
@@ -29,6 +29,11 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 	/// <param name="outboxTableName"> The name of the outbox table. </param>
 	/// <param name="sqlTimeOutSeconds"> The SQL command timeout in seconds. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public ScheduleOutboxMessage(
 		string messageId,
 		string messageType,
@@ -72,6 +77,15 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 		parameters.Add("ScheduledAt", new TimestampTzParameter(scheduledAt));
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.ExecuteAsync(conn, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "MessageType", StaticDbCommand.Input<string>(Parameters, "MessageType"), DbType.String);
+				StaticDbCommand.AddParameter(command, "MessageMetadata", StaticDbCommand.Input<string>(Parameters, "MessageMetadata"), DbType.String);
+				StaticDbCommand.AddParameter(command, "MessageBody", StaticDbCommand.RequiredInput<byte[]>(Parameters, "MessageBody"), DbType.Binary);
+				StaticDbCommand.AddParameter(command, "TenantId", StaticDbCommand.Input<string>(Parameters, "TenantId"), DbType.String);
+				StaticDbCommand.AddNullableStringParameter(command, "Destination", StaticDbCommand.Input<string?>(Parameters, "Destination"));
+				StaticDbCommand.RequiredInput<TimestampTzParameter>(Parameters, "ScheduledAt").AddParameter(command, "ScheduledAt");
+			}).ConfigureAwait(false);
 	}
 }

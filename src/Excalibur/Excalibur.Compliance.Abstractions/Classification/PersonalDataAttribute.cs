@@ -51,29 +51,52 @@ public enum PersonalDataCategory
 }
 
 /// <summary>
-/// Marks a property as containing personal data subject to GDPR and privacy regulations.
+/// Classifies a property as containing personal data subject to GDPR and privacy regulations.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Personal data requires:
-/// - Field-level encryption at rest
-/// - Audit logging of all access
-/// - Support for right-to-erasure (crypto-shredding)
-/// - Data minimization in logs and error messages
+/// This attribute classifies a property. On its own it changes no behaviour: applying it does not encrypt,
+/// mask, audit or erase anything. It is the selector that the features below consult, and each of those
+/// features must itself be registered before it reads the annotation.
 /// </para>
-/// <para> This attribute can be used by source generators to automatically apply encryption and audit policies. </para>
+/// <para>
+/// <b>Encryption at rest</b> is applied by the framework's encrypting store decorators -- the event store,
+/// the projection store, the inbox store and the outbox store -- and only when all of the following hold:
+/// the declaring type also carries <see cref="DataSubjectIdAttribute"/> on the property that identifies the
+/// subject, whose value is what the per-subject key is derived from; crypto-shredding is registered, so that
+/// key exists; the record is written through one of those four stores rather than by your own persistence
+/// code; and the annotated property is a readable <i>and writable</i> <see cref="string"/> or
+/// <see cref="byte"/> array. A property of any other type, or with no setter, is not encrypted and no
+/// diagnostic is raised -- for such a property this attribute is classification metadata only. If a type
+/// carrying <see cref="DataSubjectIdAttribute"/> resolves no encryptable annotated property at all, the
+/// framework refuses to persist it rather than store personal data in the clear.
+/// </para>
+/// <para>
+/// <b>Masking</b> in logs and error messages is applied by a registered masker. <b>Retention and
+/// right-to-erasure</b> read the annotation to determine which properties of a declared aggregate type are
+/// in scope. None of these registers a data location on your behalf: the annotation says a property holds
+/// personal data, not where that data is stored.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
+/// // Encrypted at rest only when crypto-shredding is registered and this type is persisted
+/// // through one of the framework's encrypting stores. Both annotated properties are writable
+/// // strings, which is what the encryption path can act on; the subject id names the key.
 ///public class Customer
 ///{
-///public string Id { get; set; }
+///[DataSubjectId]
+///public Guid Id { get; set; }
 ///
 ///[PersonalData(Category = PersonalDataCategory.ContactInfo)]
 ///public string Email { get; set; }
 ///
 ///[PersonalData(Category = PersonalDataCategory.Identity)]
 ///public string SocialSecurityNumber { get; set; }
+///
+/// // Classified, but NOT encrypted: an int is not an encryptable property type.
+///[PersonalData(Category = PersonalDataCategory.Identity)]
+///public int NationalIdNumber { get; set; }
 ///}
 /// </code>
 /// </example>

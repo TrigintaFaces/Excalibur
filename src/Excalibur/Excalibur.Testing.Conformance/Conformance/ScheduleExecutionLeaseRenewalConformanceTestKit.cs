@@ -82,11 +82,11 @@ public abstract class ScheduleExecutionLeaseRenewalConformanceTestKit : Schedule
 			var foreign = new[]
 			{
 				lease,
-				new ScheduleExecutionLease(Guid.NewGuid(), successor.ScheduleId, successor.Generation, successor.OccurrenceUtc, successor.OwnerToken),
-				new ScheduleExecutionLease(successor.StoreId, Guid.NewGuid(), successor.Generation, successor.OccurrenceUtc, successor.OwnerToken),
-				new ScheduleExecutionLease(successor.StoreId, successor.ScheduleId, Guid.NewGuid(), successor.OccurrenceUtc, successor.OwnerToken),
-				new ScheduleExecutionLease(successor.StoreId, successor.ScheduleId, successor.Generation, successor.OccurrenceUtc.AddTicks(1), successor.OwnerToken),
-				new ScheduleExecutionLease(successor.StoreId, successor.ScheduleId, successor.Generation, successor.OccurrenceUtc, Guid.NewGuid()),
+				new ScheduleExecutionLease(Guid.NewGuid(), successor.ScheduleId, successor.Generation, successor.OccurrenceUtc, successor.OwnerToken) { AdmissionAttempt = successor.AdmissionAttempt },
+				new ScheduleExecutionLease(successor.StoreId, Guid.NewGuid(), successor.Generation, successor.OccurrenceUtc, successor.OwnerToken) { AdmissionAttempt = successor.AdmissionAttempt },
+				new ScheduleExecutionLease(successor.StoreId, successor.ScheduleId, Guid.NewGuid(), successor.OccurrenceUtc, successor.OwnerToken) { AdmissionAttempt = successor.AdmissionAttempt },
+				new ScheduleExecutionLease(successor.StoreId, successor.ScheduleId, successor.Generation, successor.OccurrenceUtc.AddTicks(1), successor.OwnerToken) { AdmissionAttempt = successor.AdmissionAttempt },
+				new ScheduleExecutionLease(successor.StoreId, successor.ScheduleId, successor.Generation, successor.OccurrenceUtc, Guid.NewGuid()) { AdmissionAttempt = successor.AdmissionAttempt },
 			};
 			foreach (var altered in foreign)
 			{
@@ -180,7 +180,8 @@ public abstract class ScheduleExecutionLeaseRenewalConformanceTestKit : Schedule
 		Require(store.LeaseDuration > TimeSpan.Zero, "LeaseDuration must be positive.");
 		var message = CreateScheduledMessage();
 		message.Enabled = true;
-		message.NextExecutionUtc = DateTimeOffset.UtcNow;
+		// Occurrence due-ness uses the store clock; lease expiry still starts at acquisition.
+		message.NextExecutionUtc = DateTimeOffset.UtcNow.AddMinutes(-5);
 		await store.StoreAsync(message, deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
 		var snapshot = (await store.GetExecutionSnapshotsAsync(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false))
 			.Single(item => item.Message.Id == message.Id);

@@ -149,7 +149,7 @@ AzureFunctions/
 
 ## Cold Start Optimization
 
-This sample uses `Excalibur.Dispatch.Hosting.AzureFunctions` which includes cold start optimization:
+This sample configures cold-start options in `Excalibur.Dispatch.Hosting.AzureFunctions`; enabling an option does not establish a measured startup improvement:
 
 ```csharp
 builder.Services.AddExcaliburAzureFunctionsServerless(opts =>
@@ -164,11 +164,11 @@ builder.Services.AddExcaliburAzureFunctionsServerless(opts =>
 
 ### Best Practices for Cold Start
 
-1. **Use .NET 8+ isolated worker model** - Better startup performance
+1. **Verify the worker configuration** - Verify the deployed worker/runtime configuration and measure startup behavior.
 2. **Minimize dependencies** - Only include necessary packages
 3. **Use lazy initialization** - Defer heavy operations
 4. **Consider Premium/Dedicated plans** - For latency-sensitive workloads
-5. **Keep packages warm** - Use health check pings in production
+5. **Evaluate hosting behavior** - Do not treat health-check invocations as a cold-start guarantee; evaluate the hosting plan and application behavior.
 
 ## Deployment to Azure
 

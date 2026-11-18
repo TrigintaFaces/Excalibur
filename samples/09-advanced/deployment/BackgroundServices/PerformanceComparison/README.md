@@ -8,8 +8,8 @@ The percentages and timings below are unverified historical illustrations. Their
 
 | Level | DB Round-Trips | Throughput | Failure Window |
 |-------|----------------|------------|----------------|
-| **AtLeastOnce** | 1 per batch | Unverified ranking | Entire batch |
-| **MinimizedWindow** | N per batch | Earlier unverified ~50% lower estimate | Single message |
+| **AtLeastOnce** | Provider-, batching- and retry-dependent | Unverified ranking | Entire batch |
+| **MinimizedWindow** | Provider-, batching- and retry-dependent | Earlier unverified ~50% lower estimate | Single message |
 
 ## Benchmark Results
 
@@ -24,21 +24,21 @@ Earlier figures attributed to `DeliveryGuaranteeBenchmarks.cs`, without verified
 
 | Scenario | Recommended Level |
 |----------|-------------------|
-| High throughput, idempotent handlers | AtLeastOnce |
+| Idempotent handlers accepting batch redelivery | Evaluate AtLeastOnce |
 | Financial transactions, audit logging | MinimizedWindow |
 
 ## Running the Example
 
 ```bash
-cd samples/BackgroundServices/PerformanceComparison
+cd samples/09-advanced/deployment/BackgroundServices/PerformanceComparison
 dotnet run
 ```
 
-## Running Actual Benchmarks
+## Running the Synthetic Delivery Fixture
 
-For real benchmark numbers on your hardware:
+Run the synthetic in-memory delivery bookkeeping benchmarks below. They do not publish messages, access a database, recover durable state or establish production delivery-mode throughput rankings. See the [dated fixture observations](../../../../../docs/performance/original-cdc-delivery-observations-2026-10-18.md) for workload scope and evidence limitations.
 
 ```bash
 cd benchmarks/Excalibur.Dispatch.Benchmarks
-dotnet run -c Release -- --filter *DeliveryGuarantee*
+dotnet run -c Release -- --filter "*DeliveryGuarantee*"
 ```

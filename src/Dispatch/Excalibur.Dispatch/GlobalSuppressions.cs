@@ -67,12 +67,6 @@ using System.Diagnostics.CodeAnalysis;
 [assembly:
 	SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Required for configuration binding",
 		Scope = "member", Target = "~P:Excalibur.Dispatch.ErrorHandling.PoisonMessageStatistics.MessagesByReason")]
-[assembly:
-	SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Required for configuration binding",
-		Scope = "member", Target = "~P:Excalibur.Dispatch.Delivery.RecurringCronJob.Metadata")]
-[assembly:
-	SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Required for configuration binding",
-		Scope = "member", Target = "~P:Excalibur.Dispatch.Delivery.RecurringCronJob.Tags")]
 
 // Note: Configuration stub middleware suppressions removed - stub files deleted
 // Note: CorrelationMiddleware suppression removed - middleware deleted

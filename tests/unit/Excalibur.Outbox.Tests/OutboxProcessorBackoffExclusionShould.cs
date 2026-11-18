@@ -40,7 +40,7 @@ public sealed class OutboxProcessorBackoffExclusionShould : UnitTestBase
 	{
 		// A store that CAN schedule backoff, so the genuine-failure path routes to MarkFailedWithBackoffAsync.
 		var store = A.Fake<IOutboxStore>(f => f
-			.Implements<IDeadLetterableOutboxStore>()
+			.Implements<IDeadLetterableOutboxStore>().Implements<IClaimScopedOutboxStore>().Implements<IClaimScopedDeadLetterableOutboxStore>()
 			.Implements<IBackoffSchedulableOutboxStore>());
 
 		// FIXTURE HONESTY (l0qpxo seam migration). OutboxProcessor now resolves backoff via
@@ -57,26 +57,30 @@ public sealed class OutboxProcessorBackoffExclusionShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string>(),
-			new List<(string, string?, int, bool)> { ("genuine-fail", null, 2, true), ("cb-open-transient", null, 2, false) },
+			new List<(string, string?, int, bool)> { ("genuine-fail", "claim-genuine-fail", 2, true), ("cb-open-transient", "claim-cb-open-transient", 2, false) },
 			new List<(string, int)>(),
 			CancellationToken.None);
 
-		var schedulable = (IBackoffSchedulableOutboxStore)store;
+		var schedulable = (IClaimScopedOutboxStore)store;
+		ClaimCompletionFixture.AssertNoLegacyWrites(store);
+		A.CallTo(() => ((IBackoffSchedulableOutboxStore)store).MarkFailedWithBackoffAsync(A<string>._, A<string>._, A<int>._, A<DateTimeOffset>._, A<CancellationToken>._)).MustNotHaveHappened();
 
 		// Genuine failure → backoff scheduled (NextAttemptAt), NOT a plain mark-failed.
 		A.CallTo(() => schedulable.MarkFailedWithBackoffAsync(
-				"genuine-fail", ErrorConstants.RetryAttempt, 2, A<DateTimeOffset>._, A<CancellationToken>._))
+				"genuine-fail", ErrorConstants.RetryAttempt, 2, A<DateTimeOffset>._, "claim-genuine-fail", A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => store.MarkFailedAsync("genuine-fail", A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 
+		A.CallTo(() => schedulable.MarkFailedAsync("genuine-fail", A<string>._, 2, "claim-genuine-fail", A<CancellationToken>._)).MustNotHaveHappened();
+
 		// CB-open transient → plain mark-failed (attempt unchanged), NO backoff scheduled. This is the
 		// discriminator a vacuous "always schedule" impl would violate.
-		A.CallTo(() => store.MarkFailedAsync(
-				"cb-open-transient", ErrorConstants.RetryAttempt, 2, A<CancellationToken>._))
+		A.CallTo(() => ((IClaimScopedOutboxStore)store).MarkFailedAsync(
+				"cb-open-transient", ErrorConstants.RetryAttempt, 2, "claim-cb-open-transient", A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => schedulable.MarkFailedWithBackoffAsync(
-				"cb-open-transient", A<string>._, A<int>._, A<DateTimeOffset>._, A<CancellationToken>._))
+				"cb-open-transient", A<string>._, 2, A<DateTimeOffset>._, "claim-cb-open-transient", A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -107,7 +111,12 @@ public sealed class OutboxProcessorBackoffExclusionShould : UnitTestBase
 	{
 		try
 		{
-			var task = (Task?)method.Invoke(target, args)
+			using var tenure = new OutboxProcessor.ProcessorTenure(false, null, CancellationToken.None);
+			var invocationArgs = new object?[args.Length + 1];
+			invocationArgs[0] = tenure;
+			Array.Copy(args, 0, invocationArgs, 1, args.Length);
+			ClaimCompletionFixture.AdaptEvidenceBuckets(method, invocationArgs);
+			var task = (Task?)method.Invoke(target, invocationArgs)
 				?? throw new InvalidOperationException($"Expected Task return from '{method.Name}'.");
 			await task;
 		}

@@ -49,7 +49,7 @@ public sealed class OutboxBaggageRestoreShould
 	{
 		// Arrange -- a stored outbox message whose headers carry a percent-encoded baggage string. The
 		// single-transport publish path must restore each member onto the rebuilt context's Items, decoded.
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
+		var store = WorkerClaimFixture.CreateStore(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
 			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
@@ -57,7 +57,7 @@ public sealed class OutboxBaggageRestoreShould
 
 		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1", BaggageHeaders(StagedBaggage));
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(store, new List<OutboundMessage> { message })));
 
 		IMessageContext? publishedContext = null;
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -72,6 +72,7 @@ public sealed class OutboxBaggageRestoreShould
 		publishedContext.Items["baggage.key1"].ShouldBe("val 1"); // %20 percent-decoded to a space
 		publishedContext.Items["baggage.key2"].ShouldBe("val2");
 		publishedContext.Items["baggage.k,3"].ShouldBe("a,b");    // %2C-encoded delimiters survived the split
+		WorkerClaimFixture.AssertNoWeakWrites(store);
 	}
 
 	// ----- per-transport publish path (PublishToTransportAsync) -----
@@ -81,7 +82,7 @@ public sealed class OutboxBaggageRestoreShould
 	{
 		// Arrange -- the multi-transport per-transport publish path must ALSO restore baggage (the fix
 		// is symmetric at both call sites; neither path may be left severed).
-		var multiStoreBase = A.Fake<IOutboxStore>(o =>
+		var multiStoreBase = WorkerClaimFixture.CreateStore(o =>
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
@@ -124,7 +125,7 @@ public sealed class OutboxBaggageRestoreShould
 		// Arrange -- a header mixing malformed members (no '=', and an empty key) with one valid member.
 		// RestoreBaggage is best-effort: malformed members are skipped, the valid one still restores, and
 		// no exception escapes (which would have failed the publish).
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
+		var store = WorkerClaimFixture.CreateStore(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
 			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
@@ -132,7 +133,7 @@ public sealed class OutboxBaggageRestoreShould
 
 		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1", BaggageHeaders("noequals,=emptykey,good=value"));
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(store, new List<OutboundMessage> { message })));
 
 		IMessageContext? publishedContext = null;
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -147,6 +148,7 @@ public sealed class OutboxBaggageRestoreShould
 		publishedContext.ShouldNotBeNull();
 		publishedContext.Items["baggage.good"].ShouldBe("value");
 		publishedContext.Items.ShouldNotContainKey("baggage.");
+		WorkerClaimFixture.AssertNoWeakWrites(store);
 	}
 
 	[Fact]
@@ -154,7 +156,7 @@ public sealed class OutboxBaggageRestoreShould
 	{
 		// Arrange -- a stored message without a baggage header must not fabricate baggage items and must
 		// not throw (the restore is additive / only-if-present).
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
+		var store = WorkerClaimFixture.CreateStore(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
 			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
@@ -162,7 +164,7 @@ public sealed class OutboxBaggageRestoreShould
 
 		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1");
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(WorkerClaimFixture.Acquire(store, new List<OutboundMessage> { message })));
 
 		IMessageContext? publishedContext = null;
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -175,6 +177,7 @@ public sealed class OutboxBaggageRestoreShould
 		// Assert
 		publishedContext.ShouldNotBeNull();
 		publishedContext.Items.Keys.ShouldNotContain(k => k.StartsWith("baggage.", StringComparison.Ordinal));
+		WorkerClaimFixture.AssertNoWeakWrites(store);
 	}
 
 	// ----- helpers -----

@@ -95,7 +95,7 @@ public sealed class AwsSqsCloudEventConformanceTests : CloudEventTransportConfor
 			Microsoft.Extensions.Options.Options.Create(new CloudEventOptions
 			{
 				DefaultSource = new Uri("https://conformance.excalibur.test"),
-			}),
+			}), TestCloudEventSerializers.Reflection,
 			NullLogger<AwsSqsCloudEventAdapter>.Instance);
 
 		var request = await adapter.ToTransportMessageAsync(cloudEvent, mode, CancellationToken.None);

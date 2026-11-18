@@ -30,7 +30,7 @@ public sealed class MessageBusOutboxPublisherShould
 
 	public MessageBusOutboxPublisherShould()
 	{
-		_outboxStore = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
+		_outboxStore = CreateWorkerStore(o => o.Implements<IOutboxStoreAdmin>());
 		_serializer = OutboxFakeCapabilityExtensions.CreateRegisteredSerializer();
 		_messageBus = A.Fake<IMessageBusAdapter>();
 		_serviceProvider = A.Fake<IServiceProvider>();
@@ -66,15 +66,15 @@ public sealed class MessageBusOutboxPublisherShould
 		await adapter.ShouldBeAssignableTo<ITransportAdapterLifecycle>().StartAsync(CancellationToken.None);
 		var registry = new TransportRegistry();
 		registry.RegisterTransport("durable", adapter, "Kafka", TransportLocality.Remote);
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>()
-			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
+		var store = CreateWorkerStore(o => o.Implements<IMultiTransportOutboxStore>()
+			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>());
 		var serializer = provider.GetRequiredService<IPayloadSerializer>();
 		var publisher = new MessageBusOutboxPublisher(store, serializer, registry, provider, _logger);
 		var original = new DurableEvent { OrderId = Guid.NewGuid(), Quantity = 7 };
 		var row = await publisher.PublishMultiTransportAsync(original,
 			new[] { new OutboundMessageTransport("pending", "durable") { Destination = "durable-events" } }, CancellationToken.None);
 		if (historicalAlias) { row.MessageType = "arb-durable-event-restoration-old"; }
-		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { row });
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(store, new[] { row })));
 		var result = await publisher.PublishPendingMessagesAsync(CancellationToken.None);
 		result.FailureCount.ShouldBe(0);
 		sent.ShouldNotBeNull();
@@ -122,7 +122,7 @@ public sealed class MessageBusOutboxPublisherShould
 			A.CallTo(() => _serializer.DeserializeObject(bad.Payload, typeof(DurableEvent)))
 				.Throws(new InvalidDataException("CORRUPT-PERSISTED-PAYLOAD"));
 		}
-		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { bad, healthy });
+		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(_outboxStore, new[] { bad, healthy })));
 		A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(MessageResult.Success());
 		var result = await _publisher.PublishPendingMessagesAsync(CancellationToken.None);
@@ -130,7 +130,9 @@ public sealed class MessageBusOutboxPublisherShould
 		result.SuccessCount.ShouldBe(1);
 		A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 		A.CallTo(() => _outboxStore.MarkSentAsync(bad.Id, A<CancellationToken>._)).MustNotHaveHappened();
-		A.CallTo(() => _outboxStore.MarkFailedAsync(bad.Id, A<string>._, 1, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkSentAsync(bad.Id, bad.DispatcherId!, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkFailedAsync(bad.Id, A<string>._, 1, bad.DispatcherId!, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => _outboxStore.MarkFailedAsync(bad.Id, A<string>._, 1, A<CancellationToken>._)).MustNotHaveHappened();
 		if (failure is 0 or 1 or 5)
 		{
 			A.CallTo(() => _serializer.DeserializeObject(bad.Payload, A<Type>._)).MustNotHaveHappened();
@@ -149,7 +151,7 @@ public sealed class MessageBusOutboxPublisherShould
 		A.CallTo(() => _serializer.SerializeObject(original, typeof(BareDispatchMessage))).Returns([1]);
 		A.CallTo(() => _serializer.DeserializeObject(A<byte[]>._, typeof(BareDispatchMessage))).Returns(new BareDispatchMessage());
 		var row = await _publisher.PublishAsync(original, "custom", null, CancellationToken.None);
-		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { row });
+		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(_outboxStore, new[] { row })));
 		A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>.That.Matches(message => message is BareDispatchMessage), A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(MessageResult.Success());
 		var result = await _publisher.PublishPendingMessagesAsync(CancellationToken.None);
@@ -157,7 +159,8 @@ public sealed class MessageBusOutboxPublisherShould
 		result.FailureCount.ShouldBe(0);
 		row.MessageType.ShouldBe($"{typeof(BareDispatchMessage).FullName}, {typeof(BareDispatchMessage).Assembly.GetName().Name}");
 		row.MessageType.ShouldNotContain("Version=");
-		A.CallTo(() => _outboxStore.MarkSentAsync(row.Id, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkSentAsync(row.Id, row.DispatcherId!, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => _outboxStore.MarkSentAsync(row.Id, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	private sealed class BareDispatchMessage : IDispatchMessage;
@@ -169,7 +172,7 @@ public sealed class MessageBusOutboxPublisherShould
 	{
 		if (multiTransport)
 		{
-			var store = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>()).WithHonestCapabilities();
+			var store = CreateWorkerStore(o => o.Implements<IMultiTransportOutboxStore>());
 			var publisher = new MessageBusOutboxPublisher(store, _serializer, new TransportRegistry(), _serviceProvider, _logger);
 			await Should.ThrowAsync<ArgumentException>(() => publisher.PublishMultiTransportAsync(new object(),
 				new[] { new OutboundMessageTransport("pending", "durable") }, CancellationToken.None));
@@ -189,13 +192,13 @@ public sealed class MessageBusOutboxPublisherShould
 	[InlineData(true)]
 	public async Task RefuseUnknownOrCorruptRowsBeforeCallingATransport(bool corrupt)
 	{
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>()
-			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
+		var store = CreateWorkerStore(o => o.Implements<IMultiTransportOutboxStore>()
+			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>());
 		var multi = store.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var row = new OutboundMessage(corrupt ? OutboxFakeCapabilityExtensions.RegisteredMessageType : "UNKNOWN-MULTI-TYPE-9444", [1], "destination")
 		{ IsMultiTransport = true };
 		row.TransportDeliveries.Add(new OutboundMessageTransport(row.Id, "remote"));
-		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { row });
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(store, new[] { row })));
 		if (corrupt)
 		{
 			A.CallTo(() => _serializer.DeserializeObject(row.Payload, A<Type>._)).Throws(new InvalidDataException("CORRUPT-MULTI-PAYLOAD"));
@@ -218,8 +221,8 @@ public sealed class MessageBusOutboxPublisherShould
 		services.AddLogging();
 		services.AddDispatch(dispatch => dispatch.WithSerialization(s => s.RegisterSystemTextJson().UseSystemTextJson()));
 		await using var provider = services.BuildServiceProvider();
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>()
-			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
+		var store = CreateWorkerStore(o => o.Implements<IMultiTransportOutboxStore>()
+			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>());
 		var multi = store.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var registry = new TransportRegistry();
 		var first = A.Fake<ITransportAdapter>();
@@ -231,7 +234,7 @@ public sealed class MessageBusOutboxPublisherShould
 			new[] { new OutboundMessageTransport("pending", "first"), new OutboundMessageTransport("pending", "second") }, CancellationToken.None);
 		row.MessageType.ShouldBe("arb-durable-event-restoration");
 		row.MessageType.ShouldNotContain("Version=");
-		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { row });
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(store, new[] { row })));
 		var bothEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var mutated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var entered = 0;
@@ -282,13 +285,13 @@ public sealed class MessageBusOutboxPublisherShould
 	[Fact]
 	public async Task PreserveAlreadyPersistedSiblingSuccessWhenAnotherTransportCancels()
 	{
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>()
-			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
+		var store = CreateWorkerStore(o => o.Implements<IMultiTransportOutboxStore>()
+			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>());
 		var multi = store.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var row = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "destination") { IsMultiTransport = true };
 		row.TransportDeliveries.Add(new OutboundMessageTransport(row.Id, "sent"));
 		row.TransportDeliveries.Add(new OutboundMessageTransport(row.Id, "cancel"));
-		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { row });
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(store, new[] { row })));
 		using var caller = new CancellationTokenSource();
 		var sentPersisted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => multi.MarkTransportSentAsync(row.Id, "sent", A<CancellationToken>._)).Invokes(() => sentPersisted.TrySetResult());
@@ -309,14 +312,16 @@ public sealed class MessageBusOutboxPublisherShould
 		A.CallTo(() => multi.MarkTransportSentAsync(row.Id, "sent", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 		A.CallTo(() => multi.MarkTransportFailedAsync(A<string>._, A<string>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => _outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => store.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)store).MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
 	public async Task RetainMessageWhenAdapterReturnsFailureWithoutThrowing()
 	{
 		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, new byte[] { 1 }, "queue1");
-		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { message });
+		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(_outboxStore, new[] { message })));
 		A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(MessageResult.Failed(new MessageProblemDetails { Status = 503, Detail = "CONTROLLED-RETURNED-PUBLISH-REFUSAL" }));
 
@@ -325,7 +330,9 @@ public sealed class MessageBusOutboxPublisherShould
 		result.SuccessCount.ShouldBe(0);
 		result.FailureCount.ShouldBe(1);
 		A.CallTo(() => _outboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
-		A.CallTo(() => _outboxStore.MarkFailedAsync(message.Id, A<string>.That.Contains("CONTROLLED-RETURNED-PUBLISH-REFUSAL"), 1, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkSentAsync(A<string>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkFailedAsync(message.Id, A<string>.That.Contains("CONTROLLED-RETURNED-PUBLISH-REFUSAL"), 1, message.DispatcherId!, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => _outboxStore.MarkFailedAsync(message.Id, A<string>.That.Contains("CONTROLLED-RETURNED-PUBLISH-REFUSAL"), 1, A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
@@ -333,7 +340,7 @@ public sealed class MessageBusOutboxPublisherShould
 	public async Task KeepPersistedAdapterAttemptsFromMultiplyingTheMiddlewareBudget()
 	{
 		var row = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, new byte[] { 1 }, "queue1");
-		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { row });
+		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(_outboxStore, new[] { row })));
 		var middleware = new RetryMiddleware(Microsoft.Extensions.Options.Options.Create(new RetryOptions
 		{
 			MaxRetryAttempts = 1, BaseDelay = TimeSpan.Zero, UseJitter = false,
@@ -350,8 +357,10 @@ public sealed class MessageBusOutboxPublisherShould
 		attempts.ShouldBe(1);
 		result.FailureCount.ShouldBe(1);
 		result.SuccessCount.ShouldBe(0);
-		A.CallTo(() => _outboxStore.MarkFailedAsync(row.Id, A<string>._, 1, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkFailedAsync(row.Id, A<string>._, 1, row.DispatcherId!, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => _outboxStore.MarkFailedAsync(row.Id, A<string>._, 1, A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => _outboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkSentAsync(A<string>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 		var foreground = A.Fake<IDispatchAction>();
 		var foregroundContext = new MessageContext(foreground, _serviceProvider);
 		await Should.ThrowAsync<IOException>(() => middleware.InvokeAsync(foreground, foregroundContext, (_, _, _) =>
@@ -368,7 +377,7 @@ public sealed class MessageBusOutboxPublisherShould
 	public async Task PropagateCallerCancellationWithoutChargingThePersistedAdapterAttempt(bool returnedFailure)
 	{
 		var row = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, new byte[] { 1 }, "queue1");
-		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { row });
+		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(_outboxStore, new[] { row })));
 		using var caller = new CancellationTokenSource();
 		var publish = A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Invokes(() => caller.Cancel());
@@ -379,21 +388,23 @@ public sealed class MessageBusOutboxPublisherShould
 		else { publish.Throws(new OperationCanceledException(caller.Token)); }
 		await Should.ThrowAsync<OperationCanceledException>(() => _publisher.PublishPendingMessagesAsync(caller.Token));
 		A.CallTo(() => _outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => _outboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkSentAsync(A<string>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
 	public async Task OwnEachTransportMiddlewareAttemptWithoutPreventingHealthySiblingDelivery()
 	{
-		var store = A.Fake<IOutboxStore>(options => options.Implements<IMultiTransportOutboxStore>()
-			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
+		var store = CreateWorkerStore(options => options.Implements<IMultiTransportOutboxStore>()
+			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>());
 		var multi = store.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var row = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, new byte[] { 1 }, "queue1") { IsMultiTransport = true };
 		foreach (var name in new[] { "healthy", "fault" })
 		{
 			row.TransportDeliveries.Add(new OutboundMessageTransport(row.Id, name) { Status = TransportDeliveryStatus.Pending });
 		}
-		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { row });
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(store, new[] { row })));
 		var healthy = A.Fake<ITransportAdapter>();
 		var fault = A.Fake<ITransportAdapter>();
 		var middleware = new RetryMiddleware(Microsoft.Extensions.Options.Options.Create(new RetryOptions
@@ -424,12 +435,12 @@ public sealed class MessageBusOutboxPublisherShould
 	[Fact]
 	public async Task PropagateWrappedTransportCancellationWithoutChargingEitherFailureStore()
 	{
-		var store = A.Fake<IOutboxStore>(options => options.Implements<IMultiTransportOutboxStore>()
-			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
+		var store = CreateWorkerStore(options => options.Implements<IMultiTransportOutboxStore>()
+			.Implements<IMultiTransportOutboxStoreAdmin>().Implements<IOutboxStoreAdmin>());
 		var multi = store.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var row = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, new byte[] { 1 }, "queue1") { IsMultiTransport = true };
 		row.TransportDeliveries.Add(new OutboundMessageTransport(row.Id, "fault") { Status = TransportDeliveryStatus.Pending });
-		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { row });
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(store, new[] { row })));
 		using var caller = new CancellationTokenSource();
 		var fault = A.Fake<ITransportAdapter>();
 		A.CallTo(() => fault.SendAsync(A<IDispatchMessage>._, A<string>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -440,18 +451,20 @@ public sealed class MessageBusOutboxPublisherShould
 		await Should.ThrowAsync<OperationCanceledException>(() => publisher.PublishPendingMessagesAsync(caller.Token));
 		A.CallTo(() => multi.MarkTransportFailedAsync(A<string>._, A<string>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 		A.CallTo(() => store.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => ((IClaimScopedOutboxStore)store).MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
 	public async Task RetainAnIndependentOperationCancellationAsARealFailureWhenTheCallerIsNotCanceled()
 	{
 		var row = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, new byte[] { 1 }, "queue1");
-		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Returns(new[] { row });
+		A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(_outboxStore, new[] { row })));
 		A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Throws(new OperationCanceledException("Independent adapter deadline"));
 		var result = await _publisher.PublishPendingMessagesAsync(CancellationToken.None);
 		result.FailureCount.ShouldBe(1);
-		A.CallTo(() => _outboxStore.MarkFailedAsync(row.Id, A<string>._, 1, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkFailedAsync(row.Id, A<string>._, 1, row.DispatcherId!, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => _outboxStore.MarkFailedAsync(row.Id, A<string>._, 1, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -528,7 +541,7 @@ public sealed class MessageBusOutboxPublisherShould
 		};
 
 		_ = A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(messages);
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(_outboxStore, messages)));
 
 		_ = A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(MessageResult.Success());
@@ -540,6 +553,11 @@ public sealed class MessageBusOutboxPublisherShould
 		result.SuccessCount.ShouldBe(2);
 		result.FailureCount.ShouldBe(0);
 		result.IsSuccess.ShouldBeTrue();
+		foreach (var message in messages)
+		{
+			A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkSentAsync(message.Id, message.DispatcherId!, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		}
+		A.CallTo(() => _outboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -549,7 +567,7 @@ public sealed class MessageBusOutboxPublisherShould
 		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, new byte[] { 1 }, "queue1");
 
 		_ = A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(_outboxStore, new List<OutboundMessage> { message })));
 
 		_ = A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(MessageResult.Success());
@@ -558,8 +576,10 @@ public sealed class MessageBusOutboxPublisherShould
 		_ = await _publisher.PublishPendingMessagesAsync(CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _outboxStore.MarkSentAsync(message.Id, A<CancellationToken>._))
+		_ = A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkSentAsync(message.Id, message.DispatcherId!, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => _outboxStore.MarkSentAsync(message.Id, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -569,7 +589,7 @@ public sealed class MessageBusOutboxPublisherShould
 		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, new byte[] { 1 }, "queue1");
 
 		_ = A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(_outboxStore, new List<OutboundMessage> { message })));
 
 		_ = A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Throws(new InvalidOperationException("Bus error"));
@@ -582,11 +602,12 @@ public sealed class MessageBusOutboxPublisherShould
 		result.FailureCount.ShouldBe(1);
 		result.IsSuccess.ShouldBeFalse();
 
-		_ = A.CallTo(() => _outboxStore.MarkFailedAsync(
+		_ = A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkFailedAsync(message.Id, A<string>.That.Contains("Bus error"), A<int>._, message.DispatcherId!, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => _outboxStore.MarkFailedAsync(
 			message.Id,
 			A<string>.That.Contains("Bus error"),
 			A<int>._,
-			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+			A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -603,7 +624,7 @@ public sealed class MessageBusOutboxPublisherShould
 		// admits a failed message once its backoff floor has elapsed, and it is what stops a second dispatcher
 		// publishing the same row.
 		_ = A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(100, A<CancellationToken>._))
-			.Returns(new List<OutboundMessage> { message });
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(ClaimRows(_outboxStore, new List<OutboundMessage> { message })));
 
 		_ = A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(MessageResult.Success());
@@ -613,6 +634,9 @@ public sealed class MessageBusOutboxPublisherShould
 
 		// Assert
 		result.SuccessCount.ShouldBe(1);
+
+		A.CallTo(() => ((IClaimScopedOutboxStore)_outboxStore).MarkSentAsync(message.Id, message.DispatcherId!, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => _outboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 
 		// The unclaimed read must not be reachable from a path that dispatches.
 		A.CallTo(() => ((IOutboxStoreAdmin)_outboxStore).GetAllTenantsFailedMessagesAsync(
@@ -646,7 +670,7 @@ public sealed class MessageBusOutboxPublisherShould
 	public async Task PublishPendingTransportDeliveries_WhenAdapterMissing_Throws()
 	{
 		// Arrange
-		var multiStore = A.Fake<IOutboxStore>(o =>
+		var multiStore = CreateWorkerStore(o =>
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
@@ -668,11 +692,11 @@ public sealed class MessageBusOutboxPublisherShould
 	public async Task PublishPendingTransportDeliveries_MarksTransportSent_OnSuccess()
 	{
 		// Arrange
-		var multiStoreBase = A.Fake<IOutboxStore>(o =>
+		var multiStoreBase = CreateWorkerStore(o =>
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
-		}).WithHonestCapabilities();
+		});
 		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var multiStoreAdmin = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStoreAdmin>();
 
@@ -715,11 +739,11 @@ public sealed class MessageBusOutboxPublisherShould
 	public async Task PublishPendingTransportDeliveries_MarksTransportFailed_OnAdapterException()
 	{
 		// Arrange
-		var multiStoreBase = A.Fake<IOutboxStore>(o =>
+		var multiStoreBase = CreateWorkerStore(o =>
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
-		}).WithHonestCapabilities();
+		});
 		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var multiStoreAdmin = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStoreAdmin>();
 
@@ -765,7 +789,7 @@ public sealed class MessageBusOutboxPublisherShould
 	public async Task PublishMultiTransportAsync_Should_SetTargetTransportsCsvInInputOrder()
 	{
 		// Arrange
-		var multiStoreBase = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>()).WithHonestCapabilities();
+		var multiStoreBase = CreateWorkerStore(o => o.Implements<IMultiTransportOutboxStore>());
 		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var serializer = OutboxFakeCapabilityExtensions.CreateRegisteredSerializer();
 		var messageBus = A.Fake<IMessageBusAdapter>();
@@ -799,6 +823,61 @@ public sealed class MessageBusOutboxPublisherShould
 				A<IEnumerable<OutboundMessageTransport>>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+	}
+
+	private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IOutboxStore, FixtureClaims> s_claims = new();
+
+	private static IOutboxStore CreateWorkerStore(Action<FakeItEasy.Creation.IFakeOptions<IOutboxStore>> configure)
+	{
+		var store = A.Fake<IOutboxStore>(options =>
+		{
+			options.Implements<IClaimScopedOutboxStore>();
+			configure(options);
+		}).WithHonestCapabilities();
+		var claims = s_claims.GetValue(store, _ => new FixtureClaims());
+		var typed = (IClaimScopedOutboxStore)store;
+		A.CallTo(() => typed.MarkSentAsync(A<string>._, A<string>._, A<CancellationToken>._))
+			.ReturnsLazily((string id, string claim, CancellationToken token) => claims.Complete(id, claim, token));
+		A.CallTo(() => typed.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._))
+			.ReturnsLazily((string id, string _, int _, string claim, CancellationToken token) => claims.Complete(id, claim, token));
+		A.CallTo(() => typed.MarkFailedWithBackoffAsync(A<string>._, A<string>._, A<int>._, A<DateTimeOffset>._, A<string>._, A<CancellationToken>._))
+			.ReturnsLazily((string id, string _, int _, DateTimeOffset _, string claim, CancellationToken token) => claims.Complete(id, claim, token));
+		return store;
+	}
+
+	private static IEnumerable<OutboundMessage> ClaimRows(IOutboxStore store, IEnumerable<OutboundMessage> rows)
+	{
+		var claims = s_claims.GetValue(store, _ => new FixtureClaims());
+		var acquired = rows.ToArray();
+		lock (claims.Identities)
+		{
+			foreach (var row in acquired)
+			{
+				var identity = Guid.NewGuid().ToString("N");
+				row.DispatcherId = identity;
+				claims.Identities[row.Id] = identity;
+			}
+		}
+		return acquired;
+	}
+
+	private sealed class FixtureClaims
+	{
+		internal Dictionary<string, string> Identities { get; } = new(StringComparer.Ordinal);
+
+		internal ValueTask<OutboxCompletionOutcome> Complete(string id, string claim, CancellationToken token)
+		{
+			token.ThrowIfCancellationRequested();
+			lock (Identities)
+			{
+				if (!Identities.TryGetValue(id, out var current) || !string.Equals(current, claim, StringComparison.Ordinal))
+				{
+					return ValueTask.FromResult(OutboxCompletionOutcome.ClaimLost);
+				}
+				Identities.Remove(id);
+				return ValueTask.FromResult(OutboxCompletionOutcome.Applied);
+			}
+		}
 	}
 
 	private sealed class TestMessage : IDispatchEvent

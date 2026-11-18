@@ -68,7 +68,7 @@ public sealed class OutboxPublisherPresentsFencingTokenShould
 
 	private static IOutboxStore FencedStore()
 	{
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IFencedOutboxStore>()).WithHonestCapabilities();
+		var store = A.Fake<IOutboxStore>(o => o.Implements<IFencedOutboxStore>().Implements<IFencedClaimScopedOutboxStore>().Implements<IClaimScopedOutboxStore>()).WithHonestCapabilities();
 
 		A.CallTo(() => ((IFencedOutboxStore)store).GetUnsentMessagesAsync(A<int>._, A<long>._, A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<OutboundMessage>>([]));
@@ -170,12 +170,12 @@ public sealed class OutboxPublisherPresentsFencingTokenShould
 	[Fact]
 	public async Task AbortWithNoFurtherWriteWhenTheFencedMarkSentIsRefused()
 	{
-		var store = A.Fake<IOutboxStore>(o => o.Implements<IFencedOutboxStore>()).WithHonestCapabilities();
-		var staged = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, "payload"u8.ToArray(), "test-destination");
+		var store = A.Fake<IOutboxStore>(o => o.Implements<IFencedOutboxStore>().Implements<IFencedClaimScopedOutboxStore>().Implements<IClaimScopedOutboxStore>()).WithHonestCapabilities();
+		var staged = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, "payload"u8.ToArray(), "test-destination") { DispatcherId = "claim-staged" };
 
 		A.CallTo(() => ((IFencedOutboxStore)store).GetUnsentMessagesAsync(A<int>._, Tenure, A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<OutboundMessage>>([staged]));
-		A.CallTo(() => ((IFencedOutboxStore)store).MarkSentAsync(staged.Id, Tenure, A<CancellationToken>._))
+		A.CallTo(() => ((IFencedClaimScopedOutboxStore)store).MarkSentAsync(staged.Id, A<OutboxWriteAuthority>.That.Matches(authority => authority.FencingToken == Tenure && authority.ClaimIdentity == "claim-staged"), A<CancellationToken>._))
 			.ThrowsAsync(new StaleOutboxFencingTokenException("stale") { PresentedToken = Tenure, HighWaterToken = Tenure + 1 });
 
 		var serviceProvider = A.Fake<IServiceProvider>();
@@ -194,5 +194,12 @@ public sealed class OutboxPublisherPresentsFencingTokenShould
 
 		A.CallTo(() => store.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
+        A.CallTo(() => ((IFencedClaimScopedOutboxStore)store).MarkSentAsync(staged.Id,
+            A<OutboxWriteAuthority>.That.Matches(authority => authority.FencingToken == Tenure && authority.ClaimIdentity == "claim-staged"),
+            A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+        A.CallTo(() => ((IFencedOutboxStore)store).MarkSentAsync(A<string>._, A<long>._, A<CancellationToken>._)).MustNotHaveHappened();
+        A.CallTo(() => ((IClaimScopedOutboxStore)store).MarkSentAsync(A<string>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+        A.CallTo(() => ((IClaimScopedOutboxStore)store).MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+        A.CallTo(() => ((IFencedClaimScopedOutboxStore)store).MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<DateTimeOffset?>._, A<OutboxWriteAuthority>._, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 }

@@ -31,8 +31,14 @@ namespace Excalibur.Saga.Abstractions;
 /// delivery surface if the interface grows further.
 /// </para>
 /// </remarks>
-public interface ISagaTimeoutStore
+public interface ISagaTimeoutStore : IServiceProvider
 {
+    object? IServiceProvider.GetService(Type serviceType)
+    {
+        ArgumentNullException.ThrowIfNull(serviceType);
+        return serviceType.IsInstanceOfType(this) ? this : null;
+    }
+
 	/// <summary>
 	/// Schedules a timeout for delivery at the specified due time.
 	/// </summary>

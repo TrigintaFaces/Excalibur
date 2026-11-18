@@ -24,7 +24,7 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
 [Trait(TraitNames.Feature, TestFeatures.CDC)]
-public sealed class CdcChangeApplierShould : UnitTestBase
+public sealed partial class CdcChangeApplierShould : UnitTestBase
 {
 	// Access the internal CdcChangeApplier via reflection from the CdcProcessor
 	private static readonly FieldInfo ChangeApplierField = typeof(CdcProcessor)

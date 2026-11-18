@@ -170,7 +170,7 @@ public sealed class OutboxLeaderFencingE2EShould : FunctionalTestBase
     ///     SAFETY — the harder half. A partitioned node whose lease has not yet expired locally still believes
     ///     it leads and still holds its old token. Its drain therefore <em>does</em> present a token — a stale
     ///     one — and the store must refuse it: the claim yields nothing, and a completion attempted against the
-    ///     stale tenure is rejected with <see cref="StaleOutboxFencingTokenException"/>.
+    ///     stale tenure is refused, reporting <see cref="OutboxCompletionOutcome.FenceRefused"/>.
     /// </summary>
     /// <remarks>
     ///     <para>
@@ -226,10 +226,15 @@ public sealed class OutboxLeaderFencingE2EShould : FunctionalTestBase
         var fenced = cluster.Store.GetService(typeof(IFencedOutboxStore)) as IFencedOutboxStore;
         fenced.ShouldNotBeNull("the shipped in-memory outbox store must answer the fenced capability probe");
 
-        _ = await Should.ThrowAsync<StaleOutboxFencingTokenException>(
-            async () => await fenced!
-                .MarkSentAsync(available.Id, staleToken, TestCancellationToken)
-                .ConfigureAwait(false)).ConfigureAwait(false);
+        var storeRefusal = await fenced!
+            .MarkSentAsync(available.Id, staleToken, TestCancellationToken)
+            .ConfigureAwait(false);
+        storeRefusal.ShouldBe(
+            OutboxCompletionOutcome.FenceRefused,
+            "a completion forced against the stale tenure must be REFUSED and must say so. Silent "
+            + "acceptance is the worst outcome — the row would be marked sent by a node that never "
+            + "delivered it — and an exception is the second worst, because the caller cannot tell it "
+            + "from an infrastructure fault and so cannot know to stand the tenure down");
 
         // Act — the partitioned node drains, presenting its stale token, with a claimable row in front of it.
         var partitionedResult = await partitioned.Publisher

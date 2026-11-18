@@ -1,21 +1,23 @@
 ﻿# Load Testing Infrastructure
 
-This directory contains load testing scenarios, execution scripts, and performance reports for Excalibur.
+This directory contains a load-test scaffold. As reviewed on 2026-11-01, the NBomber client simulates dispatch and consumption with delays; actual transport registration is commented out. Its throughput, burst, concurrent and failure modes do not measure Dispatch. The PowerShell runner is also a placeholder: exit code 0 does not establish that any workload ran or passed.
+
+Evidence: `DispatchLoadTestClient.cs` in `Excalibur.Dispatch.LoadTests/`, `scripts/run-load-tests.ps1`, and the campaign census under `artifacts/benchmarks/current-refresh-20261101/`. These cases are unsupported/no-op evidence, not benchmark passes.
 
 ## Structure
 
-- `eng/` - PowerShell and Bash scripts for executing load tests
+- `scripts/` - PowerShell and Bash scripts for executing load tests
 - `scenarios/` - Test scenario definitions (YAML/JSON)
 - `reports/` - Generated performance reports (HTML/Markdown)
 
 ## Usage
 
-**Run Load Tests**:
+**Inspect the placeholder runner** (from this directory; does not run tests):
 ```powershell
-.\eng\run-load-tests.ps1 -Scenario sustained-throughput
+.\scripts\run-load-tests.ps1 -Scenario sustained-throughput
 ```
 
-**View Reports**:
+**Planned report location** (the placeholder does not generate this report):
 ```powershell
 .\reports\latest\index.html
 ```
@@ -23,7 +25,7 @@ This directory contains load testing scenarios, execution scripts, and performan
 ## Requirements
 
 - Docker (for test infrastructure)
-- .NET 9 SDK
+- .NET 10 SDK pinned by the repository `global.json` (the project targets `net10.0`)
 - PowerShell 7+ or Bash
 
 ## Scenarios
@@ -36,9 +38,9 @@ The following load test scenarios will be implemented in **Phase 4: Performance 
 - `failure-scenarios` - Fault tolerance testing (disconnection/reconnection, handler exceptions, backpressure)
 - `mixed-workloads` - Complex scenario testing with various message sizes and handler complexities
 
-## Performance Targets
+## Historical Performance Targets
 
-From `REFACTORING_PROMPT.md` Phase 4:
+The following Phase 4 targets are historical aspirations, not verified results from this scaffold:
 
 - **Throughput**: >100,000 messages/second (in-memory transport on commodity hardware)
 - **Latency**:
@@ -55,7 +57,7 @@ From `REFACTORING_PROMPT.md` Phase 4:
    - Message templates
    - Load profiles (ramp-up, sustained, burst)
 
-2. **Execution Scripts** (`eng/`):
+2. **Execution Scripts** (`scripts/`):
    - `run-load-tests.ps1` - Main execution script
    - `setup-infrastructure.ps1` - Docker Compose orchestration
    - `collect-metrics.ps1` - Metrics collection and aggregation
@@ -80,8 +82,8 @@ Load tests will utilize:
 **Phase 2: Directory structure created** ✅
 **Phase 4: Implementation pending** ⏸️
 
-This infrastructure will be fully implemented during **Phase 4: Performance Optimization (Week 7-10)** as outlined in REFACTORING_PROMPT.md.
+The Phase 4 schedule is historical planning context. The current scaffold does not establish throughput, latency, allocation, resilience or NativeAOT performance.
 
 ---
 
-See `REFACTORING_PROMPT.md` Section 4.4 for complete load testing requirements.
+See the current benchmark guidance in [`../benchmarks/Excalibur.Dispatch.Benchmarks/BENCHMARKS.md`](../benchmarks/Excalibur.Dispatch.Benchmarks/BENCHMARKS.md) for bounded, measured runs.

@@ -27,8 +27,8 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// Oracle's MERGE binds its tenant term unconditionally in the ON clause (<c>SaveSagaRequest{TSagaState}</c>:
 /// <c>const string onTenant = " AND target.TenantId = :TenantId";</c>), so the match — and therefore both
 /// the UPDATE and INSERT branches — can never address another tenant's row. This lock proves that property
-/// against the real MERGE, and pins it against regression: RED on the mutant that drops the term from the
-/// match. Uses the SHIPPED schema (<c>Scripts/01-SagaSchema.sql</c>, composite <c>PK (TenantId, SagaId)</c>)
+/// against the real MERGE. The current incarnation guard independently protects each saga lifetime, so
+/// this is not an isolated tenant-term mutation proof. Uses the SHIPPED schema (<c>Scripts/01-SagaSchema.sql</c>, composite <c>PK (TenantId, SagaId)</c>)
 /// through the fixture, not a private table — a green here is a statement about the schema a consumer
 /// actually receives.
 /// </para>
@@ -87,12 +87,17 @@ public sealed class OracleSagaWriteVictimTenantIsolationShould(OracleSagaStoreCo
 			"the victim must be at a non-zero version, or the writer's next save takes the INSERT branch "
 			+ "and never reaches the predicate under test");
 
-		// The overwrite attempt: an UPDATE naming saga_id and a version the victim's row also carries.
+		// The overwrite attempt names a version both rows carry, using only the writer's loaded authority.
 		ambient.TenantId = WriterTenant;
-		await SaveAsync(store, sagaId, "writer-state", beforeOverwrite.Version).ConfigureAwait(false);
+		var writerUpdate = await store.LoadAsync<WriteVictimSagaState>(sagaId, CancellationToken.None)
+			.ConfigureAwait(false);
+		writerUpdate.ShouldNotBeNull("the writer must update its own loaded saga authority");
+		writerUpdate.Version.ShouldBe(beforeOverwrite.Version, "both tenant rows must name the same UPDATE version");
+		writerUpdate.Payload = "writer-state";
+		await store.SaveAsync(writerUpdate, CancellationToken.None).ConfigureAwait(false);
 
-		// SAFETY — the victim still reads its own state. A save whose predicate omits the tenant term
-		// updated this row in place, and this reads "writer-state".
+		// SAFETY — the victim remains unchanged after the writer-authorized save. This does not isolate
+		// the tenant predicate from the other authority guards.
 		ambient.TenantId = VictimTenant;
 		var victim = await store.LoadAsync<WriteVictimSagaState>(sagaId, CancellationToken.None)
 			.ConfigureAwait(false);
@@ -128,9 +133,9 @@ public sealed class OracleSagaWriteVictimTenantIsolationShould(OracleSagaStoreCo
 			new DispatchJsonSerializer(),
 			ambientTenant);
 
-	private static Task SaveAsync(OracleSagaStore store, Guid sagaId, string payload, long version = 0) =>
+	private static Task SaveAsync(OracleSagaStore store, Guid sagaId, string payload) =>
 		store.SaveAsync(
-			new WriteVictimSagaState { SagaId = sagaId, Payload = payload, Version = version },
+			new WriteVictimSagaState { SagaId = sagaId, Payload = payload },
 			CancellationToken.None);
 
 	/// <summary>
@@ -147,7 +152,8 @@ public sealed class OracleSagaWriteVictimTenantIsolationShould(OracleSagaStoreCo
 			.ConfigureAwait(false);
 		inserted.ShouldNotBeNull("the first save must insert the row");
 
-		await SaveAsync(store, sagaId, payload, inserted.Version).ConfigureAwait(false);
+		// Preserve the loaded incarnation as well as its version; a fresh object is a different saga lifetime.
+		await store.SaveAsync(inserted, CancellationToken.None).ConfigureAwait(false);
 
 		var updated = await store.LoadAsync<WriteVictimSagaState>(sagaId, CancellationToken.None)
 			.ConfigureAwait(false);

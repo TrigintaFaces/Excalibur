@@ -40,6 +40,22 @@ Each Excalibur package single-targets one .NET major. There is no multi-targetin
 - **No guaranteed upgrade path** between pre-release builds -- consult release notes before upgrading
 - **Feedback is welcome** -- your input directly shapes the stable API surface
 
+## Pending changes after alpha.21
+
+These changes describe the development line after `10.0.0-alpha.21`; they do not announce a published release. Rebuild consumers against the next package set and review its release notes before upgrading.
+
+- **Leader identity configuration:** `LeaderElectionOptions.InstanceId` is nullable and unset by default. Providers resolve the configured value, an environment identity, or a generated identifier. Read the election's `CandidateId` for the resolved identity. Replace assignments to `KubernetesLeaderElectionOptions.CandidateId` with inherited `InstanceId`; the election's `CandidateId` property remains available. A generated identifier is not stable across process restarts.
+- **Erasure construction:** direct `ErasureService` callers must supply the required `IKeyMintLedger` representing their key mint history. The required `IErasureRetentionRegistry` remains required; the optional trailing retention declaration ledger does not replace either dependency. Null is refused. Use the framework's DI registration with the appropriate durable stores and ledgers.
+- **Telemetry constructors:** `TelemetryLeaderElection` and `TelemetryLeaderElectionFactory` now accept an optional trailing `TimeProvider`. Existing four-argument source calls remain valid after recompilation, but the CLR constructor signatures changed, so existing binaries must be rebuilt. Preserve borrowed logging and instrumentation through notification completion; resource disposal and notification delivery have separate lifetimes. See [leader-election lifecycle guidance](../leader-election/index.md#notification-lifetime-and-shutdown).
+- **Custom election implementations:** implement the stable `NotificationsCompleted` task required by `ILeaderElection`. Stop/restart leaves it pending; permanent disposal seals new publication. The terminal task also joins admitted synchronous invocations; queued callbacks may still run after resource disposal. Observe resource and notification failures separately during final teardown.
+- **Erasure conformance overrides:** rename `UpdateStatusAsync_SecondClaimOfTheSameRequest_ShouldBeRefused` to `ClaimForExecutionAsync_SecondClaimOfTheSameRequest_ShouldBeRefused`, and `UpdateStatusAsync_ToInProgress_ShouldSetExecutedAt` to `ClaimForExecutionAsync_ShouldSetExecutedAt`. These controls exercise explicit execution claims rather than a status-update shortcut.
+- **Custom dead-letter and outbox stores:** implement `IDeadLetterStore.ReleaseReplayClaimAsync` and return the typed replay outcome from `MarkAsReplayedAsync`. Replay only after `DeadLetterReplayOutcome.Claimed`; release an unsuccessful replay's claim. Fenced outbox completion now returns `OutboxCompletionOutcome`: only `Applied` means the row was mutated. Preserve atomic claims, exact owner/fence checks and tenant scope; a completed task or a default enum value is not success.
+- **Message context collections:** replace removed `IMessageContext.GetHeaders` and `IMessageContext.GetAttributes` shortcuts with the intended data path. Use `Items` for request-local scratch data and `SetPropagatedItem` for explicitly bounded cross-process propagation. The separate `IMessageMetadata.GetAttributes` extension remains a read-only metadata view.
+- **CloudEvents payload metadata:** replace `CloudEventOptions.PayloadTypeInfoResolver` configuration with registration-time `AddCloudEvents(PayloadJsonContext.Default)`. Direct serializer consumers can use `CloudEventSerializer.CreateWithMetadata(CloudEventPayloadSerialization.CreateOptions(PayloadJsonContext.Default))`. The legacy `CloudEventSerializer` constructor retains the SDK formatter; options carrying a resolver do not select the metadata-aware formatter. Supply generated metadata for every payload type. The parameterless registration overload selects the reflective path and carries trimming/NativeAOT warnings; it is not the generated-metadata alternative.
+- **Custom scheduler and sharding implementations:** preserve the required `ScheduleExecutionLease.AdmissionAttempt` history across claims and implement `ITenantShardMap.GetShardById`. These members carry execution-budget and physical-shard identity semantics; do not synthesize a success result or reset admission history to satisfy the new signatures.
+- **Custom erasure stores:** implement explicit execution claims and identity-bearing fenced writes returning `ErasureWriteOutcome`. Only `Applied` reports a durable mutation. Background-query stores must provide `GetHoldDeferredRequestsAsync`, and legal-hold query implementations must honor the supplied `asOf` boundary. Update provider conformance tests and retain tenant, claim, hold-history and durable-ledger guarantees.
+- **Saga compensation:** recording a pending compensation changes in-memory state; durability starts at the state save. It does not atomically record an external effect or supply automatic durable retries for failed compensations. Use idempotent actions and explicit host recovery for crash windows; the saga's buffered command/event helpers do not make direct external calls atomic.
+
 ## SQL schema script paths in earlier alpha packages
 
 Earlier packages in the following ranges contain SQL schema entries at `scripts//<name>.sql`, with two
@@ -251,17 +267,21 @@ each is in the sections above.
 1. **Read [Before you upgrade](../whats-new.md#before-you-upgrade) first.** It is the cumulative list of
    changes that require action, including DDL. Pre-releases are documented cumulatively, so reading only
    the newest entry is not enough if you are skipping builds.
-2. **Bump every Excalibur package together.** They are versioned as one line; a mixed set is not a
-   configuration anyone tests. A store package at a different version from the drain that uses it shows
-   up at runtime as an unrecognised completion outcome, not as a build error.
+2. **Bump every Excalibur package together inside each application.** Use one coordinated release set;
+   mixing an old store package with a newer drain is not a supported upgrade shortcut. It can fail at
+   runtime as an unrecognised completion outcome rather than as a build error. This is separate from
+   whether two hosts running different complete release sets may share a store during a roll.
 3. **Take a backup that includes the outbox, the inbox, and the fence table** — the rollback in step 9
    depends on it, and the fence table is easy to miss because it is separate from the messages.
 4. **Drain in-flight messages before crossing a major boundary.** See
    [Drain in-flight messages](#drain-in-flight-messages-before-crossing-a-major-boundary).
-5. **Apply new schema scripts before starting the new version**, in filename order. Find them in the
-   packages you already depend on — see
-   [Which packages ship schema scripts](#which-packages-ship-schema-scripts). **Track which ones you have
-   applied.** Most carry an existence guard and can be re-run safely, but not all do — the initial
+5. **Observe the selected provider's offline or quiescence requirements before applying schema.**
+   Unless the exact release/provider procedure explicitly permits old and new writers together, drain
+   and stop the old writers first. Additive DDL or schema compatibility alone does not establish that a
+   mixed-version runtime is safe, and some providers' DDL commits implicitly. Then apply the new scripts
+   before starting the new version, in filename order. Find them in the packages you already depend on —
+   see [Which packages ship schema scripts](#which-packages-ship-schema-scripts). **Track which ones you
+   have applied.** Most carry an existence guard and can be re-run safely, but not all do — the initial
    create-table scripts for several providers are plain DDL and will fail on a second run. Do not treat
    "re-run everything" as a safe default.
 6. **Start one instance and let it validate.** Several stores refuse to start when their configuration
@@ -271,8 +291,12 @@ each is in the sections above.
 7. **Confirm the drain is accepted before scaling out.** A fenced outbox refuses writes from a superseded
    leadership tenure. If the new instance logs fence refusals rather than draining, resolve that before
    adding more instances.
-8. **Then roll the rest.** During the roll, two package versions are live against one store. This is
-   supported for schema-compatible builds and is exactly what step 1 tells you about when it is not.
+8. **Scale or roll according to that release/provider procedure.** Two hosts may run different release
+   sets against one store only where the procedure explicitly supports both binaries, stored message
+   envelopes, schema and concurrent writers. Do not infer that support from schema compatibility alone.
+   Where no such rolling procedure is specified, keep old writers stopped, validate the first new
+   instance, then scale the coordinated new release set. This preserves provider-supported rolling
+   upgrades without promising one for every prerelease change.
 9. **To roll back, reverse the order.** Reverting the package alone is sufficient only while the newer
    version has not yet written data. Once it has, complete the rollback by restoring the backup from
    step 3 — and restore the fence table with it, or the older build's tokens may sit below a high-water
@@ -420,3 +444,168 @@ Stay informed about releases and changes:
 - [Before you upgrade](../whats-new.md#before-you-upgrade) -- What changed in this release, and what to do about it
 - [From MediatR](from-mediatr.md) -- MediatR migration guide
 - [Getting Started](../getting-started/index.md) -- New project setup from scratch
+
+
+## Unreleased: next-alpha outbox and serialization migration
+
+This section describes pending development changes, not a published alpha or a release certification.
+Rebuild custom providers, decorators and builders against the complete next package set. An additive public
+API inventory with zero removals can still contain source-breaking interface changes and changed behavior.
+
+### Custom implementations: required interface additions
+
+Existing implementations of these interfaces must implement the new required member:
+
+| Existing interface | Required addition |
+|---|---|
+| `IClaimScopedOutboxStore` | `MarkSentAsync(messageId, claimIdentity, cancellationToken)` returning `ValueTask<OutboxCompletionOutcome>` |
+| `IFencedClaimScopedOutboxStore` | `MarkSentAsync(messageId, OutboxWriteAuthority, cancellationToken)` returning `ValueTask<OutboxCompletionOutcome>` |
+| `IFencedDeadLetterableOutboxStore` | `MarkDeadLetteredAsync(messageId, reason, attemptCount, OutboxWriteAuthority, cancellationToken)` returning `ValueTask<OutboxCompletionOutcome>` |
+| `IElasticSearchOutboxBuilder` | `SourceSerializer(IJsonTypeInfoResolver)` returning the builder |
+
+These are required members on existing interfaces, not default implementations. Do not satisfy them with
+an adapter that discards acquisition or tenure evidence, calls an ID-only legacy write, or returns `Applied`
+without its own durable mutation. The new `IClaimScopedDeadLetterableOutboxStore` is a separate capability
+facet of the owning outbox store, not a separately registered tenant store.
+
+### Claims, typed outcomes and tenant provenance
+
+Capture the persisted message ID and opaque `DispatcherId` immediately after acquisition, before application
+or transport callbacks. Completion must use that immutable receipt; a stable process ID or a map overwritten
+by a later acquisition is insufficient. Preserve exact acquisition identity, including significant characters,
+and live-lease checks. Fenced routes additionally require the captured positive tenure in `OutboxWriteAuthority`.
+
+Decide authority and the resulting write in the same atomic operation. For valid fenced authority, judge the
+fence before row-level outcomes. `Applied` alone means the mutation occurred; `ClaimLost`, `AlreadyTerminal`
+and `MessageNotFound` do not mean success. A row-level refusal stops writes for that row; `FenceRefused` ends
+admission for the captured tenure. `Unknown` (including the enum default) is not applied. Return refusals as
+typed outcomes; propagate infrastructure failures and cancellation rather than converting them to success.
+Do not classify a completed mutation by a later unguarded read.
+
+Completion addresses the owning store's row by globally persisted ID and acquisition. Preserve or copy the
+stored tenant provenance during terminal movement. Do not add an ambient tenant predicate that prevents a
+cross-tenant worker from completing its claimed row; tenant-facing downstream work establishes its scope
+from the recorded owner. The primary store still needs the row-partition capability required by multi-tenancy.
+See [outbox ownership and completion](../patterns/outbox.md) and the
+[PostgreSQL claim guide](../patterns/postgres-outbox-claims.md).
+
+### Worker admission and staging-only hosts
+
+Custom stores and decorators must expose capabilities through the owning store's `IServiceProvider.GetService`
+seam. A concrete cast or a standalone DI registration cannot substitute for a capability the owner withholds.
+Decorators must preserve honest absence as well as exact argument, outcome and exception forwarding.
+
+Plain publishing needs `IClaimScopedOutboxStore`; its elected fenced route also needs `IFencedOutboxStore` and
+`IFencedClaimScopedOutboxStore`. `OutboxProcessor` additionally requires the selected terminal capability:
+`IClaimScopedDeadLetterableOutboxStore` for plain processing or `IFencedDeadLetterableOutboxStore` for fenced
+processing, even with explicitly selected `NullDeadLetterQueue`. A publisher route that never invokes that
+terminal operation does not acquire the processor's extra requirement. Missing capabilities fail worker
+composition rather than falling back to weaker writes. `AsSingleWriter()` removes the leadership-fencing
+requirement, not acquisition ownership: one process can reclaim its own expired lease.
+
+A staging-only host does not acquire or complete rows. Configuring leader election alone does not activate
+a worker; validate these requirements in the host that actually drains, including manually constructed
+publishers/processors. The existing direct-use legacy methods retain their contracts, but do not satisfy the
+stronger framework-worker capability contract.
+
+### Publishing results
+
+`PublishingResult.IsSuccess` now requires both zero failed rows and `Outcome == PublishingOutcome.Completed`.
+Check the operation verdict rather than `FailureCount == 0` or `SuccessRate` alone. `TenureRefused` and
+`Interrupted` can accompany transport acceptances already counted as successes; neither fabricates failed
+rows for work never attempted. Unknown outcomes do not imply success. If refusal and interruption both occur,
+refusal takes precedence while actual errors remain available. Counts do not establish durable settlement,
+and a refused or interrupted operation does not roll back earlier transport effects. Keep consumers idempotent.
+
+### Authority-domain identity
+
+Custom gate wrappers can implement `ILeaderProcessingAuthorityDomain` to share one stable, nonnull reference
+identity for the same monotonic token sequence. This identity is neither authorization nor a token. Do not
+reuse it across unrelated elections or reset a sequence while retaining it; the framework does not dispose
+it. Without the capability, a gate's own object reference identifies its domain. See the
+[outbox guide](../patterns/outbox.md) and the existing
+authority sample controls in `samples/10-aot/Excalibur.Dispatch.Aot.Sample/OutboxAuthoritySmoke.cs` (source reference; the checked public mirror did not expose this file, so this is not a published-control link).
+
+### Oracle: borrowed staging and exclusively owned workers
+
+Staging retains its borrowed `IDb` connection and caller-transaction ownership. Worker claims and strict
+completion require a fresh exclusively owned connection and private transaction, so a worker commit cannot
+commit unrelated caller work. `UseOracle` connection-string configuration supplies the worker source from
+the originally configured string. A factory-only staging configuration supplies an explicit
+`WorkerConnectionFactory(Func<IServiceProvider, CancellationToken, ValueTask<OracleConnection>>)` when it
+also needs workers; a borrowed staging factory is not reinterpreted as an ownership guarantee or cloned for
+credentials. Worker admission fails if the required owned route is unavailable; staging-only use remains valid.
+
+Return a new, closed, unenlisted connection targeting the same staging database on each successful callback.
+Never return a cached, borrowed, DI-owned or already-owned connection. Successful return transfers connection
+ownership to the framework; the callback retains responsibility for resources it fails before returning.
+The callback's DI scope remains alive through connection disposal. Explicit worker configuration survives
+later primary selection and takes precedence over string-derived defaults. Oracle fences the resolved
+physical-table scope; this does not introduce per-document fencing-token state. See the
+[Oracle provider reference](../data-providers/oracle.md).
+
+### SQL Server: explicit generated header metadata
+
+For trimming/NativeAOT callers, select the SQL Server overload with a required `OutboxMetadataSerialization`
+argument. The six entry points are the outbox builder's `UseSqlServer`, three `AddSqlServerOutboxStore`
+overloads (including connection-factory and typed-database forms), and two Dispatch-builder
+`UseSqlServerOutboxStore` overloads. Their legacy counterparts retain `RequiresUnreferencedCode` and
+`RequiresDynamicCode`; registering an optional service later cannot erase a static warning.
+
+Construct metadata with an options-aware factory, for example
+`new OutboxMetadataSerialization(options => new ApplicationHeaderContext(options))`.
+Each constructed store invokes the factory once, binds its own canonical options and freezes them. Construct
+the generated context with those supplied options, not the context's differently bound `Default` instance.
+Preserve canonical settings and supply metadata for every actual header value type, including nested
+object-valued types. A null/wrongly bound resolver, altered canonical settings or missing metadata fails;
+there is no implicit reflection fallback on this selected path. Captured mutable factory state remains the
+application's responsibility. Payload materialization is a separate codec choice.
+
+`AddOutboxMetadataSerialization` and `WithMetadataSerialization` register an optional common default without
+registering workers/stores. Re-registering the same instance is idempotent; conflicting, keyed, implementation-type
+or opaque factory registrations are rejected without invoking factories or building an intermediate provider.
+An explicit provider argument wins for that store without changing the common default. Existing SQL aliases
+still select one store; these overloads do not create independently named SQL stores in one service provider.
+The managed legacy path retains its annotated reflection alternative.
+
+See [generated SQL header metadata](../patterns/outbox.md#generated-sql-server-header-metadata) for complete
+registration examples. The source sample's `--native-sql-paths-smoke` control (`samples/10-aot/Excalibur.Dispatch.Aot.Sample/README.md`, “Native SQL execution control”; that section was not present in the checked public mirror)
+is a separate CDC/data-task control, not a public outbox-header-metadata execution proof. The pinned
+`Microsoft.Data.SqlClient` 7.1.1 has an accepted upstream NativeAOT limitation: full SQL Server-to-Elasticsearch
+native publication and execution are **not certified**. The alpha's bounded diagnostic policy is recorded in
+[the inline NativeAOT limitation record](https://github.com/TrigintaFaces/Excalibur/blob/main/eng/ci/inline-native-aot-known-diagnostics.json);
+it is not a successful native publication or a general AOT waiver. Header metadata alone does not certify
+every provider, transport, authentication mode, payload codec or deployment as NativeAOT-compatible.
+
+### Dispatch and Elasticsearch serializer metadata
+
+`SystemTextJsonSerializer.Create(JsonSerializerContext)` borrows an explicit context without modifying or
+disposing it; it adds no framework reflection fallback. Supply all payload and runtime polymorphic metadata.
+The legacy options/default constructors retain trimming/dynamic-code annotations. Missing or wrong-type
+metadata fails; custom contexts and converters retain their own AOT obligations. See
+[serializer configuration](../middleware/serialization-providers.md).
+
+For framework-owned Elasticsearch clients, `IElasticSearchOutboxBuilder.SourceSerializer` supplies application
+metadata alongside the framework's persisted-document metadata. For a borrowed client, configure its serializer
+at original construction with `ElasticsearchOutboxSerializer.Create(settings, additionalTypes)`; the store does
+not replace that serializer or own its transport. Null `additionalTypes` intentionally supplies only the
+framework's built-in metadata. Supply generated metadata for custom header values and other shared-client
+documents; framework metadata takes precedence. An explicitly selected reflection resolver remains a managed
+alternative with its own trimming/dynamic-code requirements. Missing metadata is an error, not permission to
+drop values or stringify them. See the [Elasticsearch provider reference](../data-providers/elasticsearch.md)
+and [AOT migration guidance](../advanced/aot-migration-guide.md).
+
+
+### Next alpha (unreleased): workflow payload registration boundary
+
+`AddWorkflows()` retains its ordinary JIT runtime behavior but now declares its reflection-based payload
+requirements. If you supplied `WorkflowOptions.PayloadTypeInfoResolver` after that call, replace the pair
+with `services.AddWorkflows(WorkflowPayloadContext.Default)` to use the non-null, annotation-free metadata
+route. Cover your activity, workflow and signal payload types in that generated context; unknown metadata
+fails instead of falling back to reflection. Keep unrelated `Configure<WorkflowOptions>` settings.
+
+Repeated identical explicit resolvers are allowed; contradictory explicit resolver registrations or a
+conflicting non-null options resolver fail loudly. A parameterless call before or after the explicit one
+cannot switch the provider back to reflection. Options are composed once per provider and frozen; existing
+providers do not change when the source service collection is later extended. No public workflow execution
+signature was removed. This is an unreleased change, not a claim that a new alpha has been published.

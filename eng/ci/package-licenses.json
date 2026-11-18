@@ -170,6 +170,7 @@
   "System.CommandLine": "MIT",
   "System.Diagnostics.DiagnosticSource": "MIT",
   "System.Diagnostics.PerformanceCounter": "MIT",
+  "System.Formats.Cbor": "MIT",
   "System.IO.Hashing": "MIT",
   "System.IdentityModel.Tokens.Jwt": "MIT",
   "System.Security.Cryptography.Xml": "MIT",

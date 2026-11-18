@@ -143,8 +143,8 @@
       name is derived from the Link path, and a shared leaf would make the two indistinguishable to
       a suffix match — a suite would silently load the other engine's DDL.
     -->
-    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\001_CreateComplianceSchema.sql" Link="Schema\SqlServer\001_CreateComplianceSchema.sql" />
-    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Scripts\001_CreateComplianceSchema.sql" Link="Schema\Postgres\001_CreateComplianceSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\001_CreateComplianceSchema.sql" Link="Schema\Compliance\SqlServer\001_CreateComplianceSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Scripts\001_CreateComplianceSchema.sql" Link="Schema\Compliance\Postgres\001_CreateComplianceSchema.sql" />
     <!--
       The legal-basis ordinal-shift migrations. These carry the same weight as the create scripts and
       for a sharper reason: the shape they migrate FROM is the one every existing deployment holds,
@@ -153,8 +153,8 @@
       runs, and the property under test (that re-running changes nothing a second time) lives in
       the shipped file's guard rather than in any statement a test could invent.
     -->
-    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\003_ReplaceLegalBasisColumns.sql" Link="Schema\SqlServer\003_ReplaceLegalBasisColumns.sql" />
-    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Scripts\002_ReplaceLegalBasisColumns.sql" Link="Schema\Postgres\002_ReplaceLegalBasisColumns.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\003_ReplaceLegalBasisColumns.sql" Link="Schema\Compliance\SqlServer\003_ReplaceLegalBasisColumns.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Scripts\002_ReplaceLegalBasisColumns.sql" Link="Schema\Compliance\Postgres\002_ReplaceLegalBasisColumns.sql" />
     <!-- Dead-letter DDL, linked under the same dialect-named folders and for the same reason: both
          engines ship a file named 001_CreateDeadLetterSchema.sql, and neither dead-letter store creates
          its table at runtime, so the conformance suites must provision from the shipped script. -->
@@ -193,6 +193,8 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Scripts\004_CreateScheduleSchema.sql" Link="Schema\SqlServer\004_CreateScheduleSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Scripts\005_CreateScheduleFailureSchema.sql" Link="Schema\SqlServer\005_CreateScheduleFailureSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Scripts\006_AddScheduleCronRecurrenceProfile.sql" Link="Schema\SqlServer\006_AddScheduleCronRecurrenceProfile.sql" />
     <ProjectReference Include="..\..\harnesses\SqlServerScheduleProcessProbe\SqlServerScheduleProcessProbe.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <Target Name="CopyScheduleProcessProbe" AfterTargets="Build">
@@ -214,7 +216,26 @@
     <Copy SourceFiles="@(ScheduleProbeCopy)" DestinationFiles="@(ScheduleProbeCopy->'%(Destination)')" SkipUnchangedFiles="true" />
   </Target>
   <ItemGroup>
-    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Scripts/005_AddKeyDestructionLedger.sql" Link="Schema/SqlServer/005_AddKeyDestructionLedger.sql" />
-    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Scripts/004_AddKeyDestructionLedger.sql" Link="Schema/Postgres/004_AddKeyDestructionLedger.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Scripts/005_AddKeyDestructionLedger.sql" Link="Schema/Compliance/SqlServer/005_AddKeyDestructionLedger.sql" />
+    <!-- The REST of the documented SQL Server provisioning sequence, for the same reason as its
+         Postgres twin above: the harness ran 001 alone, and the erasure store's startup verifier
+         requires ErasureMintedKeys (006) and ErasureTokenFingerprint (007). 002 is key escrow:
+         a different store, conditional in the README, and owned by ShippedKeyEscrowSchema. -->
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Scripts/004_AddLegalHoldReleaseAndVersion.sql" Link="Schema/Compliance/SqlServer/004_AddLegalHoldReleaseAndVersion.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Scripts/006_AddKeyMintLedger.sql" Link="Schema/Compliance/SqlServer/006_AddKeyMintLedger.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Scripts/007_AddDataSubjectTokenFingerprint.sql" Link="Schema/Compliance/SqlServer/007_AddDataSubjectTokenFingerprint.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Scripts/008_AddRetentionDeclarationLedger.sql" Link="Schema/Compliance/SqlServer/008_AddRetentionDeclarationLedger.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Scripts/004_AddKeyDestructionLedger.sql" Link="Schema/Compliance/Postgres/004_AddKeyDestructionLedger.sql" />
+    <!-- The REST of the documented Postgres provisioning sequence. The suite provisioned from 001
+         alone, which is not a path any consumer is told to take: the erasure store's startup verifier
+         requires erasure_minted_keys and erasure_token_fingerprint, which only 005 and 006 create. So
+         nothing exercised script-provisioned-plus-verify-only, the configuration the README documents
+         and AutoCreateSchema defaults to. -->
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Scripts/003_AddLegalHoldReleaseAndVersion.sql" Link="Schema/Compliance/Postgres/003_AddLegalHoldReleaseAndVersion.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Scripts/005_AddKeyMintLedger.sql" Link="Schema/Compliance/Postgres/005_AddKeyMintLedger.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Scripts/006_AddDataSubjectTokenFingerprint.sql" Link="Schema/Compliance/Postgres/006_AddDataSubjectTokenFingerprint.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Scripts/007_AddRetentionDeclarationLedger.sql" Link="Schema/Compliance/Postgres/007_AddRetentionDeclarationLedger.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Scripts/009_AddErasureClaimLease.sql" Link="Schema/Compliance/SqlServer/009_AddErasureClaimLease.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Scripts/008_AddErasureClaimLease.sql" Link="Schema/Compliance/Postgres/008_AddErasureClaimLease.sql" />
   </ItemGroup>
 </Project>

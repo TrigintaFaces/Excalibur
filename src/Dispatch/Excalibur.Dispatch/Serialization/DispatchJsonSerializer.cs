@@ -20,14 +20,14 @@ using System.Collections.Concurrent;
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
-/// Zero-allocation JSON serializer that minimizes memory allocations in hot paths. Uses pooled buffers and writers for all operations.
+/// JSON serializer using pooled buffers and writers to reduce repeated allocations.
 /// </summary>
 /// <remarks>
 /// This serializer is designed for high-throughput scenarios where memory allocations must be minimized. It uses the following strategies:
 /// - Pooled Utf8JsonWriter instances
 /// - Pooled byte buffers for serialization
 /// - Direct UTF-8 operations to avoid string allocations
-/// - Struct-based return types for zero-allocation results.
+/// - Struct-based result handles; total allocation depends on buffering, ownership and payload.
 /// </remarks>
 public sealed class DispatchJsonSerializer : IDisposable
 {
@@ -36,9 +36,10 @@ public sealed class DispatchJsonSerializer : IDisposable
 	private readonly JsonSerializerContext? _jsonContext;
 	private readonly JsonWriterOptions _writerOptions;
 	private readonly IUtf8JsonWriterPool _writerPool;
+	private readonly Utf8JsonWriterPool? _ownedWriterPool;
 	private readonly IPooledBufferService _bufferManager;
 	private readonly ThreadLocal<ArrayBufferWriter<byte>> _threadLocalBufferWriter;
-	private volatile bool _disposed;
+	private int _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DispatchJsonSerializer" /> class.
@@ -122,11 +123,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 		};
 
 		// Initialize pools
-		_writerPool = writerPool ?? new Utf8JsonWriterPool(
-			maxPoolSize: 256,
-			threadLocalCacheSize: 4,
-			enableAdaptiveSizing: true,
-			enableTelemetry: true);
 		_bufferManager = bufferManager ?? new PooledBufferService(useShared: true, clearBuffersByDefault: true);
 
 		// Thread-local buffer writers to avoid contention
@@ -135,6 +131,14 @@ public sealed class DispatchJsonSerializer : IDisposable
 			trackAllValues: true);
 
 		Telemetry = new SerializerTelemetry();
+
+		// Create the timer-owning pool last: subsequent serializer initialization must not
+		// throw after this resource has been acquired without a reachable owner.
+		_writerPool = writerPool ?? (_ownedWriterPool = new Utf8JsonWriterPool(
+			maxPoolSize: 256,
+			threadLocalCacheSize: 4,
+			enableAdaptiveSizing: true,
+			enableTelemetry: true));
 	}
 
 	[RequiresDynamicCode("Reflection-based JSON configuration requires runtime code generation.")]
@@ -169,7 +173,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 						{
 							throw new InvalidOperationException(
 								"JSON type metadata is required when reflection-based serialization is unavailable. " +
-								"Configure a source-generated JsonSerializerContext with AddAotJsonSerialization or TypeInfoResolver.");
+								"Configure an explicit source-generated TypeInfoResolver on the options used by this serializer.");
 						}
 #pragma warning disable IL2026 // The null-resolver JIT fallback is enabled only when both dynamic code and JSON reflection are available.
 #pragma warning disable IL3050 // NativeAOT takes the configured metadata branch and cannot enter this fallback.
@@ -209,7 +213,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 	#region Internal Pooled Operations
 
 	/// <summary>
-	/// Serializes an object directly to a pooled buffer with zero allocations.
+	/// Serializes an object directly to a pooled buffer. Pool growth and result ownership may allocate.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public PooledSerializationResult SerializeToPooledBuffer<T>(T value)
@@ -242,7 +246,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 	}
 
 	/// <summary>
-	/// Serializes an object directly to a pooled buffer with zero allocations.
+	/// Serializes an object directly to a pooled buffer. Pool growth and result ownership may allocate.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public PooledSerializationResult SerializeToPooledBuffer(object? value, Type type)
@@ -519,24 +523,53 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// <summary>
 	/// Releases all resources used by the DispatchJsonSerializer.
 	/// </summary>
+	/// <remarks>
+	/// Call after serialization operations have completed. Only internally created writer pools
+	/// are disposed; supplied pools remain owned by their caller. Concurrent calls admit one
+	/// cleanup operation, but do not wait for another caller's cleanup to finish.
+	/// </remarks>
 	public void Dispose()
 	{
-		if (_disposed)
+		if (Interlocked.Exchange(ref _disposed, 1) != 0)
 		{
 			return;
 		}
 
-		_disposed = true;
+		List<Exception>? errors = null;
+		try
+		{
+			_ownedWriterPool?.Dispose();
+		}
+		catch (Exception exception)
+		{
+			(errors ??= []).Add(exception);
+		}
 
-		if (_threadLocalBufferWriter.IsValueCreated)
+		try
 		{
 			foreach (var bufferWriter in _threadLocalBufferWriter.Values)
 			{
 				bufferWriter?.Clear();
 			}
 		}
+		catch (Exception exception)
+		{
+			(errors ??= []).Add(exception);
+		}
 
-		_threadLocalBufferWriter.Dispose();
+		try
+		{
+			_threadLocalBufferWriter.Dispose();
+		}
+		catch (Exception exception)
+		{
+			(errors ??= []).Add(exception);
+		}
+
+		if (errors is not null)
+		{
+			throw new AggregateException("Serializer cleanup failed.", errors);
+		}
 	}
 
 	// Type names repeat on every message of a type, so interning them is worth a bounded map. The

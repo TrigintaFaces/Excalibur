@@ -13,7 +13,7 @@ namespace Excalibur.LeaderElection.Tests;
 /// <summary>
 /// Sprint 616 F.2: Tests for Leader Election critical fixes --
 /// UpdateHealthAsync CancellationToken (C.1), Redis ValidateOnStart (C.2),
-/// and Redis volatile _disposed guard (C.3).
+/// and Redis cross-thread disposal admission (C.3).
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Platform")]
@@ -136,23 +136,11 @@ public sealed class LeaderElectionCriticalFixesShould
 
 	#endregion
 
-	#region C.3: Redis _disposed Volatile Guard
+	#region C.3: Redis completed disposal admission
 
 	[Fact]
-	public void DeclareDisposedFieldAsVolatile()
-	{
-		// Arrange
-		var field = typeof(RedisLeaderElection)
-			.GetField("_disposed", BindingFlags.NonPublic | BindingFlags.Instance);
-
-		// Assert
-		field.ShouldNotBeNull("_disposed field must exist on RedisLeaderElection");
-		field.FieldType.ShouldBe(typeof(bool));
-
-		var requiredModifiers = field.GetRequiredCustomModifiers();
-		requiredModifiers.ShouldContain(typeof(System.Runtime.CompilerServices.IsVolatile),
-			"_disposed must be declared volatile for thread-safe visibility");
-	}
+	public Task RefuseSdkAdmissionFromOtherThreadsAfterCompletedDisposal() =>
+		Redis.RedisTenureProtocolShould.VerifyCompletedDisposalRefusesCrossThreadAdmissionAsync();
 
 	[Fact]
 	public async Task ThrowObjectDisposedExceptionOnStartAfterDispose()

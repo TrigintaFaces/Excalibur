@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
@@ -18,15 +18,25 @@ internal static class GooglePubSubMessageBodyCodec
 	/// indicates it was compressed via the dispatch-compression attribute.
 	/// </summary>
 	/// <param name="message">The Pub/Sub message to decode.</param>
+	/// <param name="maxDecompressedBytes">
+	/// The maximum decompressed length, in bytes, or <see langword="null"/> to opt out. There is no default:
+	/// every caller states its limit, so opting out is always a decision somebody wrote down.
+	/// </param>
 	/// <param name="decodedBody">The decoded body (decompressed if applicable).</param>
 	/// <param name="compressionAlgorithm">The algorithm used, if compression was detected.</param>
 	/// <returns>True if decompression was performed; otherwise false.</returns>
 	public static bool TryDecodeBody(
 			PubsubMessage message,
+			int? maxDecompressedBytes,
 			out ByteString decodedBody,
 			out TransportCompressionAlgorithm? compressionAlgorithm)
 	{
-		return TryDecodeBody(message, enableAutoDetection: false, out decodedBody, out compressionAlgorithm);
+		return TryDecodeBody(
+			message,
+			enableAutoDetection: false,
+			maxDecompressedBytes,
+			out decodedBody,
+			out compressionAlgorithm);
 	}
 
 	/// <summary>
@@ -39,12 +49,16 @@ internal static class GooglePubSubMessageBodyCodec
 	/// When true, attempts to detect Gzip/Deflate compression by examining magic bytes
 	/// even if the compression attribute is not present.
 	/// </param>
+	/// <param name="maxDecompressedBytes">
+	/// The maximum decompressed length, in bytes, or <see langword="null"/> to opt out.
+	/// </param>
 	/// <param name="decodedBody">The decoded body (decompressed if applicable).</param>
 	/// <param name="compressionAlgorithm">The algorithm used, if compression was detected.</param>
 	/// <returns>True if decompression was performed; otherwise false.</returns>
 	public static bool TryDecodeBody(
 			PubsubMessage message,
 			bool enableAutoDetection,
+			int? maxDecompressedBytes,
 			out ByteString decodedBody,
 			out TransportCompressionAlgorithm? compressionAlgorithm)
 	{
@@ -63,7 +77,7 @@ internal static class GooglePubSubMessageBodyCodec
 				algorithm != TransportCompressionAlgorithm.None)
 			{
 				decodedBody = ByteString.CopyFrom(
-						GooglePubSubCompression.Decompress(message.Data.Span, algorithm));
+						GooglePubSubCompression.Decompress(message.Data.Span, algorithm, maxDecompressedBytes));
 				compressionAlgorithm = algorithm;
 				return true;
 			}
@@ -77,9 +91,18 @@ internal static class GooglePubSubMessageBodyCodec
 				try
 				{
 					decodedBody = ByteString.CopyFrom(
-							GooglePubSubCompression.Decompress(message.Data.Span, detectedAlgorithm));
+							GooglePubSubCompression.Decompress(message.Data.Span, detectedAlgorithm, maxDecompressedBytes));
 					compressionAlgorithm = detectedAlgorithm;
 					return true;
+				}
+				catch (PayloadTooLargeException)
+				{
+					// A size refusal is not a false positive. The magic bytes matched, the payload really is
+					// compressed, and it declared or produced more than the limit allows — so swallowing it
+					// here and returning the still-compressed bytes would hand the deserializer a body that
+					// is not the message, with nothing recording that a limit fired. Rethrow so the refusal
+					// reaches the caller that set the limit.
+					throw;
 				}
 				catch
 				{

@@ -311,4 +311,103 @@ public sealed class EncryptingDecoratorCapabilityTransparencyShould
 			"A capable inner must resolve dead-lettering to a non-null capability. If this is null, the ResolveNull " +
 			"arm is vacuous: the decorator reports absence for everything, not for a genuinely absent capability.");
 	}
+
+	[Theory]
+	[InlineData(OutboxCompletionOutcome.Unknown)]
+	[InlineData(OutboxCompletionOutcome.Applied)]
+	[InlineData(OutboxCompletionOutcome.ClaimLost)]
+	[InlineData(OutboxCompletionOutcome.FenceRefused)]
+	[InlineData(OutboxCompletionOutcome.MessageNotFound)]
+	[InlineData(OutboxCompletionOutcome.AlreadyTerminal)]
+	public async Task ForwardTypedPlainSentWithoutChangingAuthorityOrOutcome(OutboxCompletionOutcome outcome)
+	{
+		var inner = HonestOutboxFake(b => b.Implements<IClaimScopedOutboxStore>());
+		using var cancellation = new CancellationTokenSource();
+		var token = cancellation.Token;
+		var capable = (IClaimScopedOutboxStore)inner;
+		A.CallTo(() => capable.MarkSentAsync("durable-id", "acquisition-id", token)).Returns(new ValueTask<OutboxCompletionOutcome>(outcome));
+		var decorator = CreateOutboxDecorator(inner);
+		var resolved = decorator.GetService(typeof(IClaimScopedOutboxStore)) as IClaimScopedOutboxStore;
+		resolved.ShouldNotBeNull();
+		resolved.ShouldBeSameAs(inner);
+		(await resolved.MarkSentAsync("durable-id", "acquisition-id", token).ConfigureAwait(false)).ShouldBe(outcome);
+		A.CallTo(() => capable.MarkSentAsync("durable-id", "acquisition-id", token)).MustHaveHappenedOnceExactly();
+	}
+
+	[Theory]
+	[InlineData(OutboxCompletionOutcome.Unknown)]
+	[InlineData(OutboxCompletionOutcome.Applied)]
+	[InlineData(OutboxCompletionOutcome.ClaimLost)]
+	[InlineData(OutboxCompletionOutcome.FenceRefused)]
+	[InlineData(OutboxCompletionOutcome.MessageNotFound)]
+	[InlineData(OutboxCompletionOutcome.AlreadyTerminal)]
+	public async Task ForwardTypedFencedSentWithoutChangingAuthorityOrOutcome(OutboxCompletionOutcome outcome)
+	{
+		var inner = HonestOutboxFake(b => b.Implements<IFencedClaimScopedOutboxStore>());
+		using var cancellation = new CancellationTokenSource();
+		var token = cancellation.Token;
+		var authority = new OutboxWriteAuthority(73, "acquisition-id");
+		var capable = (IFencedClaimScopedOutboxStore)inner;
+		A.CallTo(() => capable.MarkSentAsync("durable-id", authority, token)).Returns(new ValueTask<OutboxCompletionOutcome>(outcome));
+		var decorator = CreateOutboxDecorator(inner);
+		var resolved = decorator.GetService(typeof(IFencedClaimScopedOutboxStore)) as IFencedClaimScopedOutboxStore;
+		resolved.ShouldNotBeNull();
+		resolved.ShouldBeSameAs(inner);
+		(await resolved.MarkSentAsync("durable-id", authority, token).ConfigureAwait(false)).ShouldBe(outcome);
+		A.CallTo(() => capable.MarkSentAsync("durable-id", authority, token)).MustHaveHappenedOnceExactly();
+	}
+
+	[Theory]
+	[InlineData(OutboxCompletionOutcome.Unknown)]
+	[InlineData(OutboxCompletionOutcome.Applied)]
+	[InlineData(OutboxCompletionOutcome.ClaimLost)]
+	[InlineData(OutboxCompletionOutcome.FenceRefused)]
+	[InlineData(OutboxCompletionOutcome.MessageNotFound)]
+	[InlineData(OutboxCompletionOutcome.AlreadyTerminal)]
+	public async Task ForwardTypedPlainDeadLetterWithoutChangingAuthorityOrOutcome(OutboxCompletionOutcome outcome)
+	{
+		var inner = HonestOutboxFake(b => b.Implements<IClaimScopedDeadLetterableOutboxStore>());
+		using var cancellation = new CancellationTokenSource();
+		var token = cancellation.Token;
+		var capable = (IClaimScopedDeadLetterableOutboxStore)inner;
+		A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token)).Returns(new ValueTask<OutboxCompletionOutcome>(outcome));
+		var decorator = CreateOutboxDecorator(inner);
+		var resolved = decorator.GetService(typeof(IClaimScopedDeadLetterableOutboxStore)) as IClaimScopedDeadLetterableOutboxStore;
+		resolved.ShouldNotBeNull();
+		resolved.ShouldBeSameAs(inner);
+		(await resolved.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token).ConfigureAwait(false)).ShouldBe(outcome);
+		A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, "acquisition-id", token)).MustHaveHappenedOnceExactly();
+	}
+
+	[Theory]
+	[InlineData(OutboxCompletionOutcome.Unknown)]
+	[InlineData(OutboxCompletionOutcome.Applied)]
+	[InlineData(OutboxCompletionOutcome.ClaimLost)]
+	[InlineData(OutboxCompletionOutcome.FenceRefused)]
+	[InlineData(OutboxCompletionOutcome.MessageNotFound)]
+	[InlineData(OutboxCompletionOutcome.AlreadyTerminal)]
+	public async Task ForwardTypedFencedDeadLetterWithoutChangingAuthorityOrOutcome(OutboxCompletionOutcome outcome)
+	{
+		var inner = HonestOutboxFake(b => b.Implements<IFencedDeadLetterableOutboxStore>());
+		using var cancellation = new CancellationTokenSource();
+		var token = cancellation.Token;
+		var authority = new OutboxWriteAuthority(73, "acquisition-id");
+		var capable = (IFencedDeadLetterableOutboxStore)inner;
+		A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token)).Returns(new ValueTask<OutboxCompletionOutcome>(outcome));
+		var decorator = CreateOutboxDecorator(inner);
+		var resolved = decorator.GetService(typeof(IFencedDeadLetterableOutboxStore)) as IFencedDeadLetterableOutboxStore;
+		resolved.ShouldNotBeNull();
+		resolved.ShouldBeSameAs(inner);
+		(await resolved.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token).ConfigureAwait(false)).ShouldBe(outcome);
+		A.CallTo(() => capable.MarkDeadLetteredAsync("durable-id", "exhausted", 9, authority, token)).MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public void DoNotInventOptionalClaimDeadLetterCapabilityForAnIncapableInner()
+	{
+		var inner = HonestOutboxFake();
+		var decorator = CreateOutboxDecorator(inner);
+		decorator.GetService(typeof(IClaimScopedDeadLetterableOutboxStore)).ShouldBeNull();
+		decorator.GetService(typeof(IFencedDeadLetterableOutboxStore)).ShouldBeNull();
+	}
 }

@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
@@ -39,6 +39,11 @@ public sealed class InsertOutboxMessage : DataRequest<int>
 	/// <param name="outboxTableName">The name of the outbox table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public InsertOutboxMessage(
 		string messageId,
 		string messageType,
@@ -60,25 +65,26 @@ public sealed class InsertOutboxMessage : DataRequest<int>
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(messageBody);
+
 		// The tenant term is supplied by the caller and stamped into the row below, so the
 		// declaration and the INSERT agree. FromStoredValue (not Scoped) is total: it maps null,
 		// empty and the reserved sentinel alike onto the untenanted partition, which is this
 		// column's contract and keeps an untenanted stage from throwing.
 		var tenantPartition = KeyedTenantPartition.FromStoredValue(tenantId);
 
-		// ODP.NET binds positionally (this store does not set BindByName); parameters are added in the exact
-		// textual order their placeholders appear. correlation_id/causation_id/priority/scheduled_at plus the
+		// The static Oracle initializer explicitly binds by name, preserving the same input values. correlation_id/causation_id/priority/scheduled_at plus the
 		// routing fields (partition_key/group_key/sequence_number/target_transports/is_multi_transport) are
 		// dedicated columns (not folded into the metadata blob) so every consumer-supplied field survives the
 		// stage→reload round-trip. occurred_on binds the caller's created-at (:CreatedAt), NOT the server clock
 		// (SYSTIMESTAMP), so created-at aligns with SqlServer, which preserves it. is_multi_transport is a
-		// NUMBER(1) 0/1 flag (Oracle has no native boolean).
+		// persisted NUMBER(1) 0/1 flag.
 		var sql = $"""
 		   INSERT INTO {outboxTableName} (message_id, message_type, message_metadata, message_body, tenant_id, destination, correlation_id, causation_id, priority, scheduled_at, partition_key, group_key, sequence_number, target_transports, is_multi_transport, occurred_on, attempts, dispatcher_id, dispatcher_timeout)
 		           VALUES (:MessageId, :MessageType, :MessageMetadata, :MessageBody, :TenantId, :Destination, :CorrelationId, :CausationId, :Priority, :ScheduledAt, :PartitionKey, :GroupKey, :SequenceNumber, :TargetTransports, :IsMultiTransport, :CreatedAt, 0, NULL, NULL)
 		   """;
 
-		var parameters = new DynamicParameters();
+		var parameters = OracleOutboxBlobBinding.CreateParameters();
 		parameters.Add("MessageId", messageId, direction: ParameterDirection.Input);
 		parameters.Add("MessageType", messageType, direction: ParameterDirection.Input);
 		parameters.Add("MessageMetadata", messageMetadata, direction: ParameterDirection.Input);
@@ -102,6 +108,32 @@ public sealed class InsertOutboxMessage : DataRequest<int>
 		parameters.Add("CreatedAt", createdAt, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.ExecuteAsync(conn, Command, Bind).ConfigureAwait(false);
+	}
+
+	internal Task<int> ExecuteInTransactionAsync(IDbConnection connection, IDbTransaction transaction) =>
+		StaticDbCommand.ExecuteAsync(connection,
+			new CommandDefinition(Command.CommandText, Command.Parameters, transaction, Command.CommandTimeout,
+				Command.CommandType, Command.Flags, Command.CancellationToken), Bind);
+
+	private void Bind(System.Data.Common.DbCommand command)
+	{
+		OracleOutboxRowReader.Initialize(command);
+		StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+		StaticDbCommand.AddParameter(command, "MessageType", StaticDbCommand.Input<string>(Parameters, "MessageType"), DbType.String);
+		StaticDbCommand.AddParameter(command, "MessageMetadata", StaticDbCommand.Input<string>(Parameters, "MessageMetadata"), DbType.String);
+		OracleOutboxBlobBinding.AddMessageBody(command, StaticDbCommand.RequiredInput<byte[]>(Parameters, "MessageBody"));
+		StaticDbCommand.AddParameter(command, "TenantId", StaticDbCommand.Input<string>(Parameters, "TenantId"), DbType.String);
+		StaticDbCommand.AddNullableStringParameter(command, "Destination", StaticDbCommand.Input<string?>(Parameters, "Destination"));
+		StaticDbCommand.AddNullableStringParameter(command, "CorrelationId", StaticDbCommand.Input<string?>(Parameters, "CorrelationId"));
+		StaticDbCommand.AddNullableStringParameter(command, "CausationId", StaticDbCommand.Input<string?>(Parameters, "CausationId"));
+		StaticDbCommand.AddParameter(command, "Priority", StaticDbCommand.Input<int>(Parameters, "Priority"), DbType.Int32);
+		StaticDbCommand.AddParameter(command, "ScheduledAt", StaticDbCommand.Input<DateTimeOffset?>(Parameters, "ScheduledAt"), DbType.DateTimeOffset);
+		StaticDbCommand.AddNullableStringParameter(command, "PartitionKey", StaticDbCommand.Input<string?>(Parameters, "PartitionKey"));
+		StaticDbCommand.AddNullableStringParameter(command, "GroupKey", StaticDbCommand.Input<string?>(Parameters, "GroupKey"));
+		StaticDbCommand.AddParameter(command, "SequenceNumber", StaticDbCommand.Input<long>(Parameters, "SequenceNumber"), DbType.Int64);
+		StaticDbCommand.AddNullableStringParameter(command, "TargetTransports", StaticDbCommand.Input<string?>(Parameters, "TargetTransports"));
+		StaticDbCommand.AddParameter(command, "IsMultiTransport", StaticDbCommand.Input<int>(Parameters, "IsMultiTransport"), DbType.Int32);
+		StaticDbCommand.AddParameter(command, "CreatedAt", StaticDbCommand.Input<DateTimeOffset>(Parameters, "CreatedAt"), DbType.DateTimeOffset);
 	}
 }

@@ -25,7 +25,7 @@ public sealed class InMemoryLeaderElectionFactory(
 	IOptions<LeaderElectionOptions> options,
 	ILoggerFactory? loggerFactory = null,
 	InMemoryLeaderElectionSharedState? sharedState = null,
-	IFencingTokenProvider? fencingTokenProvider = null) : ILeaderElectionFactory
+	IFencingTokenIssuer? fencingTokenProvider = null) : ILeaderElectionFactory
 {
 	private readonly IOptions<LeaderElectionOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
 	private readonly InMemoryLeaderElectionSharedState _sharedState = sharedState ?? InMemoryLeaderElectionSharedState.Default;

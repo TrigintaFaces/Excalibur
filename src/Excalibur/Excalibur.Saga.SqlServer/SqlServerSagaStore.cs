@@ -32,7 +32,7 @@ namespace Excalibur.Saga.SqlServer;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
+public sealed partial class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly ILogger<SqlServerSagaStore> _logger;
@@ -75,6 +75,7 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 			serializer,
 			tenantContext)
 	{
+		_atomicTransitionStore = new SqlServerSagaAtomicTransitionStore(connectionString, tenantContext);
 	}
 
 	/// <summary>
@@ -101,6 +102,7 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 			serializer,
 			tenantContext)
 	{
+		_atomicTransitionStore = new SqlServerSagaAtomicTransitionStore(connectionString, tenantContext);
 	}
 
 	/// <summary>

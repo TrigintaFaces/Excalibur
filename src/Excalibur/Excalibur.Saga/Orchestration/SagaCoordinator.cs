@@ -9,7 +9,9 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch;
+using Excalibur.Data;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Resilience;
 
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Diagnostics;
@@ -22,6 +24,8 @@ using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
 using Polly.Timeout;
+
+using AtomicAttemptScope = Excalibur.Saga.Orchestration.SagaAtomicAttemptExecutor.AtomicAttemptScope;
 
 namespace Excalibur.Saga.Orchestration;
 
@@ -37,6 +41,10 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	: ISagaCoordinator, IDisposable
 {
 	private const int MaxCacheEntries = 1024;
+
+	private static readonly IMessageFailureClassifier DefaultFailureClassifier = new DefaultMessageFailureClassifier();
+	private readonly IMessageFailureClassifier _failureClassifier =
+		serviceProvider.GetService<IMessageFailureClassifier>() ?? DefaultFailureClassifier;
 
 	// Prefix on every replay key this coordinator writes, so a key written by this scheme can never be
 	// confused with one written by the superseded scheme. The superseded keys began with a
@@ -64,6 +72,8 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	// that absence has to become loud, because from here on the store is dereferenced. Hosts that run
 	// hosted services are already stopped at startup by the saga prerequisite validator; this covers the
 	// ones that resolve the coordinator without ever starting a host.
+    private readonly SagaOrdinaryTimerRecovery _ordinaryTimerRecovery = new(serviceProvider, sagaStore, logger);
+
 	private readonly ISagaStore _sagaStore = sagaStore ?? throw new InvalidOperationException(
 		"Sagas are configured but no ISagaStore is registered. Register a persistent saga store (for "
 		+ "example a provider's UseSqlServer(...) extension) or opt into the in-memory store via "
@@ -99,10 +109,14 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("This method uses reflection to invoke generic HandleEventAsyncInternal method with runtime types")]
 	[RequiresDynamicCode("This method uses MakeGenericMethod with runtime types")]
-	public async Task ProcessEventAsync(
-		IMessageContext messageContext,
-		ISagaEvent evt,
-		CancellationToken cancellationToken)
+	public Task ProcessEventAsync(IMessageContext messageContext, ISagaEvent evt, CancellationToken cancellationToken)
+		=> ProcessEventCoreAsync(messageContext, evt, manualTimeout: false, cancellationToken);
+
+
+	[RequiresUnreferencedCode("Runtime saga dispatch selects registered generic types reflectively.")]
+	[RequiresDynamicCode("Runtime saga dispatch constructs closed generic types.")]
+	private async Task ProcessEventCoreAsync(
+		IMessageContext messageContext, ISagaEvent evt, bool manualTimeout, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(messageContext);
 		ArgumentNullException.ThrowIfNull(evt);
@@ -110,6 +124,10 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		var sagaType = SagaRegistry.GetSagaTypeForEvent(evt.GetType());
 		if (sagaType is null)
 		{
+			if (manualTimeout || SagaTimeoutDeliveryMetadata.HasAny(messageContext))
+			{
+				throw new InvalidOperationException("Timeout admission requires an exact registered saga handler.");
+			}
 			LogNoSagaRegistered(evt.GetType().Name);
 
 			return;
@@ -118,6 +136,10 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		var sagaInfo = SagaRegistry.GetSagaInfo(sagaType);
 		if (sagaInfo is null)
 		{
+			if (manualTimeout || SagaTimeoutDeliveryMetadata.HasAny(messageContext))
+			{
+				throw new InvalidOperationException("Timeout admission requires exact saga routing metadata.");
+			}
 			LogNoSagaMetadata(sagaType.Name);
 
 			return;
@@ -129,12 +151,20 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		// and bounded retry around the actual saga dispatch. Resolution above (registry lookups) is not
 		// gated/retried — only the handler execution is.
 		await _concurrencyGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+		var previousAtomicAttempt = _atomicAttemptScope.Value;
 		try
 		{
+			var atomicPolicy = serviceProvider.GetService<SagaAtomicPreparationPolicy>();
+			if (manualTimeout && atomicPolicy is null)
+			{
+				throw new InvalidOperationException("Explicit manual timeout requires selected atomic preparation.");
+			}
+			_atomicAttemptScope.Value = atomicPolicy is null ? null : new AtomicAttemptScope { ManualTimeout = manualTimeout };
 			await RunWithTimeoutAndRetryAsync(DispatchCoreAsync, evt.GetType().Name, cancellationToken).ConfigureAwait(false);
 		}
 		finally
 		{
+			_atomicAttemptScope.Value = previousAtomicAttempt;
 			_ = _concurrencyGate.Release();
 		}
 
@@ -188,7 +218,8 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	/// <summary>
 	/// Executes the saga dispatch under the configured <see cref="SagaOptions.DefaultTimeout"/> and bounded
 	/// retry (<see cref="SagaOptions.MaxAttempts"/> / <see cref="SagaOptions.RetryDelay"/>). A per-attempt
-	/// timeout cancels a hung handler and is retried; caller-driven (ambient) cancellation is never retried.
+	/// timeout cancels a cooperative hung handler and is retried when the shared classifier permits it;
+	/// unknown, poison and permanent faults are not retried. Caller-driven cancellation is never retried.
 	/// </summary>
 	/// <exception cref="Polly.Timeout.TimeoutRejectedException">
 	/// Every attempt hit <see cref="SagaOptions.DefaultTimeout"/> and the retry budget is exhausted. Distinct
@@ -201,6 +232,7 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		CancellationToken cancellationToken)
 	{
 		var maxAttempts = Math.Max(1, _options.MaxAttempts);
+		var ownTimeoutFired = 0;
 
 		var builder = new ResiliencePipelineBuilder();
 
@@ -211,12 +243,29 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		// retrying it -- the same "caller-driven shutdown is not a retryable saga failure" distinction the
 		// prior explicit catch made, for free. A per-attempt TIMEOUT is a DIFFERENT exception
 		// (TimeoutRejectedException, not OperationCanceledException) precisely because it is tied to the
-		// Timeout strategy's own inner token, not the ambient one -- so it IS handled and retried below.
+		// Timeout strategy's own inner token, not the ambient one. Its actual OnTimeout event below
+		// provides typed transient evidence before applying the shared/custom classifier.
 		if (maxAttempts > 1)
 		{
 			_ = builder.AddRetry(new RetryStrategyOptions
 			{
-				ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+				ShouldHandle = args =>
+				{
+					var exception = args.Outcome.Exception;
+					if (exception is null || args.Context.CancellationToken.IsCancellationRequested)
+					{ return ValueTask.FromResult(false); }
+					// The framework's canonical version-conflict signal permits reload/retry.
+					// Other application conflicts still require their own classification.
+					if (exception is ConcurrencyException)
+					{ KnownTransientFailureEvidence.Record(exception); }
+					// Only this inner strategy's actual timeout event supplies timeout evidence.
+					// A handler-thrown TimeoutRejectedException alone stays unknown.
+					else if (exception is TimeoutRejectedException && Volatile.Read(ref ownTimeoutFired) != 0)
+					{ KnownTransientFailureEvidence.Record(exception); }
+					// Trusted default evidence never overrides an explicit custom classification.
+					return ValueTask.FromResult(_failureClassifier.Classify(exception)
+						is MessageFailureKind.Transient or MessageFailureKind.Uncertain);
+				},
 				MaxRetryAttempts = maxAttempts - 1,
 				Delay = _options.RetryDelay,
 				BackoffType = DelayBackoffType.Constant,
@@ -236,11 +285,23 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 
 		if (_options.DefaultTimeout > TimeSpan.Zero)
 		{
-			_ = builder.AddTimeout(new TimeoutStrategyOptions { Timeout = _options.DefaultTimeout });
+			_ = builder.AddTimeout(new TimeoutStrategyOptions
+			{
+				Timeout = _options.DefaultTimeout,
+				OnTimeout = _ =>
+				{
+					Volatile.Write(ref ownTimeoutFired, 1);
+					return default;
+				},
+			});
 		}
 
 		await builder.Build()
-			.ExecuteAsync(static (act, ct) => new ValueTask(act(ct)), action, cancellationToken)
+			.ExecuteAsync((act, ct) =>
+			{
+				Volatile.Write(ref ownTimeoutFired, 0);
+				return new ValueTask(act(ct));
+			}, action, cancellationToken)
 			.ConfigureAwait(false);
 	}
 
@@ -279,9 +340,30 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(sagaInfo);
 
+		if (serviceProvider.GetService<SagaAtomicPreparationPolicy>() is { } atomicPolicy)
+		{
+			await HandleAtomicEventRuntimeAsync<TSaga, TSagaState>(atomicPolicy,
+				messageContext, evt, sagaInfo, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
 		TSagaState? sagaState;
 
 		var isStartEvent = sagaInfo.IsStartEvent(evt.GetType());
+
+		// A DECLARED CORRELATION DECIDES THE IDENTIFIER; the one on the message is the fallback.
+		//
+		// That precedence is the point of declaring one. Honouring the message's identifier first would let
+		// a publisher that sets it out of habit create one saga per message while the correlation sat there
+		// looking configured, which is the exact failure correlation exists to prevent and is invisible
+		// until somebody counts instances. Nothing is lost: derivation is deterministic, so a correct
+		// explicit identifier is the same value the correlation produces.
+		//
+		// With nothing declared the registry returns false and this is Guid.Parse(evt.SagaId) -- the
+		// behaviour every saga had before correlation existed.
+		var sagaId = ResolveSagaId(typeof(TSaga), evt);
+
+
 
 		if (isStartEvent)
 		{
@@ -291,13 +373,12 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			// fresh state when no saga exists yet. Without this, a replayed start event news up a
 			// version-0 state that then collides on save with the already-persisted saga
 			// (ConcurrencyException: expected version 0, actual version 1).
-			var sagaId = Guid.Parse(evt.SagaId);
 			sagaState = await _sagaStore.LoadAsync<TSagaState>(sagaId, cancellationToken).ConfigureAwait(false)
 				?? new TSagaState { SagaId = sagaId };
 		}
 		else
 		{
-			sagaState = await _sagaStore.LoadAsync<TSagaState>(Guid.Parse(evt.SagaId), cancellationToken).ConfigureAwait(false);
+			sagaState = await _sagaStore.LoadAsync<TSagaState>(sagaId, cancellationToken).ConfigureAwait(false);
 			if (sagaState is null)
 			{
 				// Invoke the registered ISagaNotFoundHandler<TSaga> extension point.
@@ -319,6 +400,26 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			}
 		}
 
+        // Activate without invoking the handler so recovery uses the SAME constructor-selected store.
+        var saga = ActivatorUtilities.CreateInstance<TSaga>(serviceProvider, sagaState);
+        saga.TimeoutStore ??= serviceProvider.GetService<ISagaTimeoutStore>();
+        var timerRecovery = await _ordinaryTimerRecovery.PairAsync(sagaState, saga.TimeoutStore, cancellationToken).ConfigureAwait(false);
+        var recoveredTimerJournal = sagaState.PendingTimerRecovery is not null;
+        if (!await _ordinaryTimerRecovery.RecoverAsync(sagaState, timerRecovery, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+        // Recovery may rotate the first-incarnation receiver token and acknowledge the state.
+        // Pair again before handler/new intent capture, never rebase an already persisted journal.
+        if (recoveredTimerJournal)
+        {
+            timerRecovery = await _ordinaryTimerRecovery.PairAsync(sagaState, saga.TimeoutStore, cancellationToken).ConfigureAwait(false);
+        }
+        if (!await _ordinaryTimerRecovery.ValidateDeliveryAsync(messageContext, sagaState, timerRecovery, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
 		// A saga that was ALREADY completed before this event does not process further events
 		// (SagaState.Completed contract). Skip without re-persisting, which also avoids a spurious version
 		// bump/overwrite on a finished workflow. This is checked at load time, so the event that itself
@@ -329,10 +430,6 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			return;
 		}
 
-		var saga = ActivatorUtilities.CreateInstance<TSaga>(serviceProvider, sagaState);
-		// Timeout support is optional. Preserve a store supplied by the saga itself, otherwise use
-		// the registered store before the handler can schedule or cancel a timeout.
-		saga.TimeoutStore ??= serviceProvider.GetService<ISagaTimeoutStore>();
 
 		// Hand the saga the context it is handling under, so the commands and events it emits can be
 		// correlated as children of this one. Previously read from a flow-local static inside the saga.
@@ -408,15 +505,23 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		// The handler acted, so the event is now genuinely processed. Recorded here and persisted by
 		// the SaveAsync below, together with the state the handler produced. An undeduplicable delivery
 		// records nothing: a set entry it could not key correctly would guard the wrong deliveries.
-		if (eventId is not null)
-		{
-			_ = sagaState.TryMarkEventProcessed(eventId);
-		}
+        var dedupEntryEvicted = eventId is not null
+            && SagaDeduplicationDiagnostics.MarkProcessed(sagaState, eventId);
 
 		// Store-owns-increment (optimistic concurrency,): SagaState.Version is the loaded token; the
 		// store compares it and persists the bump (writing the new version back), throwing ConcurrencyException if
 		// another handler advanced the saga since we loaded it. No caller version arithmetic.
-		await _sagaStore.SaveAsync(sagaState, cancellationToken).ConfigureAwait(false);
+        if (!await _ordinaryTimerRecovery.SaveAndApplyAsync(sagaState, saga, timerRecovery, dedupEntryEvicted, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+		// Save-then-apply, and timers BEFORE messages. A timer row is durable state the saga's own
+		// committed state references; a dispatched message is an external effect that can come back as a
+		// new delivery. Applying a schedule after the dispatch would let a reply-driven cancel run against
+		// a row that does not exist yet -- the cancel finds nothing, and the schedule then lands as an
+		// orphan nothing can ever retire.
+		await saga.FlushPendingTimerIntentsAsync(cancellationToken).ConfigureAwait(false);
 
 		// Save-then-dispatch: the saga buffered the commands/events it emitted during HandleAsync;
 		// now that its state is durably persisted, flush them in emit order. A SaveAsync failure above throws
@@ -427,6 +532,36 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		{
 			LogSagaCompleted(evt.SagaId);
 		}
+	}
+
+	/// <summary>
+	/// Decides which saga instance a message belongs to: the declared correlation when there is one, the
+	/// identifier the message carries otherwise.
+	/// </summary>
+	/// <param name="sagaType">The saga type being routed to.</param>
+	/// <param name="evt">The incoming saga event.</param>
+	/// <returns>The saga identifier to load.</returns>
+	/// <exception cref="FormatException">
+	/// Thrown when no correlation is declared and the identifier on the message is not a GUID.
+	/// </exception>
+	/// <remarks>
+	/// The registry is resolved per call rather than cached in a field, matching how this coordinator
+	/// already reaches its other optional collaborators. It is a dictionary lookup over a singleton, so
+	/// the cost is a service resolution on a path that is about to do a store round trip.
+	/// </remarks>
+	private Guid ResolveSagaId(Type sagaType, ISagaEvent evt)
+	{
+		var registry = serviceProvider.GetService<ISagaCorrelationRegistry>();
+
+		if (registry is not null && registry.TryResolveSagaId(sagaType, evt, out var correlated))
+		{
+			return correlated;
+		}
+
+		// No correlation declared for this saga and message type. The identifier on the message is the
+		// only thing that can locate the instance, exactly as before correlation existed -- and a
+		// malformed one still throws here rather than being coerced into something loadable.
+		return Guid.Parse(evt.SagaId);
 	}
 
 	/// <summary>
@@ -502,7 +637,12 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	}
 
 	// Source-generated logging methods
-	[LoggerMessage(SagaEventId.SagaStepFailedStartingCompensation, LogLevel.Warning,
+	// A not-found continuation is NOT a compensation event. This carried
+	// SagaStepFailedStartingCompensation, so an operator alerting on the compensation identifier
+	// received not-found events instead, and one alerting on the not-found identifier never saw the
+	// coordinator's own fallback. The identifier below is the one the registered not-found handler
+	// already uses for the same occurrence.
+	[LoggerMessage(SagaEventId.SagaStateNotFound, LogLevel.Warning,
 		"Saga {SagaId} not found for event {EventType}.")]
 	private partial void LogSagaNotFound(string sagaId, string eventType);
 

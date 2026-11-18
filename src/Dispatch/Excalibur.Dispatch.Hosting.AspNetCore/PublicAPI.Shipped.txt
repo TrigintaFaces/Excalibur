@@ -15,15 +15,34 @@ Excalibur.Dispatch.Hosting.AspNetCore.ContentNegotiation.DispatchInputFormatter.
 Excalibur.Dispatch.Hosting.AspNetCore.ContentNegotiation.DispatchOutputFormatter
 Excalibur.Dispatch.Hosting.AspNetCore.ContentNegotiation.DispatchOutputFormatter.DispatchOutputFormatter(Excalibur.Dispatch.Serialization.ISerializerRegistry! registry) -> void
 Excalibur.Dispatch.Hosting.AspNetCore.ControllerBaseExtensions
+Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler
+Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler.GlobalExceptionHandler(Microsoft.Extensions.Hosting.IHostEnvironment! environment, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler!>! logger) -> void
+Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler.TryHandleAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext, System.Exception! exception, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions
+Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions.ProblemDetailsOptions() -> void
+Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions.StatusTypeBaseUrl.get -> string!
+Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions.StatusTypeBaseUrl.set -> void
+Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions.SupportedLocales.get -> System.Collections.Generic.HashSet<string!>!
 Excalibur.Dispatch.Hosting.AspNetCore.DispatcherWebExtensions
 Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions
 Excalibur.Dispatch.Hosting.AspNetCore.HttpContextExtensions
 Excalibur.Dispatch.Hosting.AspNetCore.MessageResultExtensions
+Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions
+Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions.AllowedHeaders.get -> System.Collections.Generic.ISet<string!>!
+Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions.MaxEntries.get -> int
+Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions.MaxEntries.set -> void
+Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions.MaxTotalLength.get -> int
+Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions.MaxTotalLength.set -> void
+Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions.MaxValueLength.get -> int
+Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions.MaxValueLength.set -> void
+Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions.RequestHeaderCaptureOptions() -> void
 Excalibur.Dispatch.Hosting.AspNetCore.RouteMessageHandlerFactory
 Microsoft.AspNetCore.Builder.WebApplicationBuilderExtensions
 Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreAuthorizationExtensions
 Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreScopeExtensions
 Microsoft.Extensions.DependencyInjection.DispatchContentNegotiationExtensions
+Microsoft.Extensions.DependencyInjection.DispatchExceptionServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.RequestHeaderCaptureServiceCollectionExtensions
 override Excalibur.Dispatch.Hosting.AspNetCore.ContentNegotiation.DispatchInputFormatter.ReadRequestBodyAsync(Microsoft.AspNetCore.Mvc.Formatters.InputFormatterContext! context) -> System.Threading.Tasks.Task<Microsoft.AspNetCore.Mvc.Formatters.InputFormatterResult!>!
 override Excalibur.Dispatch.Hosting.AspNetCore.ContentNegotiation.DispatchOutputFormatter.WriteResponseBodyAsync(Microsoft.AspNetCore.Mvc.Formatters.OutputFormatterWriteContext! context) -> System.Threading.Tasks.Task!
 static Excalibur.Dispatch.Hosting.AspNetCore.ControllerBaseExtensions.DispatchEventAsync<TEvent>(this Microsoft.AspNetCore.Mvc.ControllerBase! controller, System.Func<Microsoft.AspNetCore.Http.HttpContext!, TEvent!>! eventFactory, System.Threading.CancellationToken cancellationToken, System.Action<Excalibur.Dispatch.Messaging.MessageContext!>? customizeContext = null, System.Func<Microsoft.AspNetCore.Mvc.ControllerBase!, Excalibur.Dispatch.IMessageResult!, Microsoft.AspNetCore.Mvc.IActionResult!>? resultFactory = null) -> System.Threading.Tasks.Task<Microsoft.AspNetCore.Mvc.IActionResult!>!
@@ -42,6 +61,8 @@ static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.Disp
 static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.DispatchPostAction<TAction>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! route, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult!, Microsoft.AspNetCore.Http.IResult!>? responseHandler = null) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
 static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.DispatchPostAction<TRequest, TAction, TResponse>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! route, System.Func<TRequest!, Microsoft.AspNetCore.Http.HttpContext!, TAction!>! actionFactory, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult<TResponse>!, Microsoft.AspNetCore.Http.IResult!>? responseHandler = null) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
 static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.DispatchPostAction<TRequest, TAction>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! route, System.Func<TRequest!, Microsoft.AspNetCore.Http.HttpContext!, TAction!>! actionFactory, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult!, Microsoft.AspNetCore.Http.IResult!>? responseHandler = null) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
+static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.DispatchPostBodyAction<TAction, TResponse>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! route, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult<TResponse>!, Microsoft.AspNetCore.Http.IResult!>? responseHandler = null) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
+static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.DispatchPostBodyAction<TRequest, TAction, TResponse>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! route, System.Func<TRequest!, Microsoft.AspNetCore.Http.HttpContext!, TAction!>! actionFactory, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult<TResponse>!, Microsoft.AspNetCore.Http.IResult!>? responseHandler = null) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
 static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.DispatchPostEvent<TRequest, TEvent>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! route, System.Func<TRequest!, Microsoft.AspNetCore.Http.HttpContext!, TEvent!>! eventFactory, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult!, Microsoft.AspNetCore.Http.IResult!>? responseHandler = null) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
 static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.DispatchPutAction<TAction, TResponse>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! route, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult<TResponse>!, Microsoft.AspNetCore.Http.IResult!>? responseHandler = null) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
 static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.DispatchPutAction<TAction>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! route, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult!, Microsoft.AspNetCore.Http.IResult!>? responseHandler = null) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
@@ -74,17 +95,7 @@ static Microsoft.AspNetCore.Builder.WebApplicationBuilderExtensions.AddDispatch(
 static Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreAuthorizationExtensions.UseAspNetCoreAuthorization(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreScopeExtensions.AddDispatchAmbientScope(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchContentNegotiationExtensions.AddDispatchContentNegotiation(this Microsoft.Extensions.DependencyInjection.IMvcBuilder! builder) -> Microsoft.Extensions.DependencyInjection.IMvcBuilder!
-Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler
-Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler.GlobalExceptionHandler(Microsoft.Extensions.Hosting.IHostEnvironment! environment, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler!>! logger) -> void
-Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler.TryHandleAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext, System.Exception! exception, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
-Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions
-Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions.ProblemDetailsOptions() -> void
-Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions.StatusTypeBaseUrl.get -> string!
-Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions.StatusTypeBaseUrl.set -> void
-Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions.SupportedLocales.get -> System.Collections.Generic.HashSet<string!>!
-Microsoft.Extensions.DependencyInjection.DispatchExceptionServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.DispatchExceptionServiceCollectionExtensions.AddDispatchExceptionHandler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-virtual Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler.GetValidationErrors(System.Exception! exception) -> System.Collections.Generic.IDictionary<string!, string![]!>?
+static Microsoft.Extensions.DependencyInjection.RequestHeaderCaptureServiceCollectionExtensions.AddDispatchRequestHeaderCapture(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.AspNetCore.RequestHeaderCaptureOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler.FormatDiagnosticStack(System.Exception! exception) -> string!
-static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.DispatchPostBodyAction<TAction, TResponse>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! route, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult<TResponse>!, Microsoft.AspNetCore.Http.IResult!>? responseHandler = null) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
-static Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions.DispatchPostBodyAction<TRequest, TAction, TResponse>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! route, System.Func<TRequest!, Microsoft.AspNetCore.Http.HttpContext!, TAction!>! actionFactory, System.Func<Microsoft.AspNetCore.Http.HttpContext!, Excalibur.Dispatch.IMessageResult<TResponse>!, Microsoft.AspNetCore.Http.IResult!>? responseHandler = null) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
+virtual Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler.GetValidationErrors(System.Exception! exception) -> System.Collections.Generic.IDictionary<string!, string![]!>?

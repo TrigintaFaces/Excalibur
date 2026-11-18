@@ -51,7 +51,7 @@ public sealed class RedisLeaderElectionRenewerLivenessShould : IClassFixture<Red
 			InstanceId = "candidate-A",
 			LeaseDuration = TimeSpan.FromSeconds(2),  // short: a non-renewing leader's key would expire here
 			RenewInterval = TimeSpan.FromMilliseconds(500),
-			GracePeriod = TimeSpan.FromSeconds(1),
+			GracePeriod = TimeSpan.FromMilliseconds(250), // 500ms renew + 250ms grace + 1s reserved margin < 2s lease
 		});
 
 		await using var election = new RedisLeaderElection(

@@ -55,7 +55,7 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		// in lockstep or every subsequent bind shifts. Emitting and binding it always removes that coupling.
 		var partition = KeyedTenantPartition.FromScope(scope);
 		const string tenantPredicate = " AND TenantId = :TenantId";
-		var sql = $"SELECT StateJson, IsCompleted, Version FROM {qualifiedTableName} WHERE SagaId = :SagaId AND SagaType = :SagaType{tenantPredicate}";
+		var sql = $"SELECT StateJson, IsCompleted, Version, TimerRecoveryIncarnation, TimerRecoveryPendingBatch, TimerRecoveryPendingDigest FROM {qualifiedTableName} WHERE SagaId = :SagaId AND SagaType = :SagaType{tenantPredicate}";
 
 		var dp = new DynamicParameters();
 		// ODP.NET has no native Guid bind type; bind the 16 canonical bytes as RAW(16), symmetric with
@@ -78,6 +78,10 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 			{
 				// The column is authoritative for concurrency, independent of any Version embedded in the JSON blob.
 				state.Version = (long)row.Version;
+                state.TimerRecoveryIncarnationId = row.TimerRecoveryIncarnation is { } incarnation ? Guid.ParseExact(incarnation.TrimEnd(), "N") : Guid.Empty;
+                if (state.PendingTimerRecovery?.BatchId.ToString("N") != row.TimerRecoveryPendingBatch?.TrimEnd()
+                    || (state.PendingTimerRecovery is { } pending ? Convert.ToHexString(pending.GetAuthorityDigest()) : null) != row.TimerRecoveryPendingDigest?.TrimEnd())
+                { throw new InvalidOperationException("The selected saga serializer cannot restore the persisted ordinary timer journal."); }
 			}
 
 			return state;
@@ -104,5 +108,10 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		public decimal IsCompleted { get; set; }
 
 		public decimal Version { get; set; }
+        public string? TimerRecoveryIncarnation { get; set; }
+
+        public string? TimerRecoveryPendingBatch { get; set; }
+        public string? TimerRecoveryPendingDigest { get; set; }
+
 	}
 }

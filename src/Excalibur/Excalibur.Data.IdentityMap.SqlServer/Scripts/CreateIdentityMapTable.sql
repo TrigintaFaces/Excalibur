@@ -26,11 +26,11 @@
 -- The clustered key is deliberately NOT unique: one external identity may map to more than one
 -- aggregate type, which is the whole point of carrying AggregateType in the primary key.
 
--- ddl-migration: provisioning-only IdentityMap - the key width fix cannot be applied in place.
--- Converting a CLUSTERED primary key to NONCLUSTERED means dropping it, and dropping it removes the
--- only uniqueness guarantee the table has while rows are still being written through it. No upgrade
--- script ships for that reason; a database provisioned before the fix is dropped and recreated. What
--- this script will NOT do is report success on one -- see the shape check below.
+-- ddl-migration: provisioning-only IdentityMap - the deliberate pre-RC support policy requires fresh provisioning or reprovisioning.
+-- This pre-RC package supports the corrected fresh schema, not an in-place upgrade from an earlier
+-- prerelease shape. No upgrade script ships under that policy; a database provisioned before the fix
+-- is dropped and recreated. This is a support-policy choice, not a claim that an in-place key change
+-- is impossible. This script will not report success on the old shape -- see the check below.
 
 -- SHAPE CHECK
 -- -----------
@@ -46,7 +46,7 @@ IF OBJECT_ID(N'dbo.IdentityMap', N'U') IS NOT NULL
                  AND type_desc = N'CLUSTERED')
 BEGIN
     RAISERROR(
-        N'[dbo].[IdentityMap] already exists with PK_IdentityMap declared CLUSTERED. Required: PK_IdentityMap NONCLUSTERED over (ExternalSystem, ExternalId, AggregateType), with a CLUSTERED index CIX_IdentityMap_External over (ExternalSystem, ExternalId). A CLUSTERED key over the full triple is 1280 bytes, past SQL Server''s 900-byte clustered limit, so the table refuses any mapping whose three identifiers together exceed ~450 characters with Msg 1946. No upgrade script ships for this: changing the key means dropping the only uniqueness guarantee on the table. Drop [dbo].[IdentityMap] and re-run this script. Mappings are a cache of external identity, rebuildable from the source system; if yours are not, copy the rows out first and insert them back after.',
+        N'[dbo].[IdentityMap] already exists with PK_IdentityMap declared CLUSTERED. Required: PK_IdentityMap NONCLUSTERED over (ExternalSystem, ExternalId, AggregateType), with a CLUSTERED index CIX_IdentityMap_External over (ExternalSystem, ExternalId). A CLUSTERED key over the full triple is 1280 bytes, past SQL Server''s 900-byte clustered limit, so the table refuses any mapping whose three identifiers together exceed ~450 characters with Msg 1946. The deliberate pre-RC support policy requires fresh provisioning or reprovisioning; no in-place upgrade script ships. Drop [dbo].[IdentityMap] and re-run this script. Mappings are a cache of external identity, rebuildable from the source system; if yours are not, copy the rows out first and insert them back after.',
         16, 1);
 END
 GO

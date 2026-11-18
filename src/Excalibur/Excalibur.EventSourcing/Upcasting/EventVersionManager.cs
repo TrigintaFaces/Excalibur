@@ -8,6 +8,7 @@ using System.Text;
 
 using Microsoft.Extensions.Logging;
 
+using Excalibur.Dispatch.Versioning;
 namespace Excalibur.EventSourcing.Upcasting;
 
 /// <summary>
@@ -34,9 +35,9 @@ public partial class EventVersionManager
 	// Copy-on-write: the value is an immutable snapshot replaced (never mutated in place) under
 	// _registrationLock, so read paths (UpgradeEvent/FindUpgradePath/GetUpgradersForEventType) enumerate a
 	// stable list without a lock even if a registration races a read.
-	private readonly ConcurrentDictionary<string, IReadOnlyList<IEventUpgrader>> _upgraders = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<string, IReadOnlyList<RegisteredUpgrader>> _upgraders = new(StringComparer.Ordinal);
 
-	private readonly UpgradePathResolver<IEventUpgrader> _paths =
+	private readonly UpgradePathResolver<RegisteredUpgrader> _paths =
 		new(static u => u.FromVersion, static u => u.ToVersion);
 	private readonly Lock _registrationLock = new();
 	private readonly ILogger<EventVersionManager> _logger;
@@ -57,15 +58,21 @@ public partial class EventVersionManager
 	/// <param name="upgrader">The upgrader to register.</param>
 	/// <exception cref="ArgumentNullException">Thrown when upgrader is null.</exception>
 	/// <exception cref="InvalidOperationException">Thrown when an upgrader for the same event type and version range already exists.</exception>
+	/// <remarks>Type and version metadata is captured once at registration. Later changes to consumer
+	/// getters do not remap an existing registration. The original upgrader performs the transformation.</remarks>
 	public void RegisterUpgrader(IEventUpgrader upgrader)
 	{
 		ArgumentNullException.ThrowIfNull(upgrader);
 
-		if (upgrader.FromVersion >= upgrader.ToVersion)
+		var type = upgrader.EventType;
+		var fromVersion = upgrader.FromVersion;
+		var toVersion = upgrader.ToVersion;
+
+		if (fromVersion >= toVersion)
 		{
 			throw new ArgumentException(
-				$"Invalid upgrader: FromVersion ({upgrader.FromVersion}) must be less than ToVersion " +
-				$"({upgrader.ToVersion}). Only forward upgrading is supported.",
+				$"Invalid upgrader: FromVersion ({fromVersion}) must be less than ToVersion " +
+				$"({toVersion}). Only forward upgrading is supported.",
 				nameof(upgrader));
 		}
 
@@ -75,11 +82,11 @@ public partial class EventVersionManager
 		// RegisterUpgrader is a startup-time call, so contention is negligible.
 		lock (_registrationLock)
 		{
-			var existing = _upgraders.TryGetValue(upgrader.EventType, out var current) ? current : [];
+			var existing = _upgraders.TryGetValue(type, out var current) ? current : [];
 
 			// Check for conflicts
 			var existingUpgrader = existing.FirstOrDefault(u =>
-				u.FromVersion == upgrader.FromVersion && u.ToVersion == upgrader.ToVersion);
+				u.FromVersion == fromVersion && u.ToVersion == toVersion);
 
 			if (existingUpgrader is not null)
 			{
@@ -87,18 +94,18 @@ public partial class EventVersionManager
 						string.Format(
 								CultureInfo.CurrentCulture,
 								UpgraderAlreadyExistsFormat,
-								upgrader.EventType,
-								upgrader.FromVersion,
-								upgrader.ToVersion));
+								type,
+								fromVersion,
+								toVersion));
 			}
 
 			// Replace with a fresh immutable snapshot rather than mutating the list a reader may be
 			// enumerating (copy-on-write).
-			_upgraders[upgrader.EventType] = [.. existing, upgrader];
+			_upgraders[type] = [.. existing, new RegisteredUpgrader(upgrader, fromVersion, toVersion)];
 			_paths.Invalidate();
 		}
 
-		LogUpgraderRegistered(upgrader.EventType, upgrader.FromVersion, upgrader.ToVersion);
+		LogUpgraderRegistered(type, fromVersion, toVersion);
 	}
 
 	/// <summary>
@@ -155,7 +162,7 @@ public partial class EventVersionManager
 		foreach (var upgrader in upgradePath)
 		{
 			LogEventUpgrading(eventType, upgrader.FromVersion, upgrader.ToVersion);
-			currentEvent = upgrader.Upgrade(currentEvent);
+			currentEvent = upgrader.Upgrader.Upgrade(currentEvent);
 		}
 
 		return currentEvent;
@@ -174,7 +181,9 @@ public partial class EventVersionManager
 	/// <returns>A collection of upgraders for the event type.</returns>
 	public IEnumerable<IEventUpgrader> GetUpgradersForEventType(string eventType) =>
 		_upgraders.TryGetValue(eventType, out var upgraders)
-			? upgraders
+			? upgraders.Select(static registration => registration.Upgrader)
 			: [];
+
+	private sealed record RegisteredUpgrader(IEventUpgrader Upgrader, int FromVersion, int ToVersion);
 
 }

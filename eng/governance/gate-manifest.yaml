@@ -298,13 +298,21 @@ gates:
     published: true
     has_test: false
     has_lock: false
+  - path: "eng/ci/verify-sbom-binding.py"
+    kind: gate
+    kind_proxy: gate
+    kind_evidence: "kind DERIVED by reading it, not inferred from its name: it renders a verdict on the release -- prints SBOM-BINDING-PASS only after every attestation check succeeds, and raises Refusal (non-zero) on an invalid repo/SHA/run, a non-CycloneDX document, an empty package set, or a package population that changed mid-verification. A reporter would hand back findings; this one decides whether the release may proceed."
+    runs_in: ci
+    published: true
+    has_test: false
+    has_lock: false
   - path: "eng/ci/pre-release-gates.py"
     kind: reporter
     kind_proxy: reporter
-    kind_evidence: "runs other gates and reports their verdicts; enforces nothing of its own"
-    runs_in: nowhere
+    kind_evidence: "default inventory reporter; reviewed local execution reports selected gates; CI runs isolated mechanism self-tests only, not real release gates"
+    runs_in: ci
     published: true
-    has_test: false
+    has_test: true
     has_lock: false
   - path: "eng/ci/gate-manifest-gate.py"
     kind: gate

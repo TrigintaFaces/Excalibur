@@ -24,6 +24,11 @@ internal sealed class GetOutboxStatistics : DataRequest<OutboxStatistics>
 	/// <param name="deadLetterTableName"> The qualified dead letter table name. </param>
 	/// <param name="sqlTimeOutSeconds"> The SQL command timeout in seconds. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public GetOutboxStatistics(
 		string outboxTableName,
 		string deadLetterTableName,
@@ -46,7 +51,10 @@ internal sealed class GetOutboxStatistics : DataRequest<OutboxStatistics>
 
 		ResolveAsync = async conn =>
 		{
-			var result = await conn.QuerySingleAsync<OutboxStatisticsRow>(Command).ConfigureAwait(false);
+			var result = await StaticDbCommand.SingleAsync(conn, Command, command =>
+			{
+
+			}, static reader => new OutboxStatisticsRow { TotalPending = StaticDbValue.Int32(reader, 0), TotalReserved = StaticDbValue.Int32(reader, 1), TotalMessages = StaticDbValue.Int32(reader, 2), TotalFailed = StaticDbValue.Int32(reader, 3), OldestPendingAgeSeconds = reader.IsDBNull(4) ? null : Convert.ToDouble(reader.GetValue(4), System.Globalization.CultureInfo.InvariantCulture) }).ConfigureAwait(false);
 
 			return new OutboxStatistics
 			{

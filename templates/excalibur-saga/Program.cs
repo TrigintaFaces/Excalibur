@@ -45,6 +45,8 @@ builder.Services.AddDispatch(dispatch =>
 #endif
 });
 
+// This remains ordinary save-then-dispatch. For the explicit primary SQL atomic profile,
+// see PRIMARY-SQL-ATOMIC.md; selecting a SQL saga store alone does not enable it.
 builder.Services.AddExcalibur(excalibur => excalibur
     .AddSagas(saga =>
     {

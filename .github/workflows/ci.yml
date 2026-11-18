@@ -27,6 +27,16 @@ on:
     branches: [main, develop]
   workflow_dispatch:
     inputs:
+      release_version:
+        description: 'Optional explicit release-validation version; blank keeps the strict profile'
+        required: false
+        default: ''
+        type: string
+      run_keyvault_cloud_checks:
+        description: 'Keep the full credentialed Key Vault profile even for the alpha.22 release scope'
+        required: false
+        default: false
+        type: boolean
       run_performance_tests:
         description: 'Run performance regression tests'
         required: false
@@ -432,6 +442,7 @@ jobs:
         with:
           telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/TestsOnly.slnf
+          minimum-executed-tests: '1'
           test-filter: "Priority=0"
           results-prefix: smoke-tests
           quarantine-mode: None
@@ -526,6 +537,7 @@ jobs:
         with:
           telemetry-matrix: ${{ toJSON(matrix) }}
           solution-filter: ${{ matrix.shard.filter }}
+          minimum-executed-tests: '1'
           collect-coverage: 'true'
           results-prefix: unit-tests-${{ matrix.shard.name }}
           free-disk-space: 'true'
@@ -600,6 +612,7 @@ jobs:
         with:
           telemetry-matrix: ${{ toJSON(matrix) }}
           solution-filter: ${{ matrix.shard.filter }}
+          minimum-executed-tests: '1'
           collect-coverage: 'true'
           results-prefix: unit-tests-async-risk-${{ matrix.shard.name }}
 
@@ -722,6 +735,7 @@ jobs:
         with:
           telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/UnitTests-Deterministic.slnf
+          minimum-executed-tests: '1'
           collect-coverage: 'false'
           results-prefix: unit-tests-windows-deterministic
           test-session-timeout: '1500000'
@@ -793,6 +807,7 @@ jobs:
         with:
           telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/UnitTests-AsyncRisk.slnf
+          minimum-executed-tests: '1'
           collect-coverage: 'false'
           results-prefix: unit-tests-windows-async-risk
           max-cpu-count: '1'
@@ -830,6 +845,7 @@ jobs:
         with:
           telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/UnitTests-Deterministic.slnf
+          minimum-executed-tests: '1'
           collect-coverage: 'false'
           results-prefix: unit-tests-macos-deterministic
           test-session-timeout: '1500000'
@@ -862,6 +878,7 @@ jobs:
         with:
           telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/UnitTests-AsyncRisk.slnf
+          minimum-executed-tests: '1'
           collect-coverage: 'false'
           results-prefix: unit-tests-macos-async-risk
           max-cpu-count: '1'
@@ -991,8 +1008,24 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve optional release-validation scope
+        id: release_scope
+        shell: bash
+        env:
+          DISPATCH_VERSION: ${{ inputs.release_version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -n "$DISPATCH_VERSION" ]; then
+            bash eng/ci/resolve-release-version.sh official
+          else
+            printf 'version=\nprerelease=false\n' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Compose integration test filter
         shell: pwsh
+        env:
+          RELEASE_VALIDATION_VERSION: ${{ steps.release_scope.outputs.version }}
+          RELEASE_VALIDATION_SOURCE: ${{ matrix.shard.filter }}
+          INCLUDE_KEYVAULT_CLOUD_CHECKS: ${{ inputs.run_keyvault_cloud_checks }}
         run: |
           # COSMOS RUNS NIGHTLY, NOT PER-PR. Read this before restoring it here.
           #
@@ -1019,7 +1052,13 @@ jobs:
           # thirteen tests that need no emulator and could have kept running here for free. The
           # Infrastructure trait set is verified identical to the census's behaviour set — the classes
           # that actually construct a Cosmos fixture.
-          $filterInfo = ./eng/ci/get-integration-test-filter.ps1 -Leg '${{ matrix.shard.leg }}' | ConvertFrom-Json
+          ./eng/ci/get-integration-test-filter.test.ps1
+          $filterInfo = ./eng/ci/get-integration-test-filter.ps1 -Leg '${{ matrix.shard.leg }}' `
+            -ReleaseVersion $env:RELEASE_VALIDATION_VERSION -SolutionFilter $env:RELEASE_VALIDATION_SOURCE `
+            -IncludeDeferredCloudChecks:($env:INCLUDE_KEYVAULT_CLOUD_CHECKS -eq 'true') | ConvertFrom-Json
+          New-Item -ItemType Directory -Force TestResults | Out-Null
+          $filterInfo | ConvertTo-Json -Depth 8 | Set-Content TestResults/integration-release-scope.json
+          Write-Host "Release scope: $($filterInfo.releaseVersion); disposition=$($filterInfo.disposition); planned deferred UNVERIFIED=$($filterInfo.plannedDeferredCount) (not executed or passed)."
           "INTEGRATION_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
           Write-Host "Using integration filter with $($filterInfo.count) quarantined exclusions."
 
@@ -1378,7 +1417,8 @@ jobs:
           # entry covering the whole admitted population satisfies both at once. The console
           # summary gate upstream used to supply `executed > 0`; it no longer runs on this path,
           # so the property moves here WITH the verdict instead of leaving with the wrapper.
-          if ($totalExecuted -le 0) {
+          $minimumExecutedTests = 1 # lane-defined executed count; capability/skipped cases do not count
+          if ($totalExecuted -lt $minimumExecutedTests) {
             Write-Error "REFUSE -- 0 tests executed. A run in which every admitted test was skipped is not a pass, however well each skip is declared or approved. Reducing the denominator to what you expect to skip is what encodes a suppression into the success criterion."
             exit 3
           }
@@ -1448,6 +1488,7 @@ jobs:
           path: |
             TestResults/**/*.trx
             TestResults/*.required/**
+            TestResults/integration-release-scope.json
           retention-days: 30
 
       - name: Upload code coverage
@@ -1491,7 +1532,7 @@ jobs:
 
       - name: Run Functional Tests
         run: |
-          bash eng/ci/run-filtered-tests.sh \
+          bash eng/ci/run-filtered-tests.sh --minimum-executed-tests 1 \
             --filter "${{ env.FUNCTIONAL_TEST_FILTER }}" -- \
             eng/ci/shards/TestsOnly.slnf \
             --configuration Release \
@@ -1739,7 +1780,7 @@ jobs:
       - name: Run quarantined tests
         if: env.FLAKY_TEST_COUNT != '0'
         run: |
-          bash eng/ci/run-filtered-tests.sh \
+          bash eng/ci/run-filtered-tests.sh --minimum-executed-tests 1 \
             --filter "${{ env.FLAKY_TEST_FILTER }}" -- \
             eng/ci/shards/TestsOnly.slnf \
             --configuration Release \
@@ -1886,7 +1927,7 @@ jobs:
             -p:SuppressTrimAnalysisWarnings=false -p:TrimmerSingleWarn=false `
             2>&1 | Tee-Object artifacts/inline-native-aot/publish.log
           $publishExit = $LASTEXITCODE
-          python eng/ci/inline-native-aot-verdict.py --exit-code $publishExit `
+          python eng/ci/inline-native-aot-verdict.py --minimum-executed-tests 2 --exit-code $publishExit `
             --log artifacts/inline-native-aot/publish.log `
             --assets tests/harnesses/SqlElasticInlineAotProbe/obj/project.assets.json `
             --properties artifacts/inline-native-aot/properties.json `
@@ -2651,7 +2692,7 @@ jobs:
           echo "| Serialization Policy | ${{ needs.serialization-policy.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Sample Validation (T3.4) | ${{ needs.sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| AOT Sample Validation | ${{ needs.aot-sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| SQL Elasticsearch Inline AOT diagnostic policy (accepted upstream limitation; not certification) | ${{ needs.inline-native-aot.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SQL Elasticsearch Inline AOT strict publication required (runtime certification separate) | ${{ needs.inline-native-aot.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Documentation Verification (T5.4) | ${{ needs.documentation-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Performance Gates | ${{ needs.call-performance.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

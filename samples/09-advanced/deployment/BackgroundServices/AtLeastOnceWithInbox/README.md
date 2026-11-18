@@ -6,7 +6,7 @@ This example demonstrates the **AtLeastOnce** delivery guarantee with inbox-base
 
 - **DeliveryGuarantee**: `AtLeastOnce` (default)
 - **Behavior**: Messages are marked as sent after the entire batch is published
-- **Throughput**: Highest (1 DB round-trip per batch)
+- **Throughput**: Workload-dependent; compare completed processing and database work using the same provider, batch size and recovery requirements.
 - **Failure Window**: Entire batch may be redelivered on crash
 
 ## When to Use
@@ -14,7 +14,7 @@ This example demonstrates the **AtLeastOnce** delivery guarantee with inbox-base
 Choose AtLeastOnce when:
 - Your handlers are **idempotent** (safe to process multiple times)
 - You have **inbox deduplication** to filter duplicates
-- **Throughput** is more important than minimizing duplicates
+- Processing accepts possible batch redelivery and preserves required idempotency and deduplication behavior
 
 ## Configuration
 

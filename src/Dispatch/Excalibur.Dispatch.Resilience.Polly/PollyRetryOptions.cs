@@ -41,8 +41,8 @@ public sealed class PollyRetryOptions
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// When this is <see langword="null"/>, exceptions other than cancellation and the framework exclusions
-	/// below are retried, matching Polly's default cancellation behavior.
+	/// When this is <see langword="null"/>, only recognized transient failures and uncertain delivery acceptance are retried,
+	/// excluding cancellation and the framework exclusions below. Unknown faults are propagated.
 	/// </para>
 	/// <para>
 	/// An explicit predicate may select attempt-local cancellation when the caller remains active.
@@ -58,7 +58,7 @@ public sealed class PollyRetryOptions
 	/// </remarks>
 	/// <value>
 	/// A predicate returning <see langword="true"/> for exceptions that may be retried, or
-	/// <see langword="null"/> to use the default exclusion of cancellation and tenant-isolation failures.
+	/// <see langword="null"/> to use the default recognized-transient/uncertain policy with cancellation and tenant-isolation exclusions.
 	/// </value>
 	public Func<Exception, bool>? ShouldRetry { get; set; }
 

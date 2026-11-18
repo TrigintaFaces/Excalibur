@@ -101,7 +101,7 @@ public sealed class ExplicitDeadLetterQueueCompositionShould
             ? new InboxProcessor(Options.Create(new InboxOptions()), A.Fake<IInboxStore>(), provider,
                 new DispatchJsonSerializer(), new CapturingLogger<InboxProcessor>(messages),
                 PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: NullDeadLetterQueue.Instance)
-            : new OutboxProcessor(Options.Create(DeliveryOutboxOptions.Balanced()), A.Fake<IOutboxStore>(),
+            : new OutboxProcessor(Options.Create(DeliveryOutboxOptions.Balanced()), WorkerStore(),
                 new DispatchJsonSerializer(), provider, new CapturingLogger<OutboxProcessor>(messages),
                 PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: NullDeadLetterQueue.Instance);
         var warning = messages.Single(message => message.Contains("NullDeadLetterQueue", StringComparison.Ordinal));
@@ -110,11 +110,41 @@ public sealed class ExplicitDeadLetterQueueCompositionShould
         warning.ShouldNotContain("No IDeadLetterQueue registered");
     }
 
+    [Fact]
+    public async Task RejectAStandaloneClaimTerminalRegistrationWhenTheOwningWorkerStoreWithholdsIt()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var store = A.Fake<IOutboxStore>(options => options.Implements<IClaimScopedOutboxStore>());
+        A.CallTo(() => store.GetService(A<Type>._)).ReturnsLazily((Type type) =>
+            type == typeof(IClaimScopedOutboxStore) ? store : null);
+        services.AddSingleton(store);
+        var standalone = A.Fake<IClaimScopedDeadLetterableOutboxStore>();
+        services.AddSingleton(standalone);
+        services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
+        RegisterSubsystem(services, inbox: false);
+        await using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<IClaimScopedDeadLetterableOutboxStore>().ShouldBeSameAs(standalone);
+        var error = Should.Throw<InvalidOperationException>(() => Resolve(provider, inbox: false));
+        error.Message.ShouldContain(nameof(IClaimScopedDeadLetterableOutboxStore));
+        A.CallTo(() => standalone.MarkDeadLetteredAsync(A<string>._, A<string>._, A<int>._, A<string>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+    }
+
+    private static IOutboxStore WorkerStore()
+    {
+        var store = A.Fake<IOutboxStore>(b => b.Implements<IClaimScopedOutboxStore>()
+            .Implements<IClaimScopedDeadLetterableOutboxStore>());
+        A.CallTo(() => store.GetService(A<Type>._))
+            .ReturnsLazily((Type capability) => capability.IsInstanceOfType(store) ? store : null);
+        return store;
+    }
+
     private static ServiceCollection CreateServices(bool inbox)
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(A.Fake<IOutboxStore>());
+        services.AddSingleton(WorkerStore());
         services.AddSingleton(A.Fake<IInboxStore>());
         services.AddSingleton(Options.Create(new InboxOptions()));
         RegisterSubsystem(services, inbox);

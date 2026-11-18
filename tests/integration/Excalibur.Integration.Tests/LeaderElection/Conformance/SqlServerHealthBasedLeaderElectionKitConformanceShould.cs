@@ -110,10 +110,9 @@ public sealed class SqlServerHealthBasedLeaderElectionKitConformanceShould
 				election.RenewInterval = TimeSpan.FromSeconds(1);
 				election.RetryInterval = TimeSpan.FromMilliseconds(250);
 
-				// Resolving through the real registration means ValidateOnStart runs, and the timing
-				// invariant it enforces is RenewInterval + GracePeriod < LeaseDuration. The default
-				// GracePeriod is 5s, which the plain siblings never hit because they construct their
-				// options directly and no validator is registered on that path.
+				// Registration and direct provider constructors enforce the configured timing
+				// headroom: RenewInterval + GracePeriod + a one-second margin < LeaseDuration.
+				// Set the intended grace explicitly rather than relying on the five-second default.
 				election.GracePeriod = TimeSpan.FromSeconds(3);
 				election.EnableHealthChecks = false;
 			});
@@ -176,6 +175,13 @@ public sealed class SqlServerHealthBasedLeaderElectionKitConformanceShould
 
 	[Fact]
 	public Task CurrentLeadership_AfterStop_ShouldBeNull_Test() => CurrentLeadership_AfterStop_ShouldBeNull();
+
+	[Fact]
+	public Task IsLeader_AfterDispose_ShouldBeFalse_Test() => IsLeader_AfterDispose_ShouldBeFalse();
+
+	[Fact]
+	public Task StartAsync_ShouldCompeteUnderTheConfiguredIdentity_Test() =>
+		StartAsync_ShouldCompeteUnderTheConfiguredIdentity();
 
 	[Fact]
 	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();

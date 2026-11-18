@@ -68,21 +68,26 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 	private const string DispatchDeadlineAttribute = "deadlineutc";
 	private const string DispatchHeaderSuffix = "header";
 
-	private readonly JsonEventFormatter _jsonFormatter = new();
+	private readonly CloudEventSerializer _serializer;
 	private readonly ILogger<RabbitMqCloudEventAdapter> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="RabbitMqCloudEventAdapter" /> class.
 	/// </summary>
 	/// <param name="options"> CloudEvent configuration options. </param>
+	/// <param name="serializer"> The decided CloudEvents serializer, carrying the resolver the consumer configured. </param>
 	/// <param name="rabbitMqOptions"> RabbitMQ-specific CloudEvent options. </param>
 	/// <param name="logger"> Logger for diagnostics. </param>
 	public RabbitMqCloudEventAdapter(
 		IOptions<CloudEventOptions> options,
+		CloudEventSerializer serializer,
 		IOptions<RabbitMqCloudEventOptions>? rabbitMqOptions,
 		ILogger<RabbitMqCloudEventAdapter> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(serializer);
+
+		_serializer = serializer;
 		ArgumentNullException.ThrowIfNull(logger);
 
 		Options = options.Value ?? throw new ArgumentNullException(nameof(options));
@@ -129,8 +134,6 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 	}
 
 	/// <inheritdoc />
-	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	public Task<(IBasicProperties properties, ReadOnlyMemory<byte> body)> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -246,9 +249,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 		_ => headerValue.ToString(),
 	};
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private static ReadOnlyMemory<byte> EncodeBody(object? data, string? contentType)
+	private ReadOnlyMemory<byte> EncodeBody(object? data, string? contentType)
 	{
 		if (data is null)
 		{
@@ -262,7 +263,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 			string text => Encoding.UTF8.GetBytes(text),
 			JsonElement jsonElement => Encoding.UTF8.GetBytes(jsonElement.GetRawText()),
 			_ when string.Equals(contentType, "application/json", StringComparison.OrdinalIgnoreCase)
-				=> Encoding.UTF8.GetBytes(JsonSerializer.Serialize(data)),
+				=> _serializer.SerializePayloadToUtf8Bytes(data),
 			_ => Encoding.UTF8.GetBytes(data.ToString() ?? string.Empty),
 		};
 	}
@@ -342,15 +343,13 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 
 	private ReadOnlyMemory<byte> EncodeStructuredMessage(CloudEvent cloudEvent, RabbitMqBasicProperties properties)
 	{
-		var encoded = _jsonFormatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
+		var encoded = _serializer.Formatter.EncodeStructuredModeMessage(cloudEvent, out var contentType);
 		var payload = encoded.ToArray();
 		properties.ContentType = contentType?.ToString() ?? StructuredContentType;
 		properties.Headers![ContentTypeHeader] = properties.ContentType;
 		return payload;
 	}
 
-	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Transport.RabbitMQ.CloudEvents.RabbitMqCloudEventAdapter.EncodeBody(Object, String)")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Transport.RabbitMQ.CloudEvents.RabbitMqCloudEventAdapter.EncodeBody(Object, String)")]
 	private ReadOnlyMemory<byte> EncodeBinaryMessage(CloudEvent cloudEvent, RabbitMqBasicProperties properties)
 	{
 		var headers = properties.Headers!;
@@ -437,7 +436,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 			? new ContentType(StructuredContentType)
 			: new ContentType(properties.ContentType);
 
-		return _jsonFormatter.DecodeStructuredModeMessage(body.ToArray(), contentType, extensionAttributes: null);
+		return _serializer.Formatter.DecodeStructuredModeMessage(body.ToArray(), contentType, extensionAttributes: null);
 	}
 
 	private CloudEvent DecodeBinaryMessage(IBasicProperties properties, ReadOnlyMemory<byte> body)

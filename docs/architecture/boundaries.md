@@ -279,7 +279,7 @@ CORRECT:
 
 **Rationale**:
 
-- **Performance** -> MemoryPack is fastest for internal wire format
+- **Performance** -> MemoryPack is the selected internal binary format; comparative performance depends on the measured workload.
 - **Interoperability** -> STJ for public APIs (HTTP, CloudEvents, external consumers)
 - **Consistency** -> One serializer per boundary, no mixing
 

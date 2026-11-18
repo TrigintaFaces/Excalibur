@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Outbox.Marten;
@@ -13,6 +15,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for registering the Marten outbox store on the service collection.
 /// </summary>
+[RequiresUnreferencedCode("Marten outbox document mapping and queries depend on runtime metadata. This provider is not compatible with trimming.")]
+[RequiresDynamicCode("Marten outbox document mapping uses runtime type metadata and may require native generic instantiations unavailable under NativeAOT. The current internal document path has not been validated for NativeAOT.")]
 public static class MartenOutboxExtensions
 {
 	/// <summary>

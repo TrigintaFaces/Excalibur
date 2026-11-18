@@ -148,6 +148,18 @@ internal static class OutboxEventId
 	/// </summary>
 	public const int OutboxDeadLetterCompensationFailed = 131312;
 
+	/// <summary>
+	/// A fenced mark-sent was REFUSED because a newer tenure exists. Distinct from the thrown form, which
+	/// keeps its own id, so a log reader can tell whether the store reported the refusal or raised it.
+	/// </summary>
+	public const int OutboxFencedMarkSentRefusedOutcome = 131313;
+
+	/// <summary>
+	/// A mark-sent was not applied for a reason that concerns only this message -- a lost claim, a row
+	/// already terminal, or no row at all. Row-scoped: the tenure keeps draining.
+	/// </summary>
+	public const int OutboxMarkSentNotApplied = 131314;
+
 	/// <summary>Inbox background service drain timeout exceeded.</summary>
 	public const int InboxBackgroundServiceDrainTimeout = 132005;
 

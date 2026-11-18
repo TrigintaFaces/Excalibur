@@ -36,8 +36,7 @@ namespace Excalibur.Outbox.Oracle.Requests;
 /// </para>
 /// <para>
 /// <b>Named binding.</b> <c>OracleDynamicParameters</c> sets <c>BindByName</c>, so each value is supplied
-/// once regardless of how many times its placeholder appears in the block. The positional-order discipline
-/// the unfenced statements in this package must observe does not apply here.
+/// once regardless of how many times its placeholder appears in the block. The same explicit named-binding initialization applies to the unfenced statements.
 /// </para>
 /// </remarks>
 [NoTenantTerm(
@@ -58,6 +57,11 @@ internal sealed class FencedSetOutboxMessageFailed : DataRequestBase<IDbConnecti
 	/// <param name="fenceTableName">The qualified fence control table name.</param>
 	/// <param name="sqlTimeOutSeconds">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public FencedSetOutboxMessageFailed(
 		string messageId,
 		string errorMessage,
@@ -127,13 +131,28 @@ internal sealed class FencedSetOutboxMessageFailed : DataRequestBase<IDbConnecti
 
 		ResolveAsync = async conn =>
 		{
-			_ = await conn.ExecuteAsync(Command).ConfigureAwait(false);
-			return new FencedClaimMutationResult
+			return await StaticDbCommand.ExecuteOutputsAsync(conn, Command, command =>
 			{
-				HighWaterToken = parameters.Get<long>("OutHigh"),
-				UpdatedCount = (int)parameters.Get<long>("OutUpdated"),
-				RowExists = parameters.Get<long>("OutExists") > 0,
-			};
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "ScopeKey", StaticDbCommand.Input<string>(parameters, "ScopeKey"), DbType.String);
+				StaticDbCommand.AddParameter(command, "Token", StaticDbCommand.Input<long>(parameters, "Token"), DbType.Int64);
+				StaticDbCommand.AddParameter(command, "RetryCount", StaticDbCommand.Input<int>(parameters, "RetryCount"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "ErrorMessage", StaticDbCommand.Input<string>(parameters, "ErrorMessage"), DbType.String);
+				StaticDbCommand.AddParameter(command, "FloorSeconds", StaticDbCommand.Input<int>(parameters, "FloorSeconds"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "ClaimIdentity", StaticDbCommand.Input<string>(parameters, "ClaimIdentity"), DbType.String);
+				StaticDbCommand.AddOutputParameter(command, "OutHigh", DbType.Int64);
+				StaticDbCommand.AddOutputParameter(command, "OutUpdated", DbType.Int64);
+				StaticDbCommand.AddOutputParameter(command, "OutExists", DbType.Int64);
+			}, command =>
+			{
+				return new FencedClaimMutationResult
+				{
+					HighWaterToken = StaticDbCommand.Output<long>(command, parameters, "OutHigh", DbType.Int64),
+					UpdatedCount = (int)StaticDbCommand.Output<long>(command, parameters, "OutUpdated", DbType.Int64),
+					RowExists = StaticDbCommand.Output<long>(command, parameters, "OutExists", DbType.Int64) > 0,
+				};
+			}).ConfigureAwait(false);
 		};
 	}
 }

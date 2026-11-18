@@ -38,7 +38,16 @@ public sealed class DispatchOptions
 	public int MessageBufferSize { get; set; } = 1024;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to automatically synthesize default pipelines when none are registered.
+	/// Gets or sets a value indicating whether to synthesize pipeline profiles from the enabled
+	/// feature set when no profile has been registered.
+	/// <para>
+	/// <b>This setting currently has no observable effect, in either position.</b> Profile synthesis is
+	/// guarded on no profile being registered, and the profile registry registers six default profiles
+	/// in its constructor, so that condition never holds and synthesis does not run whether this is
+	/// <see langword="true"/> or <see langword="false"/>. Setting it changes nothing about the
+	/// pipelines your host builds. It is documented here rather than silently, because the property is
+	/// part of the shipped surface and reads as a feature switch.
+	/// </para>
 	/// </summary>
 	/// <value>The current <see cref="EnablePipelineSynthesis"/> value.</value>
 	public bool EnablePipelineSynthesis { get; set; } = true;

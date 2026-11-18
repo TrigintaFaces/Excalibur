@@ -12,6 +12,11 @@ public interface ICacheInvalidationService
 	/// <summary>
 	/// Invalidates cached items associated with the provided tags.
 	/// </summary>
+	/// <remarks>
+	/// Completion does not guarantee immediate visibility on other application instances.
+	/// Invalidation of multiple tags is not atomic; cancellation or failure may occur after some tags
+	/// have already been invalidated.
+	/// </remarks>
 	/// <param name="tags"> Tags to remove. </param>
 	/// <param name="cancellationToken"> Token used to cancel the operation. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>

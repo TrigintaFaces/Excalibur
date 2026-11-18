@@ -47,6 +47,62 @@ describes format capabilities, not a measured speed or allocation ranking.
 
 ---
 
+## System.Text.Json with generated metadata
+
+For a NativeAOT or trimmed payload codec, use the framework's explicit metadata factory and existing
+pluggable registration:
+
+```csharp
+using Excalibur.Dispatch.Serialization;
+using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json.Serialization;
+
+public static class GeneratedPayloadSerializerRegistration
+{
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddPluggableSerializer(
+            SerializerIds.SystemTextJson,
+            SystemTextJsonSerializer.Create(AppJsonSerializerContext.Default),
+            setAsCurrent: true);
+    }
+}
+
+public sealed record ApplicationPayload(string Value);
+
+[JsonSerializable(typeof(ApplicationPayload))]
+internal partial class AppJsonSerializerContext : JsonSerializerContext;
+```
+
+`AppJsonSerializerContext` is your application's source-generated context. Include every payload and
+runtime-polymorphic type that your messages can reach. The codec asks that context for metadata, uses the
+returned `JsonTypeInfo` overloads, and fails loudly when metadata is missing. It does not fall back to
+reflection or replace a declared generic type with an unrelated concrete type. Forwarding contexts that
+return another generated context's metadata are supported; that metadata's options control formatting,
+converters and serialization behavior. Your supplied contexts and converters must themselves support
+NativeAOT; passing an arbitrary custom context does not certify its implementation.
+
+The existing `SystemTextJsonSerializer()` and options constructor, and default `RegisterSystemTextJson()`
+shortcut, remain reflection-capable opt-ins with trimming/dynamic-code warnings. Mutable options passed
+to the legacy options constructor are snapshotted at construction, so configure them first: later caller
+mutations do not change the codec. The caller's options are not modified or frozen. Already-readonly
+options retain their identity so context-bound metadata stays usable. Existing bytes, magic-byte payload
+framing, null/error policy and stream/async extension APIs remain available.
+
+### Generated event metadata values
+
+For an event metadata dictionary, `EventSerializationDefaults.SerializeMetadataWithResolver(metadata,
+options)` resolves each non-null value by its actual runtime type. Set `options.TypeInfoResolver` to your
+generated context or forwarding resolver and freeze the options before use. Include every runtime value
+and nested type in the context; configure generated string-enum metadata when preserving the canonical
+string-enum representation.
+
+Dictionary keys and explicit null entries are preserved. Valid metadata forwarded from another generated
+context is supported; that child metadata controls nested values and converters. Missing runtime metadata
+throws instead of falling back to reflection, and metadata returned for the wrong type is rejected.
+These helper semantics are separate from a provider's configuration and Stage API; follow the provider's
+documented setup for integrating generated metadata into storage.
+
 ## MemoryPack
 
 Source-generated binary serialization for .NET-to-.NET communication. Span-based

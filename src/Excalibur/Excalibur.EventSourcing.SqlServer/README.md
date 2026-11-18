@@ -23,9 +23,9 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 
 - `SqlServerEventStore` - Dapper-based event store implementation
 - `SqlServerSnapshotStore` - SQL Server snapshot persistence
-- Optimized for high-throughput event streaming
+- Measure append and read performance with the application's payloads and concurrency requirements.
 - Connection factory pattern for multi-database scenarios
-- AOT-compatible with full Native AOT support
+- NativeAOT compatibility depends on configured providers, payload metadata and dependencies; validate by publishing and executing the application’s native binary.
 - NO Entity Framework Core dependency
 
 ## Usage

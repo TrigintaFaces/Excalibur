@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+// ddl-migration: provisioning-only {table} - Pre-RC transactional projections require a fresh dedicated destination generation; this creator does not convert existing schemas.
+
 using System.Globalization;
 
 using Excalibur.EventSourcing.Oracle.Requests;

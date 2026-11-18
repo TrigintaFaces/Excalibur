@@ -16,6 +16,7 @@ using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Delivery;
+using Excalibur.Dispatch.Outbox;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Outbox;
@@ -88,7 +89,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private readonly DeliveryGuaranteeOptions _deliveryGuaranteeOptions;
 
 	// Optional leader-election gate (Excalibur.Dispatch.ILeaderProcessingGate). When registered,
-	// its FencingToken is read once per claim/mark call and threaded through to the store so a superseded
+	// its FencingToken is captured once per run and threaded through every store operation so a superseded
 	// leader's claim/mark is rejected by the store's server-side compare-and-swap rather than silently
 	// racing a newer leader. Null when no leader election is configured (plain, unfenced claim).
 	private readonly Excalibur.Dispatch.ILeaderProcessingGate? _leaderGate;
@@ -100,7 +101,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	// drain runs unfenced (either no leader election, or an explicit single-writer opt-out).
 	private readonly bool _fencingActive;
 
-	private long? CurrentFencingToken => _leaderGate?.FencingToken;
+	// Authority is captured once in ProcessorTenure, never reread to label an old claim.
 
 	/// <summary>
 	/// The store's fencing capability. Non-null exactly when the configured store -- or any store it is
@@ -113,38 +114,80 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <summary>
 	/// Claims a batch, presenting the leadership token when both a tenure and a fencing-capable store exist.
 	/// </summary>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private ValueTask<IEnumerable<OutboundMessage>> ClaimBatchAsync(int batchSize, CancellationToken cancellationToken)
+	private async ValueTask<IEnumerable<OutboundMessage>> ClaimBatchAsync(ProcessorTenure tenure, int batchSize, CancellationToken cancellationToken)
 	{
-		if (_fencingActive && FencedStore is { } fenced && CurrentFencingToken is { } token)
+		if (!tenure.TryAdmit()) { return []; }
+		try
 		{
-			return fenced.GetUnsentMessagesAsync(batchSize, token, cancellationToken);
+			if (_fencingActive && FencedStore is { } fenced && tenure.Token is { } token)
+			{
+				return await fenced.GetUnsentMessagesAsync(batchSize, token, cancellationToken).ConfigureAwait(false);
+			}
+			GuardActiveGateHasFencingToken(tenure);
+			return await _outboxStore.GetUnsentMessagesAsync(batchSize, cancellationToken).ConfigureAwait(false);
 		}
-
-		// THROWS here, and that is safe BECAUSE this runs in the drain's try block: the enclosing
-		// catch (OutboxFenceRefusedException) receives it, logs, and moves to the next message. Contrast the
-		// failure and dead-letter members, which run INSIDE that catch and must report rather than throw.
-		GuardActiveGateHasFencingToken();
-		return _outboxStore.GetUnsentMessagesAsync(batchSize, cancellationToken);
+		catch (OutboxFenceRefusedException failure)
+		{
+			tenure.Refuse(failure);
+			return [];
+		}
 	}
 
 	/// <summary>
 	/// Marks a message sent, presenting the leadership token when both a tenure and a fencing-capable store
 	/// exist.
 	/// </summary>
-	private ValueTask MarkSentFencedAsync(string messageId, CancellationToken cancellationToken)
+	private ValueTask<OutboxCompletionOutcome> MarkSentFencedAsync(ProcessorTenure tenure, OutboxClaimEvidence claim, CancellationToken cancellationToken)
 	{
-		if (_fencingActive && FencedStore is { } fenced && CurrentFencingToken is { } token)
+		if (_fencingActive)
 		{
-			return fenced.MarkSentAsync(messageId, token, cancellationToken);
+			GuardActiveGateHasFencingToken(tenure);
+			return ((IFencedClaimScopedOutboxStore)_outboxStore.GetService(typeof(IFencedClaimScopedOutboxStore))!)
+				.MarkSentAsync(claim.MessageId, new OutboxWriteAuthority(tenure.Token!.Value, claim.ClaimIdentity), cancellationToken);
+		}
+		return ((IClaimScopedOutboxStore)_outboxStore.GetService(typeof(IClaimScopedOutboxStore))!)
+			.MarkSentAsync(claim.MessageId, claim.ClaimIdentity, cancellationToken);
+	}
+
+	/// <summary>
+	/// Marks a message sent, records what the store did, and returns the outcome for the caller to act on.
+	/// </summary>
+	/// <returns>What the store did. Only <see cref="OutboxCompletionOutcome.Applied"/> means the mark landed,
+	/// and only <see cref="OutboxCompletionOutcome.FenceRefused"/> means the caller must stop writing.</returns>
+	/// <remarks>
+	/// A tenure-scoped refusal is recorded before logging and stops new admissions across the run and
+	/// later processors sharing its authority domain. Row-scoped outcomes cost only this completion and
+	/// do not stop the run. Transport acceptance remains distinct from durable completion. Captured
+	/// authority is never replaced by a newer live gate token when completing an older claim.
+	/// </remarks>
+	private async ValueTask<OutboxCompletionOutcome> MarkSentAndObserveAsync(ProcessorTenure tenure, OutboxClaimEvidence claim, CancellationToken cancellationToken)
+	{
+		var messageId = claim.MessageId;
+		if (!tenure.TryAdmit()) { return OutboxCompletionOutcome.FenceRefused; }
+		OutboxCompletionOutcome outcome;
+		try { outcome = await MarkSentFencedAsync(tenure, claim, cancellationToken).ConfigureAwait(false); }
+		catch (OutboxFenceRefusedException failure)
+		{
+			tenure.Refuse(failure);
+			throw;
+		}
+		if (outcome is OutboxCompletionOutcome.FenceRefused) { tenure.Refuse(); }
+
+		switch (outcome)
+		{
+			case OutboxCompletionOutcome.Applied:
+				break;
+
+			case OutboxCompletionOutcome.FenceRefused:
+				LogFencedMarkSentRefusedOutcome(messageId);
+				break;
+
+			default:
+				LogMarkSentNotApplied(messageId, outcome.ToString());
+				break;
 		}
 
-		// THROWS here, and that is safe BECAUSE this runs in the drain's try block: the enclosing
-		// catch (OutboxFenceRefusedException) receives it and leaves the row exactly as claimed. The
-		// discriminator is try-vs-catch, NOT per-message-vs-batch -- this member is per-message and throws.
-		GuardActiveGateHasFencingToken();
-		return _outboxStore.MarkSentAsync(messageId, cancellationToken);
+		return outcome;
 	}
 
 	/// <summary>
@@ -156,17 +199,13 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// configured (<c>_leaderGate is null</c>) a null token is the legitimate unfenced path and drains normally.
 	/// </summary>
 	/// <remarks>
-	/// <b>CALL THIS ONLY FROM A <c>try</c> WHOSE <c>catch</c> HANDLES
-	/// <see cref="OutboxFenceRefusedException"/>.</b> It refuses by THROWING, and a throw raised from
-	/// inside a <c>catch</c> clause is not eligible for any sibling <c>catch</c> on the same <c>try</c> --
-	/// it propagates out of the whole construct and abandons every remaining message in the batch. The
-	/// completion paths that run inside the drain's exception handling therefore REPORT the same refusal
-	/// instead of calling this; see the refusal blocks in the failure and dead-letter members. That
-	/// asymmetry is deliberate and this is the reason for it.
+	/// Validate the captured run authority, not a later sample of the live gate. An active fenced run
+	/// never falls back to an unfenced operation. Capture normally refuses a missing token before any
+	/// claim; this guard retains the same fail-closed invariant at the mutation boundary.
 	/// </remarks>
-	private void GuardActiveGateHasFencingToken()
+	private void GuardActiveGateHasFencingToken(ProcessorTenure tenure)
 	{
-		if (_fencingActive && CurrentFencingToken is null)
+		if (_fencingActive && tenure.Token is null)
 		{
 			throw new OutboxFencingTokenUnavailableException(
 				"The outbox leader gate is active but no fencing token is available for the current tenure; " +
@@ -224,8 +263,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// </param>
 	/// <exception cref="ArgumentNullException"> Thrown when any required parameter is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when configuration validation fails. </exception>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public OutboxProcessor(
 		IOptions<OutboxDeliveryOptions> options,
 		IOutboxStore outboxStore,
@@ -324,7 +361,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			OutboxFencingStartupInvariant.IsLeaderElectionRegistered(serviceProvider),
 			leaderGate,
 			_options.SingleActiveWriter,
-			outboxStore);
+			outboxStore,
+			requiresDeadLetterCompletion: true);
 
 		if (_options.BatchProcessing.EnableDynamicBatchSizing)
 		{
@@ -342,8 +380,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <param name="dispatcherId"> Unique identifier for this dispatcher instance, used for message ownership and coordination. </param>
 	/// <exception cref="ArgumentException"> Thrown when dispatcherId is null, empty, or whitespace. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when processor is already initialized or in invalid state. </exception>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public void Init(string dispatcherId)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(dispatcherId);
@@ -369,8 +405,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <exception cref="ObjectDisposedException"> Thrown when the processor has been disposed. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when processor is not properly initialized via Init method. </exception>
 	/// <exception cref="MessagingException"> Thrown when message processing fails due to broker or serialization issues. </exception>
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<int> DispatchPendingMessagesAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource completion;
@@ -404,16 +438,29 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 		try
 		{
+			using var tenure = new ProcessorTenure(_fencingActive, _leaderGate, runCancellation.Token);
+			if (!tenure.TryAdmit())
+			{
+				LogTenureStopped(tenure.Token);
+				return 0;
+			}
 			// Neither worker may outlive the run, even when its sibling faults under backpressure.
-			var producer = SuperviseAsync(() => ProducerLoopAsync(budget, runCancellation.Token), runCancellation);
+			var producer = SuperviseAsync(() => ProducerLoopAsync(tenure, budget, runCancellation.Token), runCancellation);
 			var consumerResult = 0;
 			var consumer = SuperviseAsync(async () =>
 			{
-				consumerResult = await ConsumerLoopAsync(runCancellation.Token).ConfigureAwait(false);
+				consumerResult = await ConsumerLoopAsync(tenure, runCancellation.Token).ConfigureAwait(false);
 			}, runCancellation);
 			await Task.WhenAll(producer, consumer).ConfigureAwait(false);
 			runCancellation.Token.ThrowIfCancellationRequested();
+			if (tenure.IsStopped) { LogTenureStopped(tenure.Token); }
 			return consumerResult;
+		}
+		catch (OutboxFencingTokenUnavailableException)
+		{
+			runCancellation.Token.ThrowIfCancellationRequested();
+			LogTenureStopped(null);
+			return 0;
 		}
 		finally
 		{
@@ -501,8 +548,25 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// Converts an OutboundMessage to IOutboxMessage format. Handles both binary envelope format and legacy JSON format.
 	/// </summary>
 	/// <param name="outboundMessage"> The outbound message to convert. </param>
+	/// <param name="claim"> The acquisition evidence captured before message conversion. </param>
 	/// <returns> An IOutboxMessage implementation. </returns>
-	private IOutboxMessage ConvertToOutboxMessageWithEnvelopeSupport(OutboundMessage outboundMessage)
+	private IOutboxMessage ConvertToOutboxMessageWithEnvelopeSupport(OutboundMessage outboundMessage, OutboxClaimEvidence claim)
+	{
+		return new ClaimedOutboxMessage((OutboxMessage)ConvertClaimedEnvelope(outboundMessage), claim);
+	}
+
+	private sealed record ClaimedOutboxMessage : OutboxMessage
+	{
+		[SetsRequiredMembers]
+		internal ClaimedOutboxMessage(OutboxMessage message, OutboxClaimEvidence claim) : base(message) => Claim = claim;
+		internal OutboxClaimEvidence Claim { get; }
+	}
+
+	private static OutboxClaimEvidence ClaimOf(IOutboxMessage message) => message is ClaimedOutboxMessage owned
+		? owned.Claim
+		: throw new InvalidOperationException("Outbox worker input has no captured acquisition evidence.");
+
+	private IOutboxMessage ConvertClaimedEnvelope(OutboundMessage outboundMessage)
 	{
 		// Check if payload is in binary envelope format and we have a deserializer
 		if (_envelopeDeserializer is not null && IsEnvelopeFormat(outboundMessage.Payload))
@@ -578,9 +642,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		return _envelopeDeserializer?.DeserializeOutboxEnvelope(data);
 	}
 
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private async Task ProducerLoopAsync(int budget, CancellationToken cancellationToken)
+	private async Task ProducerLoopAsync(ProcessorTenure tenure, int budget, CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -592,7 +654,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// from the store's reservation.
 			var queuedThisRun = new HashSet<string>(StringComparer.Ordinal);
 
-			while (!cancellationToken.IsCancellationRequested && !reachedLimit)
+			while (!cancellationToken.IsCancellationRequested && !tenure.IsStopped && !reachedLimit)
 			{
 				var availableSlots = Math.Max(0, _queueCapacity - _outboxMessages.Reader.Count);
 				var remainingMessages = budget - totalQueued;
@@ -601,7 +663,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				if (availableSlots == 0)
 				{
 					// Event-driven wait: block until channel has capacity instead of polling
-					if (!await _outboxMessages.Writer.WaitToWriteAsync(cancellationToken).ConfigureAwait(false))
+					if (!await _outboxMessages.Writer.WaitToWriteAsync(tenure.QueueToken).ConfigureAwait(false))
 					{
 						// Channel completed, exit producer
 						break;
@@ -610,7 +672,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					continue;
 				}
 
-				var batch = await ReserveBatchRecordsAsync(batchSize, cancellationToken).ConfigureAwait(false);
+				var batch = await ReserveBatchRecordsAsync(tenure, batchSize, cancellationToken).ConfigureAwait(false);
 
 				if (batch.Count == 0)
 				{
@@ -624,9 +686,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				var newMessages = 0;
 				foreach (var outboxRecord in batch)
 				{
+					if (!tenure.TryAdmit()) { break; }
 					if (queuedThisRun.Add(outboxRecord.MessageId))
 					{
-						await _outboxMessages.Writer.WriteAsync(outboxRecord, cancellationToken).ConfigureAwait(false);
+						await _outboxMessages.Writer.WriteAsync(outboxRecord, tenure.QueueToken).ConfigureAwait(false);
 						newMessages++;
 					}
 				}
@@ -637,9 +700,9 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Pending, batch.Count);
 			}
 		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException) when (tenure.QueueToken.IsCancellationRequested)
 		{
-			LogOutboxProducerCanceled();
+			if (!tenure.IsStopped) { LogOutboxProducerCanceled(); }
 		}
 		catch (Exception ex)
 		{
@@ -656,13 +719,13 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 	}
 
-	private async Task<int> ConsumerLoopAsync(CancellationToken cancellationToken)
+	private async Task<int> ConsumerLoopAsync(ProcessorTenure tenure, CancellationToken cancellationToken)
 	{
 		var totalProcessedCount = 0;
 
 		try
 		{
-			while (!cancellationToken.IsCancellationRequested)
+			while (!cancellationToken.IsCancellationRequested && !tenure.IsStopped)
 			{
 				if (_producerStopped && _outboxMessages.Reader.Count == 0)
 				{
@@ -672,7 +735,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				}
 
 				var batchSize = _batchSizeCalculator?.CurrentBatchSize ?? _options.ConsumerBatchSize;
-				var batch = await ChannelBatchUtilities.DequeueBatchAsync(_outboxMessages.Reader, batchSize, cancellationToken)
+				var batch = await ChannelBatchUtilities.DequeueBatchAsync(_outboxMessages.Reader, batchSize, tenure.QueueToken)
 					.ConfigureAwait(false);
 
 				if (batch.Length == 0)
@@ -686,7 +749,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				if (_options.BatchProcessing.ParallelProcessingDegree > 1)
 				{
 					// Parallel batch processing
-					var processedCount = await ProcessBatchParallelAsync(batch, cancellationToken).ConfigureAwait(false);
+					var processedCount = await ProcessBatchParallelAsync(tenure, batch, cancellationToken).ConfigureAwait(false);
 					totalProcessedCount += processedCount;
 					batchSuccessful = processedCount;
 				}
@@ -695,7 +758,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					// Sequential processing (backward compatibility)
 					foreach (var record in batch)
 					{
-						if (await DispatchReservedRecordAsync(record, cancellationToken).ConfigureAwait(false))
+						if (await DispatchReservedRecordAsync(tenure, record, cancellationToken).ConfigureAwait(false))
 						{
 							totalProcessedCount++;
 							batchSuccessful++;
@@ -705,19 +768,18 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 				// Record batch metrics
 				var duration = stopwatch.Elapsed;
-				_batchMetrics.RecordBatchCompleted(
-					batch.Length,
-					batchSuccessful,
-					batch.Length - batchSuccessful,
-					duration,
-					ProcessorTypeTags);
+				if (!tenure.IsStopped)
+				{
+					_batchMetrics.RecordBatchCompleted(batch.Length, batchSuccessful,
+						batch.Length - batchSuccessful, duration, ProcessorTypeTags);
+				}
 
 				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, totalProcessedCount);
 			}
 		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException) when (tenure.QueueToken.IsCancellationRequested)
 		{
-			LogConsumerCanceled();
+			if (!tenure.IsStopped) { LogConsumerCanceled(); }
 		}
 		catch (Exception ex)
 		{
@@ -726,6 +788,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			throw;
 		}
 
+		if (tenure.IsStopped) { return totalProcessedCount; }
 		LogOutboxProcessingCompleted(totalProcessedCount);
 
 		BackgroundServiceMetrics.RecordProcessingCycle(BackgroundServiceTypes.Outbox, totalProcessedCount > 0 ? BackgroundServiceResults.Success : BackgroundServiceResults.Empty);
@@ -733,39 +796,32 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		return totalProcessedCount;
 	}
 
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "Outbox batch reservation converts outbound records using runtime serialization.")]
-	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private async Task<IReadOnlyCollection<IOutboxMessage>> ReserveBatchRecordsAsync(int batchSize, CancellationToken cancellationToken)
+	private async Task<IReadOnlyCollection<IOutboxMessage>> ReserveBatchRecordsAsync(ProcessorTenure tenure, int batchSize, CancellationToken cancellationToken)
 	{
-		var records = await ClaimBatchAsync(batchSize, cancellationToken).ConfigureAwait(false);
+		var records = await ClaimBatchAsync(tenure, batchSize, cancellationToken).ConfigureAwait(false);
 
 		// Convert OutboundMessage to IOutboxMessage with envelope format support. Pre-size and foreach-add
 		// instead of Select().ToList().AsReadOnly() to avoid the per-batch Select-iterator +
 		// ReadOnlyCollection-wrapper allocations; the List is returned as the read-only interface.
 		var capacity = records.TryGetNonEnumeratedCount(out var count) ? count : batchSize;
 		var outboxMessages = new List<IOutboxMessage>(capacity);
+		var claimed = new List<(OutboundMessage Message, OutboxClaimEvidence Claim)>(capacity);
 		foreach (var record in records)
 		{
-			outboxMessages.Add(ConvertToOutboxMessageWithEnvelopeSupport(record));
+			claimed.Add((record, new OutboxClaimEvidence(record.Id, record.DispatcherId!)));
+		}
+		foreach (var (record, claim) in claimed)
+		{
+			outboxMessages.Add(ConvertToOutboxMessageWithEnvelopeSupport(record, claim));
 		}
 
 		return outboxMessages;
 	}
 
-	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
-		Justification =
-			"Outbox message dispatch requires runtime type resolution from MessageTypeRegistry for polymorphic message types - reflection is intentional")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "Outbox dispatch uses runtime deserialization for stored message payloads.")]
-	private async Task<bool> DispatchReservedRecordAsync(IOutboxMessage message, CancellationToken cancellationToken)
+	private async Task<bool> DispatchReservedRecordAsync(ProcessorTenure tenure, IOutboxMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
+		if (!tenure.TryAdmit()) { return false; }
 
 		// Re-establish this message's originating tenant as ambient for the whole per-message body so the
 		// handler dispatch AND every tenant-aware store mark (sent/failed/dead-lettered) run under the right
@@ -779,7 +835,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId);
 
 		var stopwatch = ValueStopwatch.StartNew();
-		if (await ResumePendingDispositionAsync(message, cancellationToken).ConfigureAwait(false))
+		if (await ResumePendingDispositionAsync(tenure, message, cancellationToken).ConfigureAwait(false))
 		{
 			return false;
 		}
@@ -795,7 +851,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		if (circuitBreaker.State == CircuitState.Open)
 		{
 			LogCircuitBreakerOpen(message.MessageType, message.MessageId);
-			await MarkFailedForClaimAsync(message.MessageId, message.DispatcherId, ErrorConstants.RetryAttempt, message.Attempts, applyBackoff: false, cancellationToken).ConfigureAwait(false);
+			await MarkFailedForClaimAsync(tenure, ClaimOf(message).MessageId, ClaimOf(message).ClaimIdentity, ErrorConstants.RetryAttempt, message.Attempts, applyBackoff: false, cancellationToken).ConfigureAwait(false);
 			return false;
 		}
 
@@ -817,7 +873,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
 			BackgroundServiceMetrics.RecordMessagesFailed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, 1);
 
-			await RouteObservedFailureAsync(message, DeadLetterReason.DeserializationFailed, ex, message.Attempts, "Poison", cancellationToken)
+			await RouteObservedFailureAsync(tenure, message, DeadLetterReason.DeserializationFailed, ex, message.Attempts, "Poison", cancellationToken)
 				.ConfigureAwait(false);
 
 			return false;
@@ -836,6 +892,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Execute dispatch through circuit breaker. It records the outcome -- success or failure --
 			// itself; recording it again here would count every delivery failure twice and open the
 			// circuit at half the configured threshold.
+			if (!tenure.TryAdmit()) { return false; }
 			failure = await circuitBreaker.ExecuteAsync(ct => DispatchAsync(message, prepared, ct),
 				static outcome => outcome is not null, cancellationToken).ConfigureAwait(false);
 			if (failure is null)
@@ -843,8 +900,16 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				dispatched = true;
 				LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId!);
 				BackgroundServiceMetrics.RecordProcessingDuration(BackgroundServiceTypes.Outbox, stopwatch.Elapsed.TotalMilliseconds);
-				await MarkSentFencedAsync(message.MessageId, cancellationToken).ConfigureAwait(false);
-				LogMarkedOutboxRecordSent(message.MessageId);
+
+				// The refusal is REPORTED now rather than thrown, so the "sent" log is conditional on the
+				// store having actually applied the mutation. It used to be unconditional because the only
+				// way past the line above was success; a reported refusal reaching it would log a mark that
+				// never happened, which is the silent-success shape this member exists to remove.
+				if (await MarkSentAndObserveAsync(tenure, ClaimOf(message), cancellationToken).ConfigureAwait(false)
+					is OutboxCompletionOutcome.Applied)
+				{
+					LogMarkedOutboxRecordSent(message.MessageId);
+				}
 			}
 		}
 		catch (OperationCanceledException) when (!dispatched && cancellationToken.IsCancellationRequested)
@@ -853,19 +918,20 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Leave the claim intact for ordinary lease recovery instead of recording a synthetic failure.
 			throw;
 		}
-		catch (CircuitBreakerOpenException)
+		catch (CircuitBreakerOpenException) when (!dispatched)
 		{
 			// Circuit opened mid-dispatch: same transient short-circuit as the pre-check. Leave
 			// re-claimable with the attempt count UNCHANGED, never dead-letter (no attempt consumed).
 			LogCircuitBreakerOpen(message.MessageType, message.MessageId);
-			await MarkFailedForClaimAsync(message.MessageId, message.DispatcherId, ErrorConstants.RetryAttempt, message.Attempts, applyBackoff: false, cancellationToken).ConfigureAwait(false);
+			await MarkFailedForClaimAsync(tenure, ClaimOf(message).MessageId, ClaimOf(message).ClaimIdentity, ErrorConstants.RetryAttempt, message.Attempts, applyBackoff: false, cancellationToken).ConfigureAwait(false);
 		}
 		catch (OutboxFenceRefusedException ex)
 		{
+			tenure.Refuse(ex);
 			// The fence refused this tenure's mark-sent because a newer leader has taken over. This is
 			// NOT a delivery failure -- the message may already be delivered by the current leader, or
 			// still pending for it -- so it must not be retried, backed off, or dead-lettered by a
-			// superseded tenure. Abort the drain cycle for this message with NO further store write and
+			// superseded tenure. Stop new admissions for this captured tenure, make no alternate write for this message, and
 			// leave it exactly as claimed; the live leader resolves it once this reservation ages out.
 			LogFencedMarkSentRefused(message.MessageId, ex);
 		}
@@ -892,13 +958,13 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 		if (failure is not null)
 		{
-			return await HandleFailedDispatchAsync(message, attempt, failure, activity, cancellationToken).ConfigureAwait(false);
+			return await HandleFailedDispatchAsync(tenure, message, attempt, failure, activity, cancellationToken).ConfigureAwait(false);
 		}
 
 		return dispatched;
 	}
 
-	private async Task<bool> HandleFailedDispatchAsync(IOutboxMessage message, int attempt,
+	private async Task<bool> HandleFailedDispatchAsync(ProcessorTenure tenure, IOutboxMessage message, int attempt,
 		DispatchAttemptFailure failure, Activity? activity, CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
@@ -906,16 +972,34 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, fault);
 		activity?.SetStatus(ActivityStatusCode.Error, failure.ErrorMessage);
 		BackgroundServiceMetrics.RecordMessagesFailed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, 1);
-		if (GetFailedDispatchReason(failure, attempt) is { } reason)
+		if (failure.Kind == MessageFailureKind.Unknown)
 		{
-			await RouteObservedFailureAsync(message, reason, fault, attempt, failure.Kind?.ToString() ?? "Unknown", cancellationToken).ConfigureAwait(false);
+			await RetainUnknownFailureAsync(tenure, message, attempt, failure.ErrorMessage, cancellationToken).ConfigureAwait(false);
+		}
+		else if (GetFailedDispatchReason(failure, attempt) is { } reason)
+		{
+			await RouteObservedFailureAsync(tenure, message, reason, fault, attempt, failure.Kind?.ToString() ?? "Unknown", cancellationToken).ConfigureAwait(false);
 		}
 		else
 		{
-			await MarkFailedForClaimAsync(message.MessageId, message.DispatcherId, failure.ErrorMessage, attempt,
+			await MarkFailedForClaimAsync(tenure, ClaimOf(message).MessageId, ClaimOf(message).ClaimIdentity, failure.ErrorMessage, attempt,
 				applyBackoff: _deliveryGuaranteeOptions.EnableAutomaticRetry, cancellationToken).ConfigureAwait(false);
 		}
 		return false;
+	}
+
+	private async Task RetainUnknownFailureAsync(ProcessorTenure tenure, IOutboxMessage message, int attempts,
+		string error, CancellationToken cancellationToken)
+	{
+		var evidence = new OutboxFailureEvidence
+		{
+			Attempts = attempts, Classification = "Unknown", Reason = nameof(DeadLetterReason.Unknown), Error = error,
+		};
+		// Applied releases this acquisition; refusal/unknown acknowledgement never authorizes
+		// a queue copy, retirement, or a second write with released authority.
+		using var tenant = TenantContextHolder.BeginScope(KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId);
+		await MarkFailedForClaimAsync(tenure, ClaimOf(message).MessageId, ClaimOf(message).ClaimIdentity,
+			evidence.Encode(), attempts, applyBackoff: false, cancellationToken).ConfigureAwait(false);
 	}
 
 	private DeadLetterReason? GetFailedDispatchReason(DispatchAttemptFailure failure, int attempt) => failure.Kind switch
@@ -950,7 +1034,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// duplicate delivery of a different message.
 	/// </para>
 	/// </remarks>
-	private async Task<DeadLetterRoutingOutcome> TryRouteToDeadLetterQueueAsync(
+	private async Task<DeadLetterRoutingOutcome> TryRouteToDeadLetterQueueAsync(ProcessorTenure tenure,
 		IOutboxMessage message,
 		DeadLetterReason reason,
 		Exception? exception,
@@ -958,7 +1042,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	{
 		try
 		{
-			return await RouteToDeadLetterQueueAsync(message, reason, exception, cancellationToken).ConfigureAwait(false);
+			return await RouteToDeadLetterQueueAsync(tenure, message, reason, exception, cancellationToken).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException)
 		{
@@ -973,7 +1057,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 	private enum DeadLetterRoutingOutcome { Applied, Refused, Faulted }
 
-	private async Task RouteObservedFailureAsync(IOutboxMessage original, DeadLetterReason reason, Exception? fault,
+	private async Task RouteObservedFailureAsync(ProcessorTenure tenure, IOutboxMessage original, DeadLetterReason reason, Exception? fault,
 		int attempts, string classification, CancellationToken cancellationToken)
 	{
 		// This owned projection carries the observed count while the original retains its claim authority.
@@ -984,7 +1068,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			Attempts = attempts, DispatcherId = original.DispatcherId, DispatcherTimeout = original.DispatcherTimeout,
 			TenantId = original.TenantId, LastError = original.LastError,
 		};
-		var outcome = await TryRouteToDeadLetterQueueAsync(envelope, reason, fault, cancellationToken).ConfigureAwait(false);
+		var outcome = await TryRouteToDeadLetterQueueAsync(tenure, envelope, reason, fault, cancellationToken).ConfigureAwait(false);
 		if (outcome != DeadLetterRoutingOutcome.Faulted)
 		{
 			return;
@@ -997,19 +1081,25 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		using var tenant = TenantContextHolder.BeginScope(KeyedTenantPartition.FromStoredValue(original.TenantId).TenantId);
 		try
 		{
-			await MarkFailedForClaimAsync(original.MessageId, original.DispatcherId, evidence.Encode(), attempts,
+			await MarkFailedForClaimAsync(tenure, ClaimOf(original).MessageId, ClaimOf(original).ClaimIdentity, evidence.Encode(), attempts,
 				applyBackoff: false, cancellationToken).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException) { throw; }
 		catch (Exception ex) { LogDeadLetterRoutingFailed(original.MessageId, ex); }
 	}
 
-	private async Task<bool> ResumePendingDispositionAsync(IOutboxMessage message, CancellationToken cancellationToken)
+	private async Task<bool> ResumePendingDispositionAsync(ProcessorTenure tenure, IOutboxMessage message, CancellationToken cancellationToken)
 	{
 		if (OutboxFailureEvidence.TryRead(message.LastError, out var evidence))
 		{
+			if (evidence is { Classification: "Unknown", Reason: "Unknown" })
+			{
+				// Exact retained marker, before increment/max-budget handling. Unknown with
+				// MaxRetriesExceeded remains its ordinary exhausted disposition.
+				return true;
+			}
 			var reason = Enum.Parse<DeadLetterReason>(evidence!.Reason);
-			await RouteObservedFailureAsync(message, reason, new InvalidOperationException(evidence.Error),
+			await RouteObservedFailureAsync(tenure, message, reason, new InvalidOperationException(evidence.Error),
 				message.Attempts, evidence.Classification, cancellationToken).ConfigureAwait(false);
 			return true;
 		}
@@ -1023,7 +1113,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		{
 			return false;
 		}
-		await RouteObservedFailureAsync(message, DeadLetterReason.MaxRetriesExceeded,
+		await RouteObservedFailureAsync(tenure, message, DeadLetterReason.MaxRetriesExceeded,
 			new InvalidOperationException(message.LastError ?? "Max retries exceeded"), message.Attempts, "Unknown",
 			cancellationToken).ConfigureAwait(false);
 		return true;
@@ -1041,12 +1131,13 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// nullable and the sentinel satisfies it. Establishing the scope at the point of use makes the
 	/// caller's scope irrelevant, so no future caller can reintroduce the gap by deferring the work.
 	/// </remarks>
-	private async Task<DeadLetterRoutingOutcome> RouteToDeadLetterQueueAsync(
+	private async Task<DeadLetterRoutingOutcome> RouteToDeadLetterQueueAsync(ProcessorTenure tenure,
 		IOutboxMessage message,
 		DeadLetterReason reason,
 		Exception? exception,
 		CancellationToken cancellationToken)
 	{
+		if (!tenure.TryAdmit()) { return DeadLetterRoutingOutcome.Refused; }
 		// Store-read tenant term: folded through the total conversion so an untenanted row binds the reserved
 		// untenanted term rather than clearing the ambient, which a multi-tenant store fails closed on.
 		using var tenantScope = TenantContextHolder.BeginScope(
@@ -1088,8 +1179,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// in the dead-letter queue rather than marked terminal and present nowhere. But it means a
 			// REFUSED mark leaves an entry describing a message this tenure no longer owns, and withdrawing
 			// it needs the id this call returns.
-			enqueuedEntryId = await _deadLetterQueue.EnqueueAsync(
-				message,
+			enqueuedEntryId = await _deadLetterQueue.EnqueueAsync<IOutboxMessage>(
+				CreateDeadLetterEnvelope((OutboxMessage)message),
 				reason,
 				cancellationToken,
 				exception,
@@ -1101,46 +1192,87 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// does not keep it there: a later completion reported against the message must also refuse to move it
 		// back, which is the store's obligation under IOutboxStore.MarkFailedAsync rather than something this
 		// processor enforces.
-		return await MarkOutboxMessageDeadLetteredAsync(
-			message.MessageId,
+		return await MarkOutboxMessageDeadLetteredAsync(tenure,
+			ClaimOf(message),
 			_deadLetterQueue is NullDeadLetterQueue ? $"DISCARDED (no DLQ): {reasonText}" : $"Moved to DLQ: {reasonText}",
 			message.Attempts,
 			enqueuedEntryId,
 			cancellationToken).ConfigureAwait(false);
 	}
 
+	// Keep private work/authority records inside the worker. Existing DLQ consumers continue to see
+	// the public envelope runtime type and require no serializer metadata for an internal derived type.
+	private static OutboxMessage CreateDeadLetterEnvelope(OutboxMessage message) => new()
+	{
+		MessageId = message.MessageId,
+		MessageType = message.MessageType,
+		MessageMetadata = message.MessageMetadata,
+		MessageBody = message.MessageBody,
+		CreatedAt = message.CreatedAt,
+		ExpiresAt = message.ExpiresAt,
+		Attempts = message.Attempts,
+		LastError = message.LastError,
+		DispatcherId = message.DispatcherId,
+		DispatcherTimeout = message.DispatcherTimeout,
+		TenantId = message.TenantId,
+		Destination = message.Destination,
+		CorrelationId = message.CorrelationId,
+		CausationId = message.CausationId,
+		Priority = message.Priority,
+		ScheduledAt = message.ScheduledAt,
+		PartitionKey = message.PartitionKey,
+		GroupKey = message.GroupKey,
+		SequenceNumber = message.SequenceNumber,
+		TargetTransports = message.TargetTransports,
+		IsMultiTransport = message.IsMultiTransport,
+	};
+
 	/// <summary>
 	/// Transitions an outbox message to the terminal <see cref="OutboxStatus.DeadLettered"/> status via the
-	/// store's <see cref="IDeadLetterableOutboxStore"/> capability.
+	/// store's acquisition-scoped dead-letter capability.
 	/// </summary>
 	/// <remarks>
 	/// The capability is guaranteed by the startup presence guard (a polling outbox registered with a store
-	/// that does not implement <see cref="IDeadLetterableOutboxStore"/> fails fast). If the capability is
+	/// that lacks acquisition-scoped dead-letter completion fails fast). If the capability is
 	/// nonetheless absent, this fails loud rather than silently leaving the message re-claimable.
 	/// </remarks>
-	private async ValueTask<DeadLetterRoutingOutcome> MarkOutboxMessageDeadLetteredAsync(
-		string messageId,
+	private async ValueTask<DeadLetterRoutingOutcome> MarkOutboxMessageDeadLetteredAsync(ProcessorTenure tenure,
+		OutboxClaimEvidence claim,
 		string reason,
 		int attemptCount,
 		Guid? enqueuedEntryId,
 		CancellationToken cancellationToken)
 	{
+		var messageId = claim.MessageId;
+		if (!tenure.TryAdmit())
+		{
+			await CompensateDeadLetterEntryAsync(messageId, enqueuedEntryId, "TenureAdmissionRefused").ConfigureAwait(false);
+			return DeadLetterRoutingOutcome.Refused;
+		}
 		// THE FENCED ROUTE IS PREFERRED, and on THIS member the stakes are higher than on any other. The
 		// unfenced transition copies the message to the dead-letter table and DELETES the outbox row on a
 		// message-id match alone, so a superseded tenure reaching its attempt ceiling destroys a row a live
 		// successor still holds and has not delivered. Every other completion leaves the row recoverable.
 		//
-		// No claim term here, by ruling: the harm is cross-tenure and a fencing token refuses exactly that.
-		// Requiring a per-claim identity as well would restrict the protection to the single store that
-		// records one, and buy only the same-process stale-cycle case, which is not what makes this lossy.
+		// Both tenure and immutable acquisition evidence guard the terminal transition.
 		if (_fencingActive
-			&& CurrentFencingToken is { } deadLetterToken
+			&& tenure.Token is { } deadLetterToken
 			&& _outboxStore.GetService(typeof(IFencedDeadLetterableOutboxStore))
 				is IFencedDeadLetterableOutboxStore fencedDeadLetterable)
 		{
-			var outcome = await fencedDeadLetterable
-				.MarkDeadLetteredAsync(messageId, reason, attemptCount, deadLetterToken, cancellationToken)
-				.ConfigureAwait(false);
+			OutboxCompletionOutcome outcome;
+			try
+			{
+				outcome = await fencedDeadLetterable.MarkDeadLetteredAsync(messageId, reason, attemptCount, new OutboxWriteAuthority(deadLetterToken, claim.ClaimIdentity), cancellationToken).ConfigureAwait(false);
+			}
+			catch (OutboxFenceRefusedException failure)
+			{
+				tenure.Refuse(failure);
+				await CompensateDeadLetterEntryAsync(messageId, enqueuedEntryId, "FenceRefused").ConfigureAwait(false);
+				LogFencedDeadLetterRefused(messageId, "FenceRefused");
+				return DeadLetterRoutingOutcome.Refused;
+			}
+			if (outcome is OutboxCompletionOutcome.FenceRefused) { tenure.Refuse(); }
 
 			// Reported, not thrown: this runs inside the drain's own exception handling, where a sibling
 			// handler cannot catch. A refusal means the outbox row was NOT destroyed, which is the safe
@@ -1173,27 +1305,12 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			return DeadLetterRoutingOutcome.Applied;
 		}
 
-		// A MISSING TOKEN IS A REFUSAL, NEVER A DOWNGRADE -- and this is the branch where that distinction
-		// costs a message.
-		//
-		// The guard above conjoins the token, so it is FALSE in exactly two states: fencing is off (the
-		// legitimate unfenced drain), or fencing is ON and the token has gone. The second state is not an
-		// edge case and it is not "no tenure" -- the gate yields a token only while this instance IS the
-		// leader, so a null token under an active gate means THIS TENURE HAS BEEN SUPERSEDED. Falling
-		// through would then reach the unfenced transition below, which matches on the message id alone,
-		// and DELETE an outbox row that a live successor has already claimed and not yet delivered. The
-		// fence would be unreachable at precisely the moment it is the thing that matters.
-		//
-		// The row is left intact for the tenure that now owns it. The dead-letter entry this drain enqueued
-		// moments ago is withdrawn for the same reason the refusal branch above withdraws it: we learned
-		// synchronously that our mark will not be made, so nothing is relying on the entry, and leaving it
-		// would let an operator redrive re-execute a message the live tenure goes on to deliver.
-		// REPORTED, NOT THROWN, and the counterpart is GuardActiveGateHasFencingToken: that guard throws
-		// because its callers sit in the try. This member is reached from inside a catch of that same try,
-		// where a throw cannot be caught by a sibling catch and would abandon the rest of the batch.
-		if (_fencingActive && CurrentFencingToken is null)
+		// Active fencing never falls through to the unfenced capability. A capability that disappears
+		// after startup is a refused mutation; withdraw our own already-enqueued DLQ entry below.
+		if (_fencingActive)
 		{
-			LogFencedDeadLetterRefused(messageId, "FencingTokenUnavailable");
+			tenure.Stop();
+			LogFencedDeadLetterRefused(messageId, "FencedCapabilityUnavailable");
 
 			// NOT the drain's token, for the reason given on CompensateDeadLetterEntryAsync: on shutdown it
 			// is already cancelled, which would disable the withdrawal exactly when it is required.
@@ -1207,10 +1324,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// that implements this capability but sits behind any decorator answers "absent" -- and the
 		// startup guard, which probes correctly, answers "present" for the same composition. The
 		// disagreement surfaced here as a throw on the one path a retry-exhausted message depends on.
-		if (_outboxStore.GetService(typeof(IDeadLetterableOutboxStore)) is not IDeadLetterableOutboxStore deadLetterable)
+		if (_outboxStore.GetService(typeof(IClaimScopedDeadLetterableOutboxStore)) is not IClaimScopedDeadLetterableOutboxStore deadLetterable)
 		{
 			throw new InvalidOperationException(
-				$"The outbox store '{_outboxStore.GetType().FullName}' does not implement IDeadLetterableOutboxStore; " +
+				$"The outbox store '{_outboxStore.GetType().FullName}' does not implement IClaimScopedDeadLetterableOutboxStore; " +
 				"the startup capability guard should have prevented this configuration. A retry-exhausted message " +
 				"cannot be transitioned to the terminal DeadLettered status and would be re-claimed indefinitely.");
 		}
@@ -1222,7 +1339,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// message that already succeeded, from our bookkeeping rather than any fault of theirs. That is the
 		// same hazard the fenced branch documents at length above, and it needed the same withdrawal.
 		var unfencedOutcome = await deadLetterable
-			.MarkDeadLetteredAsync(messageId, reason, attemptCount, cancellationToken)
+			.MarkDeadLetteredAsync(messageId, reason, attemptCount, claim.ClaimIdentity, cancellationToken)
 			.ConfigureAwait(false);
 
 		// By name, never by excluding the refusals: a member added to the outcome later must not start life
@@ -1273,11 +1390,22 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			return;
 		}
 
-		// Withdrawal lives on the ADMIN surface, not on IDeadLetterQueue. A plain cast is sound here and is
-		// NOT the mistake the store-capability probe above avoids: no decorator over IDeadLetterQueue exists
-		// in this framework, and both shipped implementations declare the admin interface alongside the
-		// queue one. If a consumer supplies a queue without it, withdrawal is simply unavailable and that is
-		// reported rather than passed over in silence.
+		// Withdrawal lives on the ADMIN surface, not on IDeadLetterQueue. What makes this sound is the TYPE
+		// TEST BELOW WITH ITS REPORTED FALLBACK -- not the fact that no decorator over IDeadLetterQueue
+		// happens to exist in this framework today.
+		//
+		// That distinction is deliberate and it is a correction. This comment used to justify the pattern by
+		// the absence of decorators, which is a claim about OUR tree and not about a consumer's composition:
+		// the interface is PUBLIC, so a consumer may decorate it, and a decorator that forwards the queue
+		// members without re-declaring the admin one would make the test fail -- correctly, degrading to the
+		// reported-unavailable path. An implementation that is robust by construction should not be defended
+		// by a premise a consumer can falsify, because the next reader reasonably concludes the test is
+		// redundant and replaces it with a cast that then throws on a composition we invited.
+		//
+		// So: the test is load-bearing, and keep it. If a consumer supplies a queue without the admin
+		// surface, withdrawal is unavailable and that is REPORTED rather than passed over in silence -- which
+		// is also the first of the conditions the subsystem's guarantee document names for this invariant,
+		// and the one a consumer is most likely to cause, because the queue is theirs to supply.
 		if (_deadLetterQueue is not IDeadLetterQueueAdmin admin)
 		{
 			LogDeadLetterCompensationFailed(messageId, entryId, outcome, exception: null);
@@ -1330,24 +1458,24 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// Awaits a FENCED claim-scoped completion and records what the store did with it.
 	/// </summary>
 	/// <remarks>
-	/// <para>
-	/// <b>Separate from the unfenced observer because one extra outcome is reachable here, and it is the one
-	/// that is not about this message.</b> <see cref="OutboxCompletionOutcome.FenceRefused"/> means a newer
-	/// tenure exists, so every remaining write this caller would make is unfenced. Logging it beside a lost
-	/// claim would file a tenure-wide stand-down as a per-row skip.
-	/// </para>
-	/// <para>
-	/// It is recorded and not thrown, for the same reason every other refusal on this path is: the callers
-	/// sit inside their own <c>catch</c>, where a sibling clause cannot run. The drain-wide consequence of a
-	/// superseded tenure is carried by the fenced mark-sent, which is the member that already aborts the
-	/// cycle; duplicating that abort here would unwind through an exception handler that cannot catch it.
-	/// </para>
+	/// Typed and thrown tenure refusals block shared admission before logging. Missing authority stops
+	/// this run without rejecting an unrelated later token. Claim loss, terminal state and absence remain
+	/// row-scoped. Returning from this observer does not mean a mutation applied; it preserves the result
+	/// distinction without throwing a routine tenure handover through delivery-failure handling.
 	/// </remarks>
-	private async ValueTask ObserveFencedCompletionAsync(
+	private async ValueTask ObserveFencedCompletionAsync(ProcessorTenure tenure,
 		ValueTask<OutboxCompletionOutcome> completion,
 		string messageId)
 	{
-		var outcome = await completion.ConfigureAwait(false);
+		OutboxCompletionOutcome outcome;
+		try { outcome = await completion.ConfigureAwait(false); }
+		catch (OutboxFenceRefusedException failure)
+		{
+			tenure.Refuse(failure);
+			LogFencedFailureReportRefused(messageId);
+			return;
+		}
+		if (outcome is OutboxCompletionOutcome.FenceRefused) { tenure.Refuse(); }
 
 		switch (outcome)
 		{
@@ -1434,13 +1562,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 	}
 
-	/// <summary>
-	/// Marks a message failed and, when the store supports the per-message backoff schedule
-	/// (<see cref="IBackoffSchedulableOutboxStore"/>), records the computed next-attempt time so the claim
-	/// query throttles re-delivery. Stores without the capability fall back to the plain failed status
-	/// (today's behavior) -- the fail-open pattern, mirroring the optional dead-letter capability.
-	/// </summary>
-	private async ValueTask MarkFailedForClaimAsync(
+	/// <summary>Reports a failure or retry schedule with captured acquisition evidence and optional run tenure.</summary>
+	private async ValueTask MarkFailedForClaimAsync(ProcessorTenure tenure,
 		string messageId,
 		string? claimIdentity,
 		string errorMessage,
@@ -1448,22 +1571,17 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		bool applyBackoff,
 		CancellationToken cancellationToken)
 	{
-		// Capability discovery, never a cast: a cast sees only the outermost decorator and is lossy through
-		// the composition. A store that does not offer the claim-scoped surface falls back to the unscoped
-		// members, which is the pre-existing behaviour rather than a downgrade.
+		if (!tenure.TryAdmit()) { return; }
+		// Resolve actual payload-free capabilities through decorators. Missing claim evidence or
+		// capability is a configuration fault, never permission to use a weaker completion API.
 		var claimScoped = claimIdentity is { Length: > 0 }
 			? _outboxStore.GetService(typeof(IClaimScopedOutboxStore)) as IClaimScopedOutboxStore
 			: null;
 
-		// THE FENCED ROUTE IS PREFERRED, and it is reachable only when all three facts hold together: the
-		// store offers the combined capability, a tenure is active with a token, and the message carries the
-		// claim it was handed under. Any one of them missing means this caller cannot make the stronger
-		// assertion, so it falls to the route that asserts what it can. A third probe is the honest price of
-		// three genuinely different implementor populations -- the alternative is a store throwing from a
-		// member its interface says it has.
+		// A fenced run must present its captured tenure and claim together.
 		if (claimIdentity is { Length: > 0 } claim
 			&& _fencingActive
-			&& CurrentFencingToken is { } fencingToken
+			&& tenure.Token is { } fencingToken
 			&& _outboxStore.GetService(typeof(IFencedClaimScopedOutboxStore)) is IFencedClaimScopedOutboxStore fencedScoped)
 		{
 			var authority = new OutboxWriteAuthority(fencingToken, claim);
@@ -1471,91 +1589,68 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// The schedule is computed here rather than in the store because the backoff policy is the
 			// caller's, exactly as on the unfenced route; null means this failure takes no computed schedule.
 			var fencedSchedule = applyBackoff
-				&& _outboxStore.GetService(typeof(IBackoffSchedulableOutboxStore)) is IBackoffSchedulableOutboxStore
 					? (DateTimeOffset?)(DateTimeOffset.UtcNow + _backoffCalculator.CalculateDelay(attempt))
 					: null;
 
-			await ObserveFencedCompletionAsync(
-				fencedScoped.MarkFailedAsync(
-					messageId, errorMessage, attempt, fencedSchedule, authority, cancellationToken),
-				messageId).ConfigureAwait(false);
+			try
+			{
+				await ObserveFencedCompletionAsync(tenure,
+					fencedScoped.MarkFailedAsync(messageId, errorMessage, attempt, fencedSchedule, authority, cancellationToken),
+					messageId).ConfigureAwait(false);
+			}
+			catch (OutboxFenceRefusedException failure)
+			{
+				tenure.Refuse(failure);
+				LogFencedFailureReportRefused(messageId);
+			}
 			return;
 		}
 
-		// A MISSING TOKEN IS A REFUSAL, NEVER A DOWNGRADE. Same reachable state as on the dead-letter path:
-		// under an active gate the token is present only while this instance holds the tenure, so a null one
-		// means this tenure has been superseded. Every route below writes without a token, and the claim term
-		// some of them carry does not cover this -- the dispatcher identity is fixed for the process and
-		// survives losing and regaining leadership, so it refuses a DIFFERENT dispatcher and never a STALE
-		// TENURE OF THE SAME ONE. Such a write consumes an attempt and pushes the visibility floor out by a
-		// full backoff interval against a row this drain no longer owns, delaying the successor that does.
-		//
-		// Returned, not thrown: this runs inside the drain's own exception handling, where a sibling catch
-		// on the same try cannot run, so a refusal raised as an exception would abandon every remaining
-		// message in the batch. Declining to write concerns one row, and the live tenure resolves it.
-		if (_fencingActive && CurrentFencingToken is null)
+		// A fenced failure requires both its captured tenure and the persisted claim. Missing either
+		// authority or the advertised capability is never permission to use an unfenced fallback.
+		if (_fencingActive)
 		{
+			tenure.Stop();
 			LogFencedFailureReportRefused(messageId);
 			return;
 		}
 
-		if (applyBackoff
-			&& _outboxStore.GetService(typeof(IBackoffSchedulableOutboxStore)) is IBackoffSchedulableOutboxStore schedulable)
+		if (claimScoped is null)
+		{
+			throw new InvalidOperationException("Outbox worker completion requires a nonblank captured claim and IClaimScopedOutboxStore.");
+		}
+		if (applyBackoff)
 		{
 			var nextAttemptAt = DateTimeOffset.UtcNow + _backoffCalculator.CalculateDelay(attempt);
-
-			// The backoff route is the one a genuine delivery failure takes when automatic retry is enabled,
-			// so it must carry the claim too. Scoping only the plain completion would leave the dominant
-			// failure path unscoped behind a capability that reads as though it closed it.
-			if (claimScoped is not null)
-			{
-				await MarkFailedForOneClaimAsync(
-					claimScoped.MarkFailedWithBackoffAsync(
-						messageId, errorMessage, attempt, nextAttemptAt, claimIdentity!, cancellationToken),
-					messageId).ConfigureAwait(false);
-				return;
-			}
-
-			await schedulable.MarkFailedWithBackoffAsync(
-				messageId, errorMessage, attempt, nextAttemptAt, cancellationToken).ConfigureAwait(false);
-			return;
+			await MarkFailedForOneClaimAsync(claimScoped.MarkFailedWithBackoffAsync(
+				messageId, errorMessage, attempt, nextAttemptAt, claimIdentity!, cancellationToken), messageId).ConfigureAwait(false);
 		}
-
-		if (claimScoped is not null)
+		else
 		{
-			await MarkFailedForOneClaimAsync(
-				claimScoped.MarkFailedAsync(messageId, errorMessage, attempt, claimIdentity!, cancellationToken),
-				messageId).ConfigureAwait(false);
-			return;
+			await MarkFailedForOneClaimAsync(claimScoped.MarkFailedAsync(
+				messageId, errorMessage, attempt, claimIdentity!, cancellationToken), messageId).ConfigureAwait(false);
 		}
-
-		await _outboxStore.MarkFailedAsync(messageId, errorMessage, attempt, cancellationToken)
-			.ConfigureAwait(false);
 	}
 
-	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
-		Justification =
-			"Outbox message dispatch requires runtime type resolution from MessageTypeRegistry for polymorphic message types - reflection is intentional")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "Outbox dispatch uses runtime deserialization for stored message payloads.")]
-	private async Task<int> ProcessBatchParallelAsync(IOutboxMessage[] batch, CancellationToken cancellationToken)
+	private async Task<int> ProcessBatchParallelAsync(ProcessorTenure tenure, IOutboxMessage[] batch, CancellationToken cancellationToken)
 	{
 		var stopwatch = ValueStopwatch.StartNew();
 		var acceptedCount = 0;
-		var successfulIds = new ConcurrentBag<string>();
+		var successfulIds = new ConcurrentBag<OutboxClaimEvidence>();
 		// ApplyBackoff distinguishes a genuine delivery failure (attempt consumed -> apply the backoff
 		// schedule) from a transient circuit-breaker-open short-circuit (attempt UNCHANGED -> no backoff).
 		var failedToRetry = new ConcurrentBag<(string MessageId, string? ClaimIdentity, int AttemptCount, bool ApplyBackoff)>();
 		var failedToDeadLetter =
 			new ConcurrentBag<(string MessageId, IOutboxMessage Message, Exception? Exception, DeadLetterReason Reason, int Attempts, string Classification)>();
 
+		var unknownToRetain = new ConcurrentBag<(IOutboxMessage Message, int Attempts, string Error)>();
+
 		// Process messages in parallel
 		_ = await Batching.ProcessBatchAsync(
 			batch,
 			async (message, ct) =>
 			{
+				if (!tenure.TryAdmit()) { return; }
 				// Per-iteration tenant scope: re-establish this message's originating tenant as ambient so the
 				// handler dispatch runs under the right tenant, and (MinimizedWindow) the immediate MarkSentAsync
 				// scopes the store's composite (TenantId, Id) key. Wraps the single iteration only — each message
@@ -1565,7 +1660,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				using var tenantScope = TenantContextHolder.BeginScope(
 					KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId);
 
-				if (await ResumePendingDispositionAsync(message, ct).ConfigureAwait(false))
+				if (await ResumePendingDispositionAsync(tenure, message, ct).ConfigureAwait(false))
 				{
 					return;
 				}
@@ -1581,7 +1676,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				if (circuitBreaker.State == CircuitState.Open)
 				{
 					LogCircuitBreakerOpen(message.MessageType, message.MessageId);
-					failedToRetry.Add((message.MessageId, message.DispatcherId, message.Attempts, ApplyBackoff: false));
+					failedToRetry.Add((ClaimOf(message).MessageId, ClaimOf(message).ClaimIdentity, message.Attempts, ApplyBackoff: false));
 
 					return; // Don't throw - we've handled this case
 				}
@@ -1610,6 +1705,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				{
 					// Execute dispatch through circuit breaker. It records the outcome itself; see the
 					// single-message path above.
+					if (!tenure.TryAdmit()) { return; }
 					var failure = await circuitBreaker.ExecuteAsync(token => DispatchSingleMessageAsync(message, prepared, token),
 						static outcome => outcome is not null, ct).ConfigureAwait(false);
 					if (failure is not null)
@@ -1625,30 +1721,41 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					// For MinimizedWindow, mark sent immediately after dispatch
 					if (_options.DeliveryGuarantee == OutboxDeliveryGuarantee.MinimizedWindow)
 					{
-						await MarkSentFencedAsync(message.MessageId, ct).ConfigureAwait(false);
+						// A REPORTED fence refusal gets the same treatment the thrown one gets in the
+						// handler below: return with NO further write. The failure and retry paths in this
+						// lambda require separate captured-authority admissions; a superseded tenure cannot use them
+						// would mark another tenure's rows failed and restamp their next-attempt instants.
+						// Returning is what skips them. A row-scoped outcome is already logged by the
+						// observer and does not stop this batch.
+						if (await MarkSentAndObserveAsync(tenure, ClaimOf(message), ct).ConfigureAwait(false)
+							is OutboxCompletionOutcome.FenceRefused)
+						{
+							return;
+						}
 					}
 					else
 					{
 						// For AtLeastOnce, collect for batch completion
-						successfulIds.Add(message.MessageId);
+						successfulIds.Add(ClaimOf(message));
 					}
 				}
 				catch (OperationCanceledException) when (!dispatched && ct.IsCancellationRequested)
 				{
 					throw;
 				}
-				catch (CircuitBreakerOpenException)
+				catch (CircuitBreakerOpenException) when (!dispatched)
 				{
 					// Circuit opened mid-dispatch: transient short-circuit. Leave for retry with the
 					// attempt count UNCHANGED (no attempt consumed, never dead-letter). Not re-thrown.
 					LogCircuitBreakerOpen(message.MessageType, message.MessageId);
-					failedToRetry.Add((message.MessageId, message.DispatcherId, message.Attempts, ApplyBackoff: false));
+					failedToRetry.Add((ClaimOf(message).MessageId, ClaimOf(message).ClaimIdentity, message.Attempts, ApplyBackoff: false));
 				}
 				catch (OutboxFenceRefusedException ex)
 				{
+					tenure.Refuse(ex);
 					// MinimizedWindow's immediate MarkSentFencedAsync was refused: a newer leader has taken
 					// over. Not a delivery failure -- must not enter failedToRetry or failedToDeadLetter,
-					// both of which perform an UNFENCED store write. Abort this message with no further
+					// both of which require their own valid captured-authority admission. Abort this message with no further
 					// write and leave it as claimed for the live leader to resolve. Not re-thrown: a stale
 					// fence refusal is not a batch delivery failure for tracking purposes.
 					LogFencedMarkSentRefused(message.MessageId, ex);
@@ -1681,7 +1788,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		{
 			var fault = failure.OriginalFault ?? new InvalidOperationException(failure.ErrorMessage);
 			LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, fault);
-			if (GetFailedDispatchReason(failure, attempt) is { } reason)
+			if (failure.Kind == MessageFailureKind.Unknown)
+			{
+				unknownToRetain.Add((message, attempt, failure.ErrorMessage));
+			}
+			else if (GetFailedDispatchReason(failure, attempt) is { } reason)
 			{
 				failedToDeadLetter.Add((message.MessageId, message, fault, reason, attempt, failure.Kind?.ToString() ?? "Unknown"));
 			}
@@ -1691,8 +1802,19 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				{
 					LogRetryWithBackoff(message.MessageId, attempt, _backoffCalculator.CalculateDelay(attempt).TotalMilliseconds);
 				}
-				failedToRetry.Add((message.MessageId, message.DispatcherId, attempt, ApplyBackoff: _deliveryGuaranteeOptions.EnableAutomaticRetry));
+				failedToRetry.Add((ClaimOf(message).MessageId, ClaimOf(message).ClaimIdentity, attempt, ApplyBackoff: _deliveryGuaranteeOptions.EnableAutomaticRetry));
 			}
+		}
+
+		foreach (var (message, attempts, error) in unknownToRetain)
+		{
+			if (!tenure.TryAdmit()) { break; }
+			try
+			{
+				await RetainUnknownFailureAsync(tenure, message, attempts, error, cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) { break; }
+			catch (Exception ex) { LogDeadLetterRoutingFailed(message.MessageId, ex); }
 		}
 
 		// Route messages to DLQ.
@@ -1703,11 +1825,22 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// cycle had ALREADY DELIVERED were never marked sent, and the next drain delivered them again. A
 		// fault while disposing of a failed message must not cause the redelivery of a successful one; those
 		// messages are unrelated, and only the control flow joined them.
+		//
+		// WHICH OF THE TWO CLAUSES BELOW IS LOAD-BEARING, measured rather than assumed, because a reader
+		// planting a mutation here will otherwise aim at the wrong one. The property is carried by
+		// TryRouteToDeadLetterQueueAsync, which converts every NON-cancellation fault into a returned
+		// outcome before it can reach this loop -- so the general catch below is unreachable, and deleting
+		// it changes no observable behaviour and reddens no arm. The catch (OperationCanceledException) IS
+		// reachable: that one is deliberately rethrown to this loop, and breaking rather than propagating is
+		// what stops a shutdown skipping the completion block. The general clause is kept as a backstop for
+		// a future caller that reaches this loop without the Try wrapper; it is not what makes the property
+		// hold today, and the arms for it mutate the wrapper instead.
 		foreach (var (messageId, message, exception, reason, attempts, classification) in failedToDeadLetter)
 		{
+			if (!tenure.TryAdmit()) { break; }
 			try
 			{
-				await RouteObservedFailureAsync(message, reason, exception, attempts, classification, cancellationToken).ConfigureAwait(false);
+				await RouteObservedFailureAsync(tenure, message, reason, exception, attempts, classification, cancellationToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException)
 			{
@@ -1740,7 +1873,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				// message twice per cycle. The attempt count is passed absolutely, so the second write was
 				// invisible in attempt accounting; NextAttemptAt is not, and the second write recomputed the
 				// backoff from the later instant, pushing redelivery out by roughly one whole interval.
-				await PerformBatchDatabaseOperationsAsync(successfulIdsOnly, [], new List<(string, int)>(), cancellationToken)
+				await PerformBatchDatabaseOperationsAsync(tenure, successfulIdsOnly, [], new List<(OutboxClaimEvidence, int)>(), cancellationToken)
 					.ConfigureAwait(false);
 			}
 			else
@@ -1752,17 +1885,30 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				var refusedId = string.Empty;
 				try
 				{
-					foreach (var id in successfulIdsOnly)
+					foreach (var claim in successfulIdsOnly)
 					{
+						var id = claim.MessageId;
+						if (!tenure.TryAdmit()) { return acceptedCount; }
 						refusedId = id;
-						await MarkSentFencedAsync(id, cancellationToken).ConfigureAwait(false);
+
+						// A REPORTED fence refusal returns from HERE for the same reason the thrown one
+						// does, stated in the handler below: the failure-path writes after this point are
+						// separately admitted. Returning retains the accepted transport count. A row-scoped outcome is
+						// already logged by the observer and must NOT stop the loop -- the ids after it
+						// belong to this live tenure and still need marking.
+						if (await MarkSentAndObserveAsync(tenure, claim, cancellationToken).ConfigureAwait(false)
+							is OutboxCompletionOutcome.FenceRefused)
+						{
+							return acceptedCount;
+						}
 					}
 				}
 				catch (OutboxFenceRefusedException ex)
 				{
+					tenure.Refuse(ex);
 					// A newer leader has taken over. Return rather than throw, and return from HERE rather
 					// than break out of the loop, because the failure-path writes below this point are
-					// UNFENCED: a superseded tenure reaching them would mark another tenure's rows failed
+					// refused for the captured tenure, so the accepted count must be retained without retry writes
 					// and restamp their next-attempt instants. Returning is what skips them.
 					//
 					// Letting this propagate instead is what the caller used to do, and it was wrong three
@@ -1773,16 +1919,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					// has no background service above it to swallow the exception, it surfaced to consumer
 					// code as an invocation failure on a normal handover.
 					//
-					// Nothing is lost by stopping here. No state is changed, the unmarked ids remain claimed
-					// and become claimable again when their claim ages out, and the next claim presents the
-					// same stale token, which a fenced store answers with zero rows rather than a throw --
-					// so the loop drains empty and the gate skips the cycle. The attempt counts not consumed
-					// belong to a tenure that no longer owns those rows; the live leader consumes its own.
-					//
-					// THIS DOES NOT MAKE THE DRAIN CYCLE FENCED. It repairs the one branch where the
-					// unfenced writes happen to sit after the point the refusal is learned. On the other
-					// paths they run before it, or concurrently with it, and no arrangement of catch clauses
-					// reaches them -- that needs the failure-path members to take a token of their own.
+					// Accepted transports remain counted, but the rejected run cannot admit later claims,
+					// messages or completion paths. Already admitted operations still settle and are joined.
 					LogFencedMarkSentRefused(refusedId, ex);
 
 					return acceptedCount;
@@ -1795,16 +1933,17 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		{
 			foreach (var (id, claimIdentity, attemptCount, applyBackoff) in failedToRetry)
 			{
+				if (!tenure.TryAdmit()) { break; }
 				try
 				{
 					if (applyBackoff)
 					{
-						await MarkFailedForClaimAsync(id, claimIdentity, ErrorConstants.RetryAttempt, attemptCount, applyBackoff: true, cancellationToken)
+						await MarkFailedForClaimAsync(tenure, id, claimIdentity, ErrorConstants.RetryAttempt, attemptCount, applyBackoff: true, cancellationToken)
 							.ConfigureAwait(false);
 					}
 					else
 					{
-						await MarkFailedForClaimAsync(id, claimIdentity, ErrorConstants.RetryAttempt, attemptCount, applyBackoff: false, cancellationToken).ConfigureAwait(false);
+						await MarkFailedForClaimAsync(tenure, id, claimIdentity, ErrorConstants.RetryAttempt, attemptCount, applyBackoff: false, cancellationToken).ConfigureAwait(false);
 					}
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1824,27 +1963,26 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 
 		// Update dynamic batch size if enabled
-		if (_batchSizeCalculator != null)
+		if (_batchSizeCalculator != null && !tenure.IsStopped)
 		{
 			var successRate = batch.Length > 0 ? (double)acceptedCount / batch.Length : 0;
 			_batchSizeCalculator.RecordBatchResult(batch.Length, stopwatch.Elapsed, successRate);
 		}
 
 		// Record detailed metrics
-		_batchMetrics.RecordBatchCompleted(
-			batch.Length,
-			acceptedCount,
-			batch.Length - acceptedCount,
-			stopwatch.Elapsed,
-			_batchCompletionTags);
+		if (!tenure.IsStopped)
+		{
+			_batchMetrics.RecordBatchCompleted(batch.Length, acceptedCount,
+				batch.Length - acceptedCount, stopwatch.Elapsed, _batchCompletionTags);
+		}
 
 		return acceptedCount;
 	}
 
-	private async Task PerformBatchDatabaseOperationsAsync(
-		List<string> successfulIds,
+	private async Task PerformBatchDatabaseOperationsAsync(ProcessorTenure tenure,
+		List<OutboxClaimEvidence> successfulIds,
 		List<(string MessageId, string? ClaimIdentity, int AttemptCount, bool ApplyBackoff)> failedToRetry,
-		List<(string MessageId, int AttemptCount)> failedToDeadLetter,
+		List<(OutboxClaimEvidence Claim, int AttemptCount)> failedToDeadLetter,
 		CancellationToken cancellationToken)
 	{
 		var tasks = new List<Task>();
@@ -1855,11 +1993,14 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// a single DB failure from leaving the entire batch in inconsistent state.
 			tasks.Add(Task.Factory.StartNew(async () =>
 			{
-				foreach (var id in successfulIds)
+				foreach (var claim in successfulIds)
 				{
+					var id = claim.MessageId;
+					if (!tenure.TryAdmit()) { break; }
 					try
 					{
-						await MarkSentFencedAsync(id, cancellationToken).ConfigureAwait(false);
+						// A tenure refusal stops later completion admissions; row-scoped outcomes continue.
+						if (await MarkSentAndObserveAsync(tenure, claim, cancellationToken).ConfigureAwait(false) is OutboxCompletionOutcome.FenceRefused) { break; }
 					}
 					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 					{
@@ -1867,9 +2008,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					}
 					catch (OutboxFenceRefusedException ex)
 					{
-						// A newer leader has taken over. Already no further store write follows in this
-						// loop (correct), but caught specifically so this is never confused with a genuine
-						// mark-sent failure -- it is the fence working as designed.
+						tenure.Refuse(ex);
+						// A newer leader has taken over. Still caught, because the missing-token composition
+						// guard refuses by throwing this type and a consumer store may too, and because it
+						// must never be confused with a genuine mark-sent failure -- it is the fence working
+						// as designed.
 						LogFencedMarkSentRefused(id, ex);
 					}
 #pragma warning disable CA1031 // Individual message status update failure must not prevent processing remaining messages
@@ -1889,16 +2032,17 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			{
 				foreach (var (id, claimIdentity, attemptCount, applyBackoff) in failedToRetry)
 				{
+					if (!tenure.TryAdmit()) { break; }
 					try
 					{
 						if (applyBackoff)
 						{
-							await MarkFailedForClaimAsync(id, claimIdentity, ErrorConstants.RetryAttempt, attemptCount, applyBackoff: true, cancellationToken)
+							await MarkFailedForClaimAsync(tenure, id, claimIdentity, ErrorConstants.RetryAttempt, attemptCount, applyBackoff: true, cancellationToken)
 								.ConfigureAwait(false);
 						}
 						else
 						{
-							await MarkFailedForClaimAsync(id, claimIdentity, ErrorConstants.RetryAttempt, attemptCount, applyBackoff: false, cancellationToken).ConfigureAwait(false);
+							await MarkFailedForClaimAsync(tenure, id, claimIdentity, ErrorConstants.RetryAttempt, attemptCount, applyBackoff: false, cancellationToken).ConfigureAwait(false);
 						}
 					}
 					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1920,15 +2064,17 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Process dead letter messages in parallel
 			tasks.Add(Task.Factory.StartNew(async () =>
 			{
-				foreach (var (id, attemptCount) in failedToDeadLetter)
+				foreach (var (claim, attemptCount) in failedToDeadLetter)
 				{
+					var id = claim.MessageId;
+					if (!tenure.TryAdmit()) { break; }
 					try
 					{
 						// No entry id: this path marks the terminal status only. The external dead-letter write
 						// for these messages happened in RouteToDeadLetterQueueAsync, which owns its own
 						// compensation, so there is nothing for this call to withdraw.
-						await MarkOutboxMessageDeadLetteredAsync(
-							id,
+						await MarkOutboxMessageDeadLetteredAsync(tenure,
+							claim,
 							ErrorConstants.MaxRetriesReachedMovedToDeadLetter,
 							attemptCount,
 							enqueuedEntryId: null,
@@ -1952,13 +2098,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	}
 
 
-	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
-		Justification =
-			"Outbox message dispatch requires runtime type resolution from MessageTypeRegistry for polymorphic message types - reflection is intentional")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "Outbox dispatch uses runtime deserialization for stored message payloads.")]
 	[SuppressMessage("Style", "RCS1163:Unused parameter",
 		Justification = "CancellationToken parameter required for async pattern consistency and future cancellation support")]
 	[SuppressMessage("Style", "IDE0060:Remove unused parameter",
@@ -2001,8 +2140,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// </para>
 	/// </remarks>
 	/// <exception cref="OutboxPoisonMessageException"> Thrown when the row cannot be decoded. </exception>
-	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution from MessageTypeRegistry")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Serialization.DispatchJsonSerializer.DeserializeAsync(String, Type)")]
 	private async Task<PreparedDispatch> PrepareDispatchAsync(IOutboxMessage outboxMessage)
 	{
 		try
@@ -2196,11 +2333,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private partial void LogFencedDeadLetterRefused(string messageId, string outcome);
 
 	[LoggerMessage(OutboxEventId.OutboxDeadLetterRefused, LogLevel.Warning,
-		"Dead-letter transition for message {MessageId} did not apply ({Outcome}); the outbox row still stands and the dead-letter entry this drain wrote has been withdrawn. The message is either gone, already terminal, or claimed by another drain, and whoever holds it will resolve it.")]
+		"Dead-letter transition for message {MessageId} did not apply ({Outcome}); the outbox row still stands and withdrawal of any dead-letter entry this drain wrote was attempted where available; a separate error reports an unsuccessful withdrawal. The message is either gone, already terminal, or claimed by another drain, and whoever holds it will resolve it.")]
 	private partial void LogDeadLetterRefused(string messageId, string outcome);
 
 	[LoggerMessage(OutboxEventId.OutboxFencedFailureReportRefused, LogLevel.Warning,
-		"Failure report for message {MessageId} was refused by the fence: a newer leadership tenure exists, so this tenure recorded nothing. It should stand down rather than continue draining.")]
+		"Failure report for message {MessageId} was refused by the fence: a newer leadership tenure exists, so this tenure recorded nothing. New local admissions for this captured tenure are stopped; already admitted operations may settle.")]
 	private partial void LogFencedFailureReportRefused(string messageId);
 
 	[LoggerMessage(OutboxEventId.OutboxFailureReportOutcomeUnrecognised, LogLevel.Warning,
@@ -2245,6 +2382,14 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private partial void LogMarkSentFailedAfterDelivery(string messageId, Exception ex);
 
 	[LoggerMessage(OutboxEventId.OutboxFencedMarkSentRefused, LogLevel.Warning,
-		"Fenced mark-sent for message {MessageId} was refused: this tenure's fencing token is stale (a newer leader has taken over). Aborting with no further store write; the message is left claimed for the current leader to resolve.")]
+		"Fenced mark-sent for message {MessageId} was refused: this tenure's fencing token is stale (a newer leader has taken over). Stopping new local admissions; already admitted operations may settle. The message is left claimed for the current leader to resolve.")]
 	private partial void LogFencedMarkSentRefused(string messageId, Exception ex);
+
+	[LoggerMessage(OutboxEventId.OutboxFencedMarkSentRefusedOutcome, LogLevel.Warning,
+		"Fenced mark-sent for message {MessageId} was refused: this tenure's fencing token is stale (a newer leader has taken over). Stopping new local admissions; already admitted operations may settle. The message is left claimed for the current leader to resolve.")]
+	private partial void LogFencedMarkSentRefusedOutcome(string messageId);
+
+	[LoggerMessage(OutboxEventId.OutboxMarkSentNotApplied, LogLevel.Warning,
+		"Mark-sent for message {MessageId} was not applied: the store reported {Outcome}. This concerns only this message -- the drain continues with the rest of the batch. The message was delivered; only the record of it did not land, so it becomes claimable again when its reservation ages out.")]
+	private partial void LogMarkSentNotApplied(string messageId, string outcome);
 }

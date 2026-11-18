@@ -5,8 +5,10 @@ namespace Excalibur.Dispatch.LeaderElection.Fencing;
 
 /// <summary>
 /// Thrown by <see cref="IFencedResource.GuardAsync(long, System.Threading.CancellationToken)"/> when the
-/// presented fencing token is not strictly greater than the highest token the resource has already
-/// observed — the Chubby/Lamport sequencer rule that rejects operations from a stale leader.
+/// presented fencing token is <em>below</em> the highest token the resource has already observed — the
+/// Chubby/Lamport sequencer rule that rejects operations from a superseded leader. A token equal to that
+/// high-water mark is the incumbent leader re-presenting its pinned per-tenure token, so it is accepted
+/// and this exception is not thrown.
 /// </summary>
 public sealed class StaleFencingTokenException : Exception
 {

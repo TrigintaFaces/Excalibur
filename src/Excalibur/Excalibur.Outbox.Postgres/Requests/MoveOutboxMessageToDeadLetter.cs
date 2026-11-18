@@ -40,6 +40,11 @@ public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 	/// longer re-enter the partition the message came from. It is copied from the outbox row, whose tenant
 	/// column is total, so the value is always present and is never inferred here.
 	/// </para>
+	/// <para>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </para>
 	/// </remarks>
 	public MoveOutboxMessageToDeadLetter(
 		string messageId,
@@ -76,6 +81,10 @@ public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 		parameters.Add("ErrorMessage", string.Empty, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QuerySingleAsync<int>(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.SingleAsync(conn, Command, command =>
+			{
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "ErrorMessage", StaticDbCommand.Input<string>(Parameters, "ErrorMessage"), DbType.String);
+			}, static reader => StaticDbValue.Int32(reader, 0)).ConfigureAwait(false);
 	}
 }

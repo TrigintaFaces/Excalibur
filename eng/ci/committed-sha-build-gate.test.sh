@@ -289,6 +289,146 @@ reference_case "SAFETY: normalized relative path still couples" 1 eng/ci/verify-
 reference_case "LIVENESS: relative escape above repository root is not coupling" 0 eng/ci/verify-gate.sh docs/guide.md '[outside](../../eng/ci/verify-gate.sh)'
 reference_case "LIVENESS: absolute paths are outside the reference grammar" 0 eng/ci/verify-gate.sh NOTES.md '/eng/ci/verify-gate.sh'
 
+
+# SDK SELECTION: hermetic muxers, never a real restore or compiler. Each host logs
+# its real cwd, the target global.json pin and operation. The isolated PATH holds
+# absolute utility wrappers plus ONE fake dotnet; no machine SDK can rescue a case.
+sdk_case() { # label, local SDK, PATH SDK, target pin, dirty caller pin, expected exit, build host, optional temp fault
+    local label="$1" local_sdk="$2" path_sdk="$3" target_pin="$4" caller_pin="$5" expected="$6" expected_host="$7"
+    local temp_failure="${8:-false}" real_git
+    local fixture helper executable rc bad_context builds expected_calls path_probes seen_worktree retained_worktree
+    fixture="$(new_repo)"
+    fixture="$(cd -P -- "$fixture" && pwd)" || return 99
+    printf '{"sdk":{"version":"%s","rollForward":"disable","allowPrerelease":false}}\n' "$target_pin" > "$fixture/global.json"
+    git -C "${fixture:?}" add global.json >/dev/null 2>&1
+    git -C "${fixture:?}" commit -qm 'target SDK policy' >/dev/null 2>&1
+    # The commit being gated changes a normal source project. Its parent already
+    # contains the pin, avoiding the unrelated solution/shared-input mapping arm.
+    printf 'public class Changed {}\n' > "$fixture/src/Widget/Changed.cs"
+    git -C "${fixture:?}" add src/Widget/Changed.cs >/dev/null 2>&1
+    git -C "${fixture:?}" commit -qm 'source change under target SDK' >/dev/null 2>&1
+    printf '{"sdk":{"version":"%s","rollForward":"disable","allowPrerelease":false}}\n' "$caller_pin" > "$fixture/global.json"
+    mkdir -p "$fixture/.dotnet" "$fixture/sdk-bin"
+
+    # Wrappers preserve the real utility's location (not a copy/symlink with DLL
+    # lookup side effects on Windows). The child PATH contains no host dotnet.
+    for helper in bash env git grep sort dirname basename ls head mktemp rm timeout sed cat realpath; do
+        executable="$(command -v "$helper")"
+        if [ -z "$executable" ]; then
+            echo "  FAIL $label: missing fixture utility $helper"; fail=$((fail + 1))
+            remove_fixture "$fixture"; return
+        fi
+        printf '#!/bin/bash\nexec %q "$@"\n' "$executable" > "$fixture/sdk-bin/$helper"
+        chmod +x "$fixture/sdk-bin/$helper"
+    done
+    # Normalize Windows paths just as the production gate does when available.
+    if executable="$(command -v cygpath 2>/dev/null)"; then
+        printf '#!/bin/bash\nexec %q "$@"\n' "$executable" > "$fixture/sdk-bin/cygpath"
+        chmod +x "$fixture/sdk-bin/cygpath"
+    fi
+
+    cat > "$fixture/fake-muxer" <<'SDK_HOST'
+#!/usr/bin/env bash
+set -uo pipefail
+host="$(dirname "$0")"
+installed="$(cat "$host/installed-sdk")"
+pin="$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' global.json)"
+printf '%s|%s|%s|%s\n' "$host" "$PWD" "$pin" "$1" >> "$SDK_CALL_LOG"
+if [ "$pin" != "$installed" ]; then
+    echo 'A compatible .NET SDK was not found.' >&2
+    exit 145
+fi
+case "$1" in
+    --version) printf '%s\n' "$installed" ;;
+    build) printf 'Build succeeded.\n' ;;
+    *) exit 91 ;;
+esac
+SDK_HOST
+    cp "$fixture/fake-muxer" "$fixture/.dotnet/dotnet"
+    cp "$fixture/fake-muxer" "$fixture/sdk-bin/dotnet"
+    chmod +x "$fixture/.dotnet/dotnet" "$fixture/sdk-bin/dotnet"
+    printf '%s\n' "$local_sdk" > "$fixture/.dotnet/installed-sdk"
+    printf '%s\n' "$path_sdk" > "$fixture/sdk-bin/installed-sdk"
+    : > "$fixture/sdk-calls.log"
+    : > "$fixture/sdk-git.log"
+    : > "$fixture/sdk-delete.log"
+    if [ "$temp_failure" = true ]; then
+        # Deliberately return a dangerous stdout value with failure. The status
+        # must be checked before constructing WT or installing a cleanup trap.
+        printf '#!/bin/bash\nprintf "/\\n"\nexit 73\n' > "$fixture/sdk-bin/mktemp"
+        printf '#!/bin/bash\nprintf "unexpected-delete\\n" >> "$SDK_DELETE_LOG"\nexit 97\n' > "$fixture/sdk-bin/rm"
+        real_git="$(command -v git)"
+        printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "$SDK_GIT_LOG"\nexec %q "$@"\n' "$real_git" > "$fixture/sdk-bin/git"
+        chmod +x "$fixture/sdk-bin/mktemp" "$fixture/sdk-bin/rm" "$fixture/sdk-bin/git"
+    fi
+    (cd "$fixture" && unset DOTNET_ROOT DOTNET_ROOT_X64 DOTNET_ROOT_X86 &&
+        SDK_CALL_LOG="$fixture/sdk-calls.log" SDK_GIT_LOG="$fixture/sdk-git.log" SDK_DELETE_LOG="$fixture/sdk-delete.log" PATH="$fixture/sdk-bin" bash "$GATE" --sha HEAD) > "$fixture/sdk-output.txt" 2>&1; rc=$?
+    report "$label" "$expected" "$rc"
+    if [ "$temp_failure" = true ]; then
+        if [ -s "$fixture/sdk-calls.log" ] || [ -s "$fixture/sdk-delete.log" ] || grep -q '^worktree ' "$fixture/sdk-git.log"; then
+            echo "  FAIL $label: failed temporary creation reached worktree, SDK or deletion operations"; fail=$((fail + 1))
+        else
+            echo "  ok   $label: no worktree, SDK, build or deletion operations"; pass=$((pass + 1))
+        fi
+        if grep -q 'cannot create owned temporary directory' "$fixture/sdk-output.txt"; then
+            echo "  ok   $label: explicit temporary creation refusal"; pass=$((pass + 1))
+        else
+            echo "  FAIL $label: missing specific environment refusal"; fail=$((fail + 1))
+        fi
+        remove_fixture "$fixture"
+        return
+    fi
+
+    bad_context=0; builds=0; expected_calls=0; path_probes=0; seen_worktree=0; retained_worktree=0
+    while IFS='|' read -r host cwd pin operation; do
+        # Every actual call must bind the target pin from the detached /wt checkout.
+        case "$cwd" in
+            */wt)
+                seen_worktree=1
+                [ ! -d "$cwd" ] || retained_worktree=1
+                ;;
+            *) bad_context=1 ;;
+        esac
+        [ "$cwd" != "$fixture" ] && [ "$pin" = "$target_pin" ] || bad_context=1
+        if [ "$host" = "$fixture/sdk-bin" ] && [ "$operation" = --version ]; then
+            path_probes=$((path_probes + 1))
+        fi
+        if [ "$operation" = build ]; then
+            builds=$((builds + 1))
+            [ "$host" = "$fixture/$expected_host" ] && expected_calls=$((expected_calls + 1))
+        fi
+    done < "$fixture/sdk-calls.log"
+    report "$label: all probes/builds use target checkout and pin" 0 "$bad_context"
+    report "$label: actual detached checkout was observed" 1 "$seen_worktree"
+    report "$label: detached checkout directory removed after gate exit" 0 "$retained_worktree"
+    if [ "$expected_host" = .dotnet ]; then
+        report "$label: compatible local prevents any PATH-host probe" 0 "$path_probes"
+    fi
+    if [ "$expected" -eq 0 ]; then
+        report "$label: exactly one selected-host build" 1 "$builds"
+        report "$label: compatible host exclusively owns build" 1 "$expected_calls"
+    else
+        report "$label: no compilation after SDK refusal" 0 "$builds"
+        if ! grep -q 'CANNOT EVALUATE' "$fixture/sdk-output.txt" || grep -q 'COMMITTED SHA DOES NOT COMPILE' "$fixture/sdk-output.txt"; then
+            echo "  FAIL $label: SDK failure misclassified as source compilation"; fail=$((fail + 1))
+        else
+            echo "  ok   $label: environment refusal is explicit"; pass=$((pass + 1))
+        fi
+    fi
+    if ! grep -q '|--version$' "$fixture/sdk-calls.log"; then
+        echo "  FAIL $label: no actual resolution probe was observed"; fail=$((fail + 1))
+    else
+        echo "  ok   $label: actual resolution probe observed"; pass=$((pass + 1))
+    fi
+    remove_fixture "$fixture"
+}
+
+sdk_case 'LIVENESS: incompatible local falls back to compatible PATH host' 10.0.403 10.0.404 10.0.404 10.0.404 0 sdk-bin
+sdk_case 'LIVENESS: compatible local retains preference over PATH host' 10.0.404 10.0.404 10.0.404 10.0.404 0 .dotnet
+sdk_case 'SAFETY: target SDK controls resolution despite dirty caller pin' 10.0.403 10.0.404 10.0.404 10.0.403 0 sdk-bin
+sdk_case 'SAFETY: all incompatible hosts refuse without compilation' 10.0.403 10.0.402 10.0.404 10.0.404 2 none
+sdk_case 'SAFETY: failed temporary creation cannot reach cleanup or build' 10.0.404 10.0.404 10.0.404 10.0.404 2 none true
+
 echo "[committed-sha-build-gate.test] $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
 exit 0

@@ -76,6 +76,7 @@ public sealed class AwsS3ColdEventStoreLostUpdateShould : IAsyncLifetime
 		catch (Exception)
 		{
 			_available = false;
+			throw;
 		}
 	}
 

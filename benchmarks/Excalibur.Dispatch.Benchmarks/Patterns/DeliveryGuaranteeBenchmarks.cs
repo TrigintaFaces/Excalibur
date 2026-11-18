@@ -9,14 +9,12 @@ using Excalibur.Dispatch.Options.Delivery;
 namespace Excalibur.Dispatch.Benchmarks.Patterns;
 
 /// <summary>
-/// Benchmarks for OutboxDeliveryGuarantee levels.
+/// Synthetic in-memory state-mutation benchmarks parameterized by OutboxDeliveryGuarantee.
 /// </summary>
 /// <remarks>
-/// Benchmark performance of each delivery guarantee level.
-///
-/// Expected Results:
-/// - AtLeastOnce: Highest throughput (batch operations reduce database round-trips)
-/// - MinimizedWindow: Lower throughput (one round-trip per message)
+/// Both processing branches mark messages individually in a dictionary-backed test store.
+/// No messages are published and no database round trips or durable recovery are exercised.
+/// Results describe these synthetic operations, not the relative throughput or safety of production delivery guarantees.
 /// </remarks>
 [MemoryDiagnoser]
 [Config(typeof(PatternsBenchmarkConfig))]
@@ -79,14 +77,14 @@ public class DeliveryGuaranteeBenchmarks
 	}
 
 	/// <summary>
-	/// Benchmark: Throughput measurement (messages/second).
+	/// Returns the processed count across three synthetic batches, including state resets.
 	/// </summary>
 	[Benchmark]
 	public async Task<int> ThroughputMeasurement()
 	{
 		var total = 0;
 
-		// Process 3 batches to measure sustained throughput
+		// Process the same staged messages in 3 synthetic batches.
 		for (var batch = 0; batch < 3; batch++)
 		{
 			var messageIds = _messages.Select(m => m.Id).ToList();
@@ -111,7 +109,8 @@ public class DeliveryGuaranteeBenchmarks
 	}
 
 	/// <summary>
-	/// Benchmark: Failure recovery overhead.
+	/// Measures synthetic sent/failed status updates; does not execute retry or crash recovery.
+	/// This method does not use GuaranteeLevel; both parameter labels execute the same path.
 	/// </summary>
 	[Benchmark]
 	public async Task<int> FailureRecoveryOverhead()
@@ -139,12 +138,11 @@ public class DeliveryGuaranteeBenchmarks
 	}
 
 	/// <summary>
-	/// AtLeastOnce: Batch completion after all messages dispatched.
+	/// Marks each supplied message sent in the in-memory store for the AtLeastOnce branch.
 	/// </summary>
 	private async Task<int> ProcessAtLeastOnceAsync(List<string> messageIds)
 	{
-		// Simulate dispatch (in real processor, messages are published here)
-		// Then batch mark all as sent
+		// No dispatch occurs here; each status update is an individual dictionary operation.
 		foreach (var id in messageIds)
 		{
 			await _store.MarkSentAsync(id, CancellationToken.None);
@@ -154,7 +152,7 @@ public class DeliveryGuaranteeBenchmarks
 	}
 
 	/// <summary>
-	/// MinimizedWindow: Individual completion per message.
+	/// Marks each supplied message sent in the in-memory store for the MinimizedWindow branch.
 	/// </summary>
 	private async Task<int> ProcessMinimizedWindowAsync(List<string> messageIds)
 	{
@@ -162,7 +160,7 @@ public class DeliveryGuaranteeBenchmarks
 
 		foreach (var id in messageIds)
 		{
-			// Simulate dispatch, then immediately mark sent
+			// No dispatch occurs here; update the in-memory status.
 			await _store.MarkSentAsync(id, CancellationToken.None);
 			count++;
 		}

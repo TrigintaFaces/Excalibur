@@ -21,8 +21,52 @@ namespace Excalibur.LeaderElection.InMemory;
 /// </summary>
 public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection, IDisposable, IAsyncDisposable
 {
+
+    private readonly Lock _lifecycleGate = new();
+    private readonly LeaderElectionProducerLifetime _producers = new();
+    private readonly LeaderElectionNotifications _notifications;
+    private Task? _disposalTask;
+    private Task? _startTask;
+    private Task? _stopTask;
+
+    /// <inheritdoc />
+    public Task NotificationsCompleted => _notifications.NotificationsCompleted;
+
+    private async Task RunProducerAsync(Func<Task> action)
+    {
+        if (!_producers.TryEnter(out var lease)) { throw new ObjectDisposedException(GetType().Name); }
+        using (lease) { await LeaderElectionExecution.RunAsync(action).ConfigureAwait(false); }
+    }
+
+    private void QueueEvent<T>(EventHandler<T>? subscribers, T args) where T : EventArgs
+    {
+        if (subscribers is null) { return; }
+        _ = _notifications.Enqueue(() => _notifications.InvokeEach(subscribers, this, args));
+    }
+
+    private async Task WaitForStartAsync(Task start, CancellationToken cancellationToken)
+    {
+        try { await start.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Retain shutdown ownership when a canceled waiter leaves admitted startup work behind.
+            try { _ = StopAsync(CancellationToken.None); }
+            catch (ObjectDisposedException) when (_disposed) { }
+            throw;
+        }
+    }
+
+    private static void ThrowFailures(List<Exception> failures)
+    {
+        if (failures.Count == 1) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw(); }
+        if (failures.Count > 1) { throw new AggregateException("Leader election resource cleanup failed.", failures); }
+    }
+
+    private Task _acquisitionTask = Task.CompletedTask;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Owned field is disposed by memoized DisposeCoreAsync after producer seal and join.")]
+    private CancellationTokenSource? _runStop;
     private readonly TimeProvider _timeProvider;
-    private readonly ConcurrentDictionary<string, string?> _leaders;
+    private readonly ConcurrentDictionary<string, InMemoryLeaderElectionSharedState.TenureOwnership> _leaders;
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, CandidateHealth>> _candidates;
     private readonly InMemoryLeaderElectionSharedState _sharedState;
     private readonly InMemoryLeaderElectionSharedState.CandidateBucket _candidateBucket;
@@ -30,11 +74,15 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
     private readonly string _resourceName;
     private readonly LeaderElectionOptions _options;
     private readonly ILogger<InMemoryLeaderElection> _logger;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Owned field is disposed by memoized DisposeCoreAsync after producer seal and join.")]
     private readonly ITimer _leaseRenewalTimer;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Owned field is disposed by memoized DisposeCoreAsync after producer seal and join.")]
     private readonly CancellationTokenSource _cancellationTokenSource = new();
-    private readonly IFencingTokenProvider? _fencingTokenProvider;
+    private readonly IFencingTokenIssuer? _fencingTokenProvider;
     private volatile int _state; // 0 = stopped, 1 = running
     private volatile bool _disposed;
+    private volatile InMemoryLeaderElectionSharedState.TenureOwnership? _publishedTenure;
+    private CandidateHealth? _lastCandidateHealth;
     // UTC ticks of the instant this candidate most recently acquired leadership, accessed via
     // Interlocked lock-free.
     private long _leadershipAcquiredAtTicks;
@@ -67,11 +115,12 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
         ILogger<InMemoryLeaderElection>? logger,
         InMemoryLeaderElectionSharedState? sharedState = null,
         TimeProvider? timeProvider = null,
-        IFencingTokenProvider? fencingTokenProvider = null)
+        IFencingTokenIssuer? fencingTokenProvider = null)
     {
         _resourceName = resourceName ?? throw new ArgumentNullException(nameof(resourceName));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? NullLogger<InMemoryLeaderElection>.Instance;
+        _notifications = new LeaderElectionNotifications(error => LogRenewalError(error, _resourceName));
         _timeProvider = timeProvider ?? TimeProvider.System;
         _fencingTokenProvider = fencingTokenProvider;
         var state = sharedState ?? InMemoryLeaderElectionSharedState.Default;
@@ -79,7 +128,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
         _candidates = state.Candidates;
         _sharedState = state;
 
-        CandidateId = _options.InstanceId;
+        CandidateId = Excalibur.Dispatch.LeaderElection.LeaderCandidateIdentity.Resolve(_options.InstanceId);
 
         _leaseRenewalTimer = _timeProvider.CreateTimer(RenewLeaseCallback, state: null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
@@ -129,46 +178,57 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
     public string CandidateId { get; }
 
     /// <inheritdoc />
-    public bool IsLeader => _leaders.TryGetValue(_resourceName, out var leaderId) && string.Equals(leaderId, CandidateId, StringComparison.Ordinal);
+    public bool IsLeader => !_disposed && _state == 1 && _publishedTenure is { } published && _leaders.TryGetValue(_resourceName, out var owner) && ReferenceEquals(owner, published);
 
     /// <inheritdoc />
     public Leadership? CurrentLeadership
     {
         get
         {
-            if (!IsLeader)
+            lock (_sharedState.CandidateGate)
             {
-                return null;
+                if (!IsLeader) { return null; }
+                var token = Interlocked.Read(ref _currentFencingToken);
+                var acquiredAtTicks = Interlocked.Read(ref _leadershipAcquiredAtTicks);
+                return new Leadership(token == NoFencingToken ? null : token, new DateTimeOffset(acquiredAtTicks, TimeSpan.Zero));
             }
-
-            var acquiredAtTicks = Interlocked.Read(ref _leadershipAcquiredAtTicks);
-            var token = Interlocked.Read(ref _currentFencingToken);
-            return new Leadership(token == NoFencingToken ? null : token, new DateTimeOffset(acquiredAtTicks, TimeSpan.Zero));
         }
     }
 
     /// <inheritdoc />
-    public string? CurrentLeaderId => _leaders.GetValueOrDefault(_resourceName);
+    public string? CurrentLeaderId => _leaders.GetValueOrDefault(_resourceName)?.CandidateId;
 
     /// <inheritdoc />
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public Task StartAsync(CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        if (Interlocked.CompareExchange(ref _state, 1, 0) != 0)
+        _notifications.ThrowIfReentrant();
+        Task start;
+        lock (_lifecycleGate)
         {
-            return;
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_state == 1) { return WaitForStartAsync(_startTask ?? Task.CompletedTask, cancellationToken); }
+            if (_stopTask is { IsCompletedSuccessfully: false }) { throw new InvalidOperationException("Previous stop has not completed successfully."); }
+            _state = 1;
+            _runStop = CancellationTokenSource.CreateLinkedTokenSource(_cancellationTokenSource.Token);
+            _stopTask = null;
+            _startTask = start = RunProducerAsync(() => StartCoreAsync(cancellationToken));
         }
+        return WaitForStartAsync(start, cancellationToken);
+    }
 
-        // Time-provider and caller metadata access happen outside the shared gate.
+    private async Task StartCoreAsync(CancellationToken cancellationToken)
+    {
+        using var linkedStart = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runStop!.Token);
+        cancellationToken = linkedStart.Token;
+        await _notifications.DrainTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         var now = _timeProvider.GetUtcNow();
         var metadata = _options.CandidateMetadata ?? new Dictionary<string, string>(StringComparer.Ordinal);
         lock (_sharedState.CandidateGate)
         {
-            ObjectDisposedException.ThrowIf(_disposed || !_candidateLeaseActive, this);
-            if (_state == 0 || !TryGetLeasedCandidates(out var members, allowRepublish: true)) { return; }
+            if (_disposed || _state == 0 || !TryGetLeasedCandidates(out var members, allowRepublish: true)) { return; }
             members.TryGetValue(CandidateId, out var existing);
-            members[CandidateId] = new CandidateHealth
+            members[CandidateId] = _lastCandidateHealth = new CandidateHealth
             {
                 CandidateId = CandidateId,
                 IsHealthy = existing?.IsHealthy ?? true,
@@ -177,40 +237,72 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
                 Metadata = metadata,
             };
         }
-        // Try to acquire leadership
-        await TryAcquireLeadershipAsync().ConfigureAwait(false);
-
-        // Start lease renewal timer
-        _ = _leaseRenewalTimer.Change(_options.RenewInterval, _options.RenewInterval);
-
-        LogStarted(_resourceName, CandidateId);
+        await AcquireTrackedAsync().ConfigureAwait(false);
+        lock (_lifecycleGate)
+        {
+            if (!_disposed && _state == 1) { _ = _leaseRenewalTimer.Change(_options.RenewInterval, _options.RenewInterval); }
+        }
+        _notifications.EnqueueDiagnostic(LogStarted, _resourceName, CandidateId);
     }
 
     /// <inheritdoc />
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public Task StopAsync(CancellationToken cancellationToken)
     {
-        if (Interlocked.CompareExchange(ref _state, 0, 1) != 1) { return; }
-        try
+        Task stop;
+        lock (_lifecycleGate)
         {
-            _ = _leaseRenewalTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-            var wasLeader = ReleaseLeadershipIfHeld();
-            if (wasLeader)
-            {
-                LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-                LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-            }
-            LogStopped(_resourceName, wasLeader);
+            if (_disposed) { return (_disposalTask ?? Task.CompletedTask).WaitAsync(cancellationToken); }
+            if (_stopTask is not null) { return _stopTask.WaitAsync(cancellationToken); }
+            if (_state == 0) { return Task.CompletedTask; }
+            _state = 0;
+            _stopTask = stop = RunProducerAsync(StopCoreAsync);
         }
-        finally
+        return stop.WaitAsync(cancellationToken);
+    }
+
+    private async Task StopCoreAsync()
+    {
+        var failures = new List<Exception>();
+        if (_runStop is not null)
         {
-            // A throwing subscriber must not leave membership behind; the lifetime pin remains.
-            RemoveCandidateMembership();
+            try { await _runStop.CancelAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
         }
-        await Task.CompletedTask.ConfigureAwait(false);
+        try { _ = _leaseRenewalTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan); }
+        catch (Exception error) { failures.Add(error); }
+        Task? start; Task acquisition;
+        lock (_lifecycleGate) { start = _startTask; acquisition = _acquisitionTask; }
+        if (start is not null)
+        {
+            try { await start.ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+            catch (Exception error) { failures.Add(error); }
+        }
+        try { await acquisition.ConfigureAwait(false); }
+        catch (OperationCanceledException) when (_runStop?.IsCancellationRequested == true) { }
+        catch (Exception error) { failures.Add(error); }
+        try { StopForDisposal(releaseLeadership: true, logStopped: true); }
+        catch (Exception error) { failures.Add(error); }
+        finally { RemoveCandidateMembership(); }
+        try { _runStop?.Dispose(); _runStop = null; }
+        catch (Exception error) { failures.Add(error); }
+        ThrowFailures(failures);
+    }
+
+    private Task AcquireTrackedAsync()
+    {
+        lock (_lifecycleGate)
+        {
+            if (_disposed || _state == 0) { return Task.CompletedTask; }
+            if (!_acquisitionTask.IsCompleted) { return _acquisitionTask; }
+            return _acquisitionTask = RunProducerAsync(TryAcquireLeadershipAsync);
+        }
     }
     /// <inheritdoc />
     public Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
     {
+        if (!_producers.TryEnter(out var operation)) { return Task.CompletedTask; }
+        using var healthOperation = operation;
         if (_state == 0 || _disposed) { return Task.CompletedTask; }
         var combinedMetadata = new Dictionary<string, string>(
             _options.CandidateMetadata ?? new Dictionary<string, string>(StringComparer.Ordinal), StringComparer.Ordinal);
@@ -222,7 +314,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
         lock (_sharedState.CandidateGate)
         {
             if (_state == 0 || !TryGetLeasedCandidates(out var members)) { return Task.CompletedTask; }
-            members[CandidateId] = new CandidateHealth
+            members[CandidateId] = _lastCandidateHealth = new CandidateHealth
             {
                 CandidateId = CandidateId,
                 IsHealthy = isHealthy,
@@ -231,13 +323,16 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
                 Metadata = combinedMetadata,
             };
         }
-        LogHealthUpdated(CandidateId, isHealthy);
-        // Health is published before leadership is released; renewal reads the leader slot first.
-        if (!isHealthy && _options.StepDownWhenUnhealthy && ReleaseLeadershipIfHeld())
+        _notifications.EnqueueDiagnostic(LogHealthUpdated, CandidateId, isHealthy);
+        if (!isHealthy && _options.StepDownWhenUnhealthy)
         {
-            LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-            LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-            LogSteppedDownUnhealthy();
+            // Capture the clock outside CandidateGate; release and its owed loss publication
+            // then share the state-commit gate, so a successor cannot enqueue Became first.
+            var lostAt = _timeProvider.GetUtcNow();
+            if (ReleaseLeadershipIfHeld(lostAt))
+            {
+                _notifications.EnqueueDiagnostic(LogSteppedDownUnhealthy);
+            }
         }
         return Task.CompletedTask;
     }
@@ -253,80 +348,77 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
     }
 
     /// <inheritdoc />
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (!TryBeginDispose(out var wasRunning)) { return; }
-        Exception? failure = null;
-        try { StopForDisposal(releaseLeadership: wasRunning, logStopped: true); }
-        catch (Exception error) { failure = error; }
-        try { await _leaseRenewalTimer.DisposeAsync().ConfigureAwait(false); }
-        catch (Exception error) { failure = CombineFailures(failure, error); }
-        try { _cancellationTokenSource.Dispose(); }
-        catch (Exception error) { failure = CombineFailures(failure, error); }
-        finally
+        GC.SuppressFinalize(this);
+        return new(BeginDispose());
+    }
+
+    private Task BeginDispose()
+    {
+        lock (_lifecycleGate)
         {
-            try { ReleaseCandidateLease(removeMembership: wasRunning); }
-            catch (Exception error) { failure = CombineFailures(failure, error); }
-            GC.SuppressFinalize(this);
+            if (_disposalTask is not null) { return _disposalTask; }
+            _disposed = true;
+            _state = 0;
+            return _disposalTask = LeaderElectionExecution.RunAsync(DisposeCoreAsync);
         }
-        if (failure is not null) { ExceptionDispatchInfo.Capture(failure).Throw(); }
+    }
+
+    private async Task DisposeCoreAsync()
+    {
+        var failures = new List<Exception>();
+        var producers = _producers.Seal();
+        try
+        {
+            try { await _cancellationTokenSource.CancelAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            try { _ = _leaseRenewalTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan); }
+            catch (Exception error) { failures.Add(error); }
+            try { await _leaseRenewalTimer.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            try { await producers.ConfigureAwait(false); }
+            catch (Exception error) { failures.Add(error); }
+            try { StopForDisposal(releaseLeadership: true, logStopped: true, disarmTimer: false); }
+            catch (Exception error) { failures.Add(error); }
+            try { _runStop?.Dispose(); _cancellationTokenSource.Dispose(); }
+            catch (Exception error) { failures.Add(error); }
+            try { ReleaseCandidateLease(removeMembership: true); }
+            catch (Exception error) { failures.Add(error); }
+        }
+        finally { _notifications.Seal(); }
+        ThrowFailures(failures);
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
-        if (!TryBeginDispose(out _)) { return; }
-        Exception? failure = null;
-        try { StopForDisposal(releaseLeadership: true, logStopped: false); }
-        catch (Exception error) { failure = error; }
-        try { _leaseRenewalTimer.Dispose(); }
-        catch (Exception error) { failure = CombineFailures(failure, error); }
-        try { _cancellationTokenSource.Dispose(); }
-        catch (Exception error) { failure = CombineFailures(failure, error); }
-        finally
-        {
-            try { ReleaseCandidateLease(removeMembership: true); }
-            catch (Exception error) { failure = CombineFailures(failure, error); }
-            GC.SuppressFinalize(this);
-        }
-        if (failure is not null) { ExceptionDispatchInfo.Capture(failure).Throw(); }
+        GC.SuppressFinalize(this);
+#pragma warning disable RS0030 // Synchronous disposal joins owned resource work, never the independent notification lane.
+        BeginDispose().GetAwaiter().GetResult();
+#pragma warning restore RS0030
     }
 
     private static Exception CombineFailures(Exception? earlier, Exception later) =>
         earlier is null ? later : new AggregateException(earlier, later);
 
-    private bool TryBeginDispose(out bool wasRunning)
-    {
-        lock (_sharedState.CandidateGate)
-        {
-            wasRunning = false;
-            if (_disposed) { return false; }
-            _disposed = true;
-            wasRunning = Interlocked.Exchange(ref _state, 0) == 1;
-            return true;
-        }
-    }
-
-    private void StopForDisposal(bool releaseLeadership, bool logStopped)
+    private void StopForDisposal(bool releaseLeadership, bool logStopped, bool disarmTimer = true)
     {
         // Async disposal of a stopped/never-started instance preserves StopAsync's former no-op.
         if (!releaseLeadership) { return; }
         Exception? failure = null;
-        try { _ = _leaseRenewalTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan); }
-        catch (Exception error) { failure = error; }
-        var wasLeader = false;
-        try { wasLeader = ReleaseLeadershipIfHeld(); }
-        catch (Exception error) { failure = CombineFailures(failure, error); }
-        if (wasLeader)
+        if (disarmTimer)
         {
-            try { LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow())); }
-            catch (Exception error) { failure = CombineFailures(failure, error); }
-            try { LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName, timestamp: _timeProvider.GetUtcNow())); }
-            catch (Exception error) { failure = CombineFailures(failure, error); }
+            try { _ = _leaseRenewalTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan); }
+            catch (Exception error) { failure = error; }
         }
+        var wasLeader = false;
+        var lostAt = _timeProvider.GetUtcNow();
+        try { wasLeader = ReleaseLeadershipIfHeld(lostAt); }
+        catch (Exception error) { failure = CombineFailures(failure, error); }
         if (logStopped)
         {
-            try { LogStopped(_resourceName, wasLeader); }
+            try { _notifications.EnqueueDiagnostic(LogStopped, _resourceName, wasLeader); }
             catch (Exception error) { failure = CombineFailures(failure, error); }
         }
         if (failure is not null) { ExceptionDispatchInfo.Capture(failure).Throw(); }
@@ -356,8 +448,19 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
     {
         lock (_sharedState.CandidateGate)
         {
-            if (TryGetLeasedCandidates(out var members, allowDisposing: true)) { _ = members.TryRemove(CandidateId, out _); }
+            if (TryGetLeasedCandidates(out var members, allowDisposing: true)) { RemoveOwnedMembership(members); }
         }
+    }
+
+    // CandidateGate is held by both callers; a same-display instance owns only its last publication.
+    private void RemoveOwnedMembership(ConcurrentDictionary<string, CandidateHealth> members)
+    {
+        if (_lastCandidateHealth is { } owned && members.TryGetValue(CandidateId, out var current)
+            && ReferenceEquals(current, owned))
+        {
+            _ = members.TryRemove(new KeyValuePair<string, CandidateHealth>(CandidateId, owned));
+        }
+        _lastCandidateHealth = null;
     }
 
     private void ReleaseCandidateLease(bool removeMembership)
@@ -365,7 +468,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
         lock (_sharedState.CandidateGate)
         {
             if (!_candidateLeaseActive) { return; }
-            if (removeMembership && TryGetLeasedCandidates(out var members, allowDisposing: true)) { _ = members.TryRemove(CandidateId, out _); }
+            if (removeMembership && TryGetLeasedCandidates(out var members, allowDisposing: true)) { RemoveOwnedMembership(members); }
             _candidateLeaseActive = false;
             _candidateBucket.Owners--;
             if (_candidateBucket.Owners == 0)
@@ -391,15 +494,22 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
     /// resource is free for a third candidate to acquire. This provider has no lease expiry, so nothing
     /// downstream would ever correct that.
     /// </remarks>
-    private bool ReleaseLeadershipIfHeld()
+    private bool ReleaseLeadershipIfHeld(DateTimeOffset lostAt)
     {
-        var released = _leaders.TryRemove(new KeyValuePair<string, string?>(_resourceName, CandidateId));
-        if (released)
+        lock (_sharedState.CandidateGate)
         {
+            var published = _publishedTenure;
+            if (published is null) { return false; }
+            var released = _leaders.TryRemove(new KeyValuePair<string, InMemoryLeaderElectionSharedState.TenureOwnership>(_resourceName, published));
+            _publishedTenure = null;
             _ = Interlocked.Exchange(ref _currentFencingToken, NoFencingToken);
+            if (released)
+            {
+                QueueEvent(LostLeadership, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: lostAt));
+                QueueEvent(LeaderChanged, new LeaderChangedEventArgs(CandidateId, null, _resourceName, timestamp: lostAt));
+            }
+            return released;
         }
-
-        return released;
     }
 
     /// <summary>
@@ -430,42 +540,51 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
     /// </remarks>
     private async Task TryAcquireLeadershipAsync()
     {
-        var wasLeader = IsLeader;
+        await _notifications.DrainTask.WaitAsync(_runStop?.Token ?? _cancellationTokenSource.Token).ConfigureAwait(false);
+        if (_disposed || _state == 0 || IsLeader) { return; }
         var currentLeader = CurrentLeaderId;
-
-        // Simple first-come-first-served election for in-memory implementation
-        var acquired = _leaders.TryAdd(_resourceName, CandidateId);
-
-        if (acquired && (_state == 0 || _disposed))
+        var reservation = new InMemoryLeaderElectionSharedState.TenureOwnership(CandidateId);
+        if (!_leaders.TryAdd(_resourceName, reservation))
         {
-            // Won the resource after this candidate stopped. Give it back with the same
-            // compare-and-remove every other release path uses, so a successor that has already taken
-            // it keeps it, and say nothing: a tenure that never legitimately began has no loss to
-            // announce.
-            _ = ReleaseLeadershipIfHeld();
+            RaiseAcquisitionFailed("lost the acquisition race", exception: null);
             return;
         }
-
-        if (acquired && !wasLeader)
+        var published = false;
+        try
         {
-            // Mint the fencing token BEFORE announcing leadership so the fence is always advanced first.
-            // On token-domain exhaustion, give the resource back rather than lead — fail-closed.
-            if (!await TryMintFencingTokenAsync().ConfigureAwait(false))
+            if (_disposed || _state == 0) { return; }
+            var mintFailure = await TryMintFencingTokenAsync().ConfigureAwait(false);
+            if (mintFailure is not null)
             {
-                _ = ReleaseLeadershipIfHeld();
-                RaiseAcquisitionFailed("fencing token domain exhausted", exception: null);
+                RaiseAcquisitionFailed("fencing token mint failed", mintFailure);
                 return;
             }
-
-            Interlocked.Exchange(ref _leadershipAcquiredAtTicks, _timeProvider.GetUtcNow().UtcTicks);
-            LogAcquiredLeadership(_resourceName);
-            BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
-            LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(currentLeader, CandidateId, _resourceName, timestamp: _timeProvider.GetUtcNow()));
+            // A foreign clock can fail here after minting; the reservation still belongs to finally.
+            var acquiredAt = _timeProvider.GetUtcNow();
+            lock (_sharedState.CandidateGate)
+            {
+                if (_disposed || _state == 0 || !_leaders.TryGetValue(_resourceName, out var current)
+                    || !ReferenceEquals(current, reservation)) { return; }
+                Interlocked.Exchange(ref _leadershipAcquiredAtTicks, acquiredAt.UtcTicks);
+                _publishedTenure = reservation;
+                published = true;
+                var fence = Interlocked.Read(ref _currentFencingToken);
+                QueueEvent(BecameLeader, new LeaderElectionEventArgs(CandidateId, _resourceName, timestamp: acquiredAt));
+                QueueEvent(LeaderChanged, new LeaderChangedEventArgs(currentLeader, CandidateId, _resourceName,
+                    fence == NoFencingToken ? null : fence, timestamp: acquiredAt));
+            }
+            _notifications.EnqueueDiagnostic(LogAcquiredLeadership, _resourceName);
         }
-        else if (!acquired)
+        finally
         {
-            // Another candidate already holds leadership for this resource — lost the race.
-            RaiseAcquisitionFailed("lost the acquisition race", exception: null);
+            if (!published)
+            {
+                lock (_sharedState.CandidateGate)
+                {
+                    _ = _leaders.TryRemove(new KeyValuePair<string, InMemoryLeaderElectionSharedState.TenureOwnership>(_resourceName, reservation));
+                    if (_publishedTenure is null) { _ = Interlocked.Exchange(ref _currentFencingToken, NoFencingToken); }
+                }
+            }
         }
     }
 
@@ -474,7 +593,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
     /// <see langword="true"/> if leadership may proceed. Returns <see langword="false"/> only when the token
     /// domain is exhausted (<see cref="FencingTokenExhaustedException"/>) — the fail-closed relinquish path.
     /// </summary>
-    private async Task<bool> TryMintFencingTokenAsync()
+    private async Task<Exception?> TryMintFencingTokenAsync()
     {
         if (_fencingTokenProvider is null)
         {
@@ -483,7 +602,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
             // the default one Add{Store}LeaderElection() registers); the fenced-resource seam
             // (GuardActiveGateHasFencingToken) is what guards against a fenced store being used without
             // one, not this method.
-            return true;
+            return null;
         }
 
         try
@@ -493,13 +612,16 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
             // acquisition path, which is already synchronous/uncancellable end to end.
             var token = await _fencingTokenProvider.IssueTokenAsync(_resourceName, CancellationToken.None).ConfigureAwait(false);
             _ = Interlocked.Exchange(ref _currentFencingToken, token);
-            LogFencingTokenIssued(CandidateId, token, _resourceName);
-            return true;
+            _notifications.EnqueueDiagnostic(LogFencingTokenIssued, CandidateId, token, _resourceName);
+            return null;
         }
-        catch (FencingTokenExhaustedException ex)
+        catch (Exception ex)
         {
-            LogFencingTokenExhausted(ex, CandidateId, _resourceName);
-            return false;
+            // No cancellation clause, unlike the sibling providers: this path carries no token (see the
+            // comment above), so there is no shutdown signal here to distinguish from a mint failure, and
+            // giving the resource back is the right answer either way.
+            _notifications.EnqueueDiagnostic(LogFencingTokenMintFailed, ex, CandidateId, _resourceName);
+            return ex;
         }
     }
 
@@ -511,7 +633,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
     {
         try
         {
-            AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName, reason, _timeProvider.GetUtcNow(), exception));
+            QueueEvent(AcquisitionFailed, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName, reason, _timeProvider.GetUtcNow(), exception));
         }
         catch (Exception)
         {
@@ -531,18 +653,18 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
             // In a real implementation, this would renew a lease in external storage. For in-memory, we just verify we're still the leader
             if (IsLeader)
             {
-                LogRenewedLease(_resourceName);
+                _notifications.EnqueueDiagnostic(LogRenewedLease, _resourceName);
             }
             else if (!(_options.StepDownWhenUnhealthy && IsCurrentCandidateUnhealthy()))
             {
                 // Try to acquire leadership if no one has it,
                 // but not if we stepped down due to being unhealthy
-                _ = TryAcquireLeadershipAsync();
+                _ = AcquireTrackedAsync();
             }
         }
         catch (Exception ex)
         {
-            LogRenewalError(ex, _resourceName);
+            _notifications.EnqueueDiagnostic(LogRenewalError, ex, _resourceName);
         }
     }
 
@@ -578,6 +700,9 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
     [LoggerMessage(LeaderElectionEventId.InMemoryFencingTokenIssued, LogLevel.Information, "Fencing token {Token} issued to candidate '{CandidateId}' for resource '{ResourceName}'")]
     partial void LogFencingTokenIssued(string candidateId, long token, string resourceName);
 
-    [LoggerMessage(LeaderElectionEventId.InMemoryFencingTokenExhausted, LogLevel.Critical, "Fencing token domain exhausted for candidate '{CandidateId}' on resource '{ResourceName}'; leadership relinquished")]
-    partial void LogFencingTokenExhausted(Exception exception, string candidateId, string resourceName);
+    [LoggerMessage(LeaderElectionEventId.InMemoryFencingTokenMintFailed, LogLevel.Critical, "Could not mint a fencing token for candidate '{CandidateId}' on resource '{ResourceName}'; the resource was given back and leadership relinquished")]
+    partial void LogFencingTokenMintFailed(Exception exception, string candidateId, string resourceName);
+
+    [LoggerMessage(LeaderElectionEventId.InMemoryDisposalCleanupFailed, LogLevel.Error, "Cleanup failed while disposing leader election for resource '{ResourceName}', candidate '{CandidateId}'; disposal completed and the failure was not propagated")]
+    partial void LogDisposalCleanupFailed(Exception exception, string resourceName, string candidateId);
 }

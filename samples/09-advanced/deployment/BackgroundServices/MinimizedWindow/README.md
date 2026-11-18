@@ -14,7 +14,7 @@ This example demonstrates the **MinimizedWindow** delivery guarantee for smaller
 Choose MinimizedWindow when:
 - **Duplicate impact is significant** (e.g., financial transactions)
 - You need **audit logging** with minimal duplicate risk
-- You can accept lower throughput for smaller failure windows
+- You require a smaller redelivery window and have evaluated the additional database work
 
 ## Configuration
 
@@ -31,7 +31,7 @@ services.Configure<OutboxDeliveryOptions>(options =>
 
 | Aspect | AtLeastOnce | MinimizedWindow |
 |--------|-------------|-----------------|
-| DB Round-Trips | 1 per batch | N per batch |
+| DB Round-Trips | Provider-, batching- and retry-dependent | Provider-, batching- and retry-dependent |
 | Throughput | Workload-dependent | Earlier ~50% lower estimate is unverified |
 | Failure Window | Entire batch | Single message |
 | Duplicates on Crash | Up to batch size | 1 message max |

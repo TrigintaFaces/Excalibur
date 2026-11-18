@@ -27,9 +27,9 @@ If you are starting a new project and want a single recommendation:
 - **Already on Azure?** Use **Azure Service Bus**.
 - **Already on AWS?** Use **AWS SQS**.
 - **Already on GCP?** Use **Google Pub/Sub**.
-- **Need high-throughput event streaming?** Use **Kafka**.
+- **Need partitioned event streaming?** Use **Kafka**.
 - **Need complex routing patterns (topic, header, fanout)?** Use **RabbitMQ**.
-- **Not sure yet?** Start with **In-Memory**, and switch when you need a real broker. The Dispatch transport abstraction makes this a configuration change, not a code change.
+- **Exploring locally?** In-Memory can support local development. Moving to a broker requires verification of delivery, ordering, serialization and recovery assumptions; registration changes alone do not prove compatibility.
 
 ## Transport Comparison
 
@@ -37,7 +37,7 @@ If you are starting a new project and want a single recommendation:
 
 | Feature | Kafka | RabbitMQ | Azure Service Bus | AWS SQS | Google Pub/Sub |
 |---------|:-----:|:--------:|:-----------------:|:-------:|:--------------:|
-| **Throughput** | Very high | High | High | High | High |
+| **Completed throughput** | Measure selected workload | Measure selected workload | Measure selected workload | Measure selected workload | Measure selected workload |
 | **Message ordering** | Per-partition | Per-queue | Per-session | FIFO queues | Per-key |
 | **Message retention** | Configurable (days/weeks) | Until consumed | Until consumed | Up to 14 days | Until consumed |
 | **Consumer groups** | Built-in | Manual (competing consumers) | Subscriptions | Built-in | Subscriptions |
@@ -45,16 +45,16 @@ If you are starting a new project and want a single recommendation:
 | **Replay/rewind** | Yes (offset reset) | No | No | No | Yes (seek) |
 | **Managed cloud option** | Confluent, MSK, etc. | CloudAMQP, etc. | Azure-native | AWS-native | GCP-native |
 | **Self-hosted** | Yes | Yes | No | No | No |
-| **AOT-safe** | Partial (SchemaRegistry needs reflection) | Yes | Yes | Yes | Yes |
+| **NativeAOT** | Verify selected configuration | Verify selected configuration | Verify selected configuration | Verify selected configuration | Verify selected configuration |
 
 ### When to Choose Each
 
 #### Kafka
 
-Best for **high-throughput event streaming** and scenarios where you need to replay historical events.
+Best for **partitioned event streaming** and scenarios where you need to replay historical events.
 
 **Choose Kafka when:**
-- You need to process hundreds of thousands of messages per second
+- Your measured streaming workload and deployment requirements suit its partitioned log model
 - You want to retain messages for days or weeks (log-style)
 - Multiple independent consumers need to read the same events at their own pace
 - You need replay capability (reprocess events from a point in time)
@@ -86,7 +86,7 @@ Best for **traditional messaging** with rich routing patterns.
 - You want a simple, well-understood message broker
 - You need request/reply (RPC) patterns
 - You prefer self-hosted infrastructure
-- Your message volume is moderate (thousands to tens of thousands per second)
+- Representative completed-throughput measurements satisfy your required volume
 
 **Be aware:**
 - Messages are consumed and deleted (no replay)
@@ -145,8 +145,8 @@ Best for **AWS-native** applications with simple queue semantics.
 **Be aware:**
 - AWS-only
 - Standard queues provide at-least-once delivery (not exactly-once)
-- FIFO queues have a 300 msg/sec limit (3,000 with batching)
-- Message size limit is 256 KB (use Claim Check for larger payloads)
+- FIFO quotas depend on partition, API action, throughput mode, batching and region; see the [AWS message quota table](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-messages.html).
+- AWS documents a maximum message size of 1 MiB. Evaluate Claim Check for larger payloads and verify the configured client/provider limits.
 
 ```csharp
 services.AddDispatch(dispatch =>
@@ -216,7 +216,8 @@ services.AddDispatch(dispatch =>
 });
 ```
 
-Your handlers do not change. Only the registration code changes.
+Handlers may be reusable, but verify their delivery, ordering, serialization and recovery assumptions
+when changing transport. Registration changes alone do not establish behavioral compatibility.
 
 ### Growing System: Multi-Transport
 
@@ -227,7 +228,7 @@ services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-    // High-throughput events to Kafka
+    // Events requiring a partitioned log to Kafka
     dispatch.UseKafka(kafka => kafka.BootstrapServers("kafka:9092"));
 
     // Command processing to RabbitMQ
@@ -248,18 +249,20 @@ services.AddDispatch(dispatch =>
 
 ## Serialization Considerations
 
-All transports use the same serialization layer. The default is JSON (System.Text.Json) which works out of the box with any POCO type. For high-throughput .NET-only scenarios, switch to a binary format:
+Transport serialization requires supported contracts and metadata for the selected types. For
+NativeAOT, provide the required generated serialization contracts. Compare actual payloads before
+selecting JSON or a binary format:
 
 | Scenario | Recommended Serializer |
 |----------|----------------------|
 | General purpose | System.Text.Json (default) |
-| .NET-only, max performance | MemoryPack (opt-in) |
+| .NET-only binary candidate | MemoryPack (opt-in; measure the workload) |
 | Mixed language consumers | System.Text.Json or Protobuf |
-| Maximum compactness | MessagePack |
+| Binary size candidate | MessagePack (measure serialized payloads) |
 | Schema evolution needed | Protobuf |
 
 ```csharp
-// Switch to MemoryPack for .NET-only maximum performance
+// Evaluate MemoryPack for the selected .NET-only payloads
 services.AddMemoryPackSerializer();
 
 // Or MessagePack for compact binary
@@ -291,7 +294,8 @@ Every transport supports the same resilience features, but each has transport-sp
 
 These earlier throughput illustrations are not provider limits or framework benchmark results. Measure the actual configuration, payload and durability requirements.
 
-The transport you choose today does not lock you in. Dispatch's abstractions mean you can switch or add transports without changing your handlers, middleware, or business logic.
+Dispatch's abstractions can reduce migration work. Switching transports still requires verification
+of ordering, delivery, serialization and recovery assumptions in handlers, middleware and business logic.
 
 ## Next Steps
 

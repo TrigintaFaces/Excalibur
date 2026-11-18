@@ -111,6 +111,15 @@ builder.Services.AddGdprErasure(options =>
 // fails closed at startup if one is not configured (a missing/weak pepper would make the pseudonymization
 // reversible). DEMO ONLY: read it from configuration with a runnable fallback — in production supply a
 // high-entropy secret from your secret manager / KMS (never a literal in source), stored apart from the data.
+//
+// THE PEPPER IS PERMANENT. DO NOT ROTATE IT. Every durable compliance record is keyed by a token derived
+// from it, so changing it makes all of them unfindable at once: an erasure would then enumerate nothing,
+// destroy nothing, and still sign a completion certificate, and a legal hold would stop being found.
+// A durable store records a fingerprint of this key on first use and REFUSES TO START if it later changes,
+// so the failure is loud — but the only remedy is to restore the original value or migrate every record
+// before changing it. Treat it as a derivation parameter for the life of the data, not as a credential on
+// a rotation schedule. (This demo uses the in-memory store, whose records do not outlive the process, so
+// nothing here can be orphaned; the rule matters the moment you swap in SQL Server below.)
 builder.Services.Configure<Excalibur.Compliance.Erasure.DataSubjectHashingOptions>(o =>
 	o.Pepper = builder.Configuration["Gdpr:DataSubjectPepper"]
 		?? "sample-demo-pepper-not-a-secret-change-me-0123456789");

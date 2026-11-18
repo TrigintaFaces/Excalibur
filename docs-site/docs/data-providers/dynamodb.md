@@ -115,7 +115,16 @@ services.AddExcalibur(excalibur =>
             dynamo.Region(RegionEndpoint.USEast1)
                   .TableName("Outbox")));
 });
+
+// The outbox processor requires an explicitly registered dead-letter queue for messages
+// that exhaust their retries, or it throws on its first poll.
+services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
 ```
+
+`NullDeadLetterQueue` **discards** exhausted messages: they are dropped, and nothing retains
+them for inspection or replay. Registering it is a deliberate choice to accept that loss, not
+boilerplate. No store-backed dead-letter queue ships for DynamoDB, so a deployment that must
+keep exhausted messages registers its own `IDeadLetterQueue` implementation instead.
 
 ### Change Data Capture
 
@@ -273,7 +282,7 @@ The DynamoDB event store appends a batch as a single all-or-nothing `TransactWri
 - **2 to 100 events** → one `TransactWriteItems` call, all-or-nothing.
 - **A single event** → one conditional `PutItem`, which is atomic on its own. It does not use a transaction, so it does not incur the doubled write cost or the additional IAM permission `TransactWriteItems` requires.
 
-There is no opt-out that accepts a larger append. An earlier release offered one, and it bought throughput by writing items individually — which leaves a torn prefix if it fails partway, and no later read can tell that apart from a stream that was simply never written further.
+There is no opt-out that accepts a larger append. An earlier release offered one and wrote items individually — which leaves a torn prefix if it fails partway, and no later read can tell that apart from a stream that was simply never written further.
 
 ## Configuration Binding
 

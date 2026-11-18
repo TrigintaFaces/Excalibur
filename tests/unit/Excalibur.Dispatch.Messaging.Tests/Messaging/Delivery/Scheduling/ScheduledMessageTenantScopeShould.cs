@@ -28,7 +28,18 @@ public sealed class ScheduledMessageTenantScopeShould : IDisposable
 {
 	private readonly ServiceProvider _scopeProvider = new ServiceCollection().BuildServiceProvider();
 
-	public void Dispose() => _scopeProvider.Dispose();
+	private readonly List<ScheduleFixtureFailureAuthority> _authorities = [];
+	public void Dispose()
+	{
+		foreach (var authority in _authorities) { authority.Dispose(); }
+		_scopeProvider.Dispose();
+	}
+	private IScheduleExecutionFailureStore Observe(IScheduleStore store)
+	{
+		var authority = new ScheduleFixtureFailureAuthority(store);
+		_authorities.Add(authority);
+		return authority.RuntimeStore;
+	}
 	// Scaled by TEST_TIMEOUT_MULTIPLIER (3 on CI): this budget bounds a wait on real background
 	// work, so a fixed value times out on a loaded runner with nothing actually wrong.
 	private static readonly TimeSpan ObservationTimeout =
@@ -99,7 +110,7 @@ public sealed class ScheduledMessageTenantScopeShould : IDisposable
 
 	private ScheduledMessageService CreateService(IScheduleStore store, IDispatcher dispatcher, DispatchJsonSerializer serializer) =>
 		new(
-			store,
+			Observe(store),
 			dispatcher,
 			serializer,
 			A.Fake<ICronScheduler>(),

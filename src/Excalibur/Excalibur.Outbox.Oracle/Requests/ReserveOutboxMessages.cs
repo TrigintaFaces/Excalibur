@@ -16,11 +16,19 @@ namespace Excalibur.Outbox.Oracle;
 /// <summary>
 /// Represents a data request to reserve outbox messages for processing in the Oracle database.
 /// </summary>
+/// <remarks>
+/// This framework-owned request uses its fixed constructor-defined primitive input schema. Replacing a
+/// known parameter value through <c>Parameters</c> is observed at execution; parameter DbType,
+/// direction, size, templates and output callbacks are not an extensibility contract of this request.
+/// Custom <c>IDataRequest</c> implementations retain their own execution behavior.
+/// </remarks>
 [NoTenantTerm(
 	TenantConfinement.EstateWide,
 	"the outbox drain is cross-tenant by design: one dispatcher serves every tenant, and each claimed row carries its own tenant_id so the processor can re-establish the owning tenant per message. Scoping this claim to a single tenant would stall delivery for every other tenant in the store")]
 public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessage>>
 {
+	internal string ClaimIdentity { get; }
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ReserveOutboxMessages" /> class.
@@ -44,14 +52,26 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		string outboxTableName,
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
+		: this(dispatcherId, batchSize, reservationTimeout, outboxTableName, sqlTimeOutSeconds, transaction: null, cancellationToken)
 	{
-		// Oracle claim — PL/SQL cursor with TRUE skip-locked (SA ruling on A0 #4, bead).
+	}
+
+	internal ReserveOutboxMessages(
+		string dispatcherId,
+		int batchSize,
+		int reservationTimeout,
+		string outboxTableName,
+		int sqlTimeOutSeconds,
+		IDbTransaction? transaction,
+		CancellationToken cancellationToken)
+	{
+		// Oracle claim â€” PL/SQL cursor with TRUE skip-locked (SA ruling on A0 #4, bead).
 		// ORA-02014 forbids `FETCH FIRST n`/`ROWNUM` in the same statement as `FOR UPDATE SKIP LOCKED`,
 		// so the row cap cannot live in the SELECT. Instead the cap lives on the CURSOR FETCH: Oracle
 		// locks rows as they are fetched, so opening a `... FOR UPDATE SKIP LOCKED` cursor and
 		// `FETCH BULK COLLECT INTO ... LIMIT n` locks exactly n eligible rows and SKIPS rows already
 		// locked by a concurrent reserver's open cursor. Two concurrent reservers therefore claim
-		// DISJOINT id sets and neither blocks to timeout on a contended row — the idiomatic Oracle
+		// DISJOINT id sets and neither blocks to timeout on a contended row â€” the idiomatic Oracle
 		// queue-table dequeue (Oracle AQ / NServiceBus Oracle). The FORALL then stamps dispatcher_id on
 		// exactly those n rows under the locks; the select-back reads the rows this dispatcher owns.
 		var claimSql = $"""
@@ -100,7 +120,7 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		                  dispatcher_id AS DispatcherId,
 		                  dispatcher_timeout AS DispatcherTimeout
 		           FROM {outboxTableName}
-		           WHERE dispatcher_id = :ClaimToken
+		           WHERE {OraclePhysicalOutboxScope.Exact("dispatcher_id", ":ClaimToken")}
 		           ORDER BY partition_key, sequence_number, occurred_on
 		           FETCH FIRST :BatchSize ROWS ONLY
 		           """;
@@ -108,19 +128,16 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		// Per-call claim token: the claim stamps dispatcher_id with a value UNIQUE to THIS call
 		// ("{dispatcherId}:{guid}") and the select-back reads exactly the rows it just stamped. Keying the
 		// read on the dispatcher id alone returned every row this (process-stable) dispatcher had ever
-		// reserved and not completed — unbounded by batchSize, re-dispatching rows a previous still-in-flight
+		// reserved and not completed â€” unbounded by batchSize, re-dispatching rows a previous still-in-flight
 		// poll is delivering. The dispatcher id stays as a prefix so a row still names its owner in a
 		// diagnostic query; crash recovery is unaffected because eligibility keys on dispatcher_timeout
-		// expiry, not the token. Not security material — it identifies a batch — so a Guid is the right
+		// expiry, not the token. Not security material â€” it identifies a batch â€” so a Guid is the right
 		// primitive, not a CSPRNG draw.
 		var claimToken = FormattableString.Invariant($"{dispatcherId}:{Guid.NewGuid():N}");
+		ClaimIdentity = claimToken;
 
-		// Per-statement DynamicParameters — the discipline the rest of the Oracle suite follows. The Oracle
-		// outbox path uses ODP.NET positional binding (BindByName is NOT set here), so each statement MUST
-		// bind against a parameter set whose positional order matches its own placeholders. The claim binds
-		// BatchSize → ClaimToken → ReservationTimeout in textual-appearance order; the select-back binds
-		// ClaimToken → BatchSize (its :ClaimToken WHERE, then the :BatchSize FETCH FIRST cap) and therefore
-		// needs its OWN param set — sharing the claim set would positionally mis-bind and stall the drain.
+		// Keep the per-statement parameter bags and exact claim/select SQL. The static initializer
+		// explicitly preserves Dapper's effective BindByName=true and LONG/fetch initialization.
 		var claimParameters = new DynamicParameters();
 		claimParameters.Add("BatchSize", batchSize, direction: ParameterDirection.Input);
 		claimParameters.Add("ClaimToken", claimToken, direction: ParameterDirection.Input);
@@ -131,14 +148,25 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		selectParameters.Add("BatchSize", batchSize, direction: ParameterDirection.Input);
 
 		// Command exposes the read (base telemetry references the resultset-producing statement).
-		Command = CreateCommand(selectSql, (DynamicParameters?)selectParameters, commandTimeout: sqlTimeOutSeconds,
+		Command = CreateCommand(selectSql, (DynamicParameters?)selectParameters, transaction: transaction, commandTimeout: sqlTimeOutSeconds,
 			cancellationToken: cancellationToken);
 		ResolveAsync = async conn =>
 		{
-			var claimCommand = new CommandDefinition(claimSql, claimParameters, commandTimeout: sqlTimeOutSeconds,
+			var claimCommand = new CommandDefinition(claimSql, claimParameters, transaction: transaction, commandTimeout: sqlTimeOutSeconds,
 				cancellationToken: cancellationToken);
-			_ = await conn.ExecuteAsync(claimCommand).ConfigureAwait(false);
-			return await conn.QueryAsync<OutboxMessage>(Command).ConfigureAwait(false);
+			_ = await StaticDbCommand.ExecuteAsync(conn, claimCommand, command =>
+			{
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "BatchSize", StaticDbCommand.Input<int>(claimParameters, "BatchSize"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "ClaimToken", StaticDbCommand.Input<string>(claimParameters, "ClaimToken"), DbType.String);
+				StaticDbCommand.AddParameter(command, "ReservationTimeout", StaticDbCommand.Input<int>(claimParameters, "ReservationTimeout"), DbType.Int32);
+			}).ConfigureAwait(false);
+			return await StaticDbCommand.QueryAsync(conn, Command, command =>
+			{
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "ClaimToken", StaticDbCommand.Input<string>(Parameters, "ClaimToken"), DbType.String);
+				StaticDbCommand.AddParameter(command, "BatchSize", StaticDbCommand.Input<int>(Parameters, "BatchSize"), DbType.Int32);
+			}, OracleOutboxRowReader.Read).ConfigureAwait(false);
 		};
 	}
 }

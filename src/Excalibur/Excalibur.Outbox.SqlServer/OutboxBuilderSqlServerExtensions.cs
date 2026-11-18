@@ -83,116 +83,15 @@ public static class OutboxBuilderSqlServerExtensions
 	/// }));
 	/// </code>
 	/// </example>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode("Legacy outbox registration may select reflection serialization. Use the overload with explicit OutboxMetadataSerialization for generated metadata.")]
+	[RequiresDynamicCode("Legacy outbox registration may select runtime code generation. Use the overload with explicit OutboxMetadataSerialization.")]
 	[SuppressMessage("Maintainability", "CA1506:AvoidExcessiveClassCoupling",
 		Justification = "DI composition root wires many provider types by design; matches the store's existing suppression.")]
 	public static IOutboxBuilder UseSqlServer(
 		this IOutboxBuilder builder,
 		Action<ISqlServerOutboxBuilder> configure)
 	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		// Create and configure SQL Server options via builder
-		var sqlOptions = new SqlServerOutboxOptions();
-		var sqlBuilder = new SqlServerOutboxBuilder(sqlOptions);
-		configure(sqlBuilder);
-
-		// Determine connection factory based on builder state
-		var connectionFactory = ResolveConnectionFactory(sqlBuilder);
-
-		// Determine whether the builder configured a non-connection-string connection
-		var hasBuilderConnection = sqlBuilder.ConnectionFactoryFunc is not null
-			|| sqlBuilder.ConnectionStringNameValue is not null;
-
-		// Register options from builder state
-		_ = builder.Services.Configure<SqlServerOutboxOptions>(opt => CopyBuilderOptions(sqlOptions, opt));
-
-		// Register BindConfiguration if set
-		if (sqlBuilder.BindConfigurationPath is not null)
-		{
-			builder.Services.AddOptions<SqlServerOutboxOptions>()
-				.BindConfiguration(sqlBuilder.BindConfigurationPath)
-				.ValidateOnStart();
-
-			// When ConnectionString() was explicitly called alongside BindConfiguration,
-			// re-apply via PostConfigure so the explicit value takes precedence over config.
-			if (!string.IsNullOrWhiteSpace(sqlOptions.ConnectionString))
-			{
-				var explicitConnectionString = sqlOptions.ConnectionString;
-				_ = builder.Services.PostConfigure<SqlServerOutboxOptions>(opt =>
-				{
-					opt.ConnectionString = explicitConnectionString;
-				});
-			}
-		}
-
-		// Register ValidateOnStart with connection awareness. The validator also enforces the cross-options
-		// FailureBackoffFloorSeconds > PollingInterval invariant, so it resolves IOptions<OutboxProcessingOptions>
-		// from the provider (a factory registration, since HasBuilderConnection is set here by the builder).
-		builder.Services.AddSingleton<IValidateOptions<SqlServerOutboxOptions>>(sp =>
-			new SqlServerOutboxOptionsValidator(
-				sp.GetRequiredService<IOptions<Excalibur.Outbox.Outbox.OutboxProcessingOptions>>(),
-				sp.GetRequiredService<IOptions<Excalibur.Outbox.Partitioning.OutboxPartitionOptions>>())
-			{
-				HasBuilderConnection = hasBuilderConnection,
-			});
-		builder.Services.AddOptions<SqlServerOutboxOptions>().ValidateOnStart();
-
-		// Register SQL Server outbox store using resolved connection factory
-		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
-		// multi-tenancy composition replaces it with the ambient context. The store registration below no longer
-		// depends on it.
-		builder.Services.AddDefaultTenantContext();
-		// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker inseparably from
-		// the store registration, and attests the mechanism this store actually implements. It is the partitioned
-		// seam rather than the scoped one because this store reads no ambient tenant on any path: each message
-		// persists its own TenantId on the write path and the drain hands that value back, so the owning
-		// partition is re-established from the row rather than inferred from ambient state. That seam takes no
-		// ITenantContext, so there is no dependency here to be handed and silently discarded. Statistics is an
-		// estate-wide operator report and counts the whole table.
-		builder.Services.AddTenantAwareStore<IOutboxStore, SqlServerOutboxStore>(sp =>
-		{
-			var factory = connectionFactory(sp);
-			var options = sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-			var payloadSerializer = sp.GetService<IPayloadSerializer>();
-			var logger = sp.GetRequiredService<ILogger<SqlServerOutboxStore>>();
-			return new SqlServerOutboxStore(factory, options, payloadSerializer, logger);
-		});
-		builder.Services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) =>
-		{
-			var inner = sp.GetRequiredService<SqlServerOutboxStore>();
-
-			// The decorator forwards capability resolution to the store it wraps, so wrapping cannot erase
-			// a capability SqlServerOutboxStore provides. Consumers resolve capabilities with
-			// GetService(typeof(...)); casting the decorated instance would see only the decorator's own type.
-			return new Excalibur.Outbox.Diagnostics.TelemetryOutboxStoreDecorator(inner);
-		});
-		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
-			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
-
-		// The ITenantPartitionedCapability<IOutboxStore> marker is emitted by AddTenantAwareStore above,
-		// inseparably from the store registration (the marker cannot exist without the store
-		// factory). The outbox honors the ambient tenant by stamping + persisting TenantId on enqueue and
-		// returning it on drain for the processor's per-message BeginScope.
-		builder.Services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
-		builder.Services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
-		builder.Services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
-
-		// Register health checks if enabled
-		if (sqlBuilder.HealthChecksEnabled && !string.IsNullOrWhiteSpace(sqlOptions.ConnectionString))
-		{
-			_ = builder.Services.AddHealthChecks()
-				.AddSqlServer(
-					sqlOptions.ConnectionString,
-					name: sqlBuilder.HealthCheckName,
-					tags: ["outbox", "sqlserver"]);
-		}
-
-		return builder;
+		return ConfigureSqlServer(builder, configure, SqlServerOutboxExtensions.CreateManagedSqlServerStore);
 	}
 
 	/// <summary>
@@ -280,4 +179,132 @@ public static class OutboxBuilderSqlServerExtensions
 			return () => new SqlConnection(opts.Value.ConnectionString);
 		};
 	}
+	/// <summary>Selects SQL Server storage with explicit source-generated header metadata.</summary>
+	/// <param name="builder">The outbox builder.</param>
+	/// <param name="metadataSerialization">Store-specific metadata, independent of any common default.</param>
+	/// <param name="configure">Provider connection and processing configuration.</param>
+	/// <returns>The builder.</returns>
+	public static IOutboxBuilder UseSqlServer(
+		this IOutboxBuilder builder,
+		OutboxMetadataSerialization metadataSerialization,
+		Action<ISqlServerOutboxBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(metadataSerialization);
+		return ConfigureSqlServer(builder, configure,
+			(sp, factory) => SqlServerOutboxExtensions.CreateGeneratedSqlServerStore(sp, factory, metadataSerialization));
+	}
+
+	[SuppressMessage("Maintainability", "CA1506:AvoidExcessiveClassCoupling",
+		Justification = "Shared provider registration preserves the same dependency composition for managed and generated metadata paths.")]
+	private static IOutboxBuilder ConfigureSqlServer(
+		IOutboxBuilder builder,
+		Action<ISqlServerOutboxBuilder> configure,
+		Func<IServiceProvider, Func<SqlConnection>, SqlServerOutboxStore> storeFactory)
+
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		// Create and configure SQL Server options via builder
+		var sqlOptions = new SqlServerOutboxOptions();
+		var sqlBuilder = new SqlServerOutboxBuilder(sqlOptions);
+		configure(sqlBuilder);
+
+		// Determine connection factory based on builder state
+		var connectionFactory = ResolveConnectionFactory(sqlBuilder);
+
+		// Determine whether the builder configured a non-connection-string connection
+		var hasBuilderConnection = sqlBuilder.ConnectionFactoryFunc is not null
+			|| sqlBuilder.ConnectionStringNameValue is not null;
+
+		// Register options from builder state
+		_ = builder.Services.Configure<SqlServerOutboxOptions>(opt => CopyBuilderOptions(sqlOptions, opt));
+
+		// Register BindConfiguration if set
+		if (sqlBuilder.BindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<SqlServerOutboxOptions>()
+				.BindConfiguration(sqlBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+
+			// When ConnectionString() was explicitly called alongside BindConfiguration,
+			// re-apply via PostConfigure so the explicit value takes precedence over config.
+			if (!string.IsNullOrWhiteSpace(sqlOptions.ConnectionString))
+			{
+				var explicitConnectionString = sqlOptions.ConnectionString;
+				_ = builder.Services.PostConfigure<SqlServerOutboxOptions>(opt =>
+				{
+					opt.ConnectionString = explicitConnectionString;
+				});
+			}
+		}
+
+		// Register ValidateOnStart with connection awareness. The validator also enforces the cross-options
+		// FailureBackoffFloorSeconds > PollingInterval invariant, so it resolves IOptions<OutboxProcessingOptions>
+		// from the provider (a factory registration, since HasBuilderConnection is set here by the builder).
+		builder.Services.AddSingleton<IValidateOptions<SqlServerOutboxOptions>>(sp =>
+			new SqlServerOutboxOptionsValidator(
+				sp.GetRequiredService<IOptions<Excalibur.Outbox.Outbox.OutboxProcessingOptions>>(),
+				sp.GetRequiredService<IOptions<Excalibur.Outbox.Partitioning.OutboxPartitionOptions>>())
+			{
+				HasBuilderConnection = hasBuilderConnection,
+			});
+		builder.Services.AddOptions<SqlServerOutboxOptions>().ValidateOnStart();
+
+		// Register SQL Server outbox store using resolved connection factory
+		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
+		// multi-tenancy composition replaces it with the ambient context. The store registration below no longer
+		// depends on it.
+		builder.Services.AddDefaultTenantContext();
+		// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker inseparably from
+		// the store registration, and attests the mechanism this store actually implements. It is the partitioned
+		// seam rather than the scoped one because this store reads no ambient tenant on any path: each message
+		// persists its own TenantId on the write path and the drain hands that value back, so the owning
+		// partition is re-established from the row rather than inferred from ambient state. That seam takes no
+		// ITenantContext, so there is no dependency here to be handed and silently discarded. Statistics is an
+		// estate-wide operator report and counts the whole table.
+		builder.Services.AddTenantAwareStore<IOutboxStore, SqlServerOutboxStore>(sp =>
+			storeFactory(sp, connectionFactory(sp)));
+		builder.Services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) =>
+		{
+			var inner = sp.GetRequiredService<SqlServerOutboxStore>();
+
+			// The decorator forwards capability resolution to the store it wraps, so wrapping cannot erase
+			// a capability SqlServerOutboxStore provides. Consumers resolve capabilities with
+			// GetService(typeof(...)); casting the decorated instance would see only the decorator's own type.
+			return new Excalibur.Outbox.Diagnostics.TelemetryOutboxStoreDecorator(inner);
+		});
+		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
+
+		// The ITenantPartitionedCapability<IOutboxStore> marker is emitted by AddTenantAwareStore above,
+		// inseparably from the store registration (the marker cannot exist without the store
+		// factory). The outbox honors the ambient tenant by stamping + persisting TenantId on enqueue and
+		// returning it on drain for the processor's per-message BeginScope.
+		builder.Services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		builder.Services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		builder.Services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+
+		// Register health checks if enabled.
+		//
+		// This probes the OUTBOX STORE, not the connection. It previously registered the stock
+		// connectivity probe under a name the consumer reads as a statement about the outbox, so a
+		// database that answered while its outbox table was missing a column the drain binds reported
+		// Healthy forever -- the store was unusable and nothing downstream ever learned. A probe that
+		// cannot distinguish a reachable database from a usable store is not a check of that store.
+		//
+		// The keyed "default" IOutboxStore this resolves through is registered a few lines above, so
+		// the check is constructible wherever this extension ran.
+		if (sqlBuilder.HealthChecksEnabled && !string.IsNullOrWhiteSpace(sqlOptions.ConnectionString))
+		{
+			_ = builder.Services.AddHealthChecks()
+				.AddOutboxStoreHealthCheck(
+					name: sqlBuilder.HealthCheckName,
+					tags: ["outbox", "sqlserver"]);
+		}
+
+		return builder;
+	}
+
+
 }

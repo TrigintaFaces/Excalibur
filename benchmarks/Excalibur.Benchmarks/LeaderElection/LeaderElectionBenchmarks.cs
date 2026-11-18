@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
@@ -7,9 +7,6 @@ using Excalibur.Dispatch.LeaderElection;
 
 using Excalibur.LeaderElection.InMemory;
 
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-
 namespace Excalibur.Benchmarks.LeaderElection;
 
 /// <summary>
@@ -17,9 +14,13 @@ namespace Excalibur.Benchmarks.LeaderElection;
 /// </summary>
 /// <remarks>
 /// AD-221-6: Leader Election benchmark category.
-/// - Lease acquisition time
-/// - Heartbeat overhead
-/// - Failover latency
+/// Measures the original in-memory startup, health and shutdown operations.
+/// MultipleCandidatesCompete issues starts sequentially; Task.WhenAll does not establish
+/// contention when non-fencing starts complete synchronously. Property and health rows
+/// include startup, and health retrieval starts only candidate zero.
+/// LeaderFailover with one candidate is a no-op. With five or ten candidates it includes
+/// a fixed 10 ms delay, while follower renewal is configured at 10 seconds. Those rows
+/// do not establish successor acquisition or measure failover latency.
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -46,39 +47,15 @@ public class LeaderElectionBenchmarks
 	}
 
 	[GlobalCleanup]
-	public void GlobalCleanup()
-	{
-		foreach (var candidate in _candidates)
-		{
-			candidate?.Dispose();
-		}
-	}
+	public void GlobalCleanup() =>
+		LeaderElectionBenchmarkSetup.DisposeCandidatesAsync(_candidates).AsTask().GetAwaiter().GetResult();
 
 	[IterationSetup]
 	public void IterationSetup()
 	{
-		// Clean up any existing candidates
-		foreach (var candidate in _candidates)
-		{
-			candidate?.Dispose();
-		}
-
-		// Create new candidates for each iteration
-		for (int i = 0; i < CandidateCount; i++)
-		{
-			var options = Options.Create(new LeaderElectionOptions
-			{
-				LeaseDuration = _options.LeaseDuration,
-				RenewInterval = _options.RenewInterval,
-				RetryInterval = _options.RetryInterval,
-				StepDownWhenUnhealthy = _options.StepDownWhenUnhealthy,
-				InstanceId = $"candidate-{i}"
-			});
-			_candidates[i] = new InMemoryLeaderElection(
-				$"benchmark-resource-{Guid.NewGuid():N}",
-				options,
-				NullLogger<InMemoryLeaderElection>.Instance);
-		}
+		GlobalCleanup();
+		// Each iteration owns one isolated election domain with distinct candidate IDs.
+		_candidates = LeaderElectionBenchmarkSetup.CreateCandidates(CandidateCount, _options);
 	}
 
 	#region Lease Acquisition Benchmarks

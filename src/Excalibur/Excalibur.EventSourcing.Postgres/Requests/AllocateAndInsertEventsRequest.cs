@@ -25,9 +25,9 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// outside the window. Merging the allocation into the insert removes one round trip from inside the lock.
 /// </para>
 /// <para>
-/// Measured on SQL Server, whose append has the same shape: <b>5.24x → 3.94x</b> slower than an identity
-/// column at 8 concurrent writers, and <b>6.75x → 4.90x</b> at 32. The guarantee is unchanged; only the
-/// time the lock is held is.
+/// Historical SQL Server observations reported <b>5.24x → 3.94x</b> slower than an identity
+/// column at 8 concurrent writers, and <b>6.75x → 4.90x</b> at 32. Those figures have no source/runtime
+/// attribution here and are not PostgreSQL measurements or a current performance claim.
 /// </para>
 /// <para>
 /// <b>The ordering guarantee this carries.</b> Positions are allocated here, inside the appending

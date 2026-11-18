@@ -106,6 +106,7 @@ public sealed class OutboxDrainUntenantedRowScopeShould
 
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 		_ = await processor.DispatchPendingMessagesAsync(cts.Token).ConfigureAwait(false);
+		store.ClaimsVerified.ShouldBeGreaterThan(0, "a claimed-row transition must actually execute");
 
 		return store;
 	}
@@ -125,9 +126,43 @@ public sealed class OutboxDrainUntenantedRowScopeShould
 	/// Hands out one message, then nothing so the drain terminates, and resolves its tenant partition at the
 	/// moment of the mark the way a real multi-tenant store does.
 	/// </summary>
-	private sealed class TenantObservingStore(string? tenantId) : IOutboxStore, IDeadLetterableOutboxStore
+	private sealed class TenantObservingStore(string? tenantId) : IOutboxStore, IDeadLetterableOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore
 	{
 		private int _served;
+
+        private readonly Dictionary<string, string> _claimed = new(StringComparer.Ordinal);
+        public int ClaimsVerified { get; private set; }
+
+        private void VerifyClaim(string messageId, string claimIdentity)
+        {
+            _claimed.TryGetValue(messageId, out var expected).ShouldBeTrue("completion must name a row actually acquired by this fixture");
+            claimIdentity.ShouldBe(expected, "the worker must present this row's exact captured acquisition");
+            ClaimsVerified++;
+        }
+
+        public async ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            await MarkSentAsync(messageId, cancellationToken);
+            return OutboxCompletionOutcome.Applied;
+        }
+
+        public async ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string messageId, string errorMessage, int retryCount, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            await MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken);
+            return OutboxCompletionOutcome.Applied;
+        }
+
+        public ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffAsync(string messageId, string errorMessage, int retryCount, DateTimeOffset nextAttemptAt, string claimIdentity, CancellationToken cancellationToken)
+            => MarkFailedAsync(messageId, errorMessage, retryCount, claimIdentity, cancellationToken);
+
+        public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            return MarkDeadLetteredAsync(messageId, reason, attemptCount, cancellationToken);
+        }
+
 
 		public int MarkCount { get; private set; }
 
@@ -154,6 +189,8 @@ public sealed class OutboxDrainUntenantedRowScopeShould
 				TenantId = tenantId,
 			};
 
+			message.DispatcherId = "claim-" + message.Id;
+			_claimed.Add(message.Id, message.DispatcherId);
 			return new ValueTask<IEnumerable<OutboundMessage>>([message]);
 		}
 

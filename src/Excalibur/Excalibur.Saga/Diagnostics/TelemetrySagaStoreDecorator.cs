@@ -14,7 +14,7 @@ namespace Excalibur.Saga.Diagnostics;
 /// Telemetry decorator for <see cref="ISagaStore"/> that instruments operations
 /// with counters and histograms.
 /// </summary>
-internal sealed class TelemetrySagaStoreDecorator : ISagaStore, IDisposable
+internal sealed partial class TelemetrySagaStoreDecorator : ISagaStore, IDisposable
 {
 	/// <summary>
 	/// The meter name for saga store telemetry.

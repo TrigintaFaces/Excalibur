@@ -29,6 +29,7 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// </remarks>
 public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 {
+	private static readonly IMessageFailureClassifier DefaultClassifier = new DefaultMessageFailureClassifier();
 	private readonly ResiliencePipeline _pipeline;
 	private readonly ILogger _logger;
 	private readonly PollyRetryOptions _options;
@@ -68,11 +69,12 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 				// was silently getting no cap at all. The option was only ever read by the duplicate
 				// concrete retry implementation, which nothing resolved, so the knob looked honoured.
 				MaxDelay = _options.MaxDelay,
-				// Retain the tenant-isolation floor. Otherwise use Polly's cancellation exclusion by default;
+				// Retain the tenant-isolation floor and retry only recognized recoverable failures by default;
 				// an explicit predicate can select attempt-local cancellation when the caller is still active.
 				ShouldHandle = new PredicateBuilder()
 					.Handle<Exception>(ex => !IsNeverRetryable(ex) &&
-						(_options.ShouldRetry?.Invoke(ex) ?? (ex is not OperationCanceledException))),
+						(_options.ShouldRetry?.Invoke(ex) ?? (ex is not OperationCanceledException
+							&& DefaultClassifier.Classify(ex) is MessageFailureKind.Transient or MessageFailureKind.Uncertain))),
 				OnRetry = args =>
 				{
 					LogRetryAttempt(args.AttemptNumber, args.RetryDelay.TotalMilliseconds, args.Outcome.Exception?.Message,

@@ -58,7 +58,7 @@ All transport methods support named overloads: `dispatch.UseKafka("analytics", k
 | Method | Package | Example |
 |--------|---------|---------|
 | `UseObservability()` | `Excalibur.Dispatch.Observability` | `dispatch.UseObservability(obs => ...)` |
-| `UseResilience()` | `Excalibur.Dispatch.Resilience.Polly` | `dispatch.UseResilience(res => ...)` |
+| `UseResilience()` | `Excalibur.Dispatch.Resilience.Polly` | `dispatch.UseResilience()` |
 | `UseCaching()` | `Excalibur.Dispatch.Caching` | `dispatch.UseCaching()` |
 | `UseSecurity()` | `Excalibur.Security` | `dispatch.UseSecurity(configuration)` |
 
@@ -102,58 +102,79 @@ app.Run();
 ### Full-Featured Setup
 
 ```csharp
-var builder = WebApplication.CreateBuilder(args);
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Middleware.Auth;
+using Excalibur.Dispatch.Middleware.Logging;
+using Excalibur.Dispatch.Middleware.Validation;
+using Excalibur.Dispatch.Options.Configuration;
+using Excalibur.Dispatch.Observability.Metrics;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
 
-// Unified Dispatch registration -- transports + cross-cutting through the builder
-builder.Services.AddDispatch(dispatch =>
+public static class FullDispatchSetup
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    // Transports (Use prefix)
-    dispatch.UseKafka(kafka => kafka.BootstrapServers(builder.Configuration["Kafka:Servers"]));
-    dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
-
-    // Cross-cutting concerns (Use prefix)
-    dispatch.UseObservability();
-    dispatch.UseResilience(res => res.DefaultRetryCount = 3);
-    dispatch.UseCaching();
-    dispatch.UseSecurity(builder.Configuration);
-
-    // Global middleware
-    dispatch.UseMiddleware<LoggingMiddleware>();
-    dispatch.UseMiddleware<ValidationMiddleware>();
-    dispatch.UseMiddleware<AuthorizationMiddleware>();
-
-    // Options
-    dispatch.ConfigureOptions<DispatchOptions>(options =>
+    public static void Run(string[] args, System.Reflection.Assembly handlerAssembly)
     {
-        options.DefaultTimeout = TimeSpan.FromSeconds(30);
-    });
+        var builder = WebApplication.CreateBuilder(args);
+        var kafkaServers = builder.Configuration["Kafka:Servers"]
+            ?? throw new InvalidOperationException("Kafka:Servers is required.");
 
-    // Multi-transport routing
-    dispatch.UseRouting(routing =>
-    {
-        routing.Transport
-            .Route<OrderCreatedEvent>().To("kafka")
-            .Default("rabbitmq");
-    });
-});
+        // Unified Dispatch registration -- transports + cross-cutting through the builder
+        builder.Services.AddDispatch(dispatch =>
+        {
+            dispatch.AddHandlersFromAssembly(handlerAssembly);
 
-// Serialization
-// JSON is the default with AddDispatch(). For binary serializers, install the provider package:
+            // Transports (Use prefix)
+            dispatch.UseKafka(kafka => kafka.BootstrapServers(kafkaServers));
+            dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
 
-// Health checks
-builder.Services.AddHealthChecks()
-    .AddTransportHealthChecks();
+            // Cross-cutting concerns (Use prefix)
+            dispatch.UseObservability();
+            dispatch.UseResilience(); // Registers adapters; execute a configured policy at the dependency boundary.
+            dispatch.UseCaching();
+            dispatch.UseSecurity(builder.Configuration);
 
-// OpenTelemetry
-builder.Services.AddOpenTelemetry()
-    .WithTracing(t => t.AddSource("Excalibur.Dispatch"))
-    .WithMetrics(m => m.AddDispatchMetrics());
+            // Global middleware
+            dispatch.UseMiddleware<LoggingMiddleware>();
+            dispatch.UseMiddleware<ValidationMiddleware>();
+            dispatch.UseMiddleware<AuthorizationMiddleware>();
 
-var app = builder.Build();
-app.MapHealthChecks("/health");
-app.Run();
+            // Options
+            dispatch.ConfigureOptions<DispatchOptions>(options =>
+            {
+                options.DefaultTimeout = TimeSpan.FromSeconds(30);
+            });
+
+            // Multi-transport routing
+            dispatch.UseRouting(routing =>
+            {
+                routing.Transport
+                    .Route<OrderCreatedEvent>().To("kafka")
+                    .Default("rabbitmq");
+            });
+        });
+
+        // Serialization
+        // JSON is the default with AddDispatch(). For binary serializers, install the provider package:
+
+        // Health checks
+        builder.Services.AddHealthChecks()
+            .AddTransportHealthChecks();
+
+        // OpenTelemetry
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(t => t.AddSource("Excalibur.Dispatch"))
+            .WithMetrics(m => m.AddDispatchMetrics());
+
+        var app = builder.Build();
+        app.MapHealthChecks("/health");
+        app.Run();
+    }
+}
+
+public sealed record OrderCreatedEvent(Guid OrderId) : IIntegrationEvent;
 ```
 
 ### Combined with Excalibur
@@ -218,6 +239,14 @@ A schedule-change signal can wake polling early. Expiring the polling deadline c
 
 These clock semantics do not establish durable storage or exactly-once delivery. The schedule-store durability gate still applies. Persisting schedules across a process restart requires a durable store; replacing a dependency-injection container around an in-memory store does not provide that guarantee.
 
+### Recurring job model migration
+
+`RecurringCronJob` has been withdrawn; constructing that model never registered work or configured the worker. Use the existing `IDispatchScheduler.ScheduleRecurringAsync` overloads below with the actual message, installed timezone and explicit `CronRecurrenceProfile` where required. These are the active recurring APIs; no working recurrence feature was removed.
+
+For a production hosted scheduler, provision the SQL schedule scripts in [SQL Server schedule storage](#sql-server-schedule-storage), register that selected store, and start the existing time-aware runtime. `SchedulerOptions.MaxAdmissionAttemptsPerOccurrence` defaults to **5**. It is a host-requested policy captured per occurrence by the store and counts admissions, including abandoned or ambiguously settled grants—not just failed handler calls. It is not the removed model's `MaxRetryAttempts = 3`, nor a new per-job retry policy. An unsettled failed occurrence remains retryable under that budget; exhaustion attempts quarantine without discarding its provenance. Use the existing bounded failure queries and expected-token recovery on that same selected store, described below. Recovery command IDs must be retained and reused when reconciling an uncertain response.
+
+The removed model's name, tags, priority, start/end windows and cumulative statistics were caller-owned values, not enforced scheduling behavior. Preserve any useful application catalog data in your application; do not assume it was migrated into a runtime policy. Existing schedule metadata and per-occurrence failure snapshots remain available. Handler side effects remain at-least-once; a retry policy registered with Polly does not replace the durable occurrence admission protocol.
+
 ### Scheduler admission and cancellation
 
 The public schedule-store interfaces and their message, lease and completion data types
@@ -244,19 +273,74 @@ at most `MaxMissedExecutions` per poll, retaining further occurrences for subseq
 Zero skips missed catch-up and advances to a future occurrence; on-time and overdue
 one-time deliveries remain eligible. Ordinary interval schedules advance from completion,
 whereas replay advances from each persisted occurrence.
-An undecodable or failed catch-up invocation advances once from completion time and
-coalesces the remaining missed backlog instead of retrying every missed occurrence in
-that poll. Host shutdown retains due work instead. An expired processing deadline is
+An undecodable or failed invocation retains its admitted occurrence and consumed
+admission count. Its captured automatic budget cannot be widened by later host options.
+Previously admitted unsettled work is not skipped by catch-up policy. At exhaustion the
+worker stops invoking the handler and attempts quarantine. Confirmed quarantine disables
+the schedule and retains its provenance. Failed or uncertain disposition writes remain
+unresolved and report degraded health until reconciled; they are not confirmed quarantine.
+Healthy schedules remain eligible.
+Counts describe authority grants, including abandoned grants, not proven handler calls.
+Handler side effects remain at-least-once. Host shutdown retains due work. An expired processing deadline is
 honored even if a handler swallows its cancellation and returns success.
 
-A custom provider exposing only `IScheduleStore` retains weaker cancellation semantics:
-reading a row and later saving its progress cannot fence concurrent administrative changes.
-Implement `IScheduleExecutionStore` to provide atomic admission and conditional progress.
-Use `ScheduleExecutionStoreConformanceTestKit` to test the provider contract and wire both
-its inherited administrative arms and its execution arms. Cleanup must target the same
+A provider exposing only `IScheduleStore` can be composed for administration, but cannot
+start the preserving scheduler runtime. The selected store must implement
+`IScheduleExecutionFailureStore`, including atomic admission, captured budgets, retained
+failure/quarantine and expected-token recovery. Test the administrative and execution
+contracts with their conformance kits and the failure capability with
+`ScheduleFailureStoreConformanceTestKit`; wire every applicable arm. Cleanup must target the same
 backing authority used by each test. These controls do not establish durable restart,
 crashed-owner recovery, distributed external-effect fencing or NativeAOT compatibility;
 verify those against the actual provider and application.
+
+### Explicit cron timezone transitions
+
+Choose the supported immutable declaration when scheduling in a transition-capable zone:
+
+```csharp
+using System.Diagnostics.CodeAnalysis;
+using Excalibur.Dispatch.Delivery;
+
+public static class ZonedCronExample
+{
+    public static async Task ScheduleAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
+        IDispatchScheduler scheduler, TMessage message, CancellationToken cancellationToken) where TMessage : class
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+        await scheduler.ScheduleRecurringAsync("30 2 * * *", zone,
+            CronRecurrenceProfile.CronosCompatible, message, cancellationToken);
+    }
+}
+```
+
+The overload without a zone accepts the same explicit profile and uses the configured
+`CronScheduleOptions.DefaultTimeZone`. Existing overloads without a profile remain valid
+for installed UTC or provably transition-free zones. Transition zones require an explicit
+profile before any row is written. A supplied zone must have the same rules as its installed
+identifier; a custom zone cannot silently change when the worker resolves it after restart.
+The added scheduler overloads and `IScheduleSpec` properties are intentional source-breaking
+changes for custom implementations; implement the new members explicitly.
+
+`CronosCompatible` declares one UTC occurrence for gap aliases within a schedule, including
+a matching ordinary boundary. Different schedule IDs remain independent. Fixed/noninterval
+cron fires at the earlier fold instant; interval cron retains both ordered UTC series.
+Cronos defines interval syntax using time-field wildcards, ranges and steps; fixed lists
+alone are not interval syntax. Catch-up policy operates on these distinct UTC occurrences
+and does not override the known-failure/recovery execution obligation. This declaration
+adds no alternative DST algorithms or exactly-once external-effect guarantee.
+
+Rows retain `CronRecurrenceProfileId` and `CronRecurrenceProfileVersion`, not a serialized
+profile object or timezone. Unknown/partial declarations and unknown zones do not silently
+fall back to UTC. Legacy rows remain available for explicit repair; future first admission
+requires a valid declaration. Already captured UTC occurrences retain their authority for
+retry, recovery, renewal, settlement and release. If current work truly succeeds but future
+configuration is invalid, conditional fulfillment may pause the schedule while preserving
+its payload, raw configuration and last success; the worker reports
+`FutureConfigurationBlocked`. Repair supplies a valid installed zone/profile and a real
+next occurrence with a fresh generation. Failed work still retains/retries/quarantines;
+a configuration problem cannot be treated as successful execution. Installed timezone data
+controls future instants; the profile does not pin tzdata across machines or upgrades.
 
 ### Expiring scheduler ownership
 
@@ -289,7 +373,9 @@ provider's own clock, and test process recovery against its actual backing datab
 ### SQL Server schedule storage
 
 `Excalibur.Data.SqlServer` includes `SqlServerScheduleStore`. Apply the package's
-`scripts/004_CreateScheduleSchema.sql` to the target database before starting the host,
+`scripts/004_CreateScheduleSchema.sql`, then
+`scripts/005_CreateScheduleFailureSchema.sql`, then
+`scripts/006_AddScheduleCronRecurrenceProfile.sql`, to the target database before starting the host,
 then configure the same store used by time-aware scheduling:
 
 ```csharp
@@ -304,8 +390,15 @@ services.AddSqlServerScheduleStore(options =>
 ```
 
 The registration supplies the configured `IScheduleStore` and its durability attestation
-together. Cast that configured store to `IScheduleExecutionLeaseRenewal` when using the
-execution capability directly. Registration does not create tables or a second authority.
+together. That same store also implements `IScheduleExecutionFailureStore` for captured
+admission budgets, retained quarantine and expected-token recovery. Cast the selected
+store to its execution capabilities; do not resolve a separate authority.
+Registration does not create tables or apply these migrations.
+The default preserving scheduler profile requires the selected `IScheduleStore` itself
+to implement `IScheduleExecutionFailureStore`; durability attestation alone is not this
+capability. Unsupported stores are refused before hosted scheduling starts. Volatile
+opt-in permits restart loss only and does not remove the failure-capability requirement.
+
 Use a writable-primary connection. Command and lock timeouts bound their respective
 operations; connection-opening settings remain part of the connection string.
 
@@ -321,7 +414,12 @@ Expired ownership becomes eligible for another attempt after a worker dies. Lost
 responses can leave an accepted operation uncertain; the provider does not automatically
 retry those responses. Handlers must tolerate duplicate external effects.
 
-Schedule administration is **store-global**. Optional tenant and correlation values are
+The failure capability exposes bounded quarantine queries filtered by the exact retained
+raw envelope tenant identifier. Null, the literal `__untenanted__`, empty string, case
+and trailing spaces remain distinct; these values are not canonical ambient tenant
+partitions. The caller must authorize the query; supplying an identifier is not a credential.
+
+Schedule administration through `GetAllAsync`, `StoreAsync` and `CompleteAsync` is **store-global**. Optional tenant and correlation values are
 message envelope metadata, not a storage partition or an authorization boundary. Null
 tenant metadata is preserved and does not become the explicit untenanted identity. The
 worker's tenant validation still applies when dispatching.
@@ -331,6 +429,10 @@ a delayed response can arrive after its grant has elapsed; the worker retains it
 deadline checks. After database restore or cloning, stop workers and rotate the authority
 epoch while clearing ownership before resuming. Restoring an old epoch while old workers
 remain active is outside the fencing guarantee.
+Offline restore, copying or authority-epoch rotation must coordinate current schedules
+and retained failure, quarantine and recovery receipts. Do not rotate `StoreId`
+independently and strand that history; ordinary process-restart recovery does not
+certify database restore or epoch migration.
 
 ### Built-In Validators
 

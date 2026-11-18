@@ -148,6 +148,6 @@ public sealed class MultiTransportOutboxStoreCapabilityPreservationShould
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, long fencingToken, CancellationToken cancellationToken) =>
 			new(Enumerable.Empty<OutboundMessage>());
 
-		public ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken) => default;
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken) => new(OutboxCompletionOutcome.Applied);
 	}
 }

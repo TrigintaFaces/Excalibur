@@ -190,6 +190,15 @@ The framework does not ship a durable dedup backstop for saga steps, and that is
 unfinished: message delivery is at-least-once one level down, the transactional inbox already owns unbounded
 deduplication, and a second, saga-local copy of it would promise exactly-once where nothing else does.
 
+Coordinator-owned identity evictions emit the `excalibur.saga.dedup_evictions` counter
+and the `SagaDeduplicationEntryEvicted` warning after positive state-write acknowledgement.
+The only metric label is `mode` (`ordinary` or `atomic`); identities and payloads are not logged.
+An ordinary write is reported before subsequent timer recovery. An atomic retry reports only
+after the same immutable batch is acknowledged as committed. Refused speculative attempts and
+duplicate deliveries do not count. This is best-effort process telemetry: a crash or lost write
+acknowledgement can omit a real commit; it is not a durable exactly-once eviction ledger.
+Direct collection mutation and deserialization are outside these coordinator diagnostics.
+
 ### Evidence (conformance)
 
 Two arms exercise the real coordinator rather than the id set in isolation: a safety arm redelivering an event
@@ -260,6 +269,24 @@ real-infrastructure conformance arm per store remains owed.
   merged — treat that failure as an escalation, not a retry.
 
 ## Evidence (conformance)
+
+**TWO conformance artifacts bind this contract, and a coverage claim anywhere in this file must say which
+one it measures or be measured against the UNION of both.** They are
+`Excalibur.Testing.Conformance/Conformance/SagaStoreConformanceTestKit.cs`, which ships to consumers, and
+`tests/Shared/Tests.Shared/Conformance/Saga/SagaStoreConformanceTestBase.cs`, which is internal. Neither is
+a superset of the other.
+
+This is stated because the identical structure in another subsystem of this framework cost four
+work-streams: one gap bullet dropped a three-word qualifier from a sentence that was true a few lines
+above it, asserting over the contract what was only true of one kit, and work was allocated against a gap
+that did not exist. **An unscoped restatement of a scoped claim is more dangerous than a stale claim,
+because the correctly scoped original sits nearby and nothing about the file looks wrong.**
+
+The gap bullets below that say *no conformance test detects it* were checked against BOTH artifacts and are
+true of both — neither covers emitted-message loss, dispatch failure during a flush, or timeout retirement.
+That is a measurement rather than an assumption, and it is recorded so the claims do not have to be
+re-derived. They remain true only while that holds: anyone adding coverage to either artifact owes a pass
+over these bullets.
 
 Each provider carries a dedicated tenant-isolation suite with **both** arms — a safety arm proving one tenant
 cannot load another's saga, and a liveness arm proving a caller still loads its **own** saga. The liveness arm
@@ -335,27 +362,171 @@ concurrency conformance suites against real containers.
 
 ## Message dispatch guarantee
 
+### Selected primary SQL atomic profile
+
+The explicitly selected primary SQL durable-transition profile provides **at-least-once command
+emission; duplicates possible on recovery; command handlers MUST be idempotent**. Commands and events
+are prepared before the transaction, then their original encoded payloads and identities are written
+to the selected SQL outbox in the **same transaction and commit** as saga state and processed-delivery
+evidence. A failure before commit rolls back both state and effects. After commit, the existing outbox
+publisher can independently discover and deliver the original commands even if the coordinator fails
+before dispatch; repeating the original delivery does not invoke the handler or mint another batch.
+Outbox delivery and downstream business processing are separate outcomes; this is not exactly-once
+delivery or a promise that broker acceptance means the consumer has completed its work.
+
+Select durable transitions explicitly with source-generated state/payload metadata and the matching
+SQL saga, outbox-preparation and, when configured, timeout participants. Apply the complete supported
+schema before starting writers. The primary SQL profile requires an owned connection-string saga
+registration and its supported table binding; a borrowed connection factory, an unsupported participant
+or a different selected logical backend must not silently fall back to a state-only commit. See the
+SQL provider README and `samples/04-reliability/PrimarySqlAtomicSaga` for the concrete composition.
+
+Configured schedule/cancel mutations and completion's cancel-all participate in that transaction.
+A profile without a configured timeout store or timer effects needs no fabricated timer participant.
+Retained original timeout authority, rather than payload presence, gates receiver admission: queue
+retirement can remove a payload before the receiver runs, and public cancellation still revokes that
+queued authority. The profile preserves consumer routing and partition/group/sequence metadata;
+private intent ordinals do not promise FIFO or a global delivery head. Retained commit evidence also
+survives ordinary outbox payload cleanup; its identity/history must not be independently discarded
+while the original delivery can recur.
+
+**Enforcing real-SQL controls.**
+`SqlServerSagaCommandOutboxRecoveryShould.PreserveCommittedCommandsAcrossPostCommitFaultAndSameDelivery`
+injects a fault after independently confirmed commit, verifies both original commands remain
+claimable, and subsequently delivers them with the actual outbox publisher, with no repeated handler,
+replacement rows or work on the next drain.
+`RollBackRealStateReceiptTimerAndBothCommandsThenAllowHealthyTransition` injects a controlled failure
+on the second real outbox insertion, requires state and every provisional effect to roll back, then
+proves healthy retry and actual delivery. `KeepHealthyCommandEmissionAndCompletionOnRealSqlState`
+retains the ordinary no-crash liveness control; additional profile controls exercise mixed
+commands/events/timers, backend mismatch, no-timeout completion and queued public cancellation.
+These are primary SQL guarantees, not all-provider, NativeAOT, database-restore or every-crash
+certification. Other profiles retain the limitations below.
+
+### Ordinary state-only profile
+
 Commands and events emitted by a saga step are dispatched **after** the saga state is committed, and
 are **not** part of that commit. The saga buffers them in memory; the coordinator saves the state and
 then flushes the buffer.
 
 A process failure between those two steps loses those messages permanently. The commit records the
 triggering event as processed, so redelivery is skipped by the deduplication check and the messages
-are never re-emitted. This is **at-most-once relative to the state commit**, and it is an accepted
-**UNVERIFIED** gap: no conformance test detects it.
+are never re-emitted. This is **at-most-once relative to the state commit**, a known residual of
+the ordinary state-only profile. The selected atomic profile above does not upgrade this path.
 
-A failure part-way through the flush has the same shape on a smaller scale. Messages already
-dispatched stay dispatched, the remainder do not, and nothing retries them.
+**A failure DURING the flush needs no process failure at all, and it is still a loss — but it is no
+longer SILENT.** The flush calls the dispatcher per buffered message. A dispatch can fail by RETURNING an
+unsuccessful result rather than by throwing — the timeout middleware with throw-on-timeout disabled, and
+a tripped rate limiter, both do exactly that. That result used to be **discarded**, so such a failure was
+neither retried, recorded, logged nor counted, and a lost saga message was indistinguishable from a
+delivered one at every log level.
+
+It is now reported. Each unsuccessful dispatch is logged at **Warning** under event id
+`SagaEmittedMessageNotDispatched` with the saga identifier, the message type, and the dispatcher's own
+error text (`SagaBase.cs`, inside the flush). The loop still does **not** stop, and the message is still
+**not** retried: both are deliberate. The state is already committed and the triggering event is already
+marked processed, so the redelivery that raising would provoke is the one the deduplication check
+refuses — raising would surface an error for durably committed work without recovering anything, while
+abandoning the remaining messages.
+
+**So the loss is unchanged and only its DETECTABILITY improved. Do not read the log entry as a
+guarantee.** An arbitrary subset of a step's messages can still be lost while the saga durably records
+the step as complete; what changed is that each loss now names itself. Recovery is still **UNVERIFIED**:
+no conformance test detects the loss, and nothing re-emits the message.
+
+**Evidence for the reporting half only.** `SagaBaseShould.ReportAnEmittedMessageTheDispatcherCouldNotDeliver`
+RED-detects the discard, and its liveness partner
+`SagaBaseShould.StaySilentWhenAnEmittedMessageWasDelivered` pins that a delivered message is not reported
+— without which a flush that cried wolf on every dispatch would satisfy the first arm.
+
+**A dispatch that THROWS is a separate case and is deliberately left alone.** It aborts the loop, so the
+remaining messages are never attempted, and the exception reaches the host. That is loud and recoverable
+by the host's own error handling, which is a materially different situation from a result quietly
+discarded; the discriminator applied here is silence, not severity.
+
+*Superseded, quoted so a reader who absorbed it recognises it: "A failure part-way through the flush has
+the same shape on a smaller scale. Messages already dispatched stay dispatched, the remainder do not, and
+nothing retries them." That described a flush that STOPS at the first failure, leaving a prefix and a
+remainder. The flush does not stop, so there is no remainder, and a reader reasoning about a
+dispatched-prefix/undispatched-suffix split was reasoning about a shape this code does not have.*
+
+**The timer intents sit on the SAME side of the commit as the messages, and the apply runs first.**
+Scheduling a timeout, cancelling one, and the cancel-all that completion performs are buffered during the
+handler (`SagaBase.cs:92`) and applied by the coordinator only after the state commit returns
+(`SagaCoordinator.cs:419` then `:426`), ahead of the message dispatch at `:431`. So a refused commit
+applies no timer effect at all: the row a schedule would have created does not exist, and the row a
+cancellation would have retired is still there and still deliverable. A store raising a concurrency
+conflict is the normal operating mode of an optimistically concurrent store under multi-instance
+deployment, and that case no longer strands or orphans a timer.
+
+Timers are applied before messages because a dispatched message can return as a new delivery. A
+reply-driven cancellation running against a row that does not exist yet would retire nothing, and the
+schedule would then land behind it as a row no state references.
+
+**Evidence.** `SagaCoordinatorTimeoutStoreShould.WriteNoTimeoutRowWhenTheStateCommitIsRefused` and
+`SagaCoordinatorTimeoutStoreShould.RetireNoTimeoutRowWhenTheStateCommitIsRefused` RED-detect the
+pre-commit timing, driving a real `ConcurrencyException` out of the state store. Their liveness partner
+is `SagaCoordinatorTimeoutStoreShould.ApplyTheTimerBeforeDispatchingWhenTheStateCommitSucceeds`, which
+pins the order and without which a coordinator that applied nothing at all would satisfy both safety
+arms. All three go RED when the apply is moved back ahead of the commit.
+
+**Ordinary timer recovery is conditional on the selected state and timeout stores.** The coordinator
+persists the original ordered timer journal with state and processed-delivery evidence, then applies it
+through the selected timeout store's `ISagaTimerRecoveryStore` facet. Recovery runs before completed
+and duplicate-delivery short-circuits, preserving the original IDs without invoking the handler again.
+An uncertain application acknowledgement retains the journal for exact receipt reconciliation rather
+than minting replacement timers. State saves compare lifetime incarnation and version; pending journals
+are protected from purge. For application-managed updates, call `LoadAsync`, change business fields on
+the returned snapshot, then call `SaveAsync`. This preserves opaque lifetime and version metadata
+automatically. A new object with only a copied saga ID and version is not an equivalent expected-state
+update and can conflict; do not replace its concurrency metadata with values guessed at save time. Receiver cancellation cutoffs and retained retirement authority prevent an
+older journal from resurrecting cancelled or already retired work.
+
+This requires durable state, a mediated receiver capability on the actual selected timeout store, and
+matching schema. Apply SQL Server state `05-SagaTimerRecoveryState.sql` and receiver
+`06-SagaTimerRecovery.sql`, PostgreSQL state `02-SagaTimerRecoveryState.sql`, or Oracle state
+`02-SagaTimerRecoveryState.sql` and receiver `03-SagaTimerRecovery.sql` after their base schemas.
+Quiesce old writers during migration; the framework does not auto-migrate. In-memory recovery exercises
+the same protocol only within its process lifetime and is not durable across process loss.
+
+**Enforcing controls.**
+`SagaCoordinatorTimeoutApplyRecoveryShould.RecoverTheCommittedTimerOnSameDeliveryWithoutRehandlingOrMintingAnotherId`
+retains its one-shot fault before timer insertion after committed state/dedup, and requires a new
+coordinator to recover the original timer without rehandling. Its healthy controls preserve timer-before-
+message dispatch with and without a command. `OrdinaryTimerRecoveryAuthorityShould` checks own-batch
+ordering, external cancellation, newer-timer preservation, retirement, lifetime recreation and fence
+pairing. Provider controls must verify their own persistence boundary; these contracts and unit controls
+do not certify every cloud provider, database deployment or NativeAOT driver.
+
+This repairs the historical ordinary timer-apply gap, not the separate ordinary command/event dispatch
+boundary. Ordinary messages remain outside the state transaction and retain their at-most-once dispatch
+residual after a lost acknowledgement or postcommit failure. The explicitly selected primary SQL profile
+instead commits its prepared command/event rows and configured timer effects with state. Timeout delivery
+remains at least once for eligible work and requires idempotent handlers; the selected-store failure
+holds and explicit recovery below are separate from journal recovery.
+
+*Superseded, quoted so a reader who absorbed it recognises it: "The timer intents are on the OTHER side
+of the commit... Scheduling and cancelling a saga timeout are written to the timeout store immediately,
+inside the handler - they are not buffered like messages." Both are now buffered and the apply is gated
+on the commit, so the pre-commit effects that wording described are prevented. The ordinary timer journal now addresses
+that post-commit recovery boundary under the capability and persistence conditions above.*
 
 **Consumer obligation.** Do not rely on a saga-emitted message as the sole trigger for work that must
 not be lost. Trigger such work from a durable record — the event store or an outbox written in the
 same transaction as the state — rather than from the dispatch.
 
-**Known gap.** Closing this requires the messages to be written in the same atomic unit as the saga
-state, which is a store-contract change across every provider. Until then the guarantee above is the
-one that holds.
+**Known ordinary-profile gap.** Its messages are not written in the same atomic unit as saga state.
+Use a supported durable-transition composition for work that depends on that guarantee; selecting the
+primary SQL profile does not confer atomic participation on another provider or an ordinary state-only
+registration.
 
 ## Timeout delivery guarantee
+
+**Provider scope.** Durable timeout stores ship for SQL Server and Oracle. PostgreSQL, Cosmos DB,
+DynamoDB, MongoDB and Firestore saga state stores do not by themselves provide matching durable
+timeout storage. The default in-memory timeout store is process-local, even when saga state is
+durable. Choose state and timeout storage separately within a supported composition; state-provider
+parity is not a durable-timer guarantee.
 
 A scheduled saga timeout is delivered **at-least-once**. The duplicate window is bounded by the claim
 lease: a processor leases a due timeout before delivering it, and if that processor stalls for longer
@@ -369,8 +540,11 @@ the timeout middleware returns an unsuccessful result rather than raising when i
 option is disabled, and the rate-limiting middleware returns one when the limit is exceeded. Retiring
 on the strength of "the call returned" would delete a timeout that was never delivered, leaving the
 saga waiting forever for something that no longer exists. The delivery service inspects the result and
-raises on an unsuccessful one, which reaches the handler that deliberately does **not** retire the row,
-so the claim lapses and the timeout is re-delivered on a later poll.
+does **not** retire an unsuccessful one. A failed untyped result has no canonical retry evidence and is
+retained as Unknown through the selected store's hold protocol. Thrown faults use the configured failure
+classifier: Transient and Uncertain retain normal lease-based retry, while Permanent, Poison and Unknown
+are held for explicit recovery. A retirement or cleanup fault after a successful dispatch is not
+reclassified as a new handler failure; caller cancellation does not grant a successful disposition.
 
 This closes the case where the dispatch *reported* a failure. It does not establish that a handler ran —
 see the first known gap below, which is the wider hole and is not yet closed.
@@ -389,6 +563,51 @@ attempt the first claim's retirement — and asserts both halves: the stale clai
 row survives, and the live claimant still retires it. Cross-tenant confinement of the same call is
 covered by `InMemorySagaTimeoutStoreTenantIsolationShould.ConfineAMarkDeliveredToTheCallingTenant`,
 which shows that holding a valid claim is not sufficient when the ambient tenant does not own the row.
+
+### Selected-store failure holds and explicit recovery
+
+Before pumping, hosted timeout delivery obtains `ISagaTimeoutFailureStore` from the actual selected
+`ISagaTimeoutStore` and awaits `ValidateFailureStorageAsync`. An unrelated separately registered facet
+cannot satisfy this gate. Unsupported custom stores or unusable selected-target schema refuse startup;
+standalone manual store APIs retain their documented legacy-schema behavior.
+
+Confirmed holds retain original payload, timeout/saga identity and due time and exclude that work from
+normal claim acquisition. Diagnostic reads still expose retained payloads. InMemory holds are
+process-local (`HoldsSurviveProcessRestart` is false); supported SQL Server/Oracle stores persist their
+hold state. State-store durability on another provider does not confer timeout-hold durability.
+Provision SQL Server `07-SagaTimeoutFailureHolds.sql` or Oracle `04-SagaTimeoutFailureHolds.sql` for an
+existing selected base timeout table; fresh provider timeout schemas include the fields. Standalone
+nonowned timeouts do not require SQL receiver migration06. Apply only the authority/recovery schemas
+required by the selected owned-timeout or coordinator profile, as its provider instructions specify.
+Follow the actual-table/offline rollout instructions; there is no automatic migration.
+
+A failed or uncertain hold write is not a delivery acknowledgment or proof of rollback. The worker
+reconciles the original operation inputs, retaining at most `BatchSize` pending observations. At capacity,
+it keeps reconciling/rebinding existing work but defers new dispatch without retiring claimed payloads;
+normal lease expiry preserves later eligibility. These are bounded local observations, not a process-
+durable blacklist. The selected store remains the authority for held/current/ended/refused outcomes.
+
+After repairing the cause, an authorized operator uses bounded `GetHeldFailuresAsync` query pages in one
+exact tenant partition (optionally one saga), then `TryResumeHeldFailureAsync` with the inspected token
+and a retained command ID. Tokens/cursors are target/partition-bound expected-state handles, not access
+credentials. Null resume means refusal. A successful resume preserves original ID/payload/due, rotates
+the delivery cycle once and leaves normal claiming to obtain a fresh lease; same-command replay does
+not rotate again. Canceled/replaced work and stale cycles cannot be resurrected. Retained receipt scope
+is bounded source/latest-cycle metadata, not an indefinite command ledger. Held work is not automatically
+retried until explicit resume; this mechanism is not a positive certificate that a saga handler acted.
+
+`SagaTimeoutFailureOwnershipShould.RetainNonRetryableOriginalWithoutDispatchingItAgain` covers
+Permanent/Poison/Unknown through normal real-store claim cycles;
+`RetryKnownTransientThroughARealFreshClaimThenRetireOnSuccess`, healthy delivery and caller-cancellation
+partners retain liveness and no false acknowledgment.
+`InMemorySagaTimeoutFailureStoreShould` covers retained payload/claim exclusion, partition/target/epoch
+refusal, conditional replay/resume and cancellation. SQL/Oracle owning controls establish their own
+physical persistence boundaries. Existing hosted pending-capacity/reconciliation controls do not certify
+arbitrary backend failover, every deployment or driver NativeAOT.
+
+See [consumer hold and recovery composition](../../../docs-site/docs/sagas/index.md#recovering-held-timeout-deliveries).
+The existing primary SQL sample's optional recovery demo uses the actual public storage protocol; it is
+not a hosted-classifier end-to-end or Native-driver proof. Its default workload remains separate.
 
 ### Known gaps
 
@@ -410,11 +629,12 @@ which shows that holding a valid claim is not sufficient when the ambient tenant
   ownership and acting on it. A processor that stalls past its lease is refused and cannot destroy the
   live claimant's retry. The retirement call is only reachable from a claim, so retiring a timeout you do
   not hold is not expressible: the diagnostic read returns bare timeouts and claims nothing.
-- **A timeout whose message type does not resolve in the running process is retired permanently.**
-  Resolution is limited to the types the host registered during composition, which is a deliberate
-  restriction — resolving an arbitrary stored type name would let stored data select any type in the
-  process. The consequence is that during a rolling deployment an instance running the older build can
-  permanently retire a timeout that only the newer build can handle. **UNVERIFIED.**
+- **A timeout whose type cannot resolve is retained as Unknown, not retired.** Resolution remains
+  limited to registered types; no arbitrary assembly/type scan is introduced. An older deployment that
+  cannot construct a registered dispatch message requires operator repair and conditional resume as
+  described above. This preserves source data, not automatic handler reachability or cross-version
+  compatibility. `SagaTimeoutDeliveryServiceShould.RetainUnknown_WhenTimeoutTypeCannotBeResolved`
+  and the non-dispatchable/no-constructor partners exercise the retained paths.
 - **A dispatch satisfied without invoking a handler counts as delivered.** A result that succeeds
   because it was served from cache, or suppressed as a duplicate, currently retires the row even though
   no timeout handler ran. Treating those as undelivered is not simply a tightening: if the suppression

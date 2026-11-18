@@ -72,44 +72,64 @@ flowchart TD
 The first line of defense. When a handler throws, the retry policy determines whether and how to retry.
 
 ```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.UseRetry()
-            .UseCircuitBreaker();
-});
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Resilience;
 
-// Named retry policies for specific operations
-services.AddPollyRetryPolicy("transient-retry", options =>
+public static class ErrorHandlingConfiguration74
 {
-    options.MaxRetries = 3;
-    options.BaseDelay = TimeSpan.FromMilliseconds(200);
-    options.UseExponentialBackoff = true;  // 200ms, 400ms, 800ms
-    options.UseJitter = true;             // Prevents thundering herd
-});
+    public static void Run(IServiceCollection services)
+    {
+        services.AddDispatch(dispatch =>
+        {
+            dispatch.UseRetry()
+                    .UseCircuitBreaker();
+        });
+
+        // Named retry policies for specific operations
+        services.AddPollyRetryPolicy("transient-retry", options =>
+        {
+            options.MaxRetryAttempts = 3;
+            options.BaseDelay = TimeSpan.FromMilliseconds(200);
+            options.BackoffStrategy = BackoffStrategy.Exponential;  // 200ms, 400ms, 800ms
+            options.UseJitter = true;             // Spreads retry timing; does not guarantee collision avoidance
+        });
+    }
+}
 ```
 
 Dispatch supports two retry strategies:
 
 | Strategy | Delay Pattern | Best For |
 |----------|--------------|----------|
-| `FixedDelay` | Same delay each time (e.g., 1s, 1s, 1s) | Predictable backoff, simple scenarios |
-| `ExponentialBackoff` | Increasing delay (e.g., 200ms, 400ms, 800ms) | Network/API failures, database contention |
+| `BackoffStrategy.Constant` | Same delay each time (e.g., 1s, 1s, 1s) | Predictable backoff, simple scenarios |
+| `BackoffStrategy.Exponential` | Increasing delay (e.g., 200ms, 400ms, 800ms) | Network/API failures, database contention |
 
-**Jitter** adds randomness to the delay. Without jitter, if 100 consumers all fail at the same time, they all retry at the same time, causing another failure. Jitter spreads retries across a time window.
+**Jitter** adds randomness to the delay. Synchronized retries can increase contention or overload a dependency. Jitter spreads retries across a time window but does not guarantee collision avoidance.
 
 You can also classify exceptions to control retry behavior:
 
 ```csharp
-services.AddPoisonMessageHandling(options =>
-{
-    // Never retry these (permanent failures)
-    options.PoisonExceptionTypes.Add(typeof(InvalidOperationException));
-    options.PoisonExceptionTypes.Add(typeof(ArgumentNullException));
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Resilience;
 
-    // Always retry these (transient failures)
-    options.TransientExceptionTypes.Add(typeof(TimeoutException));
-    options.TransientExceptionTypes.Add(typeof(HttpRequestException));
-});
+public static class ErrorHandlingConfiguration102
+{
+    public static void Run(IServiceCollection services)
+    {
+        services.AddPoisonMessageHandling(options =>
+        {
+            // Classify these exception types as poison
+            options.PoisonExceptionTypes.Add(typeof(InvalidOperationException));
+            options.PoisonExceptionTypes.Add(typeof(ArgumentNullException));
+
+            // Exclude these transient exception types from poison classification
+            options.TransientExceptionTypes.Add(typeof(TimeoutException));
+            options.TransientExceptionTypes.Add(typeof(HttpRequestException));
+        });
+    }
+}
 ```
 
 ### Layer 2: Circuit Breaker
@@ -117,13 +137,23 @@ services.AddPoisonMessageHandling(options =>
 The circuit breaker prevents your system from hammering a failing dependency. If a service is down, retrying every message against it wastes resources and can cascade the failure.
 
 ```csharp
-services.AddPollyCircuitBreaker("payment-service", options =>
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Resilience;
+
+public static class ErrorHandlingConfiguration119
 {
-    options.FailureThreshold = 5;          // Open after 5 failures
-    options.SamplingDuration = TimeSpan.FromSeconds(30);
-    options.MinimumThroughput = 10;        // Need 10 requests in window
-    options.DurationOfBreak = TimeSpan.FromSeconds(60);
-});
+    public static void Run(IServiceCollection services)
+    {
+        services.AddPollyCircuitBreaker("payment-service", options =>
+        {
+            options.FailureRatio = 0.5;              // Open when at least half the sampled requests fail
+            options.SamplingDuration = TimeSpan.FromSeconds(30);
+            options.MinimumThroughput = 10;        // Need 10 requests in window
+            options.BreakDuration = TimeSpan.FromSeconds(60);
+        });
+    }
+}
 ```
 
 The circuit breaker has three states:
@@ -146,15 +176,28 @@ stateDiagram-v2
 **Transport isolation** is built in. Each transport gets its own circuit breaker, so a Kafka failure doesn't affect RabbitMQ processing:
 
 ```csharp
-// Per-transport circuit breaker registry
-var registry = serviceProvider.GetRequiredService<ITransportCircuitBreakerRegistry>();
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Resilience;
+using Microsoft.Extensions.Logging;
 
-// Check state
-var states = registry.GetAllStates();
-// { "kafka": Closed, "rabbitmq": Open, "azure-service-bus": Closed }
+public static class CircuitInspection148
+{
+    public static void Run(IServiceProvider serviceProvider)
+    {
+        // Per-transport circuit breaker registry
+        var registry = serviceProvider.GetRequiredService<ITransportCircuitBreakerRegistry>();
 
-// Reset a specific transport
-var cb = registry.TryGet("rabbitmq");
+        // Check state
+        var diagnostics = registry as ITransportCircuitBreakerDiagnostics
+            ?? throw new InvalidOperationException("Transport registry lacks diagnostic support.");
+        var states = diagnostics.GetAllStates();
+        // { "kafka": Closed, "rabbitmq": Open, "azure-service-bus": Closed }
+
+        // Look up a specific transport
+        var cb = registry.TryGet("rabbitmq");
+    }
+}
 ```
 
 ### Layer 3: Poison Message Detection
@@ -182,9 +225,18 @@ Dispatch includes four built-in detectors:
 | `TimespanPoisonDetector` | Message has been in processing for longer than the max age |
 | `CompositePoisonDetector` | Any of the above detectors triggers |
 
+The default middleware aggregates the registered detectors in registration order and uses the first poison result. Custom detectors added with `AddPoisonMessageDetector<TDetector>()` participate whether registered before or after `AddPoisonMessageHandling()`. The default detectors and aggregate are singletons; detectors must be safe for concurrent use.
+
 You can add custom detectors for domain-specific logic:
 
 ```csharp
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.ErrorHandling;
+using Microsoft.Extensions.DependencyInjection;
+
+// Application-owned exception: classify only this non-retryable domain failure.
+public sealed class BusinessRuleViolationException(string message) : Exception(message);
+
 public class BusinessRulePoisonDetector : IPoisonMessageDetector
 {
     public Task<PoisonDetectionResult> IsPoisonMessageAsync(
@@ -205,10 +257,17 @@ public class BusinessRulePoisonDetector : IPoisonMessageDetector
     }
 }
 
-services.AddDispatch(dispatch =>
+
+public static class BusinessPoisonRegistration
 {
-    dispatch.AddPoisonDetector<BusinessRulePoisonDetector>();
-});
+    public static void Run(IServiceCollection services)
+    {
+        services.AddDispatch(dispatch =>
+        {
+            dispatch.UsePoisonDetector<BusinessRulePoisonDetector>();
+        });
+    }
+}
 ```
 
 ### Layer 4: Dead Letter Queue
@@ -218,15 +277,25 @@ When a message cannot be processed -- either because retries are exhausted, the 
 The DLQ preserves the full context of the failure: the original message, the exception, the number of delivery attempts, the reason, and any metadata. Nothing is lost.
 
 ```csharp
-services.AddDispatch(dispatch =>
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Resilience;
+
+public static class ErrorHandlingConfiguration224
 {
-    dispatch.UsePoisonMessageHandling(options =>
+    public static void Run(IServiceCollection services)
     {
-        options.MaxRetryAttempts = 3;
-        options.DeadLetterRetentionPeriod = TimeSpan.FromDays(30);
-        options.EnableAutoCleanup = true;
-    });
-});
+        services.AddDispatch(dispatch =>
+        {
+            dispatch.UsePoisonMessageHandling(options =>
+            {
+                options.MaxRetryAttempts = 3;
+                options.Cleanup.DeadLetterRetentionPeriod = TimeSpan.FromDays(30);
+                options.Cleanup.EnableAutoCleanup = true;
+            });
+        });
+    }
+}
 ```
 
 Every message that enters the DLQ is tagged with a `DeadLetterReason`. **The framework itself assigns
@@ -373,25 +442,48 @@ public class DeadLetterHealthCheck : IHealthCheck
 ### Alerting on Thresholds
 
 ```csharp
-services.AddPoisonMessageHandling(options =>
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Resilience;
+
+public static class ErrorHandlingConfiguration379
 {
-    options.EnableAlerting = true;
-    options.AlertThreshold = 10;                      // Alert if 10+ failures
-    options.AlertTimeWindow = TimeSpan.FromMinutes(15); // Within 15 minutes
-});
+    public static void Run(IServiceCollection services)
+    {
+        services.AddPoisonMessageHandling(options =>
+        {
+            options.Alerting.EnableAlerting = true;
+            options.Alerting.AlertThreshold = 10;                      // Alert if 10+ failures
+            options.Alerting.AlertTimeWindow = TimeSpan.FromMinutes(15); // Within 15 minutes
+        });
+    }
+}
 ```
 
 ### Circuit Breaker State
 
 ```csharp
-var registry = serviceProvider.GetRequiredService<ITransportCircuitBreakerRegistry>();
-var states = registry.GetAllStates();
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Resilience;
+using Microsoft.Extensions.Logging;
 
-foreach (var (transport, state) in states)
+public static class CircuitInspection390
 {
-    if (state == CircuitState.Open)
+    public static void Run(IServiceProvider serviceProvider, Microsoft.Extensions.Logging.ILogger logger)
     {
-        logger.LogWarning("Circuit breaker OPEN for transport {Transport}", transport);
+        var registry = serviceProvider.GetRequiredService<ITransportCircuitBreakerRegistry>();
+        var diagnostics = registry as ITransportCircuitBreakerDiagnostics
+            ?? throw new InvalidOperationException("Transport registry lacks diagnostic support.");
+        var states = diagnostics.GetAllStates();
+
+        foreach (var (transport, state) in states)
+        {
+            if (state == CircuitState.Open)
+            {
+                logger.LogWarning("Circuit breaker OPEN for transport {Transport}", transport);
+            }
+        }
     }
 }
 ```
@@ -464,27 +556,38 @@ await dlqAdmin.PurgeAllTenantsEntriesOlderThanAsync(TimeSpan.FromDays(7), ct);
 For transport-native DLQs, use `ReprocessOptions` for fine-grained control:
 
 ```csharp
-var result = await dlqManager.ReprocessDeadLetterMessagesAsync(
-    messages,
-    new ReprocessOptions
-    {
-        // Only reprocess messages from the last hour
-        MessageFilter = msg => msg.DeadLetteredAt > DateTimeOffset.UtcNow.AddHours(-1),
-        // Transform messages before replay (e.g., fix headers)
-        MessageTransform = msg =>
-        {
-            msg.Headers["RetrySource"] = "manual-recovery";
-            return msg;
-        },
-        RemoveFromDlq = true,
-        RetryDelay = TimeSpan.FromMilliseconds(100),
-        MaxMessages = 100
-    },
-    cancellationToken);
+using Excalibur.Dispatch.Transport;
+using Microsoft.Extensions.Logging;
 
-logger.LogInformation(
-    "Reprocessed {Success}/{Total} messages in {Duration}",
-    result.SuccessCount, result.TotalCount, result.ProcessingTime);
+public static class TransportRecoveryExample
+{
+    public static async Task Run(Excalibur.Dispatch.Transport.IDeadLetterQueueManager dlqManager,
+        IEnumerable<Excalibur.Dispatch.Transport.DeadLetterMessage> messages,
+        Microsoft.Extensions.Logging.ILogger logger, CancellationToken cancellationToken)
+    {
+        var result = await dlqManager.ReprocessDeadLetterMessagesAsync(
+            messages,
+            new ReprocessOptions
+            {
+                // Only reprocess messages from the last hour
+                MessageFilter = msg => msg.DeadLetteredAt > DateTimeOffset.UtcNow.AddHours(-1),
+                // Transform messages before replay (e.g., fix headers)
+                MessageTransform = msg =>
+                {
+                    msg.Properties["RetrySource"] = "manual-recovery";
+                    return msg;
+                },
+                RemoveFromDlq = true,
+                RetryDelay = TimeSpan.FromMilliseconds(100),
+                MaxMessages = 100
+            },
+            cancellationToken);
+
+        logger.LogInformation(
+            "Reprocessed {Success}/{Total} messages in {Duration}",
+            result.SuccessCount, result.TotalCount, result.ProcessingTime);
+    }
+}
 ```
 
 ## Decision Guide: What Level of Protection Do You Need?
@@ -515,76 +618,97 @@ services.AddDispatch(dispatch =>
 **Standard** -- External messages, moderate consequence:
 
 ```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.UseRetry()
-            .UseCircuitBreaker();
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Resilience;
 
-    dispatch.UsePoisonMessageHandling(options =>
+public static class ErrorHandlingConfiguration523
+{
+    public static void Run(IServiceCollection services)
     {
-        options.MaxRetryAttempts = 3;
-        options.DeadLetterRetentionPeriod = TimeSpan.FromDays(30);
-        options.EnableAutoCleanup = true;
-    });
-});
+        services.AddDispatch(dispatch =>
+        {
+            dispatch.UseRetry()
+                    .UseCircuitBreaker();
+
+            dispatch.UsePoisonMessageHandling(options =>
+            {
+                options.MaxRetryAttempts = 3;
+                options.Cleanup.DeadLetterRetentionPeriod = TimeSpan.FromDays(30);
+                options.Cleanup.EnableAutoCleanup = true;
+            });
+        });
+    }
+}
 ```
 
 **Full protection** -- Financial transactions, critical business processes:
 
 ```csharp
-services.AddDispatch(dispatch =>
+using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Resilience;
+using System.Text.Json;
+
+public static class ErrorHandlingConfiguration540
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    // Resilience: timeout + retry + circuit breaker.
-    // UseResilienceStack() composes the three in the core package; UseResilience()
-    // (Excalibur.Dispatch.Resilience.Polly) takes no arguments - configure the
-    // individual middleware through their own options.
-    dispatch.UseResilienceStack();
-
-    // Poison message detection AND its dead-letter behaviour are one feature with one
-    // options type. Detection thresholds sit on the options; retention and alerting sit
-    // on the nested Cleanup and Alerting objects.
-    dispatch.UsePoisonMessageHandling(options =>
+    public static void Run(IServiceCollection services, string connectionString)
     {
-        options.MaxRetryAttempts = 5;
-        options.MaxProcessingTime = TimeSpan.FromMinutes(5);
-        options.PoisonExceptionTypes.Add(typeof(JsonException));
+        services.AddDispatch(dispatch =>
+        {
+            dispatch.AddHandlersFromAssembly(typeof(ErrorHandlingConfiguration540).Assembly);
 
-        options.Cleanup.DeadLetterRetentionPeriod = TimeSpan.FromDays(90);
-        options.Alerting.EnableAlerting = true;
-        options.Alerting.AlertThreshold = 5;
-    });
-});
+            // Resilience: timeout + retry + circuit breaker.
+            // UseResilienceStack() composes the three in the core package; UseResilience()
+            // (Excalibur.Dispatch.Resilience.Polly) takes no arguments - configure the
+            // individual middleware through their own options.
+            dispatch.UseResilienceStack();
 
-// Transport-specific DLQ (e.g., Kafka)
-services.AddKafkaDeadLetterQueue(options =>
-{
-    options.MaxDeliveryAttempts = 3;
-});
+            // Poison message detection AND its dead-letter behaviour are one feature with one
+            // options type. Detection thresholds sit on the options; retention and alerting sit
+            // on the nested Cleanup and Alerting objects.
+            dispatch.UsePoisonMessageHandling(options =>
+            {
+                options.MaxRetryAttempts = 5;
+                options.MaxProcessingTime = TimeSpan.FromMinutes(5);
+                options.PoisonExceptionTypes.Add(typeof(JsonException));
 
-// Named policies for critical operations
-services.AddPollyRetryPolicy("payment-retry", options =>
-{
-    options.MaxRetries = 5;
-    options.UseExponentialBackoff = true;
-    options.UseJitter = true;
-});
+                options.Cleanup.DeadLetterRetentionPeriod = TimeSpan.FromDays(90);
+                options.Alerting.EnableAlerting = true;
+                options.Alerting.AlertThreshold = 5;
+            });
+        });
 
-services.AddPollyCircuitBreaker("payment-cb", options =>
-{
-    options.FailureThreshold = 3;
-    options.DurationOfBreak = TimeSpan.FromSeconds(60);
-});
+        // Transport-specific DLQ (e.g., Kafka)
+        services.AddKafkaDeadLetterQueue(options =>
+        {
+            options.MaxDeliveryAttempts = 3;
+        });
 
-// Persistent DLQ store
-services.AddSqlServerDeadLetterStore(opts => opts.ConnectionString = connectionString);
+        // Named policies for critical operations
+        services.AddPollyRetryPolicy("payment-retry", options =>
+        {
+            options.MaxRetryAttempts = 5;
+            options.BackoffStrategy = BackoffStrategy.Exponential;
+            options.UseJitter = true;
+        });
 
-// Idempotent consumer for critical handlers
-services.AddSqlServerInboxStore(options =>
-{
-    options.ConnectionString = connectionString;
-});
+        services.AddPollyCircuitBreaker("payment-cb", options =>
+        {
+            options.FailureRatio = 0.5;
+            options.BreakDuration = TimeSpan.FromSeconds(60);
+        });
+
+        // Persistent DLQ store
+        services.AddSqlServerDeadLetterStore(opts => opts.ConnectionString = connectionString);
+
+        // Idempotent consumer for critical handlers
+        services.AddSqlServerInboxStore(options =>
+        {
+            options.ConnectionString = connectionString;
+        });
+    }
+}
 ```
 
 ## Summary

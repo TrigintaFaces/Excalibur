@@ -239,4 +239,82 @@ public sealed class SqlServerSagaStoreConcurrencyConformanceShould : SagaStoreCo
 			new { SagaId = sagaId }).ConfigureAwait(false);
 		rowCount.ShouldBe(1, "exactly one saga row must exist for the contended id — a single find-or-create winner.");
 	}
+    [Fact]
+    public async Task ObserveActualLegacyNonceTwiceThenConditionallyInitializeFirstJournal()
+    {
+        var id = await InsertActualLegacyStateAsync().ConfigureAwait(false);
+        var first = (await Store.LoadAsync<TestSagaState>(id, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        var second = (await Store.LoadAsync<TestSagaState>(id, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        first.TimerRecoveryIncarnationId.ShouldBe(Guid.Empty);
+        second.TimerRecoveryIncarnationId.ShouldBe(Guid.Empty);
+        first.Version.ShouldBe(second.Version);
+        // This is the coordinator's pre-capture initialization: never mint a new nonce for an already persisted journal.
+        first.TimerRecoveryIncarnationId = Guid.NewGuid();
+        first.TimerRecoverySequence = 1;
+        var journal = new SagaTimerRecoveryJournal(new SagaScopeIdentity(TenantDefaults.DefaultTenantId, nameof(TestSagaState), id),
+            first.TimerRecoveryIncarnationId, 1, Guid.NewGuid(), Guid.NewGuid(), 0, 1,
+            [1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0]);
+        first.PendingTimerRecovery = journal;
+        await Store.SaveAsync(first, CancellationToken.None).ConfigureAwait(false);
+        var persisted = (await Store.LoadAsync<TestSagaState>(id, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        persisted.TimerRecoveryIncarnationId.ShouldBe(first.TimerRecoveryIncarnationId);
+        persisted.PendingTimerRecovery.ShouldNotBeNull().GetAuthorityDigest().ShouldBe(journal.GetAuthorityDigest());
+        await Should.ThrowAsync<ConcurrencyException>(() => Store.SaveAsync(second, CancellationToken.None)).ConfigureAwait(false);
+        var afterStale = (await Store.LoadAsync<TestSagaState>(id, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        afterStale.Version.ShouldBe(persisted.Version);
+        afterStale.PendingTimerRecovery.ShouldNotBeNull().GetAuthorityDigest().ShouldBe(journal.GetAuthorityDigest());
+    }
+
+    [Fact]
+    public async Task PermitOneOfTwoActualLegacyInitializersAndRefuseTheStaleEmptyObservation()
+    {
+        var id = await InsertActualLegacyStateAsync().ConfigureAwait(false);
+        var first = (await Store.LoadAsync<TestSagaState>(id, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        var second = (await Store.LoadAsync<TestSagaState>(id, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        first.TimerRecoveryIncarnationId.ShouldBe(Guid.Empty);
+        second.TimerRecoveryIncarnationId.ShouldBe(Guid.Empty);
+        using var ready = new CountdownEvent(2);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task<Exception?> Attempt(TestSagaState state)
+        {
+            ready.Signal();
+            await release.Task.ConfigureAwait(false);
+            try { await Store.SaveAsync(state, CancellationToken.None).ConfigureAwait(false); return null; }
+            catch (ConcurrencyException error) { return error; }
+        }
+        var left = Attempt(first); var right = Attempt(second);
+        ready.IsSet.ShouldBeTrue();
+        release.SetResult();
+        var outcomes = await Task.WhenAll(left, right).ConfigureAwait(false);
+        outcomes.Count(error => error is null).ShouldBe(1);
+        outcomes.Count(error => error is ConcurrencyException).ShouldBe(1);
+        var persisted = (await Store.LoadAsync<TestSagaState>(id, CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+        persisted.Version.ShouldBe(2);
+        persisted.TimerRecoveryIncarnationId.ShouldNotBe(Guid.Empty);
+        var winner = outcomes[0] is null ? first : second;
+        persisted.TimerRecoveryIncarnationId.ShouldBe(winner.TimerRecoveryIncarnationId);
+    }
+
+    private async Task<Guid> InsertActualLegacyStateAsync()
+    {
+        var id = Guid.NewGuid();
+        using var serializer = new DispatchJsonSerializer();
+        var payload = System.Text.Json.Nodes.JsonNode.Parse(serializer.Serialize(new TestSagaState { SagaId = id, Data = "actual-legacy" }))
+            .ShouldNotBeNull().AsObject();
+        string[] names = [nameof(SagaState.TimerRecoveryIncarnationId), nameof(SagaState.TimerRecoverySequence),
+            nameof(SagaState.PendingTimerRecovery), nameof(SagaState.LastTimerRecoveryBatchId)];
+        var removed = payload.Select(pair => pair.Key).Where(key => names.Any(name => string.Equals(name, key, StringComparison.OrdinalIgnoreCase))).ToArray();
+        removed.Length.ShouldBe(3, "the default serializer omits the null pending journal and writes the other three new properties");
+        foreach (var name in removed) { payload.Remove(name).ShouldBeTrue(); }
+        payload.Select(pair => pair.Key).ShouldNotContain(key => names.Any(name => string.Equals(name, key, StringComparison.OrdinalIgnoreCase)));
+        await using var connection = new SqlConnection(_fixture.ConnectionString);
+        await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+        var inserted = await connection.ExecuteAsync(new CommandDefinition(
+            "INSERT INTO [dispatch].[sagas](SagaId,SagaType,StateJson,IsCompleted,TenantId,Version,TimerRecoveryIncarnation) VALUES(@Id,@Type,@Json,0,@Tenant,1,NULL)",
+            new { Id = id, Type = nameof(TestSagaState), Json = payload.ToJsonString(), Tenant = TenantDefaults.DefaultTenantId },
+            cancellationToken: CancellationToken.None)).ConfigureAwait(false);
+        inserted.ShouldBe(1);
+        return id;
+    }
+
 }

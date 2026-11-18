@@ -158,6 +158,54 @@ public static class CryptoShreddingServiceCollectionExtensions
         services.TryAddSingleton<IKeyDestructionLedger>(
             static sp => sp.GetRequiredService<NoErasureKeyDestructionLedger>());
 
+        // THE MINT LEDGER TAKES THE SAME TREATMENT, and for the same reason one layer over. The write path
+        // records an intent for every first write per subject and obligation class, so a composition with
+        // no mint ledger cannot write personal data at all. This deployment keeps no rows -- nothing
+        // enumerates them, because nothing erases -- so recording is a no-op here and ENUMERATING THROWS.
+        // Returning an empty enumeration instead would be the catastrophic direction: an erasure would
+        // read it as "this subject has no handles".
+        services.TryAddSingleton<NoErasureKeyMintLedger>();
+        services.TryAddSingleton<IKeyMintLedger>(
+            static sp => sp.GetRequiredService<NoErasureKeyMintLedger>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// States that this host's erasures are NOT relied upon, so a key-mint ledger that loses its rows when
+    /// the process restarts is acceptable here.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>For a development or test host, and for nothing else.</b> A mint ledger is the enumeration an
+    /// erasure destroys from. One that holds its rows in memory enumerates NOTHING after a restart, so an
+    /// erasure then destroys only the handles it can derive from declared retentions and signs a completion
+    /// certificate over every personal field still readable under the rest. Nothing downstream can detect
+    /// it, because an empty enumeration is also exactly what a data subject with no personal fields looks
+    /// like — which is why startup refuses the composition rather than warning about it.
+    /// </para>
+    /// <para>
+    /// <b>It is a separate call and never a default, for the same reason
+    /// <see cref="AddCryptoShreddingWithoutErasure" /> is.</b> A deployment that silently accepted a
+    /// volatile ledger would BE the failure: the consumer would believe their erasures are effective, the
+    /// certificates would look clean, and the only evidence to the contrary would be personal data nobody
+    /// is looking at. Naming the choice keeps it visible in the registration code instead of inferred from
+    /// an absence.
+    /// </para>
+    /// <para>
+    /// This call grants nothing and configures nothing. It records a statement the startup check reads.
+    /// Remove it and register <c>AddPostgresErasureStore()</c> or <c>AddSqlServerErasureStore()</c> before
+    /// any host whose erasures a data subject relies on.
+    /// </para>
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The same service collection, for chaining.</returns>
+    public static IServiceCollection AcknowledgeNonDurableErasureLedger(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton(new NonDurableErasureLedgerAcknowledged());
+
         return services;
     }
 }

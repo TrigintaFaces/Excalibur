@@ -183,10 +183,31 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 			}
 
 			// Determine overall result
-			var criticalFailures = failures.Where(f => f.Severity == VerificationSeverity.Critical).ToList();
-			if (criticalFailures.Count > 0)
+			// Verified asserts that THIS execution established what it reports, so it requires BOTH that
+			// some configured method actually substantiated the result AND that nothing was recorded
+			// against it. `false` means NOT ESTABLISHED, for any reason -- never a claim that the erasure
+			// itself failed.
+			//
+			// This previously read `failures.Where(f => f.Severity == Critical).Any()`, which was correct
+			// for its original codomain and was silently widened when a non-Critical producer arrived. Two
+			// states it could not express:
+			//
+			//   - A WARNING whose own text says key destruction "could not be verified" was recorded in
+			//     `failures` and then waived, so an erasure with NO key deletions on record reported
+			//     Verified = true. VerificationSeverity.Error has no producer at all today, so the first
+			//     one to arrive would have been waived the same way.
+			//   - `VerificationMethods = None` is a legal configuration the options validator does not
+			//     reject. Every branch is then skipped, `failures` is empty, and a failures-only predicate
+			//     still returns true: verified by nothing.
+			//
+			// Requiring `methodsUsed != None` makes "verified by nothing" inexpressible here, which is the
+			// property the certificate producer already holds by construction -- it derives Verified and
+			// Methods from ONE value, so the two cannot disagree. The two producers now agree by
+			// construction rather than by review.
+			var substantiated = failures.Count == 0 && methodsUsed != VerificationMethod.None;
+			if (!substantiated)
 			{
-				LogErasureVerificationFailed(requestId, criticalFailures.Count);
+				LogErasureVerificationFailed(requestId, failures.Count);
 
 				return new VerificationResult
 				{

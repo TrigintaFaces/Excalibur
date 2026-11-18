@@ -6,7 +6,7 @@ description: Coordinate distributed workloads with leader election
 
 # Leader Election
 
-Leader election ensures only one instance in a distributed system performs a specific task at a time. Excalibur provides pluggable leader election for scenarios like background job processing, outbox publishing, and scheduled tasks.
+Leader election coordinates which application instance should perform a shared workload. Excalibur provides pluggable election for background processing, outbox publishing and scheduled tasks. Protect shared writes with resource-side fencing; local leadership alone cannot exclude stale work through arbitrary pauses or network partitions.
 
 ## Before You Start
 
@@ -26,7 +26,7 @@ Leader election ensures only one instance in a distributed system performs a spe
 | `Excalibur.Dispatch.LeaderElection.Abstractions` | Core interfaces: `ILeaderElection`, `ILeaderElectionFactory`, `IHealthBasedLeaderElection` |
 | `Excalibur.LeaderElection` | Registration, telemetry decorator, and health check |
 | `Excalibur.LeaderElection.SqlServer` | SQL Server-based leader election |
-| `Excalibur.Data.Postgres` | PostgreSQL advisory lock-based leader election |
+| `Excalibur.LeaderElection.Postgres` | PostgreSQL advisory lock-based leader election |
 | `Excalibur.LeaderElection.Redis` | Redis-based leader election |
 | `Excalibur.LeaderElection.Consul` | Consul-based leader election |
 | `Excalibur.LeaderElection.Kubernetes` | Kubernetes lease-based leader election |
@@ -42,20 +42,11 @@ Leader election ensures only one instance in a distributed system performs a spe
 | Event projection updates | Prevent duplicate projections |
 | Singleton background services | Only one active instance |
 
-:::warning Leadership is at-most-one, bounded by lease expiry plus grace — not a distributed lock
+:::warning Local leadership is not a protected-write guarantee
 
-Every scenario above is *"one instance at a time"*, which is **not** the same as *"exactly once"*. The
-guarantee is: two candidates never both consider themselves leader **except** within a window bounded by the
-incumbent's lease expiry plus its configured grace period. Outside that window leadership is mutually
-exclusive; inside it, two instances can briefly both believe they lead.
+Local proof expiry and server-side ownership are separate events. Redis TTLs, SQL Server and PostgreSQL session locks, and Consul sessions have different expiry and cleanup rules. A process pause, partition or delayed SDK call prevents any general promise that two processes cannot act on stale leadership within a fixed wall-clock window.
 
-**So leadership alone does not protect a non-idempotent side effect.** To make the work safe, either make it
-idempotent, or **fence the resource**: pin `CurrentLeadership` once per tenure, carry its fencing token into
-every write, and require the downstream store to reject a stale token. Checking a boolean "am I the leader?"
-before acting is not sufficient — the answer can be stale by the time the write lands.
-
-Set the grace period below the tolerance of whatever you are protecting; it is the upper bound on how long a
-candidate that has lost contact may still act as leader.
+Pin `CurrentLeadership` once per work batch, carry its acquisition fencing token into every protected write, and require the resource to reject stale tokens **atomically with the write**. An `IsLeader` check, or `ValidateTokenAsync` followed by a separate write, leaves a race. Do not replace old work's token with a newly acquired token. Durable idempotency may also be needed to make retries safe; election does not provide exactly-once effects by itself.
 
 :::
 
@@ -97,8 +88,16 @@ Instance B --> Acquires Lock --> Becomes Leader --> Processes Work
 ## The ILeaderElection Interface
 
 ```csharp
-public interface ILeaderElection
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Excalibur.Dispatch.LeaderElection;
+
+public interface ILeaderElection : IAsyncDisposable
 {
+    // Permanent completion of queued notifications, separate from resource disposal.
+    Task NotificationsCompleted { get; }
+
     /// <summary>
     /// Event raised when this instance becomes the leader.
     /// </summary>
@@ -130,6 +129,9 @@ public interface ILeaderElection
     /// </summary>
     bool IsLeader { get; }
 
+    // Read once per work batch and carry its fence into protected writes.
+    Leadership? CurrentLeadership { get; }
+
     /// <summary>
     /// Gets the current leader's identifier.
     /// </summary>
@@ -146,6 +148,20 @@ public interface ILeaderElection
     Task StopAsync(CancellationToken cancellationToken);
 }
 ```
+
+## Notification Lifetime and Shutdown
+
+Committed local acquisition and loss events are queued transition history; remote-holder and acquisition observations may be coalesced. Event arrival is not permission to write: a tenure may already have ended before its callback runs. Read `CurrentLeadership` when starting a work batch and enforce its pinned fencing token at the protected resource.
+
+`StopAsync` relinquishes participation and leaves the instance restartable after successful cleanup. A subsequent start or acquisition may also wait for prior ownership notifications to drain successfully. Stop does not complete `NotificationsCompleted` or wait for consumer callbacks. Permanent `DisposeAsync` seals producers and joins owned resource operations; callback delivery has a separate lifetime. `NotificationsCompleted` is the same task from construction onward and succeeds after permanent disposal and all admitted synchronous event invocations have returned. A fatal notification-dispatch failure faults the task; faulted completion does not prove every queued callback ran.
+
+Await that task during final teardown, before disposing dependencies used by your callbacks. Observe resource-disposal failures and notification failures separately: a successful resource disposal does not mean every subscriber succeeded. A notification failure faults the permanent task. If disposal throws, still observe `NotificationsCompleted` and retain both failures if both operations fail.
+
+Redis, SQL Server, PostgreSQL and Consul queue provider diagnostics on the same serialized delivery lane as notifications. One pending diagnostic is retained, so messages may coalesce; use a separate durable audit mechanism when every record must be preserved. A blocked logger can delay callbacks and the ownership-notification drain required for restart, while authority deadlines and owned resource cleanup remain independent. Logger exceptions are reported through `NotificationsCompleted`. Keep borrowed logging dependencies alive until that task settles.
+
+Callbacks may stop or dispose their own election. They must not await their own `NotificationsCompleted` task or restart that election from its active callback: doing so would wait for that callback to finish. Start from the same active notification domain is refused with `InvalidOperationException`. Operations on an independent election remain allowed. Completion covers synchronous delegate invocations, not `async void` continuations or tasks launched by subscribers; application-owned asynchronous work needs its own cancellation and join.
+
+For a DI-owned election, coordinate final draining in the application lifetime owner rather than disposing a shared election from each consumer. `await using` alone joins resource disposal, not notification completion.
 
 ## Registration
 
@@ -213,29 +229,30 @@ services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
 
 The builder automatically registers `LeaderElectionOptions` with `ValidateDataAnnotations` and `ValidateOnStart`.
 
-### Lease Timing Invariant
+### Configuration Headroom and Runtime Deadlines
 
-`LeaderElectionOptionsValidator` (registered for every distributed provider) enforces a cross-property
-timing rule at startup. A configuration that violates it **fails fast** via `ValidateOnStart` rather than
-silently risking a split-brain overlap:
+`LeaderElectionOptionsValidator` checks positive timing values and the strict configuration relation:
 
-```
-RenewInterval + GracePeriod + 1s (clock-skew margin) < LeaseDuration
+```text
+RenewInterval + GracePeriod + 1s (reserved headroom) < LeaseDuration
 ```
 
-(In addition to the simpler `RenewInterval < LeaseDuration` and `GracePeriod < LeaseDuration` bounds.)
+The builder registers startup validation. The Redis, SQL Server, PostgreSQL and Consul provider constructors also validate their effective timing options. Reserved headroom is not a measured bound on clock skew, network delay or process suspension, and passing validation does not establish exclusive ownership.
 
-**Why:** the renewal loop waits one `RenewInterval`, attempts a renewal, then self-demotes only after
-`GracePeriod` elapses without success — so the holder relinquishes leadership roughly
-`RenewInterval + GracePeriod` after its last successful renewal. If the lease key expires (at
-`LeaseDuration`) *before* the holder self-demotes, another node can acquire the lease while this node still
-believes it leads. Requiring the self-demotion deadline (plus a 1-second clock-skew margin) to fall
-strictly before lease expiry closes that window.
+For these four providers, the local leadership proof has an independent monotonic deadline of `RenewInterval + GracePeriod` from the conservative **start** of the latest successful ownership request. Acquisition and renewal replies received after expiry cannot publish or revive that tenure. Successful ownership verification advances the deadline; ambiguous failures do not. An independent timer clears local authority while an SDK operation remains pending. A paused process cannot execute that timer until it resumes, so this is not a hard real-time guarantee.
 
-**Defaults** (`Lease = 15s`, `Renew = 5s`, `Grace = 5s`) satisfy the rule: self-demotion at ~10s + 1s
-margin = 11s, a ~4s margin before the 15s lease expiry. Tighten `LeaseDuration` for faster failover at the
-cost of more renewal traffic; if you raise `RenewInterval` or `GracePeriod`, raise `LeaseDuration` to keep
-the sum below it.
+Normal renewals and ambiguous-failure retries follow serialized request-start cadence using `RenewInterval` and `RetryInterval`, respectively. Response latency is not added to the configured interval. Definitive ownership loss and classified permanent failures retire earlier. An unrelated cancellation exception is not automatically an owned shutdown request. `GracePeriod` is not a wait before declaring another candidate dead.
+
+| Provider | Ownership verification and remote lifetime |
+|----------|-------------------------------------------|
+| Redis | Conditional renewal compares a private per-acquisition owner value before extending the key's `LeaseDuration` TTL. Release compares that same value before deleting; a public candidate ID is not the ownership proof. |
+| SQL Server | The original dedicated connection must still hold the exact session-owned application lock in `Exclusive` mode. `LeaseDuration` is not a SQL Server lock TTL. Verification never reconnects to create a substitute session. |
+| PostgreSQL | The original dedicated backend must hold the exact exclusive bigint advisory lock in the configured database and single-bigint namespace. A different advisory lock on that backend is insufficient. Session locks have no `LeaseDuration` TTL. |
+| Consul | A successful session renewal and consistent KV read must match the captured session, nonce and candidate. Remote lifetime uses the separate `SessionTTL`; server expiry is not a strict upper-bound timer. A separate bounded read-only monitor cannot refresh the local proof or block the renewal lane. |
+
+The default local budget is `5s + 5s = 10s`; with the reserved one-second configuration margin it fits below the nominal 15-second lease. This arithmetic is configuration headroom, not a failover latency promise or a proof that stale writes are impossible.
+
+Stop clears local authority before joining owned SDK operations and cleaning up the captured old tenure. Canceling a Stop wait cancels the caller's wait, not cleanup ownership. A hung operation may leave cleanup pending while leadership is already false. Restart requires successful cleanup and prior notification drain. Transition notifications are ordered history, delivered outside the state gate; stopping does not join consumer callbacks, so a callback can stop its election without joining itself.
 
 ### Pre-Built Options
 
@@ -252,7 +269,7 @@ services.AddExcalibur(excalibur => excalibur.AddLeaderElection(options));
 
 :::note
 
-The pre-built options overload uses `Options.Create()` directly, which bypasses `ValidateOnStart`. Ensure your options are valid before passing them.
+The pre-built options overload uses `Options.Create()` and does not itself run host startup validation. Redis, SQL Server, PostgreSQL and Consul still validate their effective options when their provider is constructed. Prefer the builder path for startup validation and configure the complete timing budget explicitly.
 :::
 
 ### Available Builder Extensions
@@ -698,7 +715,7 @@ PostgreSQL implementation features:
 - Factory pattern for multiple independent elections
 - AOT-safe with `[GeneratedRegex]` SQL identifier validation and `JsonSerializerContext`
 - `ValidateDataAnnotations` + `ValidateOnStart` on all options
-- `IValidateOptions<LeaderElectionOptions>` cross-property validator (see [Lease timing invariant](#lease-timing-invariant))
+- `IValidateOptions<LeaderElectionOptions>` cross-property validator (see [Configuration headroom and runtime deadlines](#configuration-headroom-and-runtime-deadlines))
 
 #### Health-Based Election (Postgres)
 
@@ -733,7 +750,7 @@ Health-based options:
 
 ### Redis Leader Election
 
-Uses Redis for high-performance coordination:
+Uses Redis for coordination:
 
 ```csharp
 // Installation
@@ -759,8 +776,7 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le =>
 Redis implementation features:
 - Uses `SET NX EX` for atomic lock acquisition
 - Lua scripts for atomic operations
-- Low latency lock acquisition
-- Suitable for high-frequency leadership checks
+- Measure acquisition and renewal latency with the configured Redis deployment and intended check frequency.
 
 ### Consul Leader Election
 
@@ -883,9 +899,9 @@ public class LeaderElectionOptions
     public TimeSpan GracePeriod { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// Unique identifier for this instance.
+    /// Optional configured identity; the provider resolves an unset value.
     /// </summary>
-    public string InstanceId { get; set; } = Environment.MachineName;
+    public string? InstanceId { get; set; }
 
     /// <summary>
     /// Enable health-based leader election.
@@ -1349,6 +1365,12 @@ election.BecameLeader += (_, e) =>
 
 A fencing token is a strictly monotonic number minted on each leadership acquisition. Passing it to a shared resource lets that resource **reject a write from a stale leader** — one that was paused (GC, network partition) long enough to lose leadership without noticing — because the stale leader's token is lower than the token the resource has already seen. Fencing tokens are the standard defence against the split-brain write hazard.
 
+### SQL Server and PostgreSQL Fencing Transactions
+
+The SQL Server and PostgreSQL fencing providers use their own connections with ambient transaction enlistment disabled for token issuance, reads and validation. A caller's business rollback must not roll back infrastructure fencing state. This includes first-use sequence creation: transactional DDL rolled back with the caller could remove the sequence and let a later provider reuse an already issued token.
+
+Business writes keep their ordinary transaction semantics; this autonomous fencing boundary does not commit the caller's work. Tokens may contain gaps and must not be reused for the same resource. The election's owned infrastructure workers likewise suppress the ambient business transaction while preserving diagnostic context. Protected application writes still need atomic resource-side fencing; an autonomous token mint does not make an unrelated write atomic.
+
 ### Fencing is on by default
 
 Every built-in provider — Consul, Kubernetes, MongoDB, Postgres, Redis, SQL Server, and in-memory — registers its own arbitrated `IFencingTokenProvider` automatically as part of `Use*()` / `Add*LeaderElection()`. You do not need to call `WithFencingTokens()` or `Add*FencingTokenProvider()` yourself:
@@ -1394,10 +1416,12 @@ Each backend ships a matching manual registration, for the consumer-supplied sce
 | `AddSqlServerFencingTokenProvider(connectionString)` | `Excalibur.LeaderElection.SqlServer` |
 | `AddInMemoryFencingTokenProvider()` | `Excalibur.LeaderElection.InMemory` |
 
-Consul, Kubernetes, MongoDB, Postgres, Redis, SQL Server, and in-memory leader election all accept an `IFencingTokenProvider` — supplying your own via `TryAddSingleton<IFencingTokenProvider, T>()` before the provider's `Use*()`/`Add*LeaderElection()` call overrides the default.
+`IFencingTokenProvider` exposes authoritative reads and validation. The six self-minting elections (Consul, MongoDB, Postgres, Redis, SQL Server and in-memory) consume `IFencingTokenIssuer`, which extends that reader with `IssueTokenAsync`. Kubernetes exposes only the reader: leadership transitions advance its native Lease counter.
+
+Supplying your own mint-capable reader via `TryAddSingleton<IFencingTokenProvider, T>()` before `Use*()` / `Add*LeaderElection()` selects that implementation for the default issuer projection too. A selected reader without mint capability cannot satisfy a self-minting election. Independently registering `IFencingTokenIssuer` bypasses that projection; the application must ensure both services refer to the same authority. See [the issuer migration guide](../migration/fencing-token-issuer.md) for custom registrations and ownership.
 
 :::note MongoDB fences durably by default
-MongoDB leader election defaults to a **durable per-resource fencing counter** — a separate, TTL-free collection — when you don't supply your own provider. This is deliberate: a token stored in the lock document itself would be reset when the lock document is deleted on graceful release or expired by its TTL index, letting a stale token from a restarted instance validate as current (split-brain). The durable counter never resets.
+MongoDB leader election defaults to a **durable per-resource fencing counter** — a separate, TTL-free collection — when you don't supply your own provider. This is deliberate: a token stored in the lock document itself would be reset when the lock document is deleted on graceful release or expired by its TTL index, letting a stale token from a restarted instance validate as current (split-brain). The counter is separate and TTL-free; deleting the counter collection or restoring older history can still reset it. Restart/restore durability under the chosen deployment policy is UNVERIFIED here.
 :::
 
 :::note In-memory fencing is process-local
@@ -1408,7 +1432,9 @@ The in-memory provider mints its fencing token from an in-process counter, becau
 
 Because tokens must never wrap or repeat — a reused value would let a stale leader validate as current — a provider that cannot mint the next monotonic token throws `FencingTokenExhaustedException` (namespace `Excalibur.Dispatch.LeaderElection.Fencing`) and **fails closed**: it refuses to mint, so leadership cannot be granted or renewed, and a leader that hits exhaustion mid-tenure relinquishes rather than continue with an unsafe token.
 
-Exhaustion is practically unreachable for the 64-bit self-minting domains (Consul and MongoDB mint their own `long` counters). It is reachable only for a narrow native counter — notably a Kubernetes `Lease.spec.leaseTransitions`, which is a 32-bit value.
+Exhaustion is practically unreachable for the 64-bit self-minting domains. Kubernetes instead checks its 32-bit `Lease.spec.leaseTransitions` during the native ownership transition and refuses an acquisition that would overflow; its reader can still report the last authoritative positive mark.
+
+Validation compares a positive presented token with the currently recorded positive mark using `>=`. It does not prove that the presented value was issued, nor that it remains current after the read returns. Pin the token from `Leadership` for the tenure and enforce it atomically at the protected resource. Deleting, resetting or rolling back the authority's counter history can admit stale tokens; this API does not add a durable tenure identity across such resets.
 
 ## Troubleshooting
 

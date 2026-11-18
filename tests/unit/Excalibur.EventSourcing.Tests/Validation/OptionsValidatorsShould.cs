@@ -106,6 +106,8 @@ public sealed class OptionsValidatorsShould
 		public Data.Sharding.ShardInfo GetShardInfo(string tenantId) =>
 			throw new NotSupportedException();
 
+		public Data.Sharding.ShardInfo GetShardById(string shardId) => shards.Contains(shardId) ? new(shardId, "test-only-unused") : throw new KeyNotFoundException(shardId);
+
 		public IReadOnlyCollection<string> GetRegisteredShardIds() => shards;
 	}
 

@@ -87,6 +87,7 @@ public sealed class OutboxDeadLetterLoopIsolationShould
 		// The drain itself must not propagate the queue's fault. A throw here is the defect in its loudest
 		// form, so this call is part of the assertion rather than merely setup.
 		_ = await processor.DispatchPendingMessagesAsync(cts.Token).ConfigureAwait(false);
+		store.ClaimsVerified.ShouldBeGreaterThan(0, "claimed-row transitions must execute");
 
 		// LIVENESS, asserted before the safety claim: an arm where the drain never reached the dead-letter
 		// path at all would satisfy "nothing was stranded" vacuously. Prove the loop ran the full length.
@@ -144,6 +145,7 @@ public sealed class OutboxDeadLetterLoopIsolationShould
 
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 		_ = await processor.DispatchPendingMessagesAsync(cts.Token).ConfigureAwait(false);
+		store.ClaimsVerified.ShouldBeGreaterThan(0, "claimed-row transitions must execute");
 
 		dlq.EnqueueAttempts.ShouldBe(MessageCount, "the undisturbed path must offer every message");
 		store.DeadLetteredIds.Count.ShouldBe(MessageCount, "and must mark every message it filed");
@@ -203,11 +205,45 @@ public sealed class OutboxDeadLetterLoopIsolationShould
 	/// Serves a fixed number of retry-exhausted messages once, then nothing, so the drain terminates. The
 	/// message type does not resolve, which is what drives each one down the dead-letter path.
 	/// </summary>
-	private sealed class ExhaustedMessageStore(int count) : IOutboxStore, IDeadLetterableOutboxStore
+	private sealed class ExhaustedMessageStore(int count) : IOutboxStore, IDeadLetterableOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore
 	{
 		private readonly List<string> _deadLettered = [];
 		private readonly Lock _gate = new();
 		private int _served;
+
+        private readonly Dictionary<string, string> _claimed = new(StringComparer.Ordinal);
+        public int ClaimsVerified { get; private set; }
+
+        private void VerifyClaim(string messageId, string claimIdentity)
+        {
+            _claimed.TryGetValue(messageId, out var expected).ShouldBeTrue("completion must name a row actually acquired by this fixture");
+            claimIdentity.ShouldBe(expected, "the worker must present this row's exact captured acquisition");
+            ClaimsVerified++;
+        }
+
+        public async ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            await MarkSentAsync(messageId, cancellationToken);
+            return OutboxCompletionOutcome.Applied;
+        }
+
+        public async ValueTask<OutboxCompletionOutcome> MarkFailedAsync(string messageId, string errorMessage, int retryCount, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            await MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken);
+            return OutboxCompletionOutcome.Applied;
+        }
+
+        public ValueTask<OutboxCompletionOutcome> MarkFailedWithBackoffAsync(string messageId, string errorMessage, int retryCount, DateTimeOffset nextAttemptAt, string claimIdentity, CancellationToken cancellationToken)
+            => MarkFailedAsync(messageId, errorMessage, retryCount, claimIdentity, cancellationToken);
+
+        public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, string claimIdentity, CancellationToken cancellationToken)
+        {
+            VerifyClaim(messageId, claimIdentity);
+            return MarkDeadLetteredAsync(messageId, reason, attemptCount, cancellationToken);
+        }
+
 
 		public IReadOnlyList<string> DeadLetteredIds
 		{
@@ -244,6 +280,11 @@ public sealed class OutboxDeadLetterLoopIsolationShould
 				});
 			}
 
+			foreach (var row in messages)
+			{
+				row.DispatcherId = "claim-" + row.Id;
+				_claimed.Add(row.Id, row.DispatcherId);
+			}
 			return new ValueTask<IEnumerable<OutboundMessage>>(messages);
 		}
 

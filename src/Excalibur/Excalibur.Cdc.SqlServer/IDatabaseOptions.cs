@@ -83,11 +83,11 @@ public interface IDatabaseOptions
 	/// Gets the recovery options for handling stale CDC position scenarios.
 	/// </summary>
 	/// <value>
-	/// The recovery options, or <see langword="null"/> to use default behavior.
+	/// The recovery options, or <see langword="null"/> to propagate stale-position failures.
 	/// </value>
 	/// <remarks>
-	/// When <see langword="null"/>, the processor uses <see cref="Excalibur.Cdc.StalePositionRecoveryStrategy.FallbackToEarliest"/>
-	/// as the default strategy.
+	/// When <see langword="null"/>, stale checkpoints and source-history changes raise errors without
+	/// resetting the saved position. Supply explicit options to enable a recovery strategy.
 	/// </remarks>
 	CdcRecoveryOptions? RecoveryOptions { get; }
 

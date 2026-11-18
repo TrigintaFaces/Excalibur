@@ -56,7 +56,10 @@ public sealed class DeadLetterStoreTenantAttestationShould
 			CancellationToken cancellationToken) =>
 			Task.FromResult<IEnumerable<DeadLetterMessage>>([]);
 
-		public Task MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken) =>
+		public Task<DeadLetterReplayOutcome> MarkAsReplayedAsync(string messageId, CancellationToken cancellationToken) =>
+			Task.FromResult(DeadLetterReplayOutcome.MessageNotFound);
+
+		public Task ReleaseReplayClaimAsync(string messageId, CancellationToken cancellationToken) =>
 			Task.CompletedTask;
 
 		public Task<bool> DeleteAsync(string messageId, CancellationToken cancellationToken) =>

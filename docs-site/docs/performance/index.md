@@ -6,11 +6,28 @@ description: Performance characteristics and optimization strategies for Dispatc
 
 # Performance Overview
 
-Dispatch is built for low allocation and predictable latency on the local dispatch path. This
-page gives the current measured figures, the conditions they were taken under, and the tuning
+Low allocation and predictable latency are design goals for the local dispatch path. This
+page preserves dated measurements, the conditions they were taken under, and the tuning
 levers that matter. These are measurements on one machine, not guarantees.
 
-## Local dispatch overhead
+## November 4 component evidence
+
+The November 4 pooled metadata query experiment is a separate managed WarmPath workload;
+it does not refresh the typed-query table below. Its two held-out matched pairs measured
+20.8–23.3% lower process-mean time with unchanged 192 B/op. The descriptive, posthoc paired ratio
+interval was 0.63395–0.95741 (95%, two pairs, assumption-sensitive); the control interval
+was too wide to establish environmental equivalence. Final scoped admission is recorded in
+`artifacts/benchmarks/current-refresh-20261101/pooled-metadata-final-admission-r1.json`;
+the original aggregation record preserves its earlier pending review status. No competitor ranking, production
+DataProcessing throughput, or NativeAOT timing follows from this result.
+
+The repository report `docs/performance/pooled-metadata-query-2026-11-04.md` provides the
+exact commands, dirty-source hashes, raw evidence and correctness verification. It records
+.NET 10.0.14 / SDK 10.0.403, BenchmarkDotNet 0.15.8, Windows x64 on an Intel Core i9-14900K,
+and the original `MediatRWarmPathComparisonBenchmarks.Dispatch_QueryWithReturnValue`
+fixture. The separately executed NativeAOT probe verifies behavior, not these managed timings.
+
+## Historical local dispatch overhead — October 19, 2026
 
 Median of independent processes: commands and queries measured 19 October 2026. BenchmarkDotNet 0.15.8, adaptive
 warm-path job, in-process emit toolchain; .NET 10.0.12, SDK 10.0.401, x64 RyuJIT; Intel Core
@@ -18,9 +35,10 @@ i9-14900K, Windows 11 build 26300.9711. Rounded to the precision the between-pro
 supports.
 
 Each row comes from three separate original-observation processes. Query rows use
-the current selected runtime after the fixture rental-lifecycle repair. They do
+the runtime files selected for that October 19 measurement after the fixture rental-lifecycle repair. They do
 not certify the entire rebuilt checkout or actual NativeAOT performance. The
-earlier isolated-marker query experiment remains dated history.
+earlier isolated-marker query experiment remains dated history. These observations predate
+subsequent framework changes and do not establish current-source performance.
 
 | Path | Latency | Allocation |
 |---|---:|---:|
@@ -72,19 +90,18 @@ distribution warnings.
 
 ## What the allocation buys
 
-Every dispatch publishes an ambient message context, so a nested dispatch inherits causation,
-correlation, tenant and user rather than starting a fresh root. That costs one
-`ExecutionContext` copy-on-write, and the copy covers the whole async-local value map: 72 of
-the 96 bytes on a command dispatch, measured with no other async-local values present. With one
-other value present it measured roughly 160 B; with fifteen, roughly 992 B.
+Ambient message-context flow allows nested dispatches to inherit causation, correlation,
+tenant and user information. Its allocation cost depends on the selected dispatch path,
+runtime and the application's other async-local values. The historical local-dispatch
+table above does not isolate that cost or establish a universal allocation budget.
 
-**That figure scales with your application's async-local density, not ours.** Measure it in your
-own process before budgeting for it. `LightMode` disables AsyncLocal context flow and
-correlation-ID generation for applications that do not need the ambient context.
+Measure the configured path in your own process. `LightMode` disables correlation-ID
+generation. Ambient message-context flow remains enabled so nested dispatches can
+inherit context; enabling `LightMode` does not remove that flow or its allocation cost.
 
 ## Before you start
 
-- **.NET 10.0.** Current figures: runtime 10.0.12 / SDK 10.0.401. Historical figures below:
+- **.NET 10.0.** October 19 figures: runtime 10.0.12 / SDK 10.0.401. Earlier figures below:
   runtime 10.0.11 / SDK 10.0.400. BenchmarkDotNet 0.15.8 throughout.
 - Familiarity with [pipeline profiles](../pipeline/profiles.md) and [middleware](../middleware/index.md).
 
@@ -100,25 +117,32 @@ code.** Later, separately scoped October observations do not refresh these compa
 | Scenario (September 5, 2026 epoch) | Measurement |
 |---|---|
 | Notification to 3 handlers | 135.0 ns / 96 B |
-| Three-middleware pipeline | 71.7 ns / 240 B |
+| Nominal three-middleware fixture | 71.7 ns / 240 B |
 | 100 concurrent commands | 5,584 ns / 12,160 B |
+
+Historical pipeline stage execution and parity remain unverified. Current-source
+controls found that profile selection cleared the registered Dispatch middleware;
+the repaired fixture establishes a separate workload epoch
+(`artifacts/benchmarks/current-refresh-20261101/pipeline-fixture-fix-evidence-r1.json`).
 
 Source: `benchmarks/baselines/net10.0/dispatch-comparative-20260905/results/`. Full tables and
 methodology notes: [Benchmark Results](./competitor-comparison.md).
 
 :::warning Do not cross-diff across the April 2026 methodology boundary
 
-Baselines from before April 2026 used BenchmarkDotNet 0.15.4, which auto-tuned `InvocationCount`
-and produced numerically different, qualitatively equivalent ns-scale figures. Individual Mean
-values are not comparable across that boundary; ratios within each report remain so. See
-`benchmarks/RUNBOOK.md` for the methodology shift.
+Historical records on opposite sides of this boundary used different tooling and
+reported job behavior. They do not establish a matched comparison of the current
+source. Preserve their epochs and avoid direct differences; the tool version alone
+does not prove the cause of the timing shift. Ratios within a report still require
+equivalent completed work and an uncertainty assessment. See `benchmarks/RUNBOOK.md`.
+
 :::
 
 > MediatR is a trademark of its owner. It is named in these docs only to describe API
 > compatibility; no affiliation or endorsement is implied.
 
 
-## Quick Wins
+## Configuration choices to verify
 
 ### 1. Let the local fast path select itself
 
@@ -134,15 +158,22 @@ no middleware applies to its type; there is no explicit API to call. See
 
 ```csharp
 public record CreateOrderCommand(Guid OrderId, string CustomerId) : IDispatchAction;
-public class CreateOrderHandler : IActionHandler<CreateOrderCommand> { }
+public class CreateOrderHandler : IActionHandler<CreateOrderCommand>
+{
+    public Task HandleAsync(CreateOrderCommand message, CancellationToken cancellationToken)
+        => Task.CompletedTask; // Replace with application work.
+}
 ```
 
-### 3. Keep auto-freeze enabled
+### 3. Verify auto-freeze registration and lifecycle
 
 ```csharp
 var host = builder.Build();
 await host.RunAsync();
 ```
+
+Starting a host alone does not demonstrate that a cache was frozen. Follow the
+[auto-freeze registration and lifecycle guidance](./auto-freeze.md) and verify the configured path.
 
 ### 4. Prefer direct `IMessageContext` properties
 
@@ -161,7 +192,7 @@ context.ProcessingAttempts++;
 
 ## Hot-Path Optimizations
 
-Nine micro-optimizations targeting the dispatch hot path:
+Implementation mechanisms relevant to the dispatch hot path; benefits depend on the measured path:
 
 | Optimization | Pattern |
 |-------------|---------|
@@ -177,25 +208,25 @@ Nine micro-optimizations targeting the dispatch hot path:
 
 ## Memory Allocation Strategy
 
-Dispatch reduces allocations through:
+Mechanisms relevant to allocation and dependency costs (not a claim that every path benefits):
 
 1. Object pooling for `MessageContext`
 2. `ArrayPool<T>` on batch-style paths
 3. Lazy initialization for optional context state
 4. ValueTask-based local fast paths
 5. Hot-path single-write patterns eliminating redundant dictionary allocations
-6. Package extraction reducing dependency graph complexity
+6. Package extraction reducing dependency graph complexity; this alone does not establish lower per-operation allocations
 
 ## Running Benchmarks
 
 ```bash
-# Full matrix refresh
+# Declared matrix selection
 pwsh ./eng/run-benchmark-matrix.ps1 -NoRestore -NoBuild
 
 # In-process parity track
 pwsh ./eng/run-benchmark-matrix.ps1 -NoRestore -NoBuild -Classes PipelineComparisonBenchmarks
 
-# Queued/bus end-to-end parity track
+# Queued/bus comparison fixtures; verify completed-work parity
 pwsh ./eng/run-benchmark-matrix.ps1 -NoRestore -NoBuild -Classes TransportQueueParityComparisonBenchmarks
 ```
 

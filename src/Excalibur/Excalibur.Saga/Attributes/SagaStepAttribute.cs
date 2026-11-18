@@ -13,9 +13,10 @@ namespace Excalibur.Saga.Attributes;
 /// to produce step registration code automatically.
 /// </para>
 /// <para>
-/// Steps are executed in ascending <see cref="Order"/> sequence.
-/// Each step should have a corresponding compensation method marked
-/// with <c>SagaCompensationAttribute</c>.
+/// Steps are executed in ascending <see cref="Order"/> sequence. The framework runs steps
+/// forward only and performs no compensation: there is no compensation attribute to apply and
+/// no rollback is attempted when a step fails. A saga that needs to undo earlier work
+/// implements that in its own step logic.
 /// </para>
 /// </remarks>
 /// <example>

@@ -130,7 +130,7 @@ public sealed class ComplianceStoreDisposalShould
 					NullLogger<PostgresLegalHoldStore>.Instance,
 			UntenantedContext.Instance,
 			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions()));
-				return (store, () => store.GetActiveHoldsForDataSubjectAsync("h", null, CancellationToken.None));
+				return (store, () => store.GetActiveHoldsForDataSubjectAsync("h", null, DateTimeOffset.UtcNow, CancellationToken.None));
 			}
 
 			case nameof(PostgresErasureStore):
@@ -163,7 +163,7 @@ public sealed class ComplianceStoreDisposalShould
 					NullLogger<SqlServerLegalHoldStore>.Instance,
 			UntenantedContext.Instance,
 			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions()));
-				return (store, () => store.GetActiveHoldsForDataSubjectAsync("h", null, CancellationToken.None));
+				return (store, () => store.GetActiveHoldsForDataSubjectAsync("h", null, DateTimeOffset.UtcNow, CancellationToken.None));
 			}
 
 			case nameof(SqlServerErasureStore):

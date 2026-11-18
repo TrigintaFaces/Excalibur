@@ -43,9 +43,12 @@ public class Function
 | `IServerlessHostProvider` → `AwsLambdaHostProvider` | the host integration for this platform |
 | `IColdStartOptimizer` → `AwsLambdaColdStartOptimizer` | cold-start optimisation for this platform |
 | `DefaultLambdaJsonSerializer` | the Lambda JSON serializer, registered as itself |
-| `ServerlessHostOptions` | bound and validated **at startup** (`ValidateOnStart`), so a misconfiguration fails before the first invocation |
+| `ServerlessHostOptions` | defaults registered; the action overload configures them and the configuration overload binds them |
+| `IValidateOptions<ServerlessHostOptions>` | the shared validator enforces `MemoryLimitMB >= 1` when a value is supplied; options creation and Generic Host startup run this validation |
 
-All registrations use `TryAdd`, so a service you registered first is kept.
+The provider and cold-start optimizer defaults (and the AWS serializer fallback) use `TryAdd`, preserving consumer registrations. The shared validator uses `TryAddEnumerable`; options configuration delegates compose in registration order. This is not a promise that every repeated registration leaves all descriptor counts unchanged.
+
+A Generic Host validates these options during `StartAsync`. A manually built service provider validates when the options value is resolved. These facades do not add `IServerlessHostProviderFactory`; factory composition remains the separate `AddServerlessHosting` profile.
 
 **It does NOT register the dispatcher.** You must also call `AddDispatch(...)`. A function that injects
 `IDispatcher` without it fails with a dependency-resolution error on its first invocation — not at

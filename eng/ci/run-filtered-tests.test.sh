@@ -38,27 +38,27 @@ make_stub() {  # make_stub <exit-code> <stdout-body>
 
 note "[run-filtered-tests.test] running..."
 
-# ── SAFETY: a zero-executed run must not pass ───────────────────────────────────────────────────────
+# â”€â”€ SAFETY: a zero-executed run must not pass â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 make_stub 0 "No test matches the given testcase filter 'Category=Nope' in /x/y.dll"
 DOTNET_BIN="$WORK/dotnet" bash "$GATE" --filter "Category=Nope" --log "$WORK/a.log" -- proj.slnf >/dev/null 2>&1
 check "SAFETY: filter matched nothing, dotnet exited 0 -> REFUSE not pass" 3 $?
 
-# ── LIVENESS: a real run that executed tests and passed must still pass ─────────────────────────────
+# â”€â”€ LIVENESS: a real run that executed tests and passed must still pass â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 make_stub 0 "Passed!  - Failed: 0, Passed: 412, Skipped: 0, Total: 412, Duration: 3 s"
 DOTNET_BIN="$WORK/dotnet" bash "$GATE" --filter "Category=Unit" --log "$WORK/b.log" -- proj.slnf >/dev/null 2>&1
 check "LIVENESS: 412 executed and green -> pass" 0 $?
 
-# ── SAFETY: a real test failure must surface as the TEST's exit, not as a refusal ───────────────────
+# â”€â”€ SAFETY: a real test failure must surface as the TEST's exit, not as a refusal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 make_stub 1 "Failed!  - Failed: 3, Passed: 409, Skipped: 0, Total: 412, Duration: 3 s"
 DOTNET_BIN="$WORK/dotnet" bash "$GATE" --filter "Category=Unit" --log "$WORK/c.log" -- proj.slnf >/dev/null 2>&1
 check "SAFETY: tests ran and failed -> the test exit wins over the refusal" 1 $?
 
-# ── SAFETY: the pipe must not swallow the test's exit (the tee footgun this wrapper exists to fix) ──
+# â”€â”€ SAFETY: the pipe must not swallow the test's exit (the tee footgun this wrapper exists to fix) â”€â”€
 make_stub 7 "Passed!  - Failed: 0, Passed: 5, Skipped: 0, Total: 5, Duration: 1 s"
 DOTNET_BIN="$WORK/dotnet" bash "$GATE" --filter "Category=Unit" --log "$WORK/d.log" -- proj.slnf >/dev/null 2>&1
 check "SAFETY: non-zero test exit survives the tee pipeline" 7 $?
 
-# ── ENV: refuse to run without a filter, rather than silently becoming an unguarded plain run ───────
+# â”€â”€ ENV: refuse to run without a filter, rather than silently becoming an unguarded plain run â”€â”€â”€â”€â”€â”€â”€
 DOTNET_BIN="$WORK/dotnet" bash "$GATE" --log "$WORK/e.log" -- proj.slnf >/dev/null 2>&1
 check "ENV: no --filter -> cannot evaluate" 2 $?
 
@@ -106,7 +106,7 @@ else
     note "  ok   SAFETY: a skip refusal is not relabelled 'executed NOTHING'"; pass=$((pass + 1))
 fi
 
-# ── LIVENESS: the log is written where the caller asked, so CI can upload it ────────────────────────
+# â”€â”€ LIVENESS: the log is written where the caller asked, so CI can upload it â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 make_stub 0 "Passed!  - Failed: 0, Passed: 9, Skipped: 0, Total: 9, Duration: 1 s"
 DOTNET_BIN="$WORK/dotnet" bash "$GATE" --filter "Category=Unit" --log "$WORK/f.log" -- proj.slnf >/dev/null 2>&1
 if [ -s "$WORK/f.log" ]; then
@@ -114,6 +114,18 @@ if [ -s "$WORK/f.log" ]; then
 else
     note "  FAIL LIVENESS: requested log is empty or missing"; fail=$((fail + 1))
 fi
+
+make_stub 0 "Passed! - Failed: 0, Passed: 2, Skipped: 0, Total: 2, Duration: 1 ms - A.dll"
+DOTNET_BIN="$WORK/dotnet" bash "$GATE" --minimum-executed-tests 2 --filter X -- proj.slnf >/dev/null 2>&1
+check "minimum equal actual passes" 0 "$?"
+DOTNET_BIN="$WORK/dotnet" bash "$GATE" --minimum-executed-tests 3 --filter X -- proj.slnf >/dev/null 2>&1
+check "minimum above actual refuses" 3 "$?"
+for minimum in '' 0 -1 01 +1 1.0 2147483648 abc $'1\n' $'1\t' '1 '; do
+    DOTNET_BIN="$WORK/dotnet" bash "$GATE" --minimum-executed-tests "$minimum" --filter X -- proj.slnf >/dev/null 2>&1
+    check "invalid minimum refuses before run: $minimum" 2 "$?"
+done
+DOTNET_BIN="$WORK/dotnet" bash "$GATE" --minimum-executed-tests 5 --minimum-executed-tests 1 --filter X -- proj.slnf >/dev/null 2>&1
+check "duplicate minimum refuses" 2 "$?"
 
 note "[run-filtered-tests.test] $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1

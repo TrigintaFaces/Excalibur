@@ -43,6 +43,9 @@ internal sealed class DeleteDataTask : DataRequest<int>
 		parameters.Add("DataTaskId", dataTaskId, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, parameters: parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = conn => DataTaskCommandExecutor.ExecuteAsync(conn, Command, command =>
+		{
+			DataTaskCommandExecutor.Add(command, "DataTaskId", DbType.Guid, parameters.Get<Guid>("DataTaskId"));
+		});
 	}
 }

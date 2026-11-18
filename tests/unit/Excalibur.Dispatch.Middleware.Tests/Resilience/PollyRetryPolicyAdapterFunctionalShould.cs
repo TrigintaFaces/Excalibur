@@ -161,11 +161,11 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		var callCount = 0;
-		await Should.ThrowAsync<InvalidOperationException>(async () =>
+		await Should.ThrowAsync<TimeoutException>(async () =>
 			await adapter.ExecuteAsync<int>(async ct =>
 			{
 				callCount++;
-				throw new InvalidOperationException("persistent failure");
+				throw new TimeoutException("persistent failure");
 			}, CancellationToken.None));
 
 		callCount.ShouldBe(3); // 1 original + 2 retries
@@ -237,12 +237,12 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 		var timestamps = new List<DateTimeOffset>();
 		var callCount = 0;
 
-		await Should.ThrowAsync<InvalidOperationException>(async () =>
+		await Should.ThrowAsync<TimeoutException>(async () =>
 			await adapter.ExecuteAsync<int>(async ct =>
 			{
 				timestamps.Add(DateTimeOffset.UtcNow);
 				callCount++;
-				throw new InvalidOperationException("always fail");
+				throw new TimeoutException("always fail");
 			}, CancellationToken.None));
 
 		callCount.ShouldBe(4); // 1 original + 3 retries

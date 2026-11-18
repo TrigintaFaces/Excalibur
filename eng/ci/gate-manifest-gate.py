@@ -63,7 +63,21 @@ EXCLUDE_SUFFIX = re.compile(r"\.(test|harness-lock|fixture)\.(sh|py)$")
 # scan and the comparison are both scoped by it below, and the excluded count is PRINTED rather
 # than silently dropped. Same verdict in both environments; the unpublished gates keep their own
 # local locks next to the things they guard.
-SCAN_GLOBS = ["eng/ci/*.sh", "eng/ci/*.py"]
+# `:(glob)` IS LOAD-BEARING: without it git's pathspec `*` crosses `/`, so these two patterns also
+# matched `eng/ci/lib/*.py` -- implementation modules that render no verdict. Measured:
+# `git ls-files 'eng/ci/*.py'` -> 56 paths including two under lib/; with `:(glob)` -> 54 and none.
+#
+# That widening made this gate UNSATISFIABLE rather than merely noisy. KINDS is {gate, reporter,
+# UNREVIEWED}: a library module is neither of the first two, and `UNREVIEWED` is ratcheted against a
+# floor that may never rise -- so the only ways to green it were to stamp a kind nobody derived or to
+# raise the floor, and this gate's own header forbids the first. `eng/ci/lib/__init__.py` settles what
+# they are in its own docstring: "Local implementation libraries for CI instruments; not standalone
+# gates", and pre_release_windows_job.py has no __main__ and no exit path.
+#
+# RESIDUAL RISK, stated rather than left implicit: a real gate placed under `eng/ci/lib/` is now
+# invisible to this manifest. A gate must live at the top level of eng/ci to be in scope. The
+# EXAMINED line prints the denominator, so this narrowing is visible in every run rather than silent.
+SCAN_GLOBS = [":(glob)eng/ci/*.sh", ":(glob)eng/ci/*.py"]
 
 
 def scan_scripts(repo=None):

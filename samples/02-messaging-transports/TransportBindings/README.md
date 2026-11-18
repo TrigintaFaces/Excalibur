@@ -24,7 +24,7 @@ lambda, with handlers resolved by `AddDispatch(assembly)`.
 ### 2. Typed cron markers eliminate string filtering
 
 ```csharp
-// Zero-allocation struct marker — uniqueness of the type identifies the timer.
+// Struct marker whose type identifies the timer.
 public struct OrderArrivalTimer : ICronTimerMarker;
 ```
 

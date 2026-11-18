@@ -164,5 +164,20 @@ public sealed class FirestoreSnapshotStoreConformanceShould : SnapshotConformanc
 			succeeded.Max(),
 			"the surviving snapshot must be the highest version that actually succeeded. A lower "
 			+ "one means a later write was lost or an earlier write overwrote a newer one.");
+
+		// WHAT KEEPS THIS ARRANGEMENT NON-TRIVIAL, stated because the override above dropped the base
+		// arm's requirement that ALL ten writers succeed. The assertion on Max() is satisfied for free
+		// when exactly one writer succeeds: there is then nothing to have overwritten anything, and the
+		// surviving version is trivially the highest that succeeded. So the arm still catches "reported
+		// success and stored nothing", and it does NOT on its own establish that anything raced. That is
+		// deliberate -- the emulator defect this override exists for can legitimately refuse every writer
+		// but one -- and it is the reason this arm is not evidence of monotonicity under contention. The
+		// deterministic monotone property is held by Should_Not_Let_An_Older_Save_Overwrite_A_Newer_Snapshot
+		// in the shared base, which does not depend on a race happening at all.
+		succeeded.Count.ShouldBeGreaterThan(
+			0,
+			"restating the liveness floor next to the version assertion rather than only above it: with "
+			+ "zero successes both assertions collapse, and this arm would pass over a store that refused "
+			+ "every write.");
 	}
 }

@@ -1,184 +1,296 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Runtime.CompilerServices;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Shape-robust, key-targeted decoration for a store contract registered as several descriptors — a provider
-/// terminal, a keyed <c>"default"</c> alias, and a non-keyed forwarding alias. It wraps every <em>terminal</em>
-/// (real store) descriptor exactly once and leaves forwarding aliases untouched, so every route a consumer can
-/// resolve the contract yields a decorated instance exactly once — no alias is double-wrapped, and no real
-/// terminal is left raw.
+/// Decorates non-reserved store registrations without changing their position, key or lifetime.
+/// Resolved forwarding aliases inherit layer lineage and therefore do not apply the same layer twice.
 /// </summary>
 /// <remarks>
-/// This is the seam the generic <c>ServiceCollectionDecoratorExtensions.Decorate&lt;TService, TDecorator&gt;</c>
-/// documents as the correct answer when a service type has several registrations it cannot itself disambiguate
-/// (decorating "the last match" would wrap a forwarding alias or leave provider terminals raw). It lives in
-/// <c>Excalibur.Dispatch.Abstractions</c>, the lowest assembly the multi-tenancy and at-rest-encryption store
-/// decorators both reference, and takes its decorator through a factory so it needs no reference to any concrete
-/// store contract (no <c>IEventStore</c>, <c>ISagaStore</c>, or inbox/outbox dependency).
+/// Original activation and decoration remain deferred and use the same service provider. A layer is one
+/// application of <see cref="DecorateKeyedStores{TService}"/>, not a decorator type: applying the same factory
+/// twice deliberately creates two distinct layers. Lineage tracks returned object identity, never a cache
+/// from raw stores to wrappers, so independent registrations and scoped/transient activation stay distinct.
 /// </remarks>
 public static class KeyedStoreServiceCollectionExtensions
 {
-	/// <summary>
-	/// The keyed alias providers register to point at their concrete store. It is a forwarding redirect, never a
-	/// real implementation when a provider-keyed terminal exists, so it must not be decorated in that shape —
-	/// decorating the terminal already makes the alias resolve the decorated store (a single wrap).
-	/// </summary>
-	private const string DefaultServiceKey = "default";
+    // Values contain only weak opaque-token references, never outputs, raw inputs, delegates, scopes or providers.
+    private static readonly ConditionalWeakTable<object, DecorationLineage> OutputLineages = new();
 
-	/// <summary>
-	/// Wraps every <em>terminal</em> registration of <typeparamref name="TService"/> (the real provider stores)
-	/// while leaving forwarding aliases untouched, preserving each descriptor's service key and lifetime.
-	/// </summary>
-	/// <typeparam name="TService">The store contract being decorated.</typeparam>
-	/// <param name="services">The service collection.</param>
-	/// <param name="decoratorFactory">Builds the decorator from the resolved original store and the provider.</param>
-	/// <param name="reservedKeys">
-	/// Optional internal service keys that must be left <em>undecorated</em>. A reserved key marks an internal
-	/// implementation registration a consumer never resolves directly (for example the tiered-storage raw hot
-	/// store under its private key, which the archive service resolves for its intentionally cross-tenant trim).
-	/// Reserved-keyed descriptors are excluded from every selection rule, so decoration targets the
-	/// consumer-facing terminal instead — when the reserved key is the only non-<c>"default"</c> descriptor, that
-	/// terminal is the <c>"default"</c> store itself (Rule 2), which is how a tenant decorator wraps the
-	/// <em>outer</em> tiered store rather than the inner hot leg. Defaults to none.
-	/// </param>
-	/// <returns>
-	/// <see langword="true"/> if at least one terminal descriptor was decorated; <see langword="false"/> when no
-	/// decoratable registration of <typeparamref name="TService"/> exists (nothing to wrap).
-	/// </returns>
-	/// <remarks>
-	/// <para>The rule is robust across the registration shapes providers actually build:</para>
-	/// <list type="number">
-	///   <item><description>
-	///   Decorate every keyed descriptor whose service key is not <c>"default"</c> — the provider terminals (one
-	///   for a single provider, several when a consumer registered more than one). The keyed <c>"default"</c>
-	///   alias and any non-keyed alias forward to them, so they resolve the decorated store, scoped exactly once.
-	///   </description></item>
-	///   <item><description>
-	///   If there is <b>no</b> non-<c>"default"</c> keyed descriptor, the <c>"default"</c> keyed descriptor is
-	///   itself the real store (the core-generic registration shape) — decorate it.
-	///   </description></item>
-	///   <item><description>
-	///   If there is <b>no</b> keyed descriptor at all, decorate the non-keyed real registration (the plain
-	///   <c>AddSingleton&lt;TService&gt;</c> shape). A non-keyed forwarding alias only exists alongside a keyed
-	///   <c>"default"</c>, so this branch never wraps a forwarder.
-	///   </description></item>
-	/// </list>
-	/// <para>
-	/// Implementation members are read through the keyed-safe <see cref="ServiceDescriptorExtensions"/> accessors
-	/// (raw reads throw on keyed descriptors on .NET 8+). The original factory is captured before the descriptor
-	/// is removed so the decorator's inner reference never re-enters the decorated registration (no resolution
-	/// recursion).
-	/// </para>
-	/// </remarks>
-	/// <exception cref="ArgumentNullException"><paramref name="services"/> or <paramref name="decoratorFactory"/> is <see langword="null"/>.</exception>
-	public static bool DecorateKeyedStores<TService>(
-		this IServiceCollection services,
-		Func<TService, IServiceProvider, TService> decoratorFactory,
-		IReadOnlyCollection<object>? reservedKeys = null)
-		where TService : class
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(decoratorFactory);
+    /// <summary>Wraps every non-reserved registration of the store contract, including independent unkeyed stores.</summary>
+    /// <typeparam name="TService">The store contract being decorated.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="decoratorFactory">Builds a non-null decorator from the resolved original and the same provider.</param>
+    /// <param name="reservedKeys">
+    /// Internal implementation keys excluded from this layer. Eligible aliases to a reserved raw store are
+    /// still decorated; reserving a key does not remove wrappers returned by its own factory.
+    /// </param>
+    /// <returns>True when at least one eligible descriptor was replaced; false when none exists.</returns>
+    /// <remarks>
+    /// <para>
+    /// Type/factory-created disposable originals remain owned by a private same-lifetime holder, captured by DI
+    /// before decoration. Instance originals remain borrowed. Decorators must honor that inner-ownership policy:
+    /// do not dispose a borrowed original or independently dispose an original whose holder already owns it.
+    /// Disposal must be idempotent because ordinary DI alias factories can capture the same returned object
+    /// more than once. Async disposal prefers IAsyncDisposable; owned async-only values require asynchronous
+    /// scope/provider disposal. No synchronous blocking on asynchronous disposal is performed.
+    /// </para>
+    /// <para>
+    /// A factory must preserve the supplied inner's wrapping semantics; this helper cannot prove an arbitrary
+    /// factory secure when it discards its inner or returns an unrelated shared object. A null result is refused.
+    /// Returning a borrowed disposable instance unchanged is also refused, before publishing lineage or returning
+    /// it to DI, because converting that external instance into a factory result would transfer disposal ownership.
+    /// Non-disposable pass-throughs and normal factory aliases remain supported.
+    /// </para>
+    /// <para>
+    /// Explicit and wildcard AnyKey factories receive their actual requested service key. Private ownership
+    /// routing preserves each descriptor's original singleton, scoped or transient behavior independently per key.
+    /// </para>
+    /// <para>
+    /// Keyed implementation types use constructor planning for valid resolvable graphs without activating
+    /// candidate dependencies. Unselected dependency graphs are not recursively container-validated: a malformed
+    /// unselected graph may produce a different diagnostic or allow a valid shorter constructor to be selected.
+    /// A failure from a selected dependency or constructor propagates; it never triggers another constructor
+    /// or an undecorated fallback. Unkeyed types keep their existing ActivatorUtilities activation behavior.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The collection or decorator factory is null.</exception>
+    /// <exception cref="InvalidOperationException">An activation/decorator returns null, or an external disposable pass-through would transfer ownership.</exception>
+    public static bool DecorateKeyedStores<TService>(
+        this IServiceCollection services,
+        Func<TService, IServiceProvider, TService> decoratorFactory,
+        IReadOnlyCollection<object>? reservedKeys = null)
+        where TService : class
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(decoratorFactory);
 
-		var decoratedAny = false;
+        var token = new object();
+        var replacements = new List<(int Index, ServiceDescriptor Public, ServiceLifetime Lifetime)>();
+        for (var index = 0; index < services.Count; index++)
+        {
+            var descriptor = services[index];
+            if (descriptor.ServiceType != typeof(TService) ||
+                (descriptor.IsKeyedService && descriptor.ServiceKey is { } key && reservedKeys?.Contains(key) == true))
+            {
+                continue;
+            }
+            var activation = new ActivationSpec<TService>(BuildOriginalFactory<TService>(descriptor),
+                externalInstance: descriptor.GetImplementationInstance() is TService);
+            var lifetime = descriptor.Lifetime;
+            TService Resolve(IServiceProvider sp, object? requestedKey)
+            {
+                // The composite key keeps descriptor identity and the actual public requested key.
+                // DI itself owns/caches these private holders under the original lifetime; no raw cache.
+                var holder = ResolveHolder(sp, activation, requestedKey, lifetime);
+                return ApplyLayer(holder.Value, holder.ExternalInstance, sp, decoratorFactory, token);
+            }
+            var replacement = descriptor.IsKeyedService
+                ? ServiceDescriptor.DescribeKeyed(typeof(TService), descriptor.ServiceKey, (sp, key) => Resolve(sp, key), lifetime)
+                : ServiceDescriptor.Describe(typeof(TService), sp => Resolve(sp, requestedKey: null), lifetime);
+            replacements.Add((index, replacement, lifetime));
+        }
 
-		foreach (var descriptor in SelectDecorationTargets<TService>(services, reservedKeys))
-		{
-			var originalFactory = BuildOriginalFactory<TService>(descriptor);
-			if (originalFactory is null)
-			{
-				continue;
-			}
+        // Preflight all activations before changing any public descriptor; no original/customer code runs.
+        foreach (var replacement in replacements) { services[replacement.Index] = replacement.Public; }
+        if (replacements.Any(static item => item.Lifetime == ServiceLifetime.Singleton))
+        {
+            EnsureHolderRouter<TService, SingletonLifetime>(services, ServiceLifetime.Singleton);
+        }
+        if (replacements.Any(static item => item.Lifetime == ServiceLifetime.Scoped))
+        {
+            EnsureHolderRouter<TService, ScopedLifetime>(services, ServiceLifetime.Scoped);
+        }
+        if (replacements.Any(static item => item.Lifetime == ServiceLifetime.Transient))
+        {
+            EnsureHolderRouter<TService, TransientLifetime>(services, ServiceLifetime.Transient);
+        }
+        return replacements.Count != 0;
+    }
 
-			_ = services.Remove(descriptor);
+    private static void EnsureHolderRouter<TService, TLifetime>(IServiceCollection services, ServiceLifetime lifetime)
+        where TService : class
+    {
+        // Stateless routing is identical across helper applications. Private service types differ by
+        // lifetime; a wildcard singleton holder must never become a scoped/transient holder by accident.
+        if (services.Any(static descriptor => descriptor.ServiceType == typeof(OriginalHolder<TService, TLifetime>) &&
+            descriptor.IsKeyedService && ReferenceEquals(descriptor.ServiceKey, KeyedService.AnyKey))) { return; }
+        services.Add(ServiceDescriptor.DescribeKeyed(typeof(OriginalHolder<TService, TLifetime>), KeyedService.AnyKey,
+            static (sp, key) => CreateHolder<TService, TLifetime>(sp, key), lifetime));
+    }
 
-			services.Add(descriptor.IsKeyedService
-				? ServiceDescriptor.DescribeKeyed(
-					typeof(TService),
-					descriptor.ServiceKey,
-					(sp, _) => decoratorFactory(originalFactory(sp), sp),
-					descriptor.Lifetime)
-				: ServiceDescriptor.Describe(
-					typeof(TService),
-					sp => decoratorFactory(originalFactory(sp), sp),
-					descriptor.Lifetime));
+    private static HolderValue<TService> ResolveHolder<TService>(IServiceProvider provider, ActivationSpec<TService> activation,
+        object? requestedKey, ServiceLifetime lifetime) where TService : class
+    {
+        var key = new ActivationKey<TService>(activation, requestedKey);
+        return lifetime switch
+        {
+            ServiceLifetime.Singleton => provider.GetRequiredKeyedService<OriginalHolder<TService, SingletonLifetime>>(key),
+            ServiceLifetime.Scoped => provider.GetRequiredKeyedService<OriginalHolder<TService, ScopedLifetime>>(key),
+            ServiceLifetime.Transient => provider.GetRequiredKeyedService<OriginalHolder<TService, TransientLifetime>>(key),
+            _ => throw new InvalidOperationException("The store descriptor has an unsupported service lifetime."),
+        };
+    }
 
-			decoratedAny = true;
-		}
+    private static TService ApplyLayer<TService>(TService inner, bool externalInstance, IServiceProvider provider,
+        Func<TService, IServiceProvider, TService> decoratorFactory, object token) where TService : class
+    {
+        var inherited = ReadLineage(inner);
+        if (inherited.Contains(token))
+        {
+            RefuseExternalOwnershipTransfer(externalInstance, inner, inner);
+            return inner;
+        }
 
-		return decoratedAny;
-	}
+        // No original activation or customer callback executes under a lineage lock.
+        var output = decoratorFactory(inner, provider)
+            ?? throw new InvalidOperationException("The store decorator returned null; a non-null store is required.");
+        RefuseExternalOwnershipTransfer(externalInstance, inner, output);
+        inherited.UnionWith(ReadLineage(inner));
+        PublishLineage(output, inherited, token);
+        return output;
+    }
 
-	/// <summary>
-	/// Selects the terminal (real-store) descriptors to decorate for <typeparamref name="TService"/>, applying
-	/// the shape-robust rule documented on <see cref="DecorateKeyedStores{TService}"/>. Returns a materialized
-	/// snapshot so the subsequent remove/add mutation does not disturb the iteration.
-	/// </summary>
-	private static List<ServiceDescriptor> SelectDecorationTargets<TService>(
-		IServiceCollection services,
-		IReadOnlyCollection<object>? reservedKeys)
-		where TService : class
-	{
-		var all = services.Where(sd => sd.ServiceType == typeof(TService)).ToList();
+    private static void RefuseExternalOwnershipTransfer<TService>(bool externalInstance, TService inner, TService output)
+        where TService : class
+    {
+        if (externalInstance && ReferenceEquals(output, inner) &&
+            (output is IDisposable || output is IAsyncDisposable))
+        {
+            throw new InvalidOperationException("A store decorator cannot return a borrowed disposable instance unchanged; return a non-owning wrapper instead.");
+        }
+    }
 
-		// Reserved keys are internal implementation registrations (e.g. the tiered-storage raw hot store under
-		// its private key) that a consumer never resolves directly and that a decorator must NOT wrap: wrapping
-		// them would decorate an internal store while leaving the consumer-facing terminal raw. Excluding them
-		// from the candidate set before the rules run means a reserved-only non-"default" shape falls through to
-		// Rule 2 (decorate the "default" store) — so a tenant decorator wraps the outer store, not the inner leg.
-		if (reservedKeys is { Count: > 0 })
-		{
-			all = all
-				.Where(sd => !(sd.IsKeyedService && sd.ServiceKey is { } key && reservedKeys.Contains(key)))
-				.ToList();
-		}
+    private static HashSet<object> ReadLineage(object output)
+    {
+        if (!OutputLineages.TryGetValue(output, out var lineage)) { return new HashSet<object>(ReferenceEqualityComparer.Instance); }
+        lock (lineage.Gate) { return ReadLiveTokens(lineage); }
+    }
 
-		// Rule 1 — provider terminals: keyed, key != "default". Present in the single- and multi-provider shapes.
-		var nonDefaultKeyed = all
-			.Where(sd => sd.IsKeyedService
-						 && !string.Equals(sd.ServiceKey as string, DefaultServiceKey, StringComparison.Ordinal))
-			.ToList();
-		if (nonDefaultKeyed.Count > 0)
-		{
-			return nonDefaultKeyed;
-		}
+    private static void PublishLineage(object output, HashSet<object> inherited, object token)
+    {
+        var lineage = OutputLineages.GetValue(output, static _ => new DecorationLineage());
+        lock (lineage.Gate)
+        {
+            // Copy/merge then publish: no lost concurrent output tags or partially published token set.
+            var merged = ReadLiveTokens(lineage);
+            merged.UnionWith(inherited);
+            merged.Add(token);
+            var references = new List<WeakReference<object>>(merged.Count);
+            foreach (var liveToken in merged) { references.Add(new WeakReference<object>(liveToken)); }
+            lineage.Tokens = references;
+        }
+    }
 
-		// Rule 2 — Shape B: the "default" keyed descriptor IS the real store (core-generic registration).
-		var defaultKeyed = all
-			.Where(sd => sd.IsKeyedService
-						 && string.Equals(sd.ServiceKey as string, DefaultServiceKey, StringComparison.Ordinal))
-			.ToList();
-		if (defaultKeyed.Count > 0)
-		{
-			return defaultKeyed;
-		}
+    // Caller holds the lineage gate. Strong snapshot locals protect live tokens during this operation;
+    // only weak references remain globally, so an external no-op output cannot retain dead applications.
+    private static HashSet<object> ReadLiveTokens(DecorationLineage lineage)
+    {
+        var live = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        var retained = new List<WeakReference<object>>();
+        foreach (var reference in lineage.Tokens)
+        {
+            if (reference.TryGetTarget(out var token)) { live.Add(token); retained.Add(reference); }
+        }
+        if (retained.Count != lineage.Tokens.Count) { lineage.Tokens = retained; }
+        return live;
+    }
 
-		// Rule 3 — no keyed descriptor at all: the plain non-keyed registration is the real store (no forwarding
-		// alias exists without a keyed "default", so nothing here is an alias).
-		return all;
-	}
+    private static OriginalHolder<TService, TLifetime> CreateHolder<TService, TLifetime>(IServiceProvider provider, object? key)
+        where TService : class
+    {
+        if (key is not ActivationKey<TService> activationKey)
+        {
+            throw new InvalidOperationException("A private store ownership holder requires its opaque activation key.");
+        }
+        var activation = activationKey.Activation;
+        var value = activation.Factory(provider, activationKey.RequestedKey)
+            ?? throw new InvalidOperationException("The original store activation returned null; a non-null store is required.");
+        return !activation.ExternalInstance && (value is IDisposable || value is IAsyncDisposable)
+            ? new OwnedOriginalHolder<TService, TLifetime>(value)
+            : new OriginalHolder<TService, TLifetime>(value, activation.ExternalInstance);
+    }
 
-	/// <summary>
-	/// Produces a factory for the undecorated store from whichever registration form the descriptor uses,
-	/// captured from the original descriptor so the decorator's inner reference never re-enters the decorated
-	/// registration (no resolution recursion).
-	/// </summary>
-	private static Func<IServiceProvider, TService>? BuildOriginalFactory<TService>(ServiceDescriptor descriptor)
-		where TService : class
-	{
-		var implementationType = descriptor.GetImplementationType();
-		if (implementationType is not null)
-		{
-			return sp => (TService)ActivatorUtilities.CreateInstance(sp, implementationType);
-		}
+    private static Func<IServiceProvider, object?, TService> BuildOriginalFactory<TService>(ServiceDescriptor descriptor) where TService : class
+    {
+        var implementationType = descriptor.GetImplementationType();
+        if (implementationType is not null)
+        {
+            return descriptor.IsKeyedService
+                ? (sp, key) => (TService)KeyedStoreTypeActivator.Create(sp, typeof(TService), implementationType, key)
+                : (sp, _) => (TService)ActivatorUtilities.CreateInstance(sp, implementationType);
+        }
+        if (descriptor.GetImplementationFactoryWithRequestedKey() is { } factory) { return (sp, key) => (TService)factory(sp, key); }
+        if (descriptor.GetImplementationInstance() is TService instance) { return (_, _) => instance; }
+        throw new InvalidOperationException("The store descriptor has no supported type, factory or instance activation.");
+    }
 
-		if (descriptor.GetImplementationFactory() is { } factory)
-		{
-			return sp => (TService)factory(sp);
-		}
+    private sealed class ActivationSpec<TService>(Func<IServiceProvider, object?, TService> factory, bool externalInstance)
+        where TService : class
+    {
+        internal Func<IServiceProvider, object?, TService> Factory { get; } = factory;
+        internal bool ExternalInstance { get; } = externalInstance;
+    }
 
-		return descriptor.GetImplementationInstance() is TService instance ? _ => instance : null;
-	}
+    private sealed class ActivationKey<TService>(ActivationSpec<TService> activation, object? requestedKey) : IEquatable<ActivationKey<TService>>
+        where TService : class
+    {
+        internal ActivationSpec<TService> Activation { get; } = activation;
+        internal object? RequestedKey { get; } = requestedKey;
+        public bool Equals(ActivationKey<TService>? other) => other is not null &&
+            ReferenceEquals(Activation, other.Activation) && Equals(RequestedKey, other.RequestedKey);
+        public override bool Equals(object? obj) => obj is ActivationKey<TService> other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(RuntimeHelpers.GetHashCode(Activation), RequestedKey);
+    }
+
+    private readonly struct SingletonLifetime { }
+    private readonly struct ScopedLifetime { }
+    private readonly struct TransientLifetime { }
+
+    private sealed class DecorationLineage
+    {
+        internal object Gate { get; } = new();
+        internal List<WeakReference<object>> Tokens { get; set; } = new();
+    }
+
+    // Deliberately non-disposable: otherwise DI would retain every non-disposable transient original
+    // until provider disposal, introducing memory growth where the original transient was not captured.
+    private class HolderValue<TService>(TService value, bool externalInstance) where TService : class
+    {
+        internal TService Value { get; } = value;
+        internal bool ExternalInstance { get; } = externalInstance;
+    }
+
+    private class OriginalHolder<TService, TLifetime>(TService value, bool externalInstance) : HolderValue<TService>(value, externalInstance)
+        where TService : class { }
+
+    private sealed class OwnedOriginalHolder<TService, TLifetime>(TService value) : OriginalHolder<TService, TLifetime>(value, externalInstance: false), IDisposable, IAsyncDisposable
+        where TService : class
+    {
+        private int _disposed;
+        public void Dispose()
+        {
+            if (Volatile.Read(ref _disposed) != 0) { return; }
+            if (Value is not IDisposable disposable)
+            {
+                throw new InvalidOperationException("The owned store implements only IAsyncDisposable; dispose its scope or provider asynchronously.");
+            }
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) { return; }
+            try { disposable.Dispose(); }
+            finally { GC.SuppressFinalize(this); }
+        }
+        public async ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) { return; }
+            try
+            {
+                if (Value is IAsyncDisposable asynchronous) { await asynchronous.DisposeAsync().ConfigureAwait(false); }
+                else if (Value is IDisposable synchronous) { synchronous.Dispose(); }
+            }
+            finally { GC.SuppressFinalize(this); }
+        }
+    }
 }

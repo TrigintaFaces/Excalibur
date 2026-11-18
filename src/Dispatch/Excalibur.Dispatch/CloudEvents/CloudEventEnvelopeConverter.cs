@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
@@ -165,51 +165,31 @@ public sealed class CloudEventEnvelopeConverter(CloudEventOptions options) : ICl
 	/// </summary>
 	private void AddCustomContextItems(CloudEvent cloudEvent, MessageEnvelope? context)
 	{
-		if (context?.Items != null)
+		if (context?.Items is null or { Count: 0 })
 		{
-			foreach (var item in context.Items)
-			{
-				// CloudEvents attribute names MUST consist only of lowercase letters and digits (CE spec
-				// v1.0 §3.1); the CNCF SDK's ValidateName throws otherwise. Sanitize the raw item key
-				// (which can contain '_', '.', or uppercase) before composing the extension attribute name.
-				var sanitizedKey = ToCloudEventAttributeName(item.Key);
-				if (sanitizedKey.Length == 0)
-				{
-					continue;
-				}
-
-				var headerKey = $"{_options.DispatchExtensionPrefix}header{sanitizedKey}";
-				cloudEvent.SetAttributeFromString(headerKey, item.Value?.ToString() ?? string.Empty);
-			}
-		}
-	}
-
-	/// <summary>
-	/// Reduces an arbitrary key to a valid CloudEvents attribute-name fragment: lowercase ASCII letters and
-	/// digits only (CloudEvents v1.0 §3.1). All other characters (underscores, dots, dashes, uppercase) are
-	/// stripped/lowered so the composed extension attribute passes the CNCF SDK's name validation.
-	/// </summary>
-	private static string ToCloudEventAttributeName(string key)
-	{
-		if (string.IsNullOrEmpty(key))
-		{
-			return string.Empty;
+			return;
 		}
 
-		var builder = new StringBuilder(key.Length);
-		foreach (var ch in key)
+		// String values only, and a non-string is DROPPED rather than rendered. MessageEnvelope.Items is
+		// still object-valued, and there is no total render function for object: the previous ToString()
+		// turned a dictionary into its own type name and a live CloudEvent into "CloudNative.CloudEvents
+		// .CloudEvent", then reported success. Every value that belongs here now arrives from
+		// SetPropagatedItem and is already a string, so a non-string means something bypassed that
+		// surface -- which is a defect to fix at its source, not a value to guess at here. Failing closed
+		// is the same choice BackgroundContextSnapshot.Capture makes for the same reason.
+		var attributes = new List<KeyValuePair<string, string>>(context.Items.Count);
+		foreach (var item in context.Items)
 		{
-			if (ch is (>= 'a' and <= 'z') or (>= '0' and <= '9'))
+			if (item.Value is string text)
 			{
-				_ = builder.Append(ch);
-			}
-			else if (ch is >= 'A' and <= 'Z')
-			{
-				_ = builder.Append(char.ToLowerInvariant(ch));
+				attributes.Add(new KeyValuePair<string, string>(item.Key, text));
 			}
 		}
 
-		return builder.ToString();
+		CloudEventItemAttributes.Apply(
+			cloudEvent,
+			attributes,
+			$"{_options.DispatchExtensionPrefix}header");
 	}
 
 	/// <summary>

@@ -37,6 +37,13 @@ namespace Excalibur.Dispatch.CloudEvents;
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(byte[]))]
 [JsonSerializable(typeof(ReadOnlyMemory<byte>))]
+
+// JsonElement is the shape a DECODED payload actually has: the JSON event format reader parses the
+// data member into one rather than guessing a consumer type. Without it declared here, a transport
+// that receives an event and forwards it fails on the forward -- and it fails only when a resolver is
+// set, because a resolver chain has no reflection fallback to rescue the call. So the trim-safe
+// configuration was the one that broke, which is the opposite of the order defects usually appear in.
+[JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 
@@ -46,30 +53,4 @@ namespace Excalibur.Dispatch.CloudEvents;
 [JsonSerializable(typeof(DateTimeOffset?))]
 internal partial class CloudEventJsonContext : JsonSerializerContext
 {
-	/// <summary>
-	/// Gets the singleton instance for CloudEvents serialization.
-	/// </summary>
-	/// <value>
-	/// The singleton instance for CloudEvents serialization.
-	/// </value>
-	public static CloudEventJsonContext Instance { get; } = new(GetDefaultOptions());
-
-	/// <summary>
-	/// Creates default JSON serializer options for CloudEvents.
-	/// </summary>
-	private static JsonSerializerOptions GetDefaultOptions()
-	{
-		var options = new JsonSerializerOptions
-		{
-			PropertyNameCaseInsensitive = true,
-			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-			WriteIndented = false,
-			DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-			ReferenceHandler = ReferenceHandler.IgnoreCycles,
-			NumberHandling = JsonNumberHandling.AllowReadingFromString,
-			MaxDepth = 16, // CloudEvents typically have shallow structure
-		};
-
-		return options;
-	}
 }

@@ -21,7 +21,7 @@ namespace Excalibur.Saga.Orchestration;
 /// This implementation does not persist state across application restarts. For production scenarios requiring durability, use a persistent
 /// saga store implementation.
 /// </remarks>
-internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
+internal sealed partial class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 {
 	// Populate mode repopulates get-only collection properties on deserialize (e.g. SagaState.ProcessedEventIds),
 	// so the deep-copy clone preserves idempotency keys rather than silently dropping them.
@@ -125,6 +125,11 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 	{
 		ArgumentNullException.ThrowIfNull(sagaState);
 
+        cancellationToken.ThrowIfCancellationRequested();
+        if (sagaState.TimerRecoveryIncarnationId == Guid.Empty)
+        {
+            throw new InvalidOperationException("Saga timer recovery incarnation must not be empty.");
+        }
 		var expectedVersion = sagaState.Version;
 
 		// Snapshot an isolated copy so later caller mutations cannot leak into the store (matching the
@@ -138,6 +143,15 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 		// the store's own resolved scope rather than from the caller's state, so a caller cannot write into
 		// another tenant's partition by setting the field.
 		snapshot.TenantId = CurrentTenantScope.TenantId;
+        if (snapshot.PendingTimerRecovery is { } journal
+            && (journal.Scope.SagaId != snapshot.SagaId || journal.Scope.StateType != typeof(TSagaState).Name
+                || journal.Scope.TenantId != CurrentPartition.TenantId
+                || journal.IncarnationId != snapshot.TimerRecoveryIncarnationId
+                || journal.Sequence != snapshot.TimerRecoverySequence))
+        {
+            throw new InvalidOperationException("Timer journal differs from the state store's exact authority.");
+        }
+
 
 		// Record the DECLARED type the saga was saved under (typeof(TSagaState).Name), matching the
 		// persistent providers which persist SagaType from the declared type — the type-isolation key.
@@ -177,7 +191,8 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 			},
 			updateValueFactory: (_, existing) =>
 			{
-				if (existing.State.Version != expectedVersion)
+				if (existing.State.Version != expectedVersion
+                    || existing.State.TimerRecoveryIncarnationId != sagaState.TimerRecoveryIncarnationId)
 				{
 					throw new ConcurrencyException(
 						nameof(SagaState),
@@ -186,12 +201,27 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 						existing.State.Version);
 				}
 
+                if (existing.State.PendingTimerRecovery is { } owed)
+                {
+                    if (snapshot.PendingTimerRecovery is { } retained)
+                    {
+                        if (!SameRecoveryJournal(owed, retained))
+                        {
+                            throw new InvalidOperationException("A save cannot replace an unresolved timer journal.");
+                        }
+                    }
+                    else if (snapshot.LastTimerRecoveryBatchId != owed.BatchId)
+                    {
+                        throw new InvalidOperationException("A save cannot clear a timer journal without its exact acknowledgement.");
+                    }
+                }
 				return stored;
 			});
 
 		// Store-owns-increment write-back (mirrors SqlServerSagaStore): advance the in-memory token so a
 		// subsequent save on the same object uses the new persisted version instead of re-conflicting.
 		sagaState.Version = expectedVersion + 1;
+        sagaState.TimerRecoveryIncarnationId = snapshot.TimerRecoveryIncarnationId;
 
 		return Task.CompletedTask;
 	}
@@ -215,6 +245,17 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 	public Task<int> PurgeAllTenantsCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken) =>
 		PurgeAsync(threshold, static _ => true, cancellationToken);
 
+
+
+    private static bool SameRecoveryJournal(SagaTimerRecoveryJournal left, SagaTimerRecoveryJournal right) =>
+        left.BatchId == right.BatchId && left.IncarnationId == right.IncarnationId
+        && left.Sequence == right.Sequence && left.ExpectedFence == right.ExpectedFence
+        && left.ObservedRevision == right.ObservedRevision && left.EncodingVersion == right.EncodingVersion
+        && left.Scope.SagaId == right.Scope.SagaId
+        && string.Equals(left.Scope.TenantId, right.Scope.TenantId, StringComparison.Ordinal)
+        && string.Equals(left.Scope.StateType, right.Scope.StateType, StringComparison.Ordinal)
+        && left.EncodedIntents.AsSpan().SequenceEqual(right.EncodedIntents);
+
 	private Task<int> PurgeAsync(
 		DateTimeOffset threshold,
 		Func<SagaState, bool> tenantMatches,
@@ -229,7 +270,8 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			if (entry.Value.State.CompletedAt is { } completedAt
+			if (entry.Value.State.PendingTimerRecovery is null
+                && entry.Value.State.CompletedAt is { } completedAt
 				&& completedAt < threshold
 				&& tenantMatches(entry.Value.State)
 				&& _store.TryRemove(entry))

@@ -165,4 +165,36 @@ public sealed class ErasureExecutionOptions
 	/// Default: 30 seconds.
 	/// </summary>
 	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(30);
+
+	/// <summary>
+	/// Gets or sets how long an executing instance holds custody of an erasure request before another
+	/// instance may take it over. Default: 15 minutes.
+	/// </summary>
+	/// <value>The claim duration. Must be greater than <see cref="TimeSpan.Zero"/>.</value>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the bound on how long an interrupted erasure stays invisible.</b> Taking a request for
+	/// execution records who holds it and until when. If the holder dies, nothing re-offers the request
+	/// until this elapses -- so the value is the worst-case delay before a subject's erasure resumes, and
+	/// it was previously unbounded: an interrupted erasure stayed in the executing status forever, every
+	/// query that looked for work correctly excluded it, and no operator had a row to look at.
+	/// </para>
+	/// <para>
+	/// <b>Set it comfortably longer than a real erasure takes. It is NOT a timeout on the work</b> — a
+	/// holder whose run outlasts it still completes and still certifies, because a lapse does not revoke
+	/// custody and only another instance actually taking the request does. What a short value risks is
+	/// two instances doing the same erasure concurrently, which is safe because the destruction is
+	/// idempotent and the attestation is fenced, but it is wasted work and it produces a superseded
+	/// executor that stands down part-way.
+	/// </para>
+	/// <para>
+	/// <b>A lease-derived execution deadline was built and removed, and the reason is worth keeping.</b>
+	/// Cutting the work off at this value less a margin never stopped the holder — the per-key handler
+	/// catches every exception and continues — while it could fire between a key's destruction and the
+	/// ledger write that records it. The fence already makes a late write safe, so a slow holder is
+	/// harmless; a stopped one is the state nothing can repair.
+	/// </para>
+	/// </remarks>
+	public TimeSpan ClaimDuration { get; set; } = TimeSpan.FromMinutes(15);
+
 }

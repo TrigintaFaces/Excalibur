@@ -230,7 +230,7 @@ Consumer:
 ## Related Samples
 
 - [RabbitMQ](../02-messaging-transports/RabbitMQ/) - Transport integration
-- [Kafka](../02-messaging-transports/Kafka/) - High-throughput transport
+- [Kafka](../02-messaging-transports/Kafka/) - Partitioned event-log transport
 
 ## Learn More
 

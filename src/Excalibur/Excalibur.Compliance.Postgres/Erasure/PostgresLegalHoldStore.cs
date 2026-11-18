@@ -174,6 +174,34 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		$"({column} IN ({tenantParameter}, @UntenantedTenantId) OR {column} IS NULL)";
 
 	/// <summary>
+	/// The NOT-LAPSED half of "in force", shared by the three in-force queries so they cannot drift apart.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>In force is the CONJUNCTION of two independent facts.</b> <c>is_active</c> answers whether the
+	/// hold was RELEASED -- an act, with an actor, a time and a reason. <c>expires_at</c> answers whether
+	/// the stated period has LAPSED -- the passage of time. Neither implies the other, and filtering on the
+	/// release flag alone reported a lapsed hold as in force forever, which refuses an erasure that should
+	/// proceed and leaves the obligation permanently undischarged with nothing recording why.
+	/// </para>
+	/// <para>
+	/// <b>A NULL expiry is in force</b>, which is the indefinite hold -- the commonest kind -- and the
+	/// reason the term is a disjunction rather than a bare comparison.
+	/// </para>
+	/// <para>
+	/// <b>The instant is a parameter read ONCE per call, never <c>NOW()</c> per row.</b> A server-side
+	/// clock evaluated per row can straddle an expiry boundary inside one statement, and the erasure gate
+	/// unions two of these reads, so one pinned instant is what makes that union simultaneously true.
+	/// </para>
+	/// <para>
+	/// This does NOT belong on the expired-hold sweep, which asks the complementary question -- "what has
+	/// lapsed but is not yet released?" -- and composes the same two facts the other way. A uniform
+	/// "add an expiry term everywhere" edit would ask that query for holds both lapsed and not lapsed.
+	/// </para>
+	/// </remarks>
+	private const string NotLapsedClause = "(expires_at IS NULL OR expires_at > @AsOf)";
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresLegalHoldStore"/> class.
 	/// </summary>
 	/// <param name="options">The configuration options.</param>
@@ -389,6 +417,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	public async Task<IReadOnlyList<LegalHold>> GetActiveHoldsForDataSubjectAsync(
 		string dataSubjectIdHash,
 		string? tenantId,
+		DateTimeOffset asOf,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(dataSubjectIdHash);
@@ -417,14 +446,15 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				   released_by, released_at, release_reason, version
 			FROM {_options.FullTableName}
 			WHERE data_subject_id_hash = @DataSubjectIdHash
-			  AND is_active = TRUE{TenantPredicate("tenant_id")}{callerPredicate}
+			  AND is_active = TRUE
+			  AND {NotLapsedClause}{TenantPredicate("tenant_id")}{callerPredicate}
 			ORDER BY created_at DESC";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<LegalHoldRow>(
-			new CommandDefinition(sql, new { DataSubjectIdHash = dataSubjectIdHash, TenantId = tenantId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel },
+			new CommandDefinition(sql, new { DataSubjectIdHash = dataSubjectIdHash, TenantId = tenantId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel, AsOf = asOf },
 				cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToLegalHold()).ToList();
@@ -433,6 +463,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<LegalHold>> GetActiveHoldsForTenantAsync(
 		string tenantId,
+		DateTimeOffset asOf,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
@@ -455,14 +486,15 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				   released_by, released_at, release_reason, version
 			FROM {_options.FullTableName}
 			WHERE {TenantMatchClause("tenant_id", "@TenantId")}
-			  AND is_active = TRUE{TenantPredicate("tenant_id")}
+			  AND is_active = TRUE
+			  AND {NotLapsedClause}{TenantPredicate("tenant_id")}
 			ORDER BY created_at DESC";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<LegalHoldRow>(
-			new CommandDefinition(sql, new { TenantId = tenantId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel },
+			new CommandDefinition(sql, new { TenantId = tenantId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel, AsOf = asOf },
 				cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToLegalHold()).ToList();
@@ -471,12 +503,14 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<LegalHold>> ListActiveHoldsAsync(
 		string? tenantId,
+		DateTimeOffset asOf,
 		CancellationToken cancellationToken)
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var whereClauses = new List<string> { "is_active = TRUE" };
+		var whereClauses = new List<string> { "is_active = TRUE", NotLapsedClause };
 		var parameters = new DynamicParameters();
+		parameters.Add("AsOf", asOf);
 
 		// The ambient term is added FIRST and unconditionally under multi-tenancy, so it is a floor rather
 		// than an alternative. The caller's own tenantId is then ANDed onto it below: two equality terms can

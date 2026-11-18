@@ -52,6 +52,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Redis\Excalibur.Outbox.Redis.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.MongoDB\Excalibur.Outbox.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Marten\Excalibur.Outbox.Marten.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.ElasticSearch\Excalibur.Outbox.ElasticSearch.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.CosmosDb\Excalibur.Outbox.CosmosDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.DynamoDb\Excalibur.Outbox.DynamoDb.csproj" />

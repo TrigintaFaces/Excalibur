@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.Dispatch.Transport.Tests.CloudEvents;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Messaging;
@@ -50,6 +51,7 @@ public sealed class RabbitMqMessageBusCloudEventsShould : UnitTestBase
 		});
 		var mapper = new RabbitMqCloudEventAdapter(
 			cloudEventOptions,
+			TestCloudEventSerializers.Reflection,
 			rabbitMqOptions: null,
 			NullLogger<RabbitMqCloudEventAdapter>.Instance);
 		var bridge = new EnvelopeCloudEventBridge(

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 using Excalibur.Data.DataProcessing;
+using Excalibur.EventSourcing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -15,7 +16,75 @@ internal static class DataProcessingSmoke
     {
         await VerifyAsync(useBuilder: false).ConfigureAwait(false);
         await VerifyAsync(useBuilder: true).ConfigureAwait(false);
+        await VerifyBulkAsync().ConfigureAwait(false);
         Console.WriteLine("DataProcessing AOT verified: all configured values, both registration paths, empty-page traversal, handler scopes and checkpoints.");
+    }
+
+    private static async Task VerifyBulkAsync()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IHostApplicationLifetime, SmokeLifetime>();
+        services.AddSingleton<BulkProgress>();
+        services.AddScoped<IProjectionProcessor, BulkProjectionProcessor>();
+        services.AddDataProcessing(builder => builder.AddProcessor<BulkSmokeProcessor>()
+            .AddRecordHandler<BulkSmokeHandler, int>());
+        await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+        await using var scope = provider.CreateAsyncScope();
+        var processor = scope.ServiceProvider.GetRequiredService<BulkSmokeProcessor>();
+        var checkpoints = 0;
+        var count = await processor.RunAsync(0, null, (_, _, _) =>
+        {
+            checkpoints++;
+            return Task.CompletedTask;
+        }, CancellationToken.None).ConfigureAwait(false);
+        var progress = provider.GetRequiredService<BulkProgress>();
+        if (count != 2 || checkpoints != 2 || progress.Handled != 2 || progress.Folds != 1 || InlineProjectionWait.IsSuppressed)
+        {
+            throw new InvalidOperationException("Native bulk processing did not preserve checkpoints and one final fold.");
+        }
+        Console.WriteLine("BulkDataProcessor AOT verified: sequential records, checkpoints, suppression and one final catch-up.");
+    }
+
+    private sealed class BulkProgress
+    {
+        public int Handled { get; set; }
+        public int Folds { get; set; }
+    }
+    private sealed class BulkSmokeHandler(BulkProgress progress) : IRecordHandler<int>
+    {
+        public Task ProcessAsync(int record, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!InlineProjectionWait.IsSuppressed || record != progress.Handled + 1)
+            {
+                throw new InvalidOperationException("Bulk records lost ordering or projection-wait suppression.");
+            }
+            progress.Handled++;
+            return Task.CompletedTask;
+        }
+    }
+    // A deterministic stand-in makes this smoke test independent of databases. Applications register
+    // their actual projection processor and subscriptions; this stub performs no projection writes.
+    private sealed class BulkProjectionProcessor(BulkProgress progress) : IProjectionProcessor
+    {
+        public Task<ProjectionProcessingResult> ProcessPendingAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (InlineProjectionWait.IsSuppressed || progress.Handled != 2)
+            {
+                throw new InvalidOperationException("Bulk catch-up ran before records finished or under suppression.");
+            }
+            progress.Folds++;
+            return Task.FromResult(new ProjectionProcessingResult(0, ProjectionProcessingOutcome.CaughtUp, ProjectionHaltReason.None));
+        }
+    }
+    [DataTaskRecordType("BulkAotSmoke")]
+    private sealed class BulkSmokeProcessor(IHostApplicationLifetime lifetime, IOptions<DataProcessingOptions> options,
+        IServiceProvider services, ILogger<BulkSmokeProcessor> logger) : BulkDataProcessor<int>(lifetime, options, services, logger)
+    {
+        public override Task<CursorFetchResult<int>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken) =>
+            Task.FromResult(new CursorFetchResult<int>([1, 2], null));
     }
 
     private static async Task VerifyAsync(bool useBuilder)

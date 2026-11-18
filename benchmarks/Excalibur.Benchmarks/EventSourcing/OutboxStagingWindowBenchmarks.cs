@@ -8,23 +8,18 @@ using Microsoft.Data.SqlClient;
 namespace Excalibur.Benchmarks.EventSourcing;
 
 /// <summary>
-/// A/B on WHERE outbox staging sits relative to the global-position allocation, isolating that decision
-/// from everything else an append does.
+/// Synthetic SQL comparison of staging before versus after global-position allocation.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why this exists.</b> The position counter's exclusive lock is held from the allocating UPDATE until
-/// COMMIT, and every other appender in the system blocks on that row for the whole of that window. Outbox
-/// staging is one round trip per integration event. Staging AFTER the allocation therefore puts all of
-/// those round trips inside the window; staging BEFORE it does not. Nothing about atomicity changes —
-/// both arms are one transaction — so the difference between the two rows is the cost of the ordering,
-/// and nothing else.
+/// These synthetic SQL arms vary staging order within one transaction. Matched repetitions can
+/// investigate effects associated with lock duration; environment, scheduling and database state
+/// can also affect results. This does not isolate a universal cost of gapless ordering or establish
+/// a production defect.
 /// </para>
 /// <para>
-/// This is deliberately a separate benchmark from <c>AppendAllocationStrategyBenchmarks</c>, which
-/// compares an identity column against the counter row and issues NO outbox statements at all. The two
-/// answer different questions and their numbers must not be mixed: that one measures the price of the
-/// gapless guarantee on the plain path, this one measures a lock-window defect on the outbox path.
+/// This fixture includes outbox statements; <c>AppendAllocationStrategyBenchmarks</c> does not.
+/// Keep their workloads, configurations and results separate.
 /// </para>
 /// <para>
 /// Requires <c>BENCHMARK_SQL_CONNECTIONSTRING</c>. Throws when absent rather than returning quietly: a
@@ -47,8 +42,8 @@ public class OutboxStagingWindowBenchmarks
 	/// </summary>
 	/// <remarks>
 	/// 1 is the control: with no contention the two arms issue identical statements in a different order
-	/// and should measure the same. Any difference at 1 is noise, and the difference between 1 and the
-	/// rest is the serialization the ordering causes.
+	/// without competing writers in this fixture. Single-writer differences also require investigation;
+	/// do not automatically attribute them to noise or extrapolate them to contended workloads.
 	/// </remarks>
 	[Params(1, 8, 32)]
 	public int WriterCount { get; set; }

@@ -16,16 +16,15 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Excalibur.Dispatch.Benchmarks.Optimization;
 
 /// <summary>
-/// Benchmarks for Native AOT Compatibility.
+/// Managed HostProcess measurements of warmed handler activation and type checks.
 /// </summary>
 /// <remarks>
-/// <para>
-/// These benchmarks measure the performance of AOT-compatible code paths
-/// versus reflection-based fallbacks.
-/// </para>
-/// <para>
-/// Target: Zero AOT warnings, equivalent performance to JIT.
-/// </para>
+/// These jobs do not publish or execute NativeAOT and do not invoke the handler body.
+/// Setup prewarms and freezes static activation caches; cleanup does not reset them.
+/// The historical method names are retained. The two type-check implementations agree
+/// for this fixture but test different general contracts: a specific closed action-handler
+/// interface versus any closed action-handler interface. No native/JIT parity or general
+/// thread-safety claim follows from these measurements.
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -63,7 +62,7 @@ public class AotCompatibilityBenchmarks
 	}
 
 	/// <summary>
-	/// Baseline: Handler activation using cached compiled delegates (AOT-friendly).
+	/// Baseline: Managed activation through the prewarmed handler activation plan.
 	/// </summary>
 	[Benchmark(Baseline = true)]
 	public object ActivateHandler_CachedDelegates()
@@ -72,7 +71,7 @@ public class AotCompatibilityBenchmarks
 	}
 
 	/// <summary>
-	/// Handler activation batch - measures sustained AOT-friendly activation.
+	/// Batch of 100 managed activations; the result counts non-null handlers.
 	/// </summary>
 	[Benchmark]
 	public int ActivateHandler_Batch100()
@@ -91,7 +90,7 @@ public class AotCompatibilityBenchmarks
 	}
 
 	/// <summary>
-	/// Type check without reflection - AOT-safe pattern.
+	/// Tests assignability to one statically named closed action-handler interface.
 	/// </summary>
 	[Benchmark]
 	public bool TypeCheck_AotSafe()
@@ -100,7 +99,7 @@ public class AotCompatibilityBenchmarks
 	}
 
 	/// <summary>
-	/// Type check with reflection - what we avoid in AOT.
+	/// Enumerates interfaces looking for any closed action-handler interface.
 	/// </summary>
 	[Benchmark]
 	public bool TypeCheck_Reflection()
@@ -118,7 +117,7 @@ public class AotCompatibilityBenchmarks
 	}
 
 	/// <summary>
-	/// Batch type checks - AOT-safe pattern at scale.
+	/// Batch of 1,000 closed-interface assignability checks.
 	/// </summary>
 	[Benchmark]
 	public int TypeCheck_AotSafe_Batch1000()
@@ -136,7 +135,7 @@ public class AotCompatibilityBenchmarks
 	}
 
 	/// <summary>
-	/// Batch type checks - reflection pattern at scale.
+	/// Batch of 1,000 interface-enumeration checks.
 	/// </summary>
 	[Benchmark]
 	public int TypeCheck_Reflection_Batch1000()
@@ -159,7 +158,7 @@ public class AotCompatibilityBenchmarks
 	}
 
 	/// <summary>
-	/// Direct service resolution - bypassing reflection.
+	/// Direct non-generic service resolution from the managed DI container.
 	/// </summary>
 	[Benchmark]
 	public object DirectServiceResolution()
@@ -168,7 +167,7 @@ public class AotCompatibilityBenchmarks
 	}
 
 	/// <summary>
-	/// Concurrent handler activations - validates thread-safety of AOT paths.
+	/// Ten Parallel.For activations; overlap and general thread safety are not established.
 	/// </summary>
 	[Benchmark]
 	public int ConcurrentActivation()
@@ -186,13 +185,13 @@ public class AotCompatibilityBenchmarks
 	}
 
 	/// <summary>
-	/// AOT-safe type check helper (simulates source-generated check).
+	/// Closed-interface type check helper.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool IsActionHandler(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
 	{
-		// This pattern is AOT-safe because it doesn't require runtime type discovery
+		// The closed interface is statically known; native execution requires separate verification.
 		return typeof(IActionHandler<TestCommand>).IsAssignableFrom(type);
 	}
 

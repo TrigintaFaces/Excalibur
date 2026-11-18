@@ -10,8 +10,13 @@ namespace Excalibur.Dispatch;
 public sealed class PublishingResult
 {
 	/// <summary>
-	/// Gets the number of messages successfully published.
+	/// Gets the number of accepted message publications (or accepted deliveries for a per-transport drain).
 	/// </summary>
+	/// <remarks>
+	/// A single-transport acceptance remains counted if its durable mark is refused. A fanout row is
+	/// counted once when any admitted delivery succeeds; its transport counts are not added as rows.
+	/// This count alone does not establish durable completion or a fully drained batch.
+	/// </remarks>
 	/// <value> The current <see cref="SuccessCount" /> value. </value>
 	public int SuccessCount { get; init; }
 
@@ -60,7 +65,25 @@ public sealed class PublishingResult
 	/// Gets a value indicating whether the operation was successful.
 	/// </summary>
 	/// <value> The current <see cref="IsSuccess" /> value. </value>
-	public bool IsSuccess => FailureCount == 0;
+	public bool IsSuccess => FailureCount == 0 && Outcome == PublishingOutcome.Completed;
+
+	/// <summary>
+	/// Gets whether admission or continuation was refused for the drain's captured leadership tenure.
+	/// </summary>
+	/// <remarks>
+	/// Transport effects may already have occurred. Counts describe actual row outcomes, not the refusal;
+	/// the row success rate can be 100 percent while the operation verdict is refused. Unattempted rows
+	/// are not delivery failures. Existing success/failure factories leave this flag false.
+	/// </remarks>
+	public bool IsTenureRefused => Outcome == PublishingOutcome.TenureRefused;
+
+	/// <summary>Gets the operation outcome, independently of actual row counters.</summary>
+	/// <remarks>
+	/// The default is Completed, including existing factory results and ordinary partial fanout results.
+	/// TenureRefused dominates Interrupted when both occur; unknown values never imply success.
+	/// Interrupted may follow real transport effects and does not fabricate a failed row.
+	/// </remarks>
+	public PublishingOutcome Outcome { get; init; }
 
 	/// <summary>
 	/// Creates a successful publishing result.
@@ -89,5 +112,5 @@ public sealed class PublishingResult
 
 	/// <inheritdoc />
 	public override string ToString() =>
-		$"PublishingResult: {SuccessCount} success, {FailureCount} failed, {SkippedCount} skipped in {Duration.TotalMilliseconds:F0}ms";
+		$"PublishingResult: {SuccessCount} success, {FailureCount} failed, {SkippedCount} skipped in {Duration.TotalMilliseconds:F0}ms (outcome: {Outcome})";
 }

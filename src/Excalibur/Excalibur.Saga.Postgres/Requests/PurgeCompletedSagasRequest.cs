@@ -88,7 +88,7 @@ internal sealed class PurgeCompletedSagasRequest : DataRequestBase<IDbConnection
 
 		// Keys on the indexed completed_at column (SA ruling), not is_completed + updated_utc: retention
 		// correctness must not be coupled to the "completed sagas never re-save" invariant via a proxy column.
-		var sql = $"DELETE FROM {options.QualifiedTableName} WHERE completed_at IS NOT NULL AND completed_at < @Threshold{tenantPredicate};";
+		var sql = $"DELETE FROM {options.QualifiedTableName} WHERE completed_at IS NOT NULL AND completed_at < @Threshold AND timer_recovery_pending_batch IS NULL{tenantPredicate};";
 
 		// UTC for the same reason as the save path: Npgsql rejects a non-zero offset for timestamptz, so a
 		// retention sweep expressed in a local offset threw instead of purging.

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.LeaderElection.Tests.Helpers;
+
 namespace Excalibur.LeaderElection.Tests.Redis;
 
 /// <summary>
@@ -75,9 +77,7 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 
 		// Assert
 		election.CandidateId.ShouldNotBeNullOrWhiteSpace();
-		election.CandidateId.Length.ShouldBeLessThanOrEqualTo(24);
-		var machinePrefix = Environment.MachineName[..Math.Min(Environment.MachineName.Length, election.CandidateId.Length)];
-		election.CandidateId.StartsWith(machinePrefix, StringComparison.OrdinalIgnoreCase).ShouldBeTrue();
+		LeaderIdentityAssertions.AssertDefault(election.CandidateId);
 	}
 
 	[Fact]

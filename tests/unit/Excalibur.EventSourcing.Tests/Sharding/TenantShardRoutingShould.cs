@@ -644,7 +644,7 @@ public sealed class TenantSagaAndHealthCheckShould
 	}
 
 	[Fact]
-	public async Task HealthCheckReturnsHealthyWhenShardMapOperational()
+	public async Task HealthCheckDoesNotTreatMapEnumerationAsDatabaseReadiness()
 	{
 		var shardMap = A.Fake<ITenantShardMap>();
 		var healthCheck = new TenantShardHealthCheck(shardMap);
@@ -653,7 +653,7 @@ public sealed class TenantSagaAndHealthCheckShould
 			new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext(),
 			CancellationToken.None);
 
-		result.Status.ShouldBe(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy);
+		result.Status.ShouldBe(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy);
 	}
 
 	[Fact]

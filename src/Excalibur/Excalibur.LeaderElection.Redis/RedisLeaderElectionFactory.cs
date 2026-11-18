@@ -22,7 +22,7 @@ public sealed class RedisLeaderElectionFactory : ILeaderElectionFactory
 	private readonly ILoggerFactory _loggerFactory;
 	private readonly IOptions<LeaderElectionOptions> _options;
 	private readonly IMessageFailureClassifier? _failureClassifier;
-	private readonly IFencingTokenProvider? _fencingTokenProvider;
+	private readonly IFencingTokenIssuer? _fencingTokenProvider;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="RedisLeaderElectionFactory"/> class.
@@ -39,7 +39,7 @@ public sealed class RedisLeaderElectionFactory : ILeaderElectionFactory
 	/// Defaults to <see langword="null"/> (grace-only behavior).
 	/// </param>
 	/// <param name="fencingTokenProvider">
-	/// An optional <see cref="IFencingTokenProvider"/> propagated to every election this
+	/// An optional <see cref="IFencingTokenIssuer"/> propagated to every election this
 	/// factory creates, enabling monotonic fencing-token issuance at leadership acquisition. Defaults to
 	/// <see langword="null"/> (no token issued).
 	/// </param>
@@ -48,7 +48,7 @@ public sealed class RedisLeaderElectionFactory : ILeaderElectionFactory
 		ILoggerFactory loggerFactory,
 		IOptions<LeaderElectionOptions> options,
 		IMessageFailureClassifier? failureClassifier = null,
-		IFencingTokenProvider? fencingTokenProvider = null)
+		IFencingTokenIssuer? fencingTokenProvider = null)
 	{
 		_redis = redis ?? throw new ArgumentNullException(nameof(redis));
 		_loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));

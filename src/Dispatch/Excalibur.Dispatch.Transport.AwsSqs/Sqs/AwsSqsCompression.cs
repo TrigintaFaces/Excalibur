@@ -24,7 +24,26 @@ internal static class AwsSqsCompression
 		return output.ToArray();
 	}
 
-	public static byte[] Decompress(ReadOnlySpan<byte> payload, TransportCompressionAlgorithm algorithm)
+	/// <summary>
+	/// Decompresses an inbound payload, refusing once the produced bytes exceed
+	/// <paramref name="maxDecompressedBytes"/>.
+	/// </summary>
+	/// <remarks>
+	/// The limit is applied to the <em>output</em>, not the input. The inbound check the receiver already
+	/// performs bounds what the sender transmitted; the expansion ratio is the sender's to choose, so a
+	/// payload small enough to accept can still name an arbitrarily large allocation. Passing
+	/// <see langword="null"/> is the consumer's explicit opt-out, matching the rest of the payload-limit
+	/// contract.
+	/// </remarks>
+	/// <param name="payload"> The compressed inbound payload. </param>
+	/// <param name="algorithm"> The compression algorithm that was used. </param>
+	/// <param name="maxDecompressedBytes"> The maximum decompressed length, or <see langword="null"/> to opt out. </param>
+	/// <returns> The decompressed payload bytes. </returns>
+	/// <exception cref="PayloadTooLargeException"> Thrown once the decompressed length would exceed the limit. </exception>
+	public static byte[] Decompress(
+			ReadOnlySpan<byte> payload,
+			TransportCompressionAlgorithm algorithm,
+			int? maxDecompressedBytes)
 	{
 		if (payload.IsEmpty)
 		{
@@ -32,13 +51,8 @@ internal static class AwsSqsCompression
 		}
 
 		using var input = new MemoryStream(payload.ToArray());
-		using var output = new MemoryStream();
-		using (var decompressor = CreateDecompressor(input, algorithm))
-		{
-			decompressor.CopyTo(output);
-		}
-
-		return output.ToArray();
+		using var decompressor = CreateDecompressor(input, algorithm);
+		return PayloadSizeGuard.ReadAllWithinLimit(decompressor, maxDecompressedBytes);
 	}
 
 	private static Stream CreateCompressor(Stream output, TransportCompressionAlgorithm algorithm) =>

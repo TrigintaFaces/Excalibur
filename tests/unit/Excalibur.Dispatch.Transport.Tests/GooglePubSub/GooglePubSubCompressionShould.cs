@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Google;
@@ -34,6 +34,7 @@ public sealed class GooglePubSubCompressionShould
 
 		var decoded = GooglePubSubMessageBodyCodec.TryDecodeBody(
 				pubsubMessage,
+				maxDecompressedBytes: null,
 				out var decodedBody,
 				out var algorithm);
 
@@ -54,7 +55,7 @@ public sealed class GooglePubSubCompressionShould
 
 		// Act
 		var compressed = GooglePubSubCompression.Compress(payload, CompressionAlgorithm.Snappy);
-		var decompressed = GooglePubSubCompression.Decompress(compressed, CompressionAlgorithm.Snappy);
+		var decompressed = GooglePubSubCompression.Decompress(compressed, CompressionAlgorithm.Snappy, maxDecompressedBytes: null);
 
 		// Assert
 		compressed.ShouldNotBe(payload); // Should be different (compressed)
@@ -112,6 +113,7 @@ public sealed class GooglePubSubCompressionShould
 		var decoded = GooglePubSubMessageBodyCodec.TryDecodeBody(
 			pubsubMessage,
 			enableAutoDetection: true,
+			maxDecompressedBytes: null,
 			out var decodedBody,
 			out var algorithm);
 
@@ -137,6 +139,7 @@ public sealed class GooglePubSubCompressionShould
 		var decoded = GooglePubSubMessageBodyCodec.TryDecodeBody(
 			pubsubMessage,
 			enableAutoDetection: false,
+			maxDecompressedBytes: null,
 			out var decodedBody,
 			out var algorithm);
 

@@ -432,6 +432,49 @@ builder.Services.AddEventSourcingCryptoShredding();
 | `EncryptingInboxStoreDecorator` | `Excalibur.Compliance` | Inbox message encryption |
 | `EncryptingOutboxStoreDecorator` | `Excalibur.Compliance` | Outbox message encryption |
 
+### Inbox and outbox registration
+
+Register all inbox and outbox implementations before calling `AddInboxEncryption` or
+`AddOutboxEncryption`. These helpers cover independent unkeyed registrations as well as provider and
+`"default"` keyed registrations. Forwarding aliases reuse the decorated result; independently registered
+stores receive their own layer. Public registration order, service keys and lifetimes remain unchanged.
+A store registered later is not covered by an earlier decoration call, so keep encryption decoration
+after store registration in the composition root.
+
+For custom `DecorateKeyedStores` factories, respect the original store's disposal ownership. Instances
+supplied by the caller remain caller-owned; disposable type/factory activations remain container-owned.
+Return a non-owning wrapper rather than a borrowed disposable instance unchanged. Use asynchronous
+scope/provider disposal when an owned store implements only `IAsyncDisposable`. As with ordinary
+container aliases, disposal implementations must be idempotent.
+
+### Outbox caller ownership
+
+For preencoded outbox writes, `EncryptAndDecrypt` and `EncryptNewDecryptAll` encrypt an owned snapshot
+rather than replacing the caller's payload. Ordinary Stage, multi-transport Stage and the atomic
+sent-plus-inbox batch route capture payload bytes, scalar fields, dictionary containers and transport
+records before encryption awaits. Retrying the same caller envelope therefore starts from its plaintext,
+including after an encryption or inner-store failure. Nested objects inside headers/metadata retain their
+existing value semantics; this is not recursive cloning of arbitrary application object graphs.
+
+`DecryptOnlyWritePlaintext` and `Disabled` retain their pass-through envelope/payload/transport references.
+`DecryptOnlyReadOnly` rejects these writes before copying or enumerating caller transports. An undefined
+mode is rejected before encryption, enumeration or inner writes; it never silently selects plaintext.
+Each write captures its mode once. Changing configuration affects later writes, not an in-flight write's
+chosen behavior. Read behavior and typed completion/capability forwarding remain separate from this
+payload-ownership boundary.
+
+Legacy `EnqueueAsync` keeps serialization and envelope construction inside the owning provider.
+Encrypting modes require its optional `IOutboxPayloadTransformStore` capability, so encryption receives
+the exact serialized bytes and prepared record tenant before any row is accepted. A missing capability
+refuses the legacy write with an actionable error; it never substitutes generic JSON or stores plaintext.
+Preencoded `StageMessageAsync` remains available without this legacy capability. The raw transform
+writer is deliberately hidden by the encryption decorator to prevent callers bypassing encryption.
+
+The provider copies callback-owned output before persistence and checks cancellation after the callback,
+before accepting the write. Callback failure/cancellation causes no accepting row mutation. Cancellation
+racing with persistence retains that provider's existing transaction and uncertainty semantics.
+This capability retains the legacy serialization warnings; it is not a NativeAOT certification.
+
 ### Tenant Binding in the Store Decorators
 
 The decorators build the `EncryptionContext` for you, per record, and bind a tenant into the AAD. Which tenant depends on whether the record carries one:
@@ -445,8 +488,8 @@ The decorators build the `EncryptionContext` for you, per record, and bind a ten
 
 - **Outbox and inbox bind the record's own tenant on read**, never the reader's ambient tenant. Both are drained for every tenant by background processors that run outside any tenant scope, so the record's tenant is the only value that can be re-derived at drain time. A payload moved into a row carrying a different tenant fails authentication.
 - **A record with no tenant** (`null`, empty, or whitespace) binds the reserved untenanted partition value, the same value the store returns for it on read.
-- **A tenant context is always present.** The decorators require an `ITenantContext`; their registration methods add the framework's single-tenant default when you have not registered one, so a single-tenant host binds one fixed tenant identity. A multi-tenant host registers its own resolving context and gets per-tenant binding.
-- **Keys are not per tenant on these paths.** One active key per purpose serves every tenant, so the AAD tenant is the only cryptographic tenant separation the decorators provide. Row-level tenant filtering in each store remains the control that stops one tenant from reading another tenant's rows at all; the AAD binding is a second, independent layer.
+- **Ambient context is separate from record ownership.** Decorators that consume `ITenantContext` receive the configured tenant context. Outbox writes and drains bind the message's own `TenantId`; the outbox decorator does not require an ambient request tenant to drain records for different tenants.
+- **Keys are not per tenant on these paths.** One active key per purpose serves every tenant, so the AAD tenant is the only cryptographic tenant separation the decorators provide. Authorization and each store's query scope remain separate controls. Outbox workers and `GetAllTenants` administration are estate-wide, so this AAD binding does not turn those operations into tenant-confined queries.
 
 ### Mixed-Mode Migration
 

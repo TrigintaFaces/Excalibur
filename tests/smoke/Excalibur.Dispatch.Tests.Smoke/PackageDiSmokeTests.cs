@@ -6,6 +6,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+
+using Excalibur.Dispatch.Serialization;
 
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Middleware.PipelineDiagnostics;
@@ -468,8 +472,10 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Dispatch [DefaultPipelines]", s => s.AddDefaultDispatchPipelines());
 		yield return Reg("Excalibur.Dispatch [UpcastingDecorator]", s => s.AddUpcastingMessageBusDecorator());
 		yield return Reg("Excalibur.Dispatch [TimeAwareScheduling]", s => s.AddTimeAwareScheduling());
-		yield return Reg("Excalibur.Dispatch [AotCloudEvents]", s => s.AddCloudEventsAotSerialization());
-		yield return Reg("Excalibur.Dispatch [AotCore]", s => s.AddCoreAotSerialization());
+        yield return Reg("Excalibur.Dispatch [GeneratedJson]", s => s.AddPluggableSerializer(
+            SerializerIds.SystemTextJson,
+            SystemTextJsonSerializer.CreateWithMetadata(new JsonSerializerOptions
+            { TypeInfoResolver = JsonTypeInfoResolver.Combine() }), setAsCurrent: true));
 		yield return Reg("Excalibur.Dispatch [InMemoryDLQ]", s => s.AddInMemoryDeadLetterStore());
 		yield return Reg("Excalibur.Dispatch [TimePolicy]", s => s.AddTimePolicy());
 		yield return Reg("Excalibur.Dispatch [SystemTimeProvider]", s => s.AddSystemTimeProvider());

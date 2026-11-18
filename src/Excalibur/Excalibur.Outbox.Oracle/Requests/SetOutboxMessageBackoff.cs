@@ -52,6 +52,11 @@ internal sealed class SetOutboxMessageBackoff : DataRequest<int>
 	/// <param name="outboxTableName">The name of the outbox table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// This framework request binds its fixed primitive input and output schema without runtime emit.
+	/// Replacing a known parameter value is observed at execution; custom parameter metadata, templates
+	/// and output callbacks are not an extension contract. Custom IDataRequest implementations are unchanged.
+	/// </remarks>
 	public SetOutboxMessageBackoff(
 		string messageId,
 		double nextAttemptDelaySeconds,
@@ -72,7 +77,7 @@ internal sealed class SetOutboxMessageBackoff : DataRequest<int>
 		// dispatcher_id = "{dispatcherId}:{guid}", so a bare "dispatcher_id = :DispatcherId" matched ZERO rows
 		// and this backoff update was a silent no-op on Oracle. Match the dispatcher prefix exactly via
 		// SUBSTR(dispatcher_id, 1, LEN) = "{dispatcherId}:", with the prefix + length computed in C# so each
-		// parameter is referenced once (ODP.NET positional bind) and no LIKE wildcard can widen the guard.
+		// parameter is referenced once (named Oracle bind) and no LIKE wildcard can widen the guard.
 		// next_attempt_at is the LATER of the caller's computed schedule and the configured floor F, never
 		// whichever the caller supplied. Binding the caller's schedule alone was the defect: the backoff
 		// calculator yields about a second at the first attempt, so a consumer who configured a floor of five
@@ -104,16 +109,9 @@ internal sealed class SetOutboxMessageBackoff : DataRequest<int>
 		             AND (dispatcher_id IS NULL OR SUBSTR(dispatcher_id, 1, :DispatcherPrefixLen) = :DispatcherPrefix)
 		   """;
 
-		// ODP.NET binds positionally (this store does not set BindByName), so parameters are added in the
-		// exact textual order their placeholders appear: :NextAttemptDelaySeconds then
-		// :FailureBackoffFloorSeconds (both inside the SET's GREATEST), then :MessageId (WHERE), then
-		// :DispatcherPrefixLen then :DispatcherPrefix (WHERE). Adding a parameter out of this order would
-		// silently bind it to the wrong placeholder — the order below mirrors the statement above and must
-		// stay that way. The floor parameter is second because it sits second in the statement text, INSIDE
-		// the GREATEST; adding it at the end would bind the floor to the message id.
-		//
-		// Both GREATEST operands are bound as the same numeric kind, so the comparison needs no implicit
-		// conversion and fractional seconds survive; NUMTODSINTERVAL converts whichever wins.
+		// Directly preserve Dapper's effective BindByName=true. Repeated named references do not
+		// depend on positional insertion order; the same values and constructor-defined numeric types remain.
+		// Both GREATEST operands remain double precision so fractional-second delays survive.
 		var parameters = new DynamicParameters();
 		parameters.Add("NextAttemptDelaySeconds", nextAttemptDelaySeconds, direction: ParameterDirection.Input);
 		parameters.Add("FailureBackoffFloorSeconds", (double)failureBackoffFloorSeconds, direction: ParameterDirection.Input);
@@ -122,6 +120,14 @@ internal sealed class SetOutboxMessageBackoff : DataRequest<int>
 		parameters.Add("DispatcherPrefix", dispatcherId + ":", direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await StaticDbCommand.ExecuteAsync(conn, Command, command =>
+			{
+				OracleOutboxRowReader.Initialize(command);
+				StaticDbCommand.AddParameter(command, "NextAttemptDelaySeconds", StaticDbCommand.Input<double>(Parameters, "NextAttemptDelaySeconds"), DbType.Double);
+				StaticDbCommand.AddParameter(command, "FailureBackoffFloorSeconds", StaticDbCommand.Input<double>(Parameters, "FailureBackoffFloorSeconds"), DbType.Double);
+				StaticDbCommand.AddParameter(command, "MessageId", StaticDbCommand.Input<string>(Parameters, "MessageId"), DbType.String);
+				StaticDbCommand.AddParameter(command, "DispatcherPrefixLen", StaticDbCommand.Input<int>(Parameters, "DispatcherPrefixLen"), DbType.Int32);
+				StaticDbCommand.AddParameter(command, "DispatcherPrefix", StaticDbCommand.Input<string>(Parameters, "DispatcherPrefix"), DbType.String);
+			}).ConfigureAwait(false);
 	}
 }

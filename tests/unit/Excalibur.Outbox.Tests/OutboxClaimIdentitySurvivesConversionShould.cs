@@ -234,8 +234,14 @@ public sealed class OutboxClaimIdentitySurvivesConversionShould
 	/// is all that is needed for the drain to find it.
 	/// </remarks>
 	private sealed class ClaimObservingStore(bool envelopeFormat, int messagesToServe = 1)
-		: IOutboxStore, IClaimScopedOutboxStore, IDeadLetterableOutboxStore
+		: IOutboxStore, IClaimScopedOutboxStore, IClaimScopedDeadLetterableOutboxStore, IDeadLetterableOutboxStore
 	{
+
+		public ValueTask<OutboxCompletionOutcome> MarkSentAsync(string messageId, string claimIdentity, CancellationToken cancellationToken)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.Applied);
+
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount,
+			string claimIdentity, CancellationToken cancellationToken) => MarkDeadLetteredAsync(messageId, reason, attemptCount, cancellationToken);
 		private int _served;
 
 		public int FailureMarks { get; private set; }

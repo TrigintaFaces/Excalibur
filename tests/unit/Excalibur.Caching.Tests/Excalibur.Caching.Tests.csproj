@@ -16,6 +16,7 @@
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../../benchmarks/Excalibur.Benchmarks/Excalibur.Benchmarks.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Caching\Excalibur.Caching.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
