@@ -233,7 +233,7 @@ jobs:
           base_sha="$(git -C base rev-parse HEAD)"
           printf 'Coverage candidate: %s\nCoverage base: %s\n' "$candidate_sha" "$base_sha" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: base/global.json
       - name: Resolve base unit test solution filter
@@ -496,7 +496,7 @@ jobs:
         # runner's preinstalled SDKs do not, and the pin uses rollForward: disable, so without this
         # step the muxer resolves nothing and the tool restore exits 155 before any coverage work
         # begins. Reading global.json rather than naming a version keeps this in step with the pin.
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
