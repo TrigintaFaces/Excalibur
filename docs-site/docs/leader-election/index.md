@@ -973,23 +973,21 @@ public class LeaderAwareService : BackgroundService
 
 ### Handling Leadership Loss
 
-React appropriately when leadership is lost using events:
+Do not track leadership in a flag maintained by the events. `BecameLeader` and `LostLeadership` are queued
+transition history, so a flag they maintain can still read "leader" after the tenure has ended, and an
+`IsLeader` check has the same problem. Read `CurrentLeadership` once per batch, pin it, and carry its
+fencing token into every protected write — exactly as described at the top of this page:
 
 ```csharp
 public class LeadershipAwareProcessor : BackgroundService
 {
     private readonly ILeaderElection _leaderElection;
     private readonly IWorkQueue _queue;
-    private volatile bool _isLeader;
 
     public LeadershipAwareProcessor(ILeaderElection leaderElection, IWorkQueue queue)
     {
         _leaderElection = leaderElection;
         _queue = queue;
-
-        // Track leadership state via events
-        _leaderElection.BecameLeader += (_, _) => _isLeader = true;
-        _leaderElection.LostLeadership += (_, _) => _isLeader = false;
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -1000,22 +998,28 @@ public class LeadershipAwareProcessor : BackgroundService
         {
             while (!ct.IsCancellationRequested)
             {
-                if (_isLeader)
-                {
-                    var item = await _queue.DequeueAsync(ct);
-
-                    // Check leadership before processing
-                    if (!_isLeader)
-                    {
-                        await _queue.RequeueAsync(item);
-                        continue;
-                    }
-
-                    await ProcessItemAsync(item, ct);
-                }
-                else
+                // One authoritative read per batch, then pin it. CurrentLeadership is non-null only
+                // while this instance holds a tenure, and it carries that tenure's fencing token.
+                if (_leaderElection.CurrentLeadership is not { } tenure)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(1), ct);
+                    continue;
+                }
+
+                var item = await _queue.DequeueAsync(ct);
+
+                // Carry the PINNED token into the write and let the protected resource reject a stale
+                // one atomically with the write. Re-reading leadership here instead would only narrow
+                // the window: the tenure can end while the write is already in flight, and no check
+                // on this side can see that. The resource is the only place the race actually closes.
+                if (!await ProcessItemAsync(item, tenure.FencingToken, ct))
+                {
+                    // Refused: this tenure is over. The loop then re-reads CurrentLeadership, so the
+                    // dead token is never presented twice. Note that the requeue is ITSELF a write by
+                    // a tenure that has just been superseded — so the queue must either tolerate that
+                    // or be fenced on the same token. There is no arrangement of checks on this side
+                    // that makes an unfenced write safe.
+                    await _queue.RequeueAsync(item);
                 }
             }
         }

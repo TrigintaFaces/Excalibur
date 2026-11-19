@@ -239,7 +239,8 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
                 try { generation = run.Kernel.BeginAcquisition(attempt, attempt.Acquire); }
                 catch (InvalidOperationException) when (run.StopRequested) { break; }
                 var start = _timeProvider.GetTimestamp();
-                attempt.Acquire.TryLaunch(async () =>
+                // Refused only when a stop already sealed the latch; the stop arm below reports it.
+                _ = attempt.Acquire.TryLaunch(async () =>
                 {
                     attempt.Acquired = await _redis.GetDatabase().StringSetAsync(_lockKey, attempt.Owner,
                         _options.LeaseDuration, When.NotExists).ConfigureAwait(false);
@@ -259,7 +260,19 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
                     await attempt.Acquire.Completion.ConfigureAwait(false);
                     if (attempt.Acquired && !run.Stop.IsCancellationRequested)
                     {
-                        run.Kernel.Publish(generation, start, attempt.Owner, attempt.Fence, _timeProvider.GetUtcNow());
+                        if (!run.Kernel.Publish(generation, start, attempt.Owner, attempt.Fence, _timeProvider.GetUtcNow()))
+                        {
+                            run.Kernel.ReportObservation(generation, false, null, "acquisition proof expired before publication", null, _timeProvider.GetUtcNow());
+                        }
+                    }
+                    else if (run.StopRequested || run.Stop.IsCancellationRequested)
+                    {
+                        // A stop seals the acquisition latch synchronously inside BeginStop, BEFORE it
+                        // schedules the token cancellation, so the actor can resume here with the token
+                        // still uncancelled. Reading StopRequested -- which BeginStop sets under the run
+                        // gate before sealing -- is what makes this deterministic: without it a clean
+                        // shutdown is logged as a contention failure that nobody lost.
+                        run.Kernel.Retire(generation, "stopped");
                     }
                     else
                     {
@@ -289,7 +302,8 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
                     var renewalStart = _timeProvider.GetTimestamp();
                     cadenceStart = renewalStart;
                     var renewed = false;
-                    operation.TryLaunch(async () =>
+                    // Refused only when a stop already sealed the latch; the loop exits on StopRequested.
+                    _ = operation.TryLaunch(async () =>
                     {
                         const string script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end";
                         var result = await _redis.GetDatabase().ScriptEvaluateAsync(script, [_lockKey],

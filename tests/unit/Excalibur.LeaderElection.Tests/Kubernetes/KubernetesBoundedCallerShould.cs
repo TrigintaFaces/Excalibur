@@ -15,6 +15,14 @@ namespace Excalibur.LeaderElection.Tests.Kubernetes;
 [Trait("Pattern", "Regression")]
 public sealed class KubernetesBoundedCallerShould
 {
+    // A BACKSTOP against a hang, not a budget for how long the work may take. At five seconds it
+    // fired: PreserveTheIndependentCallerCancellationOrDeadlineWinner failed 1 in 5 filtered runs
+    // locally and 2 of 6 on a two-core Linux container, surfacing as a bare TimeoutException whose
+    // stack frames are the WaitAsync lines themselves -- duration-equals-cap is the tell that the
+    // bound expired rather than anything being cancelled. The Clock.Advance calls below are NOT
+    // this: they drive fake logical time and changing them would change what the arms assert.
+    private static TimeSpan Backstop => TimeSpan.FromSeconds(30);
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -27,7 +35,7 @@ public sealed class KubernetesBoundedCallerShould
         try
         {
             fixture.Read = _ => { entered.TrySetResult(); return reply.Task; };
-            fixture.Clock.Advance(TimeSpan.FromSeconds(5)); await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            fixture.Clock.Advance(TimeSpan.FromSeconds(5)); await entered.Task.WaitAsync(Backstop);
             var count = fixture.Calls;
             var stopping = fixture.Sut.StopAsync(caller.Token);
             if (cancelFirst)
@@ -49,13 +57,13 @@ public sealed class KubernetesBoundedCallerShould
             fixture.Sut.IsLeader.ShouldBeFalse(); fixture.Calls.ShouldBe(count);
             var disposing = fixture.Sut.DisposeAsync().AsTask(); disposing.IsCompleted.ShouldBeFalse();
             fixture.Read = _ => Task.FromResult(fixture.Snapshot()); reply.TrySetResult(fixture.Snapshot());
-            await disposing.WaitAsync(TimeSpan.FromSeconds(5));
+            await disposing.WaitAsync(Backstop);
         }
         finally
         {
             var cleanup = fixture.Sut.DisposeAsync().AsTask();
             fixture.Read = _ => Task.FromResult(fixture.Snapshot()); reply.TrySetResult(fixture.Snapshot());
-            await cleanup.WaitAsync(TimeSpan.FromSeconds(5)); await fixture.DisposeAsync();
+            await cleanup.WaitAsync(Backstop); await fixture.DisposeAsync();
         }
     }
 
@@ -80,20 +88,20 @@ public sealed class KubernetesBoundedCallerShould
                 entered.TrySetResult(); return reply.Task;
             };
             var starting = provider.StartAsync(CancellationToken.None);
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await entered.Task.WaitAsync(Backstop);
             reads.ShouldBe(3); fixture.Clock.Advance(TimeSpan.FromSeconds(2));
             await TerminalAsync(starting); await Should.ThrowAsync<TimeoutException>(() => starting);
             fixture.Clock.Advance(TimeSpan.FromSeconds(30));
             reads.ShouldBe(3); provider.IsLeader.ShouldBeFalse(); fixture.OwnershipWrites.ShouldBe(0);
             var disposing = provider.DisposeAsync().AsTask(); disposing.IsCompleted.ShouldBeFalse();
             fixture.Read = _ => Task.FromResult(fixture.Snapshot()); reply.TrySetResult(fixture.Snapshot());
-            await disposing.WaitAsync(TimeSpan.FromSeconds(5)); fixture.OwnershipWrites.ShouldBe(0);
+            await disposing.WaitAsync(Backstop); fixture.OwnershipWrites.ShouldBe(0);
         }
         finally
         {
             var cleanup = provider.DisposeAsync().AsTask();
             fixture.Read = _ => Task.FromResult(fixture.Snapshot()); reply.TrySetResult(fixture.Snapshot());
-            await cleanup.WaitAsync(TimeSpan.FromSeconds(5)); await provider.NotificationsCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+            await cleanup.WaitAsync(Backstop); await provider.NotificationsCompleted.WaitAsync(Backstop);
             await fixture.DisposeAsync();
         }
     }
@@ -119,22 +127,22 @@ public sealed class KubernetesBoundedCallerShould
         try
         {
             election.ShouldBeOfType<TelemetryLeaderElection>();
-            await election.StartAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+            await election.StartAsync(CancellationToken.None).WaitAsync(Backstop);
             fixture.Read = _ => { entered.TrySetResult(); return reply.Task; };
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5)); // Real System clock: factory has no clock hook.
+            await entered.Task.WaitAsync(Backstop); // Real System clock: factory has no clock hook.
             var stopping = election.StopAsync(CancellationToken.None);
             await TerminalAsync(stopping); await Should.ThrowAsync<TimeoutException>(() => stopping);
             election.IsLeader.ShouldBeFalse();
             var disposing = election.DisposeAsync().AsTask(); disposing.IsCompleted.ShouldBeFalse();
             fixture.Read = _ => Task.FromResult(fixture.Snapshot()); reply.TrySetResult(fixture.Snapshot());
-            await disposing.WaitAsync(TimeSpan.FromSeconds(5));
+            await disposing.WaitAsync(Backstop);
             await container.DisposeAsync(); A.CallTo(() => fixture.Client.Dispose()).MustNotHaveHappened();
         }
         finally
         {
             var cleanup = election.DisposeAsync().AsTask();
             fixture.Read = _ => Task.FromResult(fixture.Snapshot()); reply.TrySetResult(fixture.Snapshot());
-            await cleanup.WaitAsync(TimeSpan.FromSeconds(5)); await container.DisposeAsync();
+            await cleanup.WaitAsync(Backstop); await container.DisposeAsync();
             await fixture.DisposeAsync();
         }
     }
@@ -176,17 +184,17 @@ public sealed class KubernetesBoundedCallerShould
                 });
                 sdkEntered.TrySetResult(); return reply.Task;
             };
-            fixture.Clock.Advance(TimeSpan.FromSeconds(5)); await sdkEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            fixture.Clock.Advance(TimeSpan.FromSeconds(5)); await sdkEntered.Task.WaitAsync(Backstop);
             var stopping = fixture.Sut.StopAsync(CancellationToken.None);
-            await callbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            await callbackGate.BarrierEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await callbackEntered.Task.WaitAsync(Backstop);
+            await callbackGate.BarrierEntered.Task.WaitAsync(Backstop);
             reply.TrySetCanceled(nativeToken); // SDK reply settles; its actual cancellation callback still does not.
             var disposing = fixture.Sut.DisposeAsync().AsTask();
             fixture.Clock.Advance(TimeSpan.FromSeconds(10));
             await TerminalAsync(stopping); await Should.ThrowAsync<TimeoutException>(() => stopping);
             callbackExited.Task.IsCompleted.ShouldBeFalse(); disposing.IsCompleted.ShouldBeFalse();
             callbackGate.ReleaseBarrier();
-            var failure = await Should.ThrowAsync<Exception>(() => disposing.WaitAsync(TimeSpan.FromSeconds(5)));
+            var failure = await Should.ThrowAsync<Exception>(() => disposing.WaitAsync(Backstop));
             ContainsExpected(failure).ShouldBeTrue(); OnlyExpected(failure).ShouldBeTrue();
             fixture.Sut.DisposeAsync().AsTask().ShouldBeSameAs(disposing);
             var repeated = await Should.ThrowAsync<Exception>(() => fixture.Sut.DisposeAsync().AsTask());
@@ -205,7 +213,7 @@ public sealed class KubernetesBoundedCallerShould
     {
         var terminal = actualCaller.ContinueWith(static _ => { }, CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-        await terminal.WaitAsync(TimeSpan.FromSeconds(5));
+        await terminal.WaitAsync(Backstop);
         actualCaller.IsCompleted.ShouldBeTrue();
     }
 }

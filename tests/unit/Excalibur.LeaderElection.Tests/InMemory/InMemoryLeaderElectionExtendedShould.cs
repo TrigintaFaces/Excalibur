@@ -3,6 +3,8 @@
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.LeaderElection.Tests.InMemory;
 
 /// <summary>
@@ -44,8 +46,18 @@ public sealed class InMemoryLeaderElectionExtendedShould
 		await le.StartAsync(CancellationToken.None);
 
 		// Assert
-		becameLeader.ShouldBeTrue();
-		leaderChanged.ShouldBeTrue();
+		// Acquisition and loss notifications are QUEUED transition history, not a synchronous callback
+		// inside StartAsync: ARCHITECTURE.md records that retirement "queues the loss notification;
+		// consumer callbacks may delay delivery", and the provider enqueues the raise from under the
+		// candidate gate rather than invoking a consumer handler while holding it. So the arrival is
+		// awaited, never assumed to have happened by the time StartAsync returns -- asserting
+		// immediately passed on an idle machine and failed whenever the suite ran under load.
+		(await WaitHelpers.WaitUntilAsync(
+			() => becameLeader && leaderChanged,
+			TimeSpan.FromSeconds(5),
+			TimeSpan.FromMilliseconds(10),
+			CancellationToken.None).ConfigureAwait(false)).ShouldBeTrue(
+			"acquisition should deliver both the became-leader and leader-changed notifications");
 	}
 
 	[Fact]
@@ -119,14 +131,28 @@ public sealed class InMemoryLeaderElectionExtendedShould
 		await using var le = CreateInstance("resource-1", "candidate-1", sharedState);
 
 		var eventCount = 0;
-		le.BecameLeader += (_, _) => eventCount++;
+		le.BecameLeader += (_, _) => Interlocked.Increment(ref eventCount);
 
 		// Act
 		await le.StartAsync(CancellationToken.None);
 		await le.StartAsync(CancellationToken.None);
 
-		// Assert - event should only fire once
-		eventCount.ShouldBe(1);
+		// Assert - the second start must not re-notify.
+		// Two arms, because delivery is queued and an immediate count reads whatever has arrived so
+		// far: first wait for the one notification to ARRIVE (a bare count of 0 would otherwise
+		// satisfy "not more than one" while proving nothing), then prove a second never follows it.
+		(await WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref eventCount) >= 1,
+			TimeSpan.FromSeconds(5),
+			TimeSpan.FromMilliseconds(10),
+			CancellationToken.None).ConfigureAwait(false)).ShouldBeTrue(
+			"the first acquisition should deliver exactly one became-leader notification");
+		(await WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref eventCount) > 1,
+			TimeSpan.FromMilliseconds(250),
+			TimeSpan.FromMilliseconds(10),
+			CancellationToken.None).ConfigureAwait(false)).ShouldBeFalse(
+			"a second StartAsync on an instance that already leads must not re-notify");
 	}
 
 #pragma warning disable CA2012 // Use ValueTasks correctly - test needs to verify dispose pattern

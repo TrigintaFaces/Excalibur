@@ -719,6 +719,12 @@ run_gate() {
             allowed="${allowed:-0}"
             if [ "$cnt" -gt "$allowed" ]; then
                 printf '  %s — %s leak(s), baseline allows %s\n' "$path" "$cnt" "$allowed" >> "$over_report"
+                # Name the LINE and the offending text, not just a per-file count. The detail is
+                # already computed in "$report" as path:line:content; printing only the count told
+                # the reader a file was over budget and left them to re-run the search by hand to
+                # find out where and which token. Every other diagnostic a developer reads here
+                # names file, line and the thing that is wrong, and this one now does too.
+                awk -F: -v p="$path" '$1 == p' "$report" | sed 's/^/    /' >> "$over_report"
                 new_over=$((new_over + 1))
             fi
         done < "$cur_counts"

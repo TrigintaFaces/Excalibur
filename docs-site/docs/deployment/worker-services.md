@@ -223,10 +223,10 @@ public class LeaderElectedWorker : BackgroundService
         _logger = logger;
 
         // Subscribe to leadership events
-        _leaderElection.OnBecameLeader += (_, args) =>
+        _leaderElection.BecameLeader += (_, args) =>
             _logger.LogInformation("Became leader: {CandidateId}", args.CandidateId);
 
-        _leaderElection.OnLostLeadership += (_, args) =>
+        _leaderElection.LostLeadership += (_, args) =>
             _logger.LogInformation("Lost leadership: {CandidateId}", args.CandidateId);
     }
 

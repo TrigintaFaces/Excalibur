@@ -23,7 +23,18 @@ public sealed class ConsulLateSessionRuntimeShould(ConsulContainerFixture fixtur
     [Fact]
     public async Task PreserveSameIdSuccessorAgainstActualLateOldRenewalAndRelease()
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        // A BACKSTOP against a hang, not a budget for how long real Consul work may take. At sixty
+        // seconds it fired: this arm ran for exactly one minute on a shared runner and surfaced as
+        // TaskCanceledException, where duration-equals-cap is the tell that the bound expired rather
+        // than anything being cancelled. The arm creates a session, destroys it, drives a successor
+        // through acquisition, and blocks on several rendezvous against a real agent, so a minute is
+        // not a generous allowance for it.
+        //
+        // Raising this is what stops the bound from misreporting load as cancellation; it is NOT a fix
+        // for the arm being slow, which is its own question and is left stated rather than hidden.
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(
+            int.TryParse(Environment.GetEnvironmentVariable("EXCALIBUR_TEST_CONSUL_DEADLINE_SECONDS"), out var configured)
+            && configured > 0 ? configured : 180));
         using var client = new ConsulClient(config => config.Address = new Uri(fixture.ConsulAddress));
         var prefix = "excalibur/tests/tenure/" + Guid.NewGuid().ToString("N");
         var resource = "isolated-resource";

@@ -267,7 +267,8 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
                 try { generation = run.Kernel.BeginAcquisition(attempt, attempt.Acquire); }
                 catch (InvalidOperationException) when (run.StopRequested) { break; }
                 var acquisitionStart = _timeProvider.GetTimestamp();
-                attempt.Acquire.TryLaunch(async () =>
+                // Refused only when a stop already sealed the latch; the stop arm below reports it.
+                _ = attempt.Acquire.TryLaunch(async () =>
                 {
                     // Creation is inside the already-registered owned operation. A stop that wins
                     // the latch seal cannot be followed by a late connection allocation/open.
@@ -289,10 +290,16 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
                     await attempt.Acquire.Completion.ConfigureAwait(false);
                     if (attempt.Acquired && !run.Stop.IsCancellationRequested)
                     {
-                        run.Kernel.Publish(generation, acquisitionStart, attempt.Session!, attempt.Fence, _timeProvider.GetUtcNow());
+                        if (!run.Kernel.Publish(generation, acquisitionStart, attempt.Session!, attempt.Fence, _timeProvider.GetUtcNow()))
+                        {
+                            run.Kernel.ReportObservation(generation, false, null, "acquisition proof expired before publication", null, _timeProvider.GetUtcNow());
+                        }
                     }
-                    else if (run.Stop.IsCancellationRequested)
+                    else if (run.StopRequested || run.Stop.IsCancellationRequested)
                     {
+                        // StopRequested is set under the run gate BEFORE the latch is sealed, while the
+                        // token is cancelled afterwards and asynchronously. Testing the token alone lost
+                        // that race and logged a clean shutdown as a lost contention race.
                         run.Kernel.Retire(generation, "stopped");
                     }
                     else
@@ -325,7 +332,8 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
                     var verificationStart = _timeProvider.GetTimestamp();
                     previousRequestStart = verificationStart;
                     var proof = SqlServerSessionProof.Indeterminate;
-                    operation.TryLaunch(async () =>
+                    // Refused only when a stop already sealed the latch; the loop exits on StopRequested.
+                    _ = operation.TryLaunch(async () =>
                     {
                         proof = await attempt.Session!.VerifyAsync(_lockResource, VerificationCommandTimeoutSeconds, run.Stop.Token).ConfigureAwait(false);
                     });

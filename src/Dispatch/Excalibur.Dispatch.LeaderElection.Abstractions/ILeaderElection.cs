@@ -22,22 +22,56 @@ public interface ILeaderElection : IAsyncDisposable
 	/// <summary>
 	/// Event raised when this instance becomes the leader.
 	/// </summary>
+	/// <remarks>
+	/// Delivered on the election's notification worker, so it may run after the call that caused the
+	/// transition has already returned. A local transition is queued and never discarded: it is delayed,
+	/// not dropped. <strong>Arrival is not permission to write</strong> — the tenure may already have
+	/// ended by the time a handler runs, so read <see cref="CurrentLeadership"/> and fence the resource
+	/// rather than treating this event as authority.
+	/// </remarks>
 	event EventHandler<LeaderElectionEventArgs>? BecameLeader;
 
 	/// <summary>
 	/// Event raised when this instance loses leadership.
 	/// </summary>
+	/// <remarks>
+	/// Delivered on the election's notification worker. A local transition is queued and never discarded,
+	/// so this is delayed rather than dropped — but a handler that blocks delays every later
+	/// notification behind it, and a flag maintained by these handlers can therefore read "leader" for
+	/// an unbounded interval after the tenure ended. Do not derive a leadership decision from one.
+	/// </remarks>
 	event EventHandler<LeaderElectionEventArgs>? LostLeadership;
 
 	/// <summary>
 	/// Event raised when the leader changes (any instance).
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This event has <strong>two delivery tiers</strong> and they differ in whether an occurrence can be
+	/// lost. Raised from this instance's own leadership transition, it is queued and never discarded.
+	/// Raised from an <em>observation</em> of a remote holder, consecutive pending occurrences are
+	/// <strong>coalesced</strong>: the merge keeps the earliest previous holder and the most recent
+	/// current one, so a succession A to B to C can surface as a single A to C and the intermediate
+	/// holder is never reported.
+	/// </para>
+	/// <para>
+	/// So the net change is reliable and the sequence is not. Do not count these to count leadership
+	/// changes, and do not treat the absence of one as evidence that no change occurred.
+	/// </para>
+	/// </remarks>
 	event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
 
 	/// <summary>
 	/// Event raised when this instance fails to acquire leadership, either by losing the
 	/// acquisition race to another candidate or because an error occurred during the attempt.
 	/// </summary>
+	/// <remarks>
+	/// Raised from the observation tier, so consecutive pending failures are <strong>coalesced</strong>
+	/// into one and only the most recent reason and cause survive the merge. This event makes contention
+	/// and connectivity problems <em>visible</em>; it is not a counter of attempts, and a consumer
+	/// deriving a failure rate from it will under-count. Use it as a signal, and take counts from
+	/// metrics instead.
+	/// </remarks>
 	event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
 
 	/// <summary>
@@ -54,7 +88,7 @@ public interface ILeaderElection : IAsyncDisposable
 	/// <see cref="CurrentLeadership"/>. For a single atomic read of leadership state that also carries the
 	/// fencing token, prefer <c>CurrentLeadership is not null</c> — it is the authoritative check.
 	/// </remarks>
-	/// <value><see langword="true"/> if whether this instance is currently the leader.; otherwise, <see langword="false"/>.</value>
+	/// <value><see langword="true"/> if this instance is currently the leader; otherwise, <see langword="false"/>.</value>
 	bool IsLeader { get; }
 
 	/// <summary>
@@ -124,8 +158,37 @@ public interface ILeaderElection : IAsyncDisposable
 	/// <summary>
 	/// Starts participating in leader election.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// When the returned task completes, exactly one acquisition attempt has been made and resolved: this
+	/// candidate either holds the resource — in which case <see cref="CurrentLeadership"/> is already
+	/// non-null — or has observed that it does not. A renewal loop is armed either way.
+	/// </para>
+	/// <para>
+	/// <strong>Notifications for the transition are enqueued, not delivered.</strong> The
+	/// <see cref="BecameLeader"/>, <see cref="LostLeadership"/>, <see cref="LeaderChanged"/> and
+	/// <see cref="AcquisitionFailed"/> handlers are dispatched on the election's own notification worker,
+	/// so a handler may not have run by the time this task completes, and a slow handler delays only the
+	/// notifications — never the acquisition. Do not infer leadership from a flag maintained by those
+	/// handlers: read <see cref="CurrentLeadership"/>, which is authoritative and self-expiring.
+	/// </para>
+	/// <para>
+	/// Calling this method again on an instance that already participates is a no-op and raises no second
+	/// notification. It may not be called from inside one of this instance's own event handlers.
+	/// </para>
+	/// </remarks>
 	/// <param name="cancellationToken"> Cancellation token. </param>
 	/// <returns>A task that represents the asynchronous start operation.</returns>
+	/// <exception cref="ObjectDisposedException">This instance has been disposed.</exception>
+	/// <exception cref="InvalidOperationException">
+	/// A previous <see cref="StopAsync"/> has not yet reached quiescence, or this call was made from
+	/// inside one of this instance's own event handlers.
+	/// </exception>
+	/// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
+	/// <exception cref="TimeoutException">
+	/// A provider whose coordination backend bounds its own requests timed out while attempting the
+	/// acquisition. Not every provider can raise this.
+	/// </exception>
 	Task StartAsync(CancellationToken cancellationToken);
 
 	/// <summary>

@@ -288,7 +288,8 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
                     throw;
                 }
                 var start = _timeProvider.GetTimestamp();
-                attempt.Acquire.TryLaunch(async () =>
+                // Refused only when a stop already sealed the latch; the stop arm below reports it.
+                _ = attempt.Acquire.TryLaunch(async () =>
                 {
                     if (attempt.Connection.State != ConnectionState.Closed)
                     {
@@ -314,6 +315,15 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
                         {
                             run.Kernel.ReportObservation(generation, false, null, "acquisition proof expired before publication", null, _timeProvider.GetUtcNow());
                         }
+                    }
+                    else if (run.StopRequested || run.Stop.IsCancellationRequested)
+                    {
+                        // A stop seals the acquisition latch synchronously inside BeginStop, BEFORE it
+                        // schedules the token cancellation, so the actor can resume here with the token
+                        // still uncancelled. Reading StopRequested -- which BeginStop sets under the run
+                        // gate before sealing -- is what makes this deterministic: without it a clean
+                        // shutdown is logged as a contention failure that nobody lost.
+                        run.Kernel.Retire(generation, "stopped");
                     }
                     else
                     {
@@ -347,7 +357,8 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
                     cadenceAnchor = renewalStart;
                     var renewed = false;
                     var backendAvailable = false;
-                    operation.TryLaunch(async () =>
+                    // Refused only when a stop already sealed the latch; the loop exits on StopRequested.
+                    _ = operation.TryLaunch(async () =>
                     {
                         // No reconnect: a closed/broken dedicated session cannot retain its advisory lock.
                         backendAvailable = attempt.Connection.State == ConnectionState.Open;

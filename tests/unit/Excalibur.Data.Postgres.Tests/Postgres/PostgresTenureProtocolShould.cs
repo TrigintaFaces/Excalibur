@@ -405,6 +405,8 @@ public sealed class PostgresTenureProtocolShould
         internal Task OpenGate { get; init; } = Task.CompletedTask;
         internal TaskCompletionSource OpenEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal Func<CancellationToken, Task<object?>> Probe { get; init; } = static _ => Task.FromResult<object?>(true);
+        // Default true preserves every existing arm; set it to express a refused advisory lock.
+        internal Func<CancellationToken, Task<object?>> Acquire { get; init; } = static _ => Task.FromResult<object?>(true);
         internal Exception? UnlockFailure { get; init; }
         internal Exception? DisposeFailure { get; init; }
         internal Task DisposeGate { get; init; } = Task.CompletedTask;
@@ -451,6 +453,7 @@ public sealed class PostgresTenureProtocolShould
             owner.Commands.Enqueue(new(CommandText, (long)parameter.Value!, parameter.DbType, CommandTimeout, owner.State));
             token.ThrowIfCancellationRequested();
             if (CommandText.Contains("pg_locks", StringComparison.Ordinal)) { return owner.Probe(token); }
+            if (CommandText.Contains("pg_try_advisory_lock", StringComparison.Ordinal)) { return owner.Acquire(token); }
             if (CommandText.Contains("pg_advisory_unlock", StringComparison.Ordinal) && owner.UnlockFailure is not null) { return Task.FromException<object?>(owner.UnlockFailure); }
             return Task.FromResult<object?>(true);
         }

@@ -306,7 +306,11 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
                 catch { attempt.Stop.Dispose(); if (run.StopRequested) { break; } throw; }
                 var start = _timeProvider.GetTimestamp();
                 KubernetesLeaseProtocol.Result? result = null;
-                attempt.Acquire.TryLaunch(async () => { result = await KubernetesNativeOperation.RunAsync(this,
+                // Deliberately discarded. A refusal means a stop already sealed the latch, and on this
+                // provider both downstream effects are already suppressed by the kernel --
+                // ReportObservation returns on _stopped and Retire is a no-op once the phase is
+                // Retiring -- so a guard arm here would change nothing a consumer or operator sees.
+                _ = attempt.Acquire.TryLaunch(async () => { result = await KubernetesNativeOperation.RunAsync(this,
                     ct => _protocol.AcquireAsync(attempt.Native, ct), attempt.Token, error => attempt.SdkCleanupFailure = error,
                     () => AdmitOwnershipPhase(run, attempt, start, false)).ConfigureAwait(false); });
                 try
@@ -315,7 +319,10 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
                     if (result is { Confirmed: true, Proof: { } proof } && !run.Stop.IsCancellationRequested)
                     {
                         attempt.Proof = proof;
-                        run.Kernel.Publish(generation, start, attempt, proof.Token, _timeProvider.GetUtcNow());
+                        if (!run.Kernel.Publish(generation, start, attempt, proof.Token, _timeProvider.GetUtcNow()))
+                        {
+                            run.Kernel.ReportObservation(generation, false, null, "acquisition proof expired before publication", null, _timeProvider.GetUtcNow());
+                        }
                     }
                     else
                     {
@@ -350,7 +357,8 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
                     if (proofStart is null) { await operation.SealAndJoinAsync().ConfigureAwait(false); break; }
                     var renewalStart = _timeProvider.GetTimestamp(); cadenceStart = renewalStart;
                     KubernetesLeaseProtocol.Result? renewal = null;
-                    operation.TryLaunch(async () => { renewal = await KubernetesNativeOperation.RunAsync(this,
+                    // Deliberately discarded: see the acquisition site above.
+                    _ = operation.TryLaunch(async () => { renewal = await KubernetesNativeOperation.RunAsync(this,
                         ct => _protocol.RenewAsync(attempt.Proof!, ct), attempt.Token, error => attempt.SdkCleanupFailure = error,
                         () => AdmitOwnershipPhase(run, attempt, renewalStart, true)).ConfigureAwait(false); });
                     try

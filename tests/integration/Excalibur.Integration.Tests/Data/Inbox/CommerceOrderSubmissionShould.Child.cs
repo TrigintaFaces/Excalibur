@@ -61,7 +61,20 @@ public sealed partial class CommerceOrderSubmissionShould
 
         internal CommerceChild(string connection, string mode)
         {
-            OperatingSystem.IsWindows().ShouldBeTrue("Use the existing non-breakaway Windows Job launcher.");
+            // This asserted OperatingSystem.IsWindows() and told the reader to "use the existing
+            // non-breakaway Windows Job launcher". There is no such launcher: this type starts the
+            // child with ProcessStartInfo("dotnet") and UseShellExecute=false, waits with
+            // WaitForExitAsync, and tears it down with Process.Kill(entireProcessTree: true) -- every
+            // one of which is cross-platform, and there is no DllImport, no kernel32 and no job object
+            // anywhere in this file. The assertion outlived a mechanism the code does not use, and
+            // because the integration shard runs on ubuntu it failed every arm that constructs this
+            // child rather than exercising any of them.
+            //
+            // It matters which way round this is fixed. These are process-CRASH-RECOVERY arms, and
+            // consumers overwhelmingly deploy on Linux containers -- so the platform this was skipping
+            // is the platform the guarantee most needs to hold on. Removed rather than converted to a
+            // skip for that reason. The File.Exists check below is the real gate: if a host does not
+            // have the sample's output closure copied, it says so precisely instead of passing.
             var path = Path.Combine(AppContext.BaseDirectory, "ecommerce-process-sample", "Excalibur.Dispatch.Examples.ECommerceSample.dll");
             File.Exists(path).ShouldBeTrue("The current owning sample output closure must be copied by the integration build.");
             var start = new ProcessStartInfo("dotnet")

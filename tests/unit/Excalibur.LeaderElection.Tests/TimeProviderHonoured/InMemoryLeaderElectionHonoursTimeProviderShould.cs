@@ -4,6 +4,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.LeaderElection.Tests.TimeProviderHonoured;
 
 /// <summary>
@@ -118,7 +120,16 @@ public sealed class InMemoryLeaderElectionHonoursTimeProviderShould
 		clock.Advance(TimeSpan.FromHours(3));
 		await sut.StartAsync(CancellationToken.None);
 
-		becameLeaderAt.ShouldNotBeNull(
+		// Delivery is queued transition history, so wait for the notification rather than assuming it
+		// has landed by the time StartAsync returns. The wait is bounded by REAL time while the
+		// assertion below is against the INJECTED clock -- which is the point of the arm: the stamp
+		// must come from the provider, not from wall time, and the two clocks are deliberately hours
+		// apart here.
+		(await WaitHelpers.WaitUntilAsync(
+			() => becameLeaderAt is not null,
+			TimeSpan.FromSeconds(5),
+			TimeSpan.FromMilliseconds(10),
+			CancellationToken.None).ConfigureAwait(false)).ShouldBeTrue(
 			"the candidate never became leader, so no event fired and this arm proves nothing.");
 		becameLeaderAt!.Value.ShouldBe(clock.GetUtcNow());
 	}

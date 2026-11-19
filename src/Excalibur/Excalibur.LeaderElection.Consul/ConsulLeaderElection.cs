@@ -244,7 +244,10 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
                     generation = run.Kernel.BeginAcquisition(attempt, attempt.Acquire);
                 }
                 attempt.Generation = generation;
-                attempt.Acquire.TryLaunch(() => AcquireAsync(run, attempt));
+                // Deliberately discarded. A refusal means a stop already sealed the latch, and both
+                // downstream effects are already suppressed by the kernel on this provider --
+                // ReportObservation returns on _stopped and Retire is a no-op once Retiring.
+                _ = attempt.Acquire.TryLaunch(() => AcquireAsync(run, attempt));
                 try
                 {
                     await attempt.Acquire.Completion.ConfigureAwait(false);
@@ -257,7 +260,8 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
                     if (published)
                     {
                         _notifications.EnqueueDiagnostic(LogAcquiredLeadership, _resourceName);
-                        attempt.Monitor.TryLaunch(() => MonitorAsync(run, attempt));
+                        // Reached only on a published tenure, so a refusal implies a concurrent stop.
+                        _ = attempt.Monitor.TryLaunch(() => MonitorAsync(run, attempt));
                     }
                     else
                     {
@@ -290,7 +294,8 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
                     lastRequestStart = _timeProvider.GetTimestamp();
                     var renewalStart = lastRequestStart;
                     var confirmed = false;
-                    operation.TryLaunch(async () =>
+                    // Deliberately discarded: see the acquisition site above.
+                    _ = operation.TryLaunch(async () =>
                     {
                         if (!await ConsulElectionSessions.RenewAsync(_consulClient, _options, attempt.SessionId!, run.Stop.Token).ConfigureAwait(false)) { return; }
                         var pair = await ReadLeaderAsync(run.Stop.Token).ConfigureAwait(false);

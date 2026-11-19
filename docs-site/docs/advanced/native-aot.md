@@ -219,6 +219,31 @@ It avoids Dapper's dynamic execution at those migrated calls. This does not esta
 support for the selected database driver or the complete SQL profile: publish and execute that exact
 application path against real infrastructure. Existing Dapper request execution remains available.
 
+### SQL Server: the driver is not trim-clean, and that is not something this framework can fix
+
+A strict `PublishAot` of an application on the SQL Server path **will not be warning-free**, and the
+warnings do not come from this framework. Measured against `Microsoft.Data.SqlClient` 7.1.1 on a
+publish of a SQL Server plus Elasticsearch configuration: **54 trim and AOT analysis errors, every one
+of them raised inside the driver or the configuration stack it pulls in** — 48 in
+`Microsoft.Data.SqlClient`, 5 in `System.Configuration`, 1 in `Microsoft.Data.SqlTypes`, and **none in
+framework assemblies**. The framework's SQL Server packages set `IsAotCompatible`, which is a claim
+about their own IL and is accurate; it is not a claim that your publish inherits a clean graph, because
+no package can make that claim on another package's behalf.
+
+The three areas the analyzer names, so you can judge whether they matter to you:
+
+| area | analyzer | what can degrade |
+|---|---|---|
+| SQL client diagnostics, emitted through `DiagnosticSource.Write<T>` | `IL2026` | only the properties of the payload type are preserved; properties of referenced and derived types may be trimmed, so a diagnostics subscriber can observe less than it does untrimmed |
+| Azure AD authentication provider creation, which resolves providers by type name | `IL2057`, `IL2070` | a provider discovered reflectively may not be present after trimming; prefer an explicitly configured authentication method |
+| `SqlParameter` value coercion and `SqlVector` formatting | `IL3050` | these require dynamic code and have no AOT path in the driver |
+
+**What we do not do is suppress them.** Silencing a vendor's trim warnings inside our packages would
+hide from you that your own publish is affected, which is worse than the warning. If you need a
+warning-free Native AOT publish today, use a provider whose driver is trim-clean; if you need SQL
+Server, publish it, read the warnings against the table above, and verify the paths your application
+actually uses. We track the driver's progress and will narrow this note as it improves.
+
 ## JSON Serialization
 
 For generated JSON paths, supply explicit metadata instead of reflection fallback. Dispatch has two internal implementation contexts; the factory composes their declared metadata, and consumers do not resolve these types from DI:

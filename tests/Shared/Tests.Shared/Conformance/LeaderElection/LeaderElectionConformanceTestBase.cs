@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Collections.Concurrent;
+
 using Excalibur.Dispatch.LeaderElection;
 using Tests.Shared.Infrastructure;
 
@@ -313,8 +315,10 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	{
 		// Arrange
 		await using var competitor = await CreateCompetingElectionAsync().ConfigureAwait(false);
-		var leaderChangedEvents = new List<LeaderChangedEventArgs>();
-		competitor.LeaderChanged += (_, args) => leaderChangedEvents.Add(args);
+		// ConcurrentQueue, not List: the handler runs on the election's notification worker while this
+		// test thread reads the collection, so a List here is mutated and enumerated from two threads.
+		var leaderChangedEvents = new ConcurrentQueue<LeaderChangedEventArgs>();
+		competitor.LeaderChanged += (_, args) => leaderChangedEvents.Enqueue(args);
 
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		await AwaitConditionAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
@@ -325,8 +329,19 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 		await Election.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
+		// Leadership STATE and event DELIVERY advance independently: the notification is dispatched on
+		// the election's own notification worker, so the competitor can already report itself leader
+		// while its LeaderChanged callback has not yet run. This arm waited on the state and then
+		// asserted the event collection immediately, which bounds the wait on the wrong thing -- it
+		// passed on an idle machine and failed whenever the suite ran under load. Wait for the
+		// property being asserted, and keep the original message so a real absence still reads clearly.
 		await AwaitConditionAsync(() => competitor.IsLeader, EventTimeout).ConfigureAwait(false);
-		leaderChangedEvents.ShouldNotBeEmpty("LeaderChanged should have been raised on competitor");
+		(await WaitHelpers.WaitUntilAsync(
+			() => !leaderChangedEvents.IsEmpty,
+			EventTimeout,
+			TimeSpan.FromMilliseconds(25),
+			CancellationToken.None).ConfigureAwait(false)).ShouldBeTrue(
+			"LeaderChanged should have been raised on competitor");
 	}
 
 	#endregion LeaderChange Tests

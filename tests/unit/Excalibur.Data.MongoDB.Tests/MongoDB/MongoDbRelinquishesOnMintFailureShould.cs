@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Collections.Concurrent;
+
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.MongoDB;
@@ -9,6 +11,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
 using MongoDB.Driver;
+
+using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Data.MongoDB.Tests.MongoDB;
 
@@ -100,6 +104,7 @@ public sealed class MongoDbRelinquishesOnMintFailureShould
 		sut.IsLeader.ShouldBeFalse("a candidate that cannot fence its writes must not lead");
 		DeleteMustHaveHappened();
 
+		await AwaitOneFailureAsync(failures).ConfigureAwait(false);
 		failures.ShouldHaveSingleItem().Exception.ShouldBeOfType<InvalidOperationException>(
 			"the cause must reach a subscriber; a reason string alone cannot say what failed");
 
@@ -119,6 +124,7 @@ public sealed class MongoDbRelinquishesOnMintFailureShould
 
 		sut.IsLeader.ShouldBeFalse("an exhausted domain still relinquishes");
 		DeleteMustHaveHappened();
+		await AwaitOneFailureAsync(failures).ConfigureAwait(false);
 		failures.ShouldHaveSingleItem();
 
 		await sut.DisposeAsync().ConfigureAwait(false);
@@ -136,7 +142,15 @@ public sealed class MongoDbRelinquishesOnMintFailureShould
 
 		sut.IsLeader.ShouldBeTrue("a minted fence is the whole precondition for leading");
 		A.CallTo(_collection).Where(call => call.Method.Name == "DeleteOneAsync").MustNotHaveHappened();
-		failures.ShouldBeEmpty();
+		// A negative needs a bounded wait of its own. Asserting emptiness the instant StartAsync returns
+		// is satisfied by a notification that has simply not been dispatched yet, so this arm would hold
+		// for a provider that DOES report a spurious failure, slightly later.
+		(await WaitHelpers.WaitUntilAsync(
+			() => !failures.IsEmpty,
+			TimeSpan.FromMilliseconds(250),
+			TimeSpan.FromMilliseconds(10),
+			CancellationToken.None).ConfigureAwait(false)).ShouldBeFalse(
+			"a successfully minted fence must raise no acquisition failure");
 
 		await sut.DisposeAsync().ConfigureAwait(false);
 	}
@@ -148,7 +162,22 @@ public sealed class MongoDbRelinquishesOnMintFailureShould
 	/// varies between arms. <c>StartAsync</c> awaits one acquisition attempt, so the outcome is
 	/// observable on the next statement with no polling and no clock advance.
 	/// </summary>
-	private async Task<(MongoDbLeaderElection Sut, List<LeaderElectionAcquisitionFailedEventArgs> Failures)> StartAsync(
+	// AcquisitionFailed is dispatched on the election's notification worker, so it may not have been
+	// delivered by the time StartAsync returns. Wait for it rather than assume it: asserting the count
+	// immediately passed on an idle machine and failed whenever the suite ran under load.
+	private static async Task AwaitOneFailureAsync(ConcurrentQueue<LeaderElectionAcquisitionFailedEventArgs> failures) =>
+		(await WaitHelpers.WaitUntilAsync(
+			() => !failures.IsEmpty,
+			TimeSpan.FromSeconds(5),
+			TimeSpan.FromMilliseconds(10),
+			CancellationToken.None).ConfigureAwait(false)).ShouldBeTrue(
+			"the acquisition failure must reach a subscriber");
+
+	// ConcurrentQueue, not List: AcquisitionFailed is delivered on the election's notification worker,
+	// so the handler writes this collection from a different thread than the arm that reads it. A List
+	// there is mutated while being enumerated, which is why the failure read "should have single item
+	// but had 1 items" -- the count changed between the assertion and the message being formatted.
+	private async Task<(MongoDbLeaderElection Sut, ConcurrentQueue<LeaderElectionAcquisitionFailedEventArgs> Failures)> StartAsync(
 		IFencingTokenIssuer provider)
 	{
 		var mongoOptions = Options.Create(new MongoDbLeaderElectionOptions
@@ -183,8 +212,8 @@ public sealed class MongoDbRelinquishesOnMintFailureShould
 			provider,
 			_clock);
 
-		var failures = new List<LeaderElectionAcquisitionFailedEventArgs>();
-		sut.AcquisitionFailed += (_, e) => failures.Add(e);
+		var failures = new ConcurrentQueue<LeaderElectionAcquisitionFailedEventArgs>();
+		sut.AcquisitionFailed += (_, e) => failures.Enqueue(e);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		return (sut, failures);

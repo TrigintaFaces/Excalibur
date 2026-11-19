@@ -56,3 +56,9 @@ Check 'successful-optional-missing-results' 1 {} 'success'
 $results|ConvertTo-Json|Set-Content "$Output/results.json"
 $results|Format-Table
 if (@($results|Where-Object { !$_.passed }).Count) { throw 'Reporting regression controls failed' }
+# Every arm above runs perf-report.ps1 and EXPECTS a non-zero exit from most of them, so $LASTEXITCODE
+# holds the last arm's deliberate 1 by the time the script ends. `pwsh -command ". 'script'"` propagates
+# $LASTEXITCODE, so without this the self-test reports FAILURE while reporting every arm as passed --
+# which is what it did in CI while $? was True and the throw above never fired. Exit explicitly on the
+# control outcome, not on the residue of the last thing that ran.
+exit 0

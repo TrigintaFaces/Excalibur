@@ -37,13 +37,38 @@ def routes(repo):
     require(len(composer) == len(runner) == 1, 'Missing unique composer/execution step')
     for step in composer + runner:
         require(not re.search(r'^        if:', step, re.M), 'Conditional integration step is unsupported')
-    line = "          $filterInfo = ./eng/ci/get-integration-test-filter.ps1 -Leg '${{ matrix.shard.leg }}' | ConvertFrom-Json"
     executable = [value for value in composer[0].split('        run: |\n', 1)[1].splitlines()
                   if value.strip() and not value.lstrip().startswith('#')]
-    require(executable == [line,
-        '          "INTEGRATION_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV',
-        '          Write-Host "Using integration filter with $($filterInfo.count) quarantined exclusions."'],
-        'Execution does not use the supported composer/export body')
+    # Assert the PROPERTIES that make the filter trustworthy, not a fixed snapshot of the step body.
+    # This previously pinned the step to an exact three-line listing, so every legitimate addition to
+    # it -- running the filter script's own self-test first, passing the release scope through, writing
+    # the scope evidence file -- failed this audit. Because it runs ahead of every unit shard, one such
+    # drift reddened all of them, and the drift was an improvement to the thing being audited.
+    #
+    # What must hold is narrower and does not decay: the filter is PRODUCED by the supported script,
+    # bound to this shard's leg, captured as the parsed result, and EXPORTED exactly once from that
+    # result. How much reporting or evidence the step writes around that is not this audit's business.
+    #
+    # PowerShell continuations are joined first, so the invocation reads as a single statement however
+    # its parameter list is wrapped.
+    statements, pending = [], ''
+    for value in executable:
+        trimmed = value.rstrip()
+        if trimmed.endswith('`'):
+            pending += trimmed[:-1]
+            continue
+        statements.append(pending + trimmed)
+        pending = ''
+    if pending:
+        statements.append(pending)
+    invocation = [value for value in statements if './eng/ci/get-integration-test-filter.ps1' in value]
+    require(len(invocation) == 1, 'Composer must invoke get-integration-test-filter.ps1 exactly once')
+    require("-Leg '${{ matrix.shard.leg }}'" in invocation[0], 'Composer must bind this shard its own leg')
+    require('$filterInfo =' in invocation[0] and 'ConvertFrom-Json' in invocation[0],
+            'Composer must capture the parsed filter result as $filterInfo')
+    exports = [value for value in statements if 'INTEGRATION_TEST_FILTER=' in value]
+    require(exports == ['          "INTEGRATION_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV'],
+            'Execution must export the composed filter exactly once, from the composer output')
     require(text.count('INTEGRATION_TEST_FILTER') == 3, 'Execution filter has an additional use or override')
     require('\n          dotnet test ${{ matrix.shard.filter }} \\\n' in runner[0] and
             '\n            --filter "${{ env.INTEGRATION_TEST_FILTER }}" \\\n' in runner[0], 'Execution source/filter binding changed')

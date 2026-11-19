@@ -74,8 +74,13 @@ public sealed class SqlServerHostedScheduleProcessRecoveryShould(SqlServerFixtur
 
     private async Task RunHostedRecoveryAsync(bool? failLegacyOccurrence)
     {
-        // Run only under the existing reviewed Windows Job launcher. Children inherit its non-breakaway Job.
-        OperatingSystem.IsWindows().ShouldBeTrue("This arm requires the existing owned Windows Job launcher.");
+        // This asserted OperatingSystem.IsWindows() and claimed children inherit a non-breakaway Job.
+        // No job object exists in this path -- the child is started and torn down through portable
+        // Process APIs only (no DllImport, no kernel32) -- so the assertion guarded a mechanism the
+        // code does not have and failed this arm outright on the ubuntu integration shard.
+        //
+        // Recovery after owner termination is exactly the behaviour a consumer on a Linux container
+        // depends on, so the arm should RUN there rather than assert its way out.
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(120));
         var token = deadline.Token;

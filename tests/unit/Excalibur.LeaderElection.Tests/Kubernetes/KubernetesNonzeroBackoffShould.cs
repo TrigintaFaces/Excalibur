@@ -50,7 +50,22 @@ public sealed class KubernetesNonzeroBackoffShould(ITestOutputHelper output)
                         || Reject(observed.HasAdmission, "NoOwnershipAdmission")
                         || Reject(!observed.Retiring, "RetiringAttempt")
                         || Reject(!observed.AcquisitionToken.IsCancellationRequested, "AcquisitionCancelled")
-                        || Reject(!original.SdkToken.IsCancellationRequested, "OriginalSdkCancelled")
+                        // DELIBERATELY NOT ASSERTED: that the superseded operation's own SDK token has
+                        // observed cancellation by now. It was asserted here as "OriginalSdkCancelled"
+                        // and it is false in a reachable state of the CORRECT algorithm, so it failed
+                        // about once in 1270 under full-suite load and passed in isolation.
+                        //
+                        // What orders retirement is TERMINATION, not cancellation. RetireAsync sets
+                        // attempt.Retiring under _runGate, then joins retirement.OperationCompletion,
+                        // and only then issues this cleanup read -- so the superseded attempt has
+                        // already returned before any read gets here. Cancellation merely hurries that
+                        // along; it is a liveness accelerator, not the safety barrier.
+                        //
+                        // And an operation that returns NORMALLY never has its token cancelled at all:
+                        // Invocation.JoinCoreAsync removes the sole upstream forwarder before observing
+                        // the cancellation task, so the linked child source is disposed with
+                        // IsCancellationRequested never set. An uncancelled superseded token is the
+                        // designed steady state. Re-adding this fact re-introduces the flake.
                         || Reject(observed.SdkToken == original.SdkToken, "DistinctSdkToken")
                         || Reject(!observed.SdkToken.CanBeCanceled, "CleanupTokenCancellable")
                         || Reject(observed.SdkToken.IsCancellationRequested, "CleanupTokenNotCancelled")
